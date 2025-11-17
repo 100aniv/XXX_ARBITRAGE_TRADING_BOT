@@ -578,6 +578,7 @@ class ArbitrageLiveRunner:
         """
         1회 루프 실행: snapshot → engine → trades → orders.
         D50.5: 메트릭 수집 추가.
+        D53: 성능 최적화 - dict 할당 제거, getattr 최소화.
         
         Returns:
             성공 여부
@@ -594,31 +595,36 @@ class ArbitrageLiveRunner:
         # 엔진 처리
         trades = self.process_snapshot(snapshot)
         
-        # 주문 실행
-        trades_opened_delta = len([t for t in trades if t.is_open])
+        # 주문 실행 (D53: list comprehension 최소화)
+        trades_opened_delta = sum(1 for t in trades if t.is_open)
         self.execute_trades(trades)
         
-        # D50.5: 메트릭 수집
+        # D50.5/D53: 메트릭 수집 (최적화)
         loop_end = time.time()
         loop_time_ms = (loop_end - loop_start) * 1000.0
         self._last_loop_time_ms = loop_time_ms
         
-        # 스프레드 계산 (엔진에서 마지막 스프레드 값 추출)
-        if hasattr(self.engine, 'last_spread_bps'):
-            self._last_spread_bps = self.engine.last_spread_bps
+        # D53: 스프레드 캐싱 (hasattr 대신 직접 접근)
+        last_spread_bps = getattr(self.engine, 'last_spread_bps', self._last_spread_bps)
+        self._last_spread_bps = last_spread_bps
         
-        # MetricsCollector 업데이트
+        # D53: MetricsCollector 업데이트 (조건부 dict 생성 제거)
         if self.metrics_collector is not None:
-            ws_status = {
-                "connected": getattr(self.market_data_provider, 'ws_connected', False) if self.market_data_provider else False,
-                "reconnects": getattr(self.market_data_provider, 'ws_reconnects', 0) if self.market_data_provider else 0,
-            }
+            # WS 상태는 provider가 있을 때만 조회
+            if self.market_data_provider is not None:
+                ws_connected = getattr(self.market_data_provider, 'ws_connected', False)
+                ws_reconnects = getattr(self.market_data_provider, 'ws_reconnects', 0)
+            else:
+                ws_connected = False
+                ws_reconnects = 0
+            
             self.metrics_collector.update_loop_metrics(
                 loop_time_ms=loop_time_ms,
                 trades_opened=trades_opened_delta,
-                spread_bps=self._last_spread_bps,
+                spread_bps=last_spread_bps,
                 data_source=self.config.data_source,
-                ws_status=ws_status,
+                ws_connected=ws_connected,
+                ws_reconnects=ws_reconnects,
             )
         
         logger.debug(

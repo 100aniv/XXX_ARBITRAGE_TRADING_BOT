@@ -238,7 +238,8 @@ class TestLongrunAnalyzer:
         report = analyzer.analyze_metrics_log(log_data)
         
         # 체결 신호 부족 탐지 (총 체결 수가 0)
-        total_trades = sum(report.trades_opened_stats.values)
+        # D53: stats.values 합계 계산 (최적화 전과 동일)
+        total_trades = sum(report.trades_opened_stats.values) if report.trades_opened_stats.values else 0
         assert total_trades == 0
         assert len(report.anomalies) > 0
         assert any(a.category == "TRADES" for a in report.anomalies)

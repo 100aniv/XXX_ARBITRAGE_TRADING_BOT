@@ -44,28 +44,21 @@ def load_config(config_path: str) -> dict:
 
 def create_exchanges(config: dict, mode: str):
     """거래소 생성"""
-    from arbitrage.exchanges.base import Balance
-    
     exchange_a = PaperExchange(
-        name="paper_a",
-        balances={
-            "KRW": Balance(asset="KRW", free=100000000.0, locked=0.0),
-            "BTC": Balance(asset="BTC", free=10.0, locked=0.0),
-        },
+        initial_balance={
+            "KRW": 100000000.0,
+            "BTC": 10.0,
+        }
     )
     
     exchange_b = PaperExchange(
-        name="paper_b",
-        balances={
-            "USDT": Balance(asset="USDT", free=1000000.0, locked=0.0),
-            "BTC": Balance(asset="BTC", free=10.0, locked=0.0),
-        },
+        initial_balance={
+            "USDT": 1000000.0,
+            "BTC": 10.0,
+        }
     )
     
-    logger.info(
-        f"[D51_CLI] Created Paper exchanges: "
-        f"A={exchange_a.get_balances()}, B={exchange_b.get_balances()}"
-    )
+    logger.info("[D51_CLI] Created Paper exchanges: A and B")
     
     return exchange_a, exchange_b
 

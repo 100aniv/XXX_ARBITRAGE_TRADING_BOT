@@ -31,7 +31,8 @@ class TestD50MetricsCollectorBasics:
             trades_opened=1,
             spread_bps=5000.0,
             data_source="rest",
-            ws_status={"connected": False, "reconnects": 0},
+            ws_connected=False,
+            ws_reconnects=0,
         )
         
         metrics = collector.get_metrics()
@@ -85,7 +86,8 @@ class TestD50MetricsCollectorBasics:
             0,
             5000.0,
             "ws",
-            ws_status={"connected": True, "reconnects": 2},
+            ws_connected=True,
+            ws_reconnects=2,
         )
         
         metrics = collector.get_metrics()
@@ -123,7 +125,8 @@ class TestD50MetricsCollectorBasics:
             0,
             5000.0,
             "rest",
-            ws_status={"connected": False, "reconnects": 0},
+            ws_connected=False,
+            ws_reconnects=0,
         )
         
         health = collector.get_health()

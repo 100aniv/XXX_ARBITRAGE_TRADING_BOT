@@ -160,10 +160,14 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         # 거래소별 최신 스냅샷 (D49.5)
         self.snapshot_upbit: Optional[OrderBookSnapshot] = None
         self.snapshot_binance: Optional[OrderBookSnapshot] = None
+        
+        # D53: 심볼 패턴 캐싱 (반복 계산 제거)
+        self._symbol_cache: Dict[str, str] = {}  # symbol -> "upbit" or "binance"
     
     def get_latest_snapshot(self, symbol: str) -> Optional[OrderBookSnapshot]:
         """
         심볼 기반 최신 호가 스냅샷 반환
+        D53: 심볼 패턴 캐싱으로 성능 개선
         
         Args:
             symbol: 거래 쌍 (예: "KRW-BTC", "BTCUSDT")
@@ -171,14 +175,23 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         Returns:
             OrderBookSnapshot 또는 None (데이터 없음)
         """
-        # 심볼 패턴으로 거래소 판단
-        if "-" in symbol:  # Upbit (KRW-BTC)
+        # D53: 캐시 확인
+        if symbol not in self._symbol_cache:
+            # 심볼 패턴으로 거래소 판단 (첫 호출 시만)
+            if "-" in symbol:  # Upbit (KRW-BTC)
+                self._symbol_cache[symbol] = "upbit"
+            elif symbol.endswith("USDT"):  # Binance (BTCUSDT)
+                self._symbol_cache[symbol] = "binance"
+            else:
+                logger.warning(f"[D49.5_PROVIDER] Unknown symbol pattern: {symbol}")
+                return None
+        
+        # 캐시된 거래소 정보로 스냅샷 반환
+        exchange = self._symbol_cache[symbol]
+        if exchange == "upbit":
             return self.snapshot_upbit
-        elif symbol.endswith("USDT"):  # Binance (BTCUSDT)
-            return self.snapshot_binance
         else:
-            logger.warning(f"[D49.5_PROVIDER] Unknown symbol pattern: {symbol}")
-            return None
+            return self.snapshot_binance
     
     def start(self) -> None:
         """

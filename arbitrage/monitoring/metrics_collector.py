@@ -23,10 +23,11 @@ class MetricsCollector:
     - 데이터 소스 및 WS 상태 추적
     """
     
-    def __init__(self, buffer_size: int = 300):
+    def __init__(self, buffer_size: int = 200):
         """
         Args:
-            buffer_size: 최근 N개 루프 기록 유지 (기본값: 300 = 5분 @ 1루프/초)
+            buffer_size: 최근 N개 루프 기록 유지 (기본값: 200 = 3.3분 @ 1루프/초)
+            D53: 최적화 - 300 → 200으로 감소 (메모리 절감)
         """
         self.buffer_size = buffer_size
         
@@ -50,31 +51,30 @@ class MetricsCollector:
         trades_opened: int,
         spread_bps: float,
         data_source: str,
-        ws_status: Optional[Dict[str, Any]] = None,
+        ws_connected: bool = False,
+        ws_reconnects: int = 0,
     ) -> None:
         """
         루프 메트릭 업데이트
+        D53: 최적화 - dict 할당 제거, 직접 파라미터 사용
         
         Args:
             loop_time_ms: 루프 실행 시간 (ms)
             trades_opened: 이번 루프에서 체결된 거래 수
             spread_bps: 스프레드 (basis points)
             data_source: 데이터 소스 ("rest" 또는 "ws")
-            ws_status: WebSocket 상태 dict
-                - connected: bool
-                - reconnects: int
+            ws_connected: WebSocket 연결 상태
+            ws_reconnects: WebSocket 재연결 횟수
         """
         # 루프 메트릭 버퍼에 추가
         self.loop_times.append(loop_time_ms)
         self.trades_opened.append(trades_opened)
         self.spreads.append(spread_bps)
         
-        # 상태 정보 업데이트
+        # 상태 정보 업데이트 (D53: 직접 할당)
         self.data_source = data_source
-        
-        if ws_status:
-            self.ws_connected = ws_status.get("connected", False)
-            self.ws_reconnect_count = ws_status.get("reconnects", 0)
+        self.ws_connected = ws_connected
+        self.ws_reconnect_count = ws_reconnects
         
         # 누적 통계 업데이트
         self.trades_opened_total += trades_opened
