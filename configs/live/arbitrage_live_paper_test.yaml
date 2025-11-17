@@ -1,0 +1,32 @@
+# D43 Arbitrage Live Runner - Paper Mode Test Configuration
+# 실제 스프레드가 있는 호가로 거래 신호 생성 테스트
+
+exchanges:
+  type_a: "paper"
+  type_b: "paper"
+  
+  initial_balance_a:
+    KRW: 100000000.0  # 매우 충분한 잔고
+    BTC: 10.0  # 충분한 BTC 보유
+  
+  initial_balance_b:
+    USDT: 1000000.0  # 매우 충분한 잔고
+    BTC: 10.0  # 충분한 BTC 보유
+
+symbols:
+  symbol_a: "KRW-BTC"
+  symbol_b: "BTCUSDT"
+
+engine:
+  min_spread_bps: 20.0  # 낮춤 (더 쉽게 거래 신호 생성)
+  taker_fee_a_bps: 5.0
+  taker_fee_b_bps: 4.0
+  slippage_bps: 5.0
+  max_position_usd: 5000.0  # 높임
+  max_open_trades: 1
+
+live:
+  poll_interval_seconds: 0.5  # 빠르게
+  max_concurrent_trades: 1
+  max_runtime_seconds: 30  # 30초 테스트
+  log_level: "INFO"

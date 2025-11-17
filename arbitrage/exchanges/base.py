@@ -1,0 +1,218 @@
+# -*- coding: utf-8 -*-
+"""
+D42 Exchange Adapter Layer - Base Interface
+
+공통 거래소 인터페이스 정의.
+"""
+
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Dict, List, Optional, Any
+
+logger = logging.getLogger(__name__)
+
+
+class OrderSide(str, Enum):
+    """주문 방향"""
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+class PositionSide(str, Enum):
+    """포지션 방향 (선물용)"""
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
+class OrderType(str, Enum):
+    """주문 유형"""
+    LIMIT = "LIMIT"
+    MARKET = "MARKET"
+
+
+class TimeInForce(str, Enum):
+    """주문 유효 기간"""
+    GTC = "GTC"  # Good-Till-Canceled
+    IOC = "IOC"  # Immediate-Or-Cancel
+    FOK = "FOK"  # Fill-Or-Kill
+
+
+class OrderStatus(str, Enum):
+    """주문 상태"""
+    PENDING = "PENDING"
+    OPEN = "OPEN"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    CANCELED = "CANCELED"
+    REJECTED = "REJECTED"
+
+
+@dataclass
+class OrderBookSnapshot:
+    """호가 스냅샷"""
+    symbol: str
+    timestamp: float
+    bids: List[tuple]  # [(price, qty), ...]
+    asks: List[tuple]  # [(price, qty), ...]
+    
+    def best_bid(self) -> Optional[float]:
+        """최고 매수가"""
+        return self.bids[0][0] if self.bids else None
+    
+    def best_ask(self) -> Optional[float]:
+        """최저 매도가"""
+        return self.asks[0][0] if self.asks else None
+
+
+@dataclass
+class Balance:
+    """자산 잔고"""
+    asset: str
+    free: float
+    locked: float
+    
+    @property
+    def total(self) -> float:
+        """총 잔고"""
+        return self.free + self.locked
+
+
+@dataclass
+class Position:
+    """포지션 (선물용)"""
+    symbol: str
+    side: PositionSide
+    qty: float
+    entry_price: float
+    mark_price: float
+    unrealized_pnl: float
+    leverage: int = 1
+
+
+@dataclass
+class OrderResult:
+    """주문 결과"""
+    order_id: str
+    symbol: str
+    side: OrderSide
+    qty: float
+    price: Optional[float]
+    order_type: OrderType
+    status: OrderStatus
+    filled_qty: float = 0.0
+    timestamp: float = field(default_factory=lambda: __import__('time').time())
+    
+    @property
+    def is_filled(self) -> bool:
+        """완전 체결 여부"""
+        return self.status == OrderStatus.FILLED
+    
+    @property
+    def is_open(self) -> bool:
+        """미체결 여부"""
+        return self.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]
+
+
+class BaseExchange(ABC):
+    """
+    거래소 어댑터 기본 인터페이스.
+    
+    모든 거래소 어댑터는 이 클래스를 상속받아 구현해야 한다.
+    """
+    
+    def __init__(self, name: str, config: Optional[Dict[str, Any]] = None):
+        """
+        Args:
+            name: 거래소 이름 (upbit, binance, paper 등)
+            config: 설정 dict (API 키, 엔드포인트 등)
+        """
+        self.name = name
+        self.config = config or {}
+        logger.info(f"[D42_EXCHANGE] {name} initialized")
+    
+    @abstractmethod
+    def get_orderbook(self, symbol: str) -> OrderBookSnapshot:
+        """
+        호가 정보 조회.
+        
+        Args:
+            symbol: 거래 쌍 (예: "BTC-KRW", "BTCUSDT")
+        
+        Returns:
+            OrderBookSnapshot
+        """
+        pass
+    
+    @abstractmethod
+    def get_balance(self) -> Dict[str, Balance]:
+        """
+        자산 잔고 조회.
+        
+        Returns:
+            {asset: Balance, ...}
+        """
+        pass
+    
+    @abstractmethod
+    def create_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        qty: float,
+        price: Optional[float] = None,
+        order_type: OrderType = OrderType.LIMIT,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+    ) -> OrderResult:
+        """
+        주문 생성.
+        
+        Args:
+            symbol: 거래 쌍
+            side: 주문 방향 (BUY/SELL)
+            qty: 주문 수량
+            price: 주문 가격 (MARKET 주문 시 None)
+            order_type: 주문 유형 (LIMIT/MARKET)
+            time_in_force: 주문 유효 기간
+        
+        Returns:
+            OrderResult
+        """
+        pass
+    
+    @abstractmethod
+    def cancel_order(self, order_id: str) -> bool:
+        """
+        주문 취소.
+        
+        Args:
+            order_id: 주문 ID
+        
+        Returns:
+            성공 여부
+        """
+        pass
+    
+    @abstractmethod
+    def get_open_positions(self) -> List[Position]:
+        """
+        미결제 포지션 조회 (선물용).
+        
+        Returns:
+            포지션 리스트
+        """
+        pass
+    
+    @abstractmethod
+    def get_order_status(self, order_id: str) -> OrderResult:
+        """
+        주문 상태 조회.
+        
+        Args:
+            order_id: 주문 ID
+        
+        Returns:
+            OrderResult
+        """
+        pass

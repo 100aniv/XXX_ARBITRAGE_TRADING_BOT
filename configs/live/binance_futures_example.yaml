@@ -1,0 +1,52 @@
+# D42 Exchange Adapter - Binance Futures Configuration Example
+# 
+# 주의: 이것은 예시 파일입니다.
+# 실제 API 키와 시크릿은 절대 이 파일에 저장하지 마세요.
+# 대신 환경 변수 또는 별도의 보안 저장소를 사용하세요.
+
+exchange:
+  name: binance
+  type: futures
+
+# API 설정
+api:
+  # 환경 변수에서 읽기: export BINANCE_API_KEY="your_key"
+  key: ${BINANCE_API_KEY}
+  secret: ${BINANCE_API_SECRET}
+  
+  # API 엔드포인트
+  base_url: https://fapi.binance.com
+  
+  # 요청 타임아웃 (초)
+  timeout: 10
+
+# 거래 설정
+trading:
+  # 실거래 활성화 (기본값: false)
+  # 로컬 테스트에서는 false로 유지하고, 실거래 시에만 true로 변경
+  live_enabled: false
+  
+  # 레버리지 (기본값: 1)
+  leverage: 1
+  
+  # 주문 유형
+  order_type: LIMIT
+  
+  # 주문 유효 기간
+  time_in_force: GTC
+  
+  # 포지션 모드 (ONE_WAY 또는 HEDGE)
+  position_mode: ONE_WAY
+
+# 거래 쌍
+markets:
+  - symbol: BTCUSDT
+    min_qty: 0.001
+    min_price: 0.01
+  - symbol: ETHUSDT
+    min_qty: 0.01
+    min_price: 0.01
+
+# 로깅
+logging:
+  level: INFO

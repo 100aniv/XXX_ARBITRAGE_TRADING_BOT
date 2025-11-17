@@ -1,0 +1,61 @@
+# D52 WebSocket Long-run Test Config
+# WebSocket 기반 롱런 테스트용 설정
+
+symbols:
+  symbol_a: "KRW-BTC"
+  symbol_b: "BTCUSDT"
+
+engine:
+  min_spread_bps: 20.0
+  taker_fee_a_bps: 5.0
+  taker_fee_b_bps: 4.0
+  slippage_bps: 5.0
+  max_position_usd: 5000.0
+  max_open_trades: 1
+
+live:
+  poll_interval_seconds: 1.0
+  max_concurrent_trades: 1
+  log_level: "INFO"
+  # data_source는 run_ws_longrun.py에서 강제 설정 (ws)
+
+risk_limits:
+  max_notional_per_trade: 5000.0
+  max_daily_loss: 10000.0
+  max_open_trades: 1
+
+paper_simulation:
+  enable_price_volatility: true
+  volatility_range_bps: 100
+  spread_injection_interval: 5
+
+# D52: WebSocket 설정 (강제 활성화)
+ws:
+  enabled: true
+  upbit:
+    enabled: true
+    symbols:
+      - "KRW-BTC"
+      - "KRW-ETH"
+    heartbeat_interval: 30.0
+    timeout: 10.0
+  binance:
+    enabled: true
+    symbols:
+      - "BTCUSDT"
+      - "ETHUSDT"
+    depth: "20"
+    interval: "100ms"
+    heartbeat_interval: 30.0
+    timeout: 10.0
+  reconnect_backoff:
+    initial: 1.0
+    max: 30.0
+    multiplier: 2.0
+
+# D52: 모니터링 설정
+monitoring:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8000
+  format: "json"

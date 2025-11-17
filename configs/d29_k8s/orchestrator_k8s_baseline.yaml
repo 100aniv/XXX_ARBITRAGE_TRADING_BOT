@@ -1,0 +1,25 @@
+# D29 Kubernetes Orchestrator Configuration
+# 주의: 이것은 샘플 설정입니다. 실제 환경에 맞게 수정하세요.
+
+session_id: "d29-k8s-demo-session"
+k8s_namespace: "trading-bots"
+image: "your-registry/arbitrage-lite:latest"
+mode: "paper"
+env: "docker"
+total_iterations: 6
+workers: 2
+optimizer: "bayesian"
+config_path: "configs/d23_tuning/advanced_baseline.yaml"
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+extra_env:
+  APP_ENV: "docker"
+  REDIS_HOST: "arbitrage-redis"
+  REDIS_PORT: "6379"

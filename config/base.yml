@@ -1,0 +1,137 @@
+# Arbitrage-Lite 기본 설정
+# ==============================
+
+# 거래소 설정
+exchanges:
+  upbit:
+    base_url: "https://api.upbit.com"
+  binance_futures:
+    base_url: "https://fapi.binance.com"
+
+# 거래 심볼 목록 (다중 심볼 지원)
+# 각 심볼별 독립적인 설정 가능
+symbols:
+  - name: BTC
+    sizing:
+      max_notional_krw: 100000
+    spread:
+      min_net_spread_pct: 0.5
+      exit_net_spread_pct: 0.1
+      max_holding_seconds: 5
+  - name: ETH
+    sizing:
+      max_notional_krw: 50000
+    spread:
+      min_net_spread_pct: 0.5
+      exit_net_spread_pct: 0.1
+      max_holding_seconds: 10
+
+# 글로벌 스프레드 설정 (심볼별 설정이 없을 때 기본값)
+spread:
+  # 진입 조건: 순 스프레드가 이 값 이상이어야 진입 후보
+  min_net_spread_pct: 0.5
+  # 청산 조건: 순 스프레드가 이 값 이하로 내려가면 청산
+  exit_net_spread_pct: 0.1
+  # 포지션 최대 보유 시간 (초) - 테스트용 짧게 설정
+  max_holding_seconds: 10
+
+# 글로벌 주문 크기 설정
+sizing:
+  # 포트폴리오 전체 최대 노출 (KRW 기준)
+  max_total_notional_krw: 500000
+  
+  # 동시에 열 수 있는 최대 포지션 수 (전체)
+  max_open_positions: 2
+
+# 시세 수집 주기 (초)
+# REST API 폴링 방식의 경우 이 주기마다 시세를 조회
+poll_interval_seconds: 3
+
+# 환율 설정 (FX Normalization with TTL Caching)
+fx:
+  # 환율 소스 모드
+  # - static: 고정 환율값 사용 (현재 PHASE C)
+  # - api: 외부 API 연동 (PHASE D 이후)
+  # - db: 데이터베이스 연동 (PHASE D 이후)
+  mode: static
+  
+  # USD/KRW 환율 (정적 값, mode=static일 때 사용)
+  usdkrw: 1350.0
+  
+  # TTL 기반 캐싱 (초)
+  # 이 시간 내에는 캐시된 환율값 사용, 초과 시 새로 조회
+  ttl_seconds: 3
+  
+  # 환율 소스 선호도 (PHASE D 이후 사용)
+  # - upbit: 업비트 USDT-KRW 시세 사용
+  # - binance: 바이낸스 고정값 (1.0)
+  # - auto: 자동 선택
+  source_prefer: "upbit"
+  
+  # Fallback 전략 (PHASE D 이후 사용)
+  # - last_valid: 최근 유효한 값 유지
+  # - default: 기본값(1350.0) 사용
+  fallback: "last_valid"
+
+# 수수료 설정 (%)
+fees:
+  upbit_taker: 0.05     # 업비트 Taker 수수료 0.05%
+  upbit_maker: 0.05     # 업비트 Maker 수수료 0.05%
+  binance_taker: 0.04   # 바이낸스 선물 Taker 수수료 0.04%
+  binance_maker: 0.02   # 바이낸스 선물 Maker 수수료 0.02%
+
+# 슬리피지 설정 (Order Routing & Slippage Model)
+# - base_bps: 기본 슬리피지 (basis points, 1 bps = 0.01%)
+# - volatility_factor: 변동성 기반 추가 슬리피지 배수 (현재는 1.0 고정)
+slippage:
+  upbit:
+    base_bps: 10        # 0.10% 기본 슬리피지
+    volatility_factor: 1.0
+  binance_futures:
+    base_bps: 5         # 0.05% 기본 슬리피지
+    volatility_factor: 1.0
+
+# Storage 설정 (Persistence & Metrics – PHASE D MODULE D1)
+# - backend: csv (기본, 현재 사용) | postgres (PHASE D1 구현) | hybrid (PHASE D2 예정)
+#
+# 사용 예시:
+#   1. CSV 모드 (기본):
+#      backend: csv
+#      데이터는 data/ 디렉토리에 CSV 파일로 저장됨
+#
+#   2. PostgreSQL 모드 (docker-compose 사용):
+#      docker-compose -f infra/docker-compose.yml up -d postgres
+#      backend: postgres
+#      postgres.dsn: postgresql://arbitrage:arbitrage@localhost:5432/arbitrage
+#
+#   3. 환경 변수 사용 (프로덕션):
+#      export DATABASE_URL="postgresql://user:pass@host:5432/db"
+#      postgres.dsn: ${DATABASE_URL}
+storage:
+  backend: csv  # csv | postgres | hybrid
+  
+  # PostgreSQL/TimescaleDB 설정 (PHASE D1 구현 완료)
+  postgres:
+    # DSN: postgresql://user:password@host:port/database
+    # docker-compose 기본 설정: postgresql://arbitrage:arbitrage@localhost:5432/arbitrage
+    dsn: postgresql://arbitrage:arbitrage@localhost:5432/arbitrage
+    schema: public
+    # TimescaleDB 확장 활성화 (향후 시계열 데이터 최적화)
+    enable_timescale: false
+  
+# Redis 설정 (PHASE D2 – Redis Cache & Health Monitoring)
+redis:
+  enabled: false                    # Redis 기능 활성화 여부
+  url: redis://localhost:6379/0     # Redis 서버 URL
+  prefix: arb                       # 키 프리픽스 (예: arb:fx:usdkrw)
+  health_ttl_seconds: 60            # 헬스 체크 heartbeat TTL (초)
+
+# 로깅 설정
+logging:
+  level: INFO           # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s [%(levelname)s] %(message)s"
+
+# 디버그 옵션
+debug:
+  force_first_entry: false
+  force_entry_min_size: 0.001

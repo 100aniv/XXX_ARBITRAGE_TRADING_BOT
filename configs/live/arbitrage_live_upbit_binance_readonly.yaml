@@ -1,0 +1,61 @@
+# D46: Upbit / Binance Read-Only 설정
+# 실제 거래소에서 시세/잔고만 조회하고, 주문은 생성하지 않음
+
+# 거래소 설정
+exchanges:
+  a:
+    type: upbit_spot
+    config:
+      api_key: ${UPBIT_API_KEY}  # 환경변수에서 읽음
+      api_secret: ${UPBIT_API_SECRET}
+      base_url: https://api.upbit.com
+      timeout: 10
+      live_enabled: false  # D46: Read-Only 모드 (주문 생성 금지)
+  
+  b:
+    type: binance_futures
+    config:
+      api_key: ${BINANCE_API_KEY}
+      api_secret: ${BINANCE_API_SECRET}
+      base_url: https://fapi.binance.com
+      timeout: 10
+      leverage: 1
+      live_enabled: false  # D46: Read-Only 모드 (주문 생성 금지)
+
+# 거래 심볼
+symbols:
+  a: KRW-BTC
+  b: BTCUSDT
+
+# 차익거래 엔진 설정 (D45 기준)
+engine:
+  min_spread_bps: 20.0
+  taker_fee_a_bps: 5.0
+  taker_fee_b_bps: 4.0
+  slippage_bps: 5.0
+  max_position_usd: 5000.0
+  max_open_trades: 1
+  close_on_spread_reversal: true
+  exchange_a_to_b_rate: 2.5
+  bid_ask_spread_bps: 100.0
+
+# Live Runner 설정
+live:
+  poll_interval_seconds: 1.0
+  max_concurrent_trades: 1
+  mode: live_readonly  # D46: Read-Only 모드
+  log_level: INFO
+  max_runtime_seconds: 60
+
+# 위험 관리 설정 (D44)
+risk_limits:
+  max_notional_per_trade: 5000.0
+  max_daily_loss: 10000.0
+  max_open_trades: 1
+
+# Paper 시뮬레이션 설정 (D45)
+# live_readonly 모드에서는 사용되지 않음
+paper_simulation:
+  enabled: false
+  volatility_range_bps: 100
+  spread_injection_interval: 5

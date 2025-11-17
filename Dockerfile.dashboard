@@ -1,0 +1,51 @@
+# Multi-stage build for arbitrage-lite dashboard (D15 호환)
+# =========================================================
+# 용도:
+# - dashboard 컨테이너 (FastAPI + WebSocket)
+# - 실시간 메트릭 시각화
+# - D15 리스크/포트폴리오 메트릭 표시
+# - PostgreSQL + Redis 연동
+
+# Stage 1: Builder (의존성 설치)
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# requirements.txt 복사 및 설치
+# ⚠️ 중요: numpy, pandas, torch 등 D15 의존성 포함
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Runtime (최소 이미지)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 의존성 (curl: 헬스 체크)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 빌더에서 Python 패키지 복사 (이미지 크기 최소화)
+COPY --from=builder /root/.local /root/.local
+
+# 환경 변수
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+
+# 애플리케이션 코드 복사
+COPY . .
+
+# 포트 노출 (8001)
+EXPOSE 8001
+
+# 헬스 체크 (FastAPI /health 엔드포인트)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# 대시보드 서버 실행
+# 환경변수로 제어:
+# - DASHBOARD_HOST=0.0.0.0 (기본)
+# - DASHBOARD_PORT=8001 (기본)
+# - DASHBOARD_WORKERS=4 (기본)
+CMD ["python", "-m", "dashboard.server"]

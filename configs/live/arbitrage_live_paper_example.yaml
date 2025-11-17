@@ -1,0 +1,44 @@
+# D44 Arbitrage Live Runner - Paper Mode Configuration (최종)
+# 운영 수준의 Paper 모드 설정: 60초 동안 안정적인 거래 시나리오
+
+exchanges:
+  type_a: "paper"
+  type_b: "paper"
+  
+  initial_balance_a:
+    KRW: 100000000.0  # 충분한 잔고
+    BTC: 10.0  # 충분한 BTC 보유
+  
+  initial_balance_b:
+    USDT: 1000000.0  # 충분한 잔고
+    BTC: 10.0  # 충분한 BTC 보유
+
+symbols:
+  symbol_a: "KRW-BTC"
+  symbol_b: "BTCUSDT"
+
+engine:
+  min_spread_bps: 20.0  # 최소 스프레드 (20 bps = 0.2%)
+  taker_fee_a_bps: 5.0  # Upbit 수수료
+  taker_fee_b_bps: 4.0  # Binance 수수료
+  slippage_bps: 5.0  # 슬리피지
+  max_position_usd: 5000.0  # 거래당 최대 규모
+  max_open_trades: 1  # 동시 거래 수
+
+live:
+  poll_interval_seconds: 1.0  # 1초마다 폴링
+  max_concurrent_trades: 1
+  max_runtime_seconds: 60  # 60초 실행
+  log_level: "INFO"
+
+# D44: RiskGuard 설정
+risk_limits:
+  max_notional_per_trade: 5000.0  # 거래당 최대 명목가
+  max_daily_loss: 10000.0  # 일일 최대 손실 (충분히 높게)
+  max_open_trades: 1  # 최대 동시 거래 수
+
+# D44: Paper 모드 시뮬레이션 설정
+paper_simulation:
+  enable_price_volatility: true  # 호가 변동 시뮬레이션 활성화
+  volatility_range_bps: 100  # ±100 bps 변동
+  spread_injection_interval: 5  # 5초마다 스프레드 주입

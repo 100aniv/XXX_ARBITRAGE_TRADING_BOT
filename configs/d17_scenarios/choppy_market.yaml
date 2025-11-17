@@ -1,0 +1,56 @@
+name: "choppy_market"
+description: "변동성 시나리오 - 스프레드 출렁임, 슬리피지 테스트"
+
+symbols:
+  - upbit: "KRW-BTC"
+    binance: "BTCUSDT"
+    exchange_rate: 1300
+
+steps:
+  - t: 0
+    upbit_bid: 50_000_000
+    upbit_ask: 50_100_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "초기 상태"
+  
+  - t: 1
+    upbit_bid: 49_900_000
+    upbit_ask: 50_000_000
+    binance_bid: 38_500
+    binance_ask: 38_539
+    description: "Upbit 하락, Binance 상승 - 스프레드 역전"
+  
+  - t: 2
+    upbit_bid: 50_200_000
+    upbit_ask: 50_300_000
+    binance_bid: 38_400
+    binance_ask: 38_439
+    description: "급격한 변동 - 슬리피지 발생"
+  
+  - t: 3
+    upbit_bid: 50_100_000
+    upbit_ask: 50_200_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "안정화"
+  
+  - t: 4
+    upbit_bid: 50_000_000
+    upbit_ask: 50_100_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "초기 상태로 복귀"
+
+risk_profile:
+  max_position_krw: 1_000_000
+  max_daily_loss_krw: 500_000
+  max_trades_per_hour: 100
+  min_spread_pct: 0.1
+  slippage_bps: 10  # 높은 슬리피지
+
+expected_outcomes:
+  min_trades: 0
+  min_pnl: -50_000
+  circuit_breaker_triggered: false
+  safety_violations: 0

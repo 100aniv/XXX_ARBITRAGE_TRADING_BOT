@@ -1,0 +1,10 @@
+# D28 Orchestrator Demo Configuration
+
+session_id: "d28-demo-session"
+total_iterations: 6
+workers: 2
+mode: "paper"
+env: "docker"
+optimizer: "bayesian"
+config_path: "configs/d23_tuning/advanced_baseline.yaml"
+base_output_csv: "outputs/d28_tuning_session"

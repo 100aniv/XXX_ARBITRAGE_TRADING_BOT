@@ -1,0 +1,86 @@
+# D48: Upbit / Binance 실거래 모드 설정
+# 기본값은 "매우 안전"하게 설정됨 (enabled=false, dry_run_scale=0.01)
+# 실거래 전에 반드시 enabled=true로 변경하고, 금액/심볼을 검토할 것
+
+# 거래소 설정
+exchanges:
+  a:
+    type: upbit_spot
+    config:
+      api_key: ${UPBIT_API_KEY}  # 환경변수에서 읽음
+      api_secret: ${UPBIT_API_SECRET}
+      base_url: https://api.upbit.com
+      timeout: 10
+      live_enabled: false  # D48: 기본은 false (실주문 차단)
+      rate_limit:  # D48: 레이트리밋 설정
+        max_requests_per_sec: 5
+        max_retry: 3
+        base_backoff_seconds: 0.5
+  
+  b:
+    type: binance_futures
+    config:
+      api_key: ${BINANCE_API_KEY}
+      api_secret: ${BINANCE_API_SECRET}
+      base_url: https://fapi.binance.com
+      timeout: 10
+      leverage: 1
+      live_enabled: false  # D48: 기본은 false (실주문 차단)
+      rate_limit:  # D48: 레이트리밋 설정
+        max_requests_per_sec: 5
+        max_retry: 3
+        base_backoff_seconds: 0.5
+
+# 거래 심볼
+symbols:
+  a: KRW-BTC
+  b: BTCUSDT
+
+# 차익거래 엔진 설정 (D45 기준, 매우 작은 규모)
+engine:
+  min_spread_bps: 30.0
+  taker_fee_a_bps: 5.0
+  taker_fee_b_bps: 4.0
+  slippage_bps: 5.0
+  max_position_usd: 100.0  # 매우 작게 설정
+  max_open_trades: 1
+  close_on_spread_reversal: true
+  exchange_a_to_b_rate: 2.5
+  bid_ask_spread_bps: 100.0
+
+# Live Runner 설정
+live:
+  poll_interval_seconds: 1.0
+  max_concurrent_trades: 1
+  mode: live_trading  # D47: 실거래 모드
+  log_level: INFO
+  max_runtime_seconds: 60
+
+# 위험 관리 설정 (D44)
+risk_limits:
+  max_notional_per_trade: 50.0  # 매우 작게
+  max_daily_loss: 20.0  # 매우 작게
+  max_open_trades: 1
+
+# D47: 실거래 모드 설정
+live_trading:
+  enabled: false  # ⚠️ 기본은 false (실주문 차단)
+                  # 실거래 전에 반드시 true로 변경할 것
+  
+  dry_run_scale: 0.01  # 주문 수량을 1%만 발주
+                       # 예: 계산된 수량 1.0 BTC → 0.01 BTC 발주
+  
+  allowed_symbols:
+    - KRW-BTC
+    - BTCUSDT
+  
+  min_account_balance: 50.0  # 최소 계좌 잔고 (USD)
+  max_daily_loss: 20.0  # 최대 일일 손실 (USD)
+  max_notional_per_trade: 50.0  # 거래당 최대 명목가 (USD)
+
+# Paper 시뮬레이션 설정 (D45)
+# live_trading 모드에서는 사용되지 않음
+paper_simulation:
+  enabled: false
+  volatility_range_bps: 100
+  spread_injection_interval: 5

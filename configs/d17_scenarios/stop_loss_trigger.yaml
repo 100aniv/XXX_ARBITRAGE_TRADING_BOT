@@ -1,0 +1,57 @@
+name: "stop_loss_trigger"
+description: "손실/회로차단 시나리오 - SafetyModule 발동 검증"
+
+symbols:
+  - upbit: "KRW-BTC"
+    binance: "BTCUSDT"
+    exchange_rate: 1300
+
+steps:
+  - t: 0
+    upbit_bid: 50_000_000
+    upbit_ask: 50_100_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "초기 상태"
+  
+  - t: 1
+    upbit_bid: 50_200_000
+    upbit_ask: 50_300_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "스프레드 확대 - 신호 생성"
+  
+  - t: 2
+    upbit_bid: 50_500_000
+    upbit_ask: 50_600_000
+    binance_bid: 38_300
+    binance_ask: 38_339
+    description: "Upbit 급상승, Binance 급하락 - 역방향 손실"
+  
+  - t: 3
+    upbit_bid: 50_800_000
+    upbit_ask: 50_900_000
+    binance_bid: 38_100
+    binance_ask: 38_139
+    description: "계속 손실 - 회로차단기 발동"
+  
+  - t: 4
+    upbit_bid: 51_000_000
+    upbit_ask: 51_100_000
+    binance_bid: 38_000
+    binance_ask: 38_039
+    description: "추가 손실 - 거래 중단"
+
+risk_profile:
+  max_position_krw: 1_000_000
+  max_daily_loss_krw: 100_000  # 낮은 손실 한도
+  max_trades_per_hour: 100
+  min_spread_pct: 0.1
+  slippage_bps: 5
+  circuit_breaker_threshold: 0.05  # 5% 손실
+
+expected_outcomes:
+  min_trades: 1
+  min_pnl: -100_000
+  circuit_breaker_triggered: true
+  safety_violations: 1

@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    created_at: '2025-11-16T18:21:45.906733'
+    description: Arbitrage tuning job for worker-2
+  labels: &id001
+    app: arbitrage-tuning
+    component: tuning
+    env: docker
+    mode: paper
+    session_id: d29-k8s-demo-session
+    worker_id: worker-2
+  name: arb-tuning-d29-k8s--worker-2-1
+  namespace: trading-bots
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - args:
+        - scripts/run_d24_tuning_session.py
+        - --config
+        - configs/d23_tuning/advanced_baseline.yaml
+        - --iterations
+        - '3'
+        - --mode
+        - paper
+        - --env
+        - docker
+        - --optimizer
+        - bayesian
+        - --session-id
+        - d29-k8s-demo-session
+        - --worker-id
+        - worker-2
+        - --output-csv
+        - outputs/d29_k8s_session_worker-2.csv
+        command:
+        - python
+        env:
+        - name: APP_ENV
+          value: docker
+        - name: REDIS_HOST
+          value: arbitrage-redis
+        - name: REDIS_PORT
+          value: '6379'
+        - name: SESSION_ID
+          value: d29-k8s-demo-session
+        - name: WORKER_ID
+          value: worker-2
+        - name: MODE
+          value: paper
+        image: your-registry/arbitrage-lite:latest
+        name: arb-tuning-d29-k8s--worker-2-1
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+      restartPolicy: Never

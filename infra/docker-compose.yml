@@ -1,0 +1,512 @@
+version: '3.8'
+
+# Docker-compose 인프라 (PHASE D – MODULE D3 구현)
+# ================================================
+#
+# 현재 상태 (PHASE D3):
+# - PostgreSQL (+ TimescaleDB 확장)
+# - Redis
+# - Adminer (DB 관리 UI)
+# - arbitrage-app (봇 애플리케이션 컨테이너)
+# - redis-exporter, postgres-exporter (모니터링 스켈레톤)
+#
+# 사용법:
+#   # 전체 스택 시작
+#   docker-compose up -d
+#   
+#   # 로그 확인
+#   docker-compose logs -f arbitrage-app
+#   
+#   # 특정 서비스만 시작
+#   docker-compose up -d postgres redis
+#   docker-compose up --build arbitrage-app
+#   
+#   # 종료
+#   docker-compose down
+#
+# 포트:
+#   - 5432: PostgreSQL
+#   - 6379: Redis
+#   - 8080: Adminer
+#   - 9121: Redis Exporter
+#   - 9187: Postgres Exporter
+#
+# ================================================
+
+services:
+  # ============================================================================
+  # PostgreSQL + TimescaleDB
+  # ============================================================================
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: arbitrage-postgres
+    
+    environment:
+      POSTGRES_DB: arbitrage
+      POSTGRES_USER: arbitrage
+      POSTGRES_PASSWORD: arbitrage
+      # TimescaleDB 자동 활성화
+      TIMESCALEDB_TELEMETRY: "off"
+    
+    ports:
+      - "5432:5432"
+    
+    volumes:
+      # 데이터 영속성
+      - db_data:/var/lib/postgresql/data
+      
+      # 초기화 스크립트 (선택)
+      # - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arbitrage"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - arbitrage-network
+    
+    # 리소스 제한 (선택)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+
+  # ============================================================================
+  # Redis
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: arbitrage-redis
+    
+    command: redis-server --appendonly yes
+    
+    # 내부 컨테이너 간에는 항상 6379 사용
+    expose:
+      - "6379"
+    
+    # 호스트 포트: 6380 (다른 프로젝트의 Redis와 충돌 방지)
+    ports:
+      - "6380:6379"
+    
+    volumes:
+      # 데이터 영속성
+      - redis_data:/data
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - arbitrage-network
+    
+    # 리소스 제한 (선택)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+
+  # ============================================================================
+  # Adminer (DB 관리 UI)
+  # ============================================================================
+  adminer:
+    image: adminer:latest
+    container_name: arbitrage-adminer
+    
+    ports:
+      - "8080:8080"
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    networks:
+      - arbitrage-network
+    
+    environment:
+      # 기본 설정 (선택)
+      ADMINER_DEFAULT_SERVER: postgres
+
+  # ============================================================================
+  # Arbitrage Core (D15 고성능 버전)
+  # ============================================================================
+  # 역할:
+  # - 메인 봇 (live_loop + signal/execution)
+  # - D15 고성능 모듈:
+  #   - ml/volatility_model.py (PyTorch LSTM, GPU 지원)
+  #   - arbitrage/portfolio_optimizer.py (NumPy 벡터화)
+  #   - arbitrage/risk_quant.py (NumPy 벡터화)
+  # - LiveGuard + Safety 모듈 활성화
+  # 
+  # 환경변수:
+  # - LIVE_MODE: false (paper mode) / true (실거래)
+  # - SAFETY_MODE: true (안전 모드 활성화)
+  # - LOG_LEVEL: INFO, DEBUG, WARNING
+  # ============================================================================
+  arbitrage-core:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: arbitrage-core
+    
+    environment:
+      # Python 설정
+      PYTHONUNBUFFERED: "1"
+      APP_ENV: docker
+      
+      # 데이터베이스
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: arbitrage
+      DB_USER: arbitrage
+      DB_PASSWORD: arbitrage  # .env 파일에서 오버라이드
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      
+      # 운영 모드
+      LIVE_MODE: "false"  # true: 실거래, false: paper/simulation
+      SAFETY_MODE: "true"  # LiveGuard, Safety 모듈 활성화
+      
+      # 로깅
+      LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+      
+      # 설정 파일
+      CONFIG_PATH: /app/config/base.yml
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    volumes:
+      # 코드 바인드 마운트 (개발 모드)
+      - ..:/app
+      # 데이터 디렉토리 (모델, 캐시)
+      - ../data:/app/data
+      # 로그 디렉토리
+      - ../logs:/app/logs
+    
+    networks:
+      - arbitrage-network
+    
+    # 진입점: live_loop 실행
+    command: python -m arbitrage.live_loop
+    
+    # 헬스 체크
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # 리소스 제한 (선택)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+
+  # ============================================================================
+  # Paper Trader (D18 – Paper/Shadow Mode)
+  # ============================================================================
+  # 역할:
+  # - D17 시나리오 기반 Paper/Shadow 모드 트레이더
+  # - SimulatedExchange 사용 (실거래 없음)
+  # - SafetyModule + StateManager 통합
+  # - Redis에 상태 저장
+  # 
+  # 환경변수:
+  # - PAPER_MODE: true (paper mode 활성화)
+  # - SCENARIO_FILE: configs/d17_scenarios/basic_spread_win.yaml
+  # - LIVE_MODE: false (실거래 비활성화)
+  # ============================================================================
+  arbitrage-paper-trader:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: arbitrage-paper-trader
+    
+    environment:
+      # Python 설정
+      PYTHONUNBUFFERED: "1"
+      APP_ENV: docker
+      
+      # 데이터베이스
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: arbitrage
+      DB_USER: arbitrage
+      DB_PASSWORD: arbitrage
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      
+      # Paper/Shadow 모드
+      LIVE_MODE: "false"
+      PAPER_MODE: "true"
+      SCENARIO_FILE: "configs/d17_scenarios/basic_spread_win.yaml"
+      
+      # 로깅
+      LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    volumes:
+      # 코드 바인드 마운트 (개발 모드)
+      - ..:/app
+      # 로그 디렉토리
+      - ../logs:/app/logs
+    
+    networks:
+      - arbitrage-network
+    
+    # 진입점: paper_trader 실행
+    command: python -m arbitrage.paper_trader
+    
+    # 헬스 체크
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================================
+  # Dashboard (FastAPI + WebSocket, D15 호환)
+  # ============================================================================
+  # 역할:
+  # - 실시간 메트릭 시각화
+  # - D15 리스크/포트폴리오 메트릭 표시
+  # - PostgreSQL + Redis 연동
+  # 
+  # 접속:
+  # - http://localhost:8001
+  # ============================================================================
+  dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dashboard
+    container_name: arbitrage-dashboard
+    
+    environment:
+      # Python 설정
+      PYTHONUNBUFFERED: "1"
+      
+      # 데이터베이스
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: arbitrage
+      DB_USER: arbitrage
+      DB_PASSWORD: arbitrage  # .env 파일에서 오버라이드
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      
+      # 대시보드
+      DASHBOARD_HOST: "0.0.0.0"
+      DASHBOARD_PORT: "8001"
+      DASHBOARD_WORKERS: "4"
+      
+      # 로깅
+      LOG_LEVEL: INFO
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    ports:
+      # 외부 노출 (8001)
+      - "8001:8001"
+    
+    volumes:
+      # 로그 디렉토리
+      - ../logs:/app/logs
+    
+    networks:
+      - arbitrage-network
+    
+    # 헬스 체크
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================================
+  # Monitoring Exporters (PHASE D3 – 스켈레톤, D4에서 Prometheus/Grafana 추가)
+  # ============================================================================
+  
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: arbitrage-redis-exporter
+    
+    depends_on:
+      - redis
+    
+    environment:
+      REDIS_ADDR: redis:6379
+    
+    ports:
+      - "9121:9121"
+    
+    networks:
+      - arbitrage-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: arbitrage-postgres-exporter
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    environment:
+      DATA_SOURCE_NAME: "postgresql://arbitrage:arbitrage@postgres:5432/arbitrage?sslmode=disable"
+    
+    ports:
+      - "9187:9187"
+    
+    networks:
+      - arbitrage-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9187/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Prometheus & Grafana (PHASE D4 구현)
+  # ============================================================================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: arbitrage-prometheus
+    
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    
+    networks:
+      - arbitrage-network
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: arbitrage-grafana
+    
+    ports:
+      - "3000:3000"
+    
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+    
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    
+    networks:
+      - arbitrage-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  # PostgreSQL 데이터 영속성
+  db_data:
+    driver: local
+  
+  # Redis 데이터 영속성
+  redis_data:
+    driver: local
+  
+  # Prometheus 데이터 영속성 (PHASE D4)
+  prometheus_data:
+    driver: local
+  
+  # Grafana 데이터 영속성 (PHASE D4)
+  grafana_data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  arbitrage-network:
+    driver: bridge
+
+# ============================================================================
+# 주의사항
+# ============================================================================
+#
+# 1. 프로덕션 환경에서는:
+#    - POSTGRES_PASSWORD를 강력한 비밀번호로 변경하세요.
+#    - 환경 변수를 .env 파일로 관리하세요.
+#    - SSL/TLS 연결을 설정하세요.
+#
+# 2. 리소스 제한:
+#    - CPU/메모리 제한을 설정하여 호스트 시스템 보호
+#
+# 3. 백업:
+#    - 정기적인 데이터베이스 백업 스크립트 추가
+#    - docker-compose exec postgres pg_dump ... > backup.sql
+#
+# 4. 모니터링:
+#    - PostgreSQL 로그 모니터링
+#    - Redis 메모리 사용량 모니터링
+#
+# ============================================================================

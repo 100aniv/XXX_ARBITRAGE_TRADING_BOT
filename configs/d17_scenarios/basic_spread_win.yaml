@@ -1,0 +1,49 @@
+name: "basic_spread_win"
+description: "정상 수익 시나리오 - 안정적인 스프레드로 수익 창출"
+
+symbols:
+  - upbit: "KRW-BTC"
+    binance: "BTCUSDT"
+    exchange_rate: 1300  # KRW/USDT
+
+steps:
+  - t: 0
+    upbit_bid: 50_000_000
+    upbit_ask: 50_100_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "초기 상태 - 스프레드 0.1%"
+  
+  - t: 1
+    upbit_bid: 50_100_000
+    upbit_ask: 50_200_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "Upbit 상승 - 스프레드 확대"
+  
+  - t: 2
+    upbit_bid: 50_200_000
+    upbit_ask: 50_300_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "Upbit 계속 상승 - 스프레드 0.15%"
+  
+  - t: 3
+    upbit_bid: 50_300_000
+    upbit_ask: 50_400_000
+    binance_bid: 38_461
+    binance_ask: 38_500
+    description: "안정화 - 신호 생성 및 주문 체결"
+
+risk_profile:
+  max_position_krw: 1_000_000
+  max_daily_loss_krw: 500_000
+  max_trades_per_hour: 100
+  min_spread_pct: 0.1
+  slippage_bps: 5
+
+expected_outcomes:
+  min_trades: 1
+  min_pnl: 10_000
+  circuit_breaker_triggered: false
+  safety_violations: 0

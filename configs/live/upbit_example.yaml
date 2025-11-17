@@ -1,0 +1,46 @@
+# D42 Exchange Adapter - Upbit Spot Configuration Example
+# 
+# 주의: 이것은 예시 파일입니다.
+# 실제 API 키와 시크릿은 절대 이 파일에 저장하지 마세요.
+# 대신 환경 변수 또는 별도의 보안 저장소를 사용하세요.
+
+exchange:
+  name: upbit
+  type: spot
+
+# API 설정
+api:
+  # 환경 변수에서 읽기: export UPBIT_API_KEY="your_key"
+  key: ${UPBIT_API_KEY}
+  secret: ${UPBIT_API_SECRET}
+  
+  # API 엔드포인트
+  base_url: https://api.upbit.com
+  
+  # 요청 타임아웃 (초)
+  timeout: 10
+
+# 거래 설정
+trading:
+  # 실거래 활성화 (기본값: false)
+  # 로컬 테스트에서는 false로 유지하고, 실거래 시에만 true로 변경
+  live_enabled: false
+  
+  # 주문 유형
+  order_type: LIMIT
+  
+  # 주문 유효 기간
+  time_in_force: GTC
+
+# 거래 쌍
+markets:
+  - symbol: BTC-KRW
+    min_qty: 0.0001
+    min_price: 1000
+  - symbol: ETH-KRW
+    min_qty: 0.001
+    min_price: 100
+
+# 로깅
+logging:
+  level: INFO

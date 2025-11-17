@@ -1,0 +1,42 @@
+# D42 Exchange Adapter - Paper (Mock) Trading Configuration Example
+# 
+# 모의 거래 모드 설정
+# 실제 API 호출 없이 메모리 상에서 거래를 시뮬레이션합니다.
+
+exchange:
+  name: paper
+  type: paper
+
+# 초기 잔고 설정
+initial_balance:
+  # Upbit Spot 모드
+  KRW: 1000000.0  # 1,000,000 KRW
+  BTC: 0.0
+  ETH: 0.0
+  
+  # Binance Futures 모드 (USDT 기반)
+  # USDT: 10000.0  # 10,000 USDT
+
+# 거래 설정
+trading:
+  # 모의 모드에서는 실거래 설정이 필요 없음
+  live_enabled: false
+
+# 거래 쌍
+markets:
+  - symbol: BTC-KRW
+    min_qty: 0.0001
+    min_price: 1000
+  - symbol: ETH-KRW
+    min_qty: 0.001
+    min_price: 100
+  - symbol: BTCUSDT
+    min_qty: 0.001
+    min_price: 0.01
+  - symbol: ETHUSDT
+    min_qty: 0.01
+    min_price: 0.01
+
+# 로깅
+logging:
+  level: DEBUG

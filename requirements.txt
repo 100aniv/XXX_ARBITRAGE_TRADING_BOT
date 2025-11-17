@@ -1,0 +1,29 @@
+# Arbitrage-Lite Dependencies
+# Python 3.11+ 기준
+
+# 필수 의존성
+pyyaml>=6.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+rich>=12.0.0
+PyJWT>=2.9.0
+
+# D15 고성능 모듈 의존성 (필수)
+numpy>=1.24.0          # 벡터화 연산
+pandas>=2.1.0          # DataFrame 기반 데이터 관리
+torch>=2.0.0           # PyTorch (LSTM, GPU 지원)
+
+# 대시보드 및 웹 서버
+fastapi>=0.104.0       # 실시간 대시보드 API
+uvicorn>=0.24.0        # ASGI 서버
+websockets>=12.0       # WebSocket 실시간 스트리밍
+
+# D16 실거래 모듈 의존성
+aiohttp>=3.9.0         # 비동기 HTTP 클라이언트
+redis>=5.0.0           # Redis 클라이언트
+python-binance>=1.0.0  # Binance API (선택)
+
+# 선택적 의존성
+# sqlalchemy>=2.0.0  # DB 저장 계층 (필요 시)
+# plotly>=5.17.0     # 대시보드 시각화 (필요 시)
