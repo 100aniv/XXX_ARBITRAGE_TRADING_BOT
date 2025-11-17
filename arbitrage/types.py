@@ -5,6 +5,11 @@ D16 Live Trading — Common Type Definitions
 ============================================
 
 실거래 모듈에서 사용하는 공통 타입 및 데이터 클래스.
+
+D57: Multi-Symbol Portfolio Integration
+- PortfolioState에 symbol-aware 필드 추가
+- Per-symbol position tracking 지원
+- 단일 심볼 모드 100% 호환성 유지
 """
 
 from dataclasses import dataclass, field
@@ -85,6 +90,8 @@ class Position:
     current_price: float
     side: OrderSide
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    # D57: Multi-Symbol 확장 필드
+    symbol_context: Optional[str] = None  # 심볼이 속한 컨텍스트 (예: "KRW-BTC", "BTCUSDT")
     
     @property
     def pnl(self) -> float:
@@ -165,6 +172,10 @@ class PortfolioState:
     orders: Dict[str, Order] = field(default_factory=dict)
     risk_metrics: Optional[RiskMetrics] = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    # D57: Multi-Symbol 확장 필드
+    symbol: Optional[str] = None  # 단일 심볼 모드일 때 심볼 지정
+    per_symbol_positions: Dict[str, Dict[str, Position]] = field(default_factory=dict)  # {symbol: {pos_id: Position}}
+    per_symbol_orders: Dict[str, Dict[str, Order]] = field(default_factory=dict)  # {symbol: {order_id: Order}}
     
     @property
     def total_position_value(self) -> float:
@@ -177,3 +188,66 @@ class PortfolioState:
         if self.total_balance == 0:
             return 0.0
         return self.total_position_value / self.total_balance
+    
+    def get_symbol_positions(self, symbol: str) -> Dict[str, Position]:
+        """
+        D57: 특정 심볼의 포지션 조회
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            심볼별 포지션 딕셔너리
+        """
+        return self.per_symbol_positions.get(symbol, {})
+    
+    def get_symbol_orders(self, symbol: str) -> Dict[str, Order]:
+        """
+        D57: 특정 심볼의 주문 조회
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            심볼별 주문 딕셔너리
+        """
+        return self.per_symbol_orders.get(symbol, {})
+    
+    def add_symbol_position(self, symbol: str, position_id: str, position: Position) -> None:
+        """
+        D57: 심볼별 포지션 추가
+        
+        Args:
+            symbol: 심볼
+            position_id: 포지션 ID
+            position: Position 객체
+        """
+        if symbol not in self.per_symbol_positions:
+            self.per_symbol_positions[symbol] = {}
+        self.per_symbol_positions[symbol][position_id] = position
+    
+    def add_symbol_order(self, symbol: str, order_id: str, order: Order) -> None:
+        """
+        D57: 심볼별 주문 추가
+        
+        Args:
+            symbol: 심볼
+            order_id: 주문 ID
+            order: Order 객체
+        """
+        if symbol not in self.per_symbol_orders:
+            self.per_symbol_orders[symbol] = {}
+        self.per_symbol_orders[symbol][order_id] = order
+    
+    def get_total_symbol_position_value(self, symbol: str) -> float:
+        """
+        D57: 특정 심볼의 총 포지션 가치
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            포지션 총 가치
+        """
+        positions = self.get_symbol_positions(symbol)
+        return sum(pos.quantity * pos.current_price for pos in positions.values())

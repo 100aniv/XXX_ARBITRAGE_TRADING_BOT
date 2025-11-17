@@ -5,6 +5,7 @@ D50: Metrics Collector
 
 D54: Async queue 지원 추가 (멀티심볼 v2.0 기반)
 D55: Async queue processing loop 추가 (완전 비동기 전환)
+D57: Per-symbol metrics structure 준비 (symbol 파라미터 추가)
 """
 
 import asyncio
@@ -61,10 +62,12 @@ class MetricsCollector:
         data_source: str,
         ws_connected: bool = False,
         ws_reconnects: int = 0,
+        symbol: Optional[str] = None,  # D57: Multi-Symbol support
     ) -> None:
         """
         루프 메트릭 업데이트
         D53: 최적화 - dict 할당 제거, 직접 파라미터 사용
+        D57: symbol 파라미터 추가 (per-symbol metrics 준비)
         
         Args:
             loop_time_ms: 루프 실행 시간 (ms)
@@ -73,6 +76,7 @@ class MetricsCollector:
             data_source: 데이터 소스 ("rest" 또는 "ws")
             ws_connected: WebSocket 연결 상태
             ws_reconnects: WebSocket 재연결 횟수
+            symbol: D57 심볼 (멀티심볼 모드에서 사용)
         """
         # 루프 메트릭 버퍼에 추가
         self.loop_times.append(loop_time_ms)
@@ -87,11 +91,15 @@ class MetricsCollector:
         # 누적 통계 업데이트
         self.trades_opened_total += trades_opened
         
-        logger.debug(
-            f"[D50_METRICS] loop_time={loop_time_ms:.2f}ms, "
+        log_msg = (
+            f"[D57_METRICS] loop_time={loop_time_ms:.2f}ms, "
             f"trades={trades_opened}, spread={spread_bps:.2f}bps, "
             f"data_source={data_source}"
         )
+        if symbol:
+            log_msg += f", symbol={symbol}"
+        
+        logger.debug(log_msg)
     
     def get_metrics(self) -> Dict[str, Any]:
         """
@@ -177,9 +185,11 @@ class MetricsCollector:
         data_source: str,
         ws_connected: bool = False,
         ws_reconnects: int = 0,
+        symbol: Optional[str] = None,  # D57: Multi-Symbol support
     ) -> None:
         """
         D54: Async wrapper for update_loop_metrics
+        D57: symbol 파라미터 추가 (per-symbol metrics 준비)
         
         멀티심볼 병렬 처리를 위한 async 인터페이스.
         내부적으로는 sync 메서드를 호출하되, 추후 async queue 기반 수집 대비.
@@ -191,6 +201,7 @@ class MetricsCollector:
             data_source: 데이터 소스 ("rest" 또는 "ws")
             ws_connected: WebSocket 연결 상태
             ws_reconnects: WebSocket 재연결 횟수
+            symbol: D57 심볼 (멀티심볼 모드에서 사용)
         """
         # 현재는 sync 메서드를 event loop에서 실행
         loop = asyncio.get_event_loop()
@@ -203,6 +214,7 @@ class MetricsCollector:
             data_source,
             ws_connected,
             ws_reconnects,
+            symbol,
         )
     
     async def astart_queue_processing(self) -> None:

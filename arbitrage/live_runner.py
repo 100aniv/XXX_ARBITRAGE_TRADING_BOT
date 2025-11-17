@@ -823,6 +823,7 @@ class ArbitrageLiveRunner:
     def run_once_for_symbol(self, symbol: str) -> bool:
         """
         D56: Single-symbol loop execution (sync version)
+        D57: Symbol-aware portfolio tracking
         
         특정 심볼에 대해 1회 루프를 실행한다.
         멀티심볼 엔진 v2.0 기반.
@@ -840,13 +841,13 @@ class ArbitrageLiveRunner:
         if self.market_data_provider is not None:
             snapshot = self.market_data_provider.get_latest_snapshot(symbol)
             if snapshot is None:
-                logger.warning(f"[D56_MULTISYMBOL] No snapshot for {symbol}")
+                logger.warning(f"[D57_PORTFOLIO] No snapshot for {symbol}")
                 return False
         else:
             snapshot = self.build_snapshot()
         
         if snapshot is None:
-            logger.warning(f"[D56_MULTISYMBOL] Failed to build snapshot for {symbol}")
+            logger.warning(f"[D57_PORTFOLIO] Failed to build snapshot for {symbol}")
             return False
         
         # 엔진 처리 (sync 유지)
@@ -855,6 +856,18 @@ class ArbitrageLiveRunner:
         # 주문 실행
         trades_opened_delta = sum(1 for t in trades if t.is_open)
         self.execute_trades(trades)
+        
+        # D57: 포트폴리오 상태 업데이트 (symbol-aware)
+        if hasattr(self, '_portfolio_state') and self._portfolio_state is not None:
+            for trade in trades:
+                if trade.is_open:
+                    # 포지션을 심볼별로 추적
+                    pos_id = f"{symbol}_{trade.trade_id}"
+                    self._portfolio_state.add_symbol_position(
+                        symbol=symbol,
+                        position_id=pos_id,
+                        position=trade
+                    )
         
         # 메트릭 수집
         loop_end = time.time()
@@ -879,10 +892,11 @@ class ArbitrageLiveRunner:
                 data_source=self.config.data_source,
                 ws_connected=ws_connected,
                 ws_reconnects=ws_reconnects,
+                symbol=symbol,  # D57: symbol 전달
             )
         
         logger.debug(
-            f"[D56_MULTISYMBOL] Symbol {symbol}: "
+            f"[D57_PORTFOLIO] Symbol {symbol}: "
             f"trades={len(trades)}, loop_time={loop_time_ms:.2f}ms"
         )
         
@@ -891,6 +905,7 @@ class ArbitrageLiveRunner:
     async def arun_once_for_symbol(self, symbol: str) -> bool:
         """
         D56: Single-symbol loop execution (async version)
+        D57: Symbol-aware portfolio tracking
         
         특정 심볼에 대해 1회 루프를 비동기적으로 실행한다.
         멀티심볼 엔진 v2.0 기반.
@@ -908,13 +923,13 @@ class ArbitrageLiveRunner:
         if self.market_data_provider is not None:
             snapshot = await self.market_data_provider.aget_latest_snapshot(symbol)
             if snapshot is None:
-                logger.warning(f"[D56_MULTISYMBOL] No snapshot for {symbol}")
+                logger.warning(f"[D57_PORTFOLIO] No snapshot for {symbol}")
                 return False
         else:
             snapshot = self.build_snapshot()
         
         if snapshot is None:
-            logger.warning(f"[D56_MULTISYMBOL] Failed to build snapshot for {symbol}")
+            logger.warning(f"[D57_PORTFOLIO] Failed to build snapshot for {symbol}")
             return False
         
         # 엔진 처리 (sync 유지)
@@ -923,6 +938,18 @@ class ArbitrageLiveRunner:
         # 주문 실행
         trades_opened_delta = sum(1 for t in trades if t.is_open)
         self.execute_trades(trades)
+        
+        # D57: 포트폴리오 상태 업데이트 (symbol-aware)
+        if hasattr(self, '_portfolio_state') and self._portfolio_state is not None:
+            for trade in trades:
+                if trade.is_open:
+                    # 포지션을 심볼별로 추적
+                    pos_id = f"{symbol}_{trade.trade_id}"
+                    self._portfolio_state.add_symbol_position(
+                        symbol=symbol,
+                        position_id=pos_id,
+                        position=trade
+                    )
         
         # 메트릭 수집
         loop_end = time.time()
@@ -947,10 +974,11 @@ class ArbitrageLiveRunner:
                 data_source=self.config.data_source,
                 ws_connected=ws_connected,
                 ws_reconnects=ws_reconnects,
+                symbol=symbol,  # D57: symbol 전달
             )
         
         logger.debug(
-            f"[D56_MULTISYMBOL] Symbol {symbol}: "
+            f"[D57_PORTFOLIO] Symbol {symbol}: "
             f"trades={len(trades)}, loop_time={loop_time_ms:.2f}ms"
         )
         
