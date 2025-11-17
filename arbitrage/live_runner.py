@@ -49,6 +49,10 @@ class RiskGuard:
     - 일일 최대 손실 확인
     - 최대 동시 거래 수 확인
     - 세션 종료 조건 판정
+    
+    D58: Multi-Symbol Integration
+    - symbol-aware state tracking 준비
+    - per-symbol loss tracking (future-proofing)
     """
     
     def __init__(self, risk_limits: "RiskLimits"):
@@ -60,8 +64,13 @@ class RiskGuard:
         self.session_start_time = time.time()
         self.daily_loss_usd = 0.0
         
+        # D58: Multi-Symbol state tracking
+        self.per_symbol_loss: Dict[str, float] = {}  # {symbol: loss_usd}
+        self.per_symbol_trades_rejected: Dict[str, int] = {}  # {symbol: count}
+        self.per_symbol_trades_allowed: Dict[str, int] = {}  # {symbol: count}
+        
         logger.info(
-            f"[D44_RISKGUARD] Initialized: "
+            f"[D58_RISKGUARD] Initialized: "
             f"max_notional={risk_limits.max_notional_per_trade}, "
             f"max_daily_loss={risk_limits.max_daily_loss}, "
             f"max_open_trades={risk_limits.max_open_trades}"
@@ -120,6 +129,99 @@ class RiskGuard:
             logger.debug(
                 f"[D44_RISKGUARD] Daily loss updated: {self.daily_loss_usd:.2f} USD"
             )
+    
+    def check_trade_allowed_for_symbol(
+        self,
+        symbol: str,
+        trade: ArbitrageTrade,
+        num_active_orders: int,
+    ) -> RiskGuardDecision:
+        """
+        D58: Symbol-aware trade allowed check.
+        
+        특정 심볼에 대한 거래 실행 가능 여부 판정.
+        기존 check_trade_allowed와 동일한 로직이지만,
+        symbol을 추적하여 per-symbol 상태를 업데이트한다.
+        
+        Args:
+            symbol: 거래 심볼
+            trade: 거래 정보
+            num_active_orders: 현재 활성 주문 수
+        
+        Returns:
+            RiskGuardDecision
+        """
+        # 1. 거래당 최대 명목가 확인
+        if trade.notional_usd > self.risk_limits.max_notional_per_trade:
+            logger.warning(
+                f"[D58_RISKGUARD] Trade rejected for {symbol}: "
+                f"notional={trade.notional_usd} > max={self.risk_limits.max_notional_per_trade}"
+            )
+            self.per_symbol_trades_rejected[symbol] = self.per_symbol_trades_rejected.get(symbol, 0) + 1
+            return RiskGuardDecision.TRADE_REJECTED
+        
+        # 2. 최대 동시 거래 수 확인
+        if num_active_orders >= self.risk_limits.max_open_trades:
+            logger.warning(
+                f"[D58_RISKGUARD] Trade rejected for {symbol}: "
+                f"active_orders={num_active_orders} >= max={self.risk_limits.max_open_trades}"
+            )
+            self.per_symbol_trades_rejected[symbol] = self.per_symbol_trades_rejected.get(symbol, 0) + 1
+            return RiskGuardDecision.TRADE_REJECTED
+        
+        # 3. 일일 최대 손실 확인
+        if self.daily_loss_usd >= self.risk_limits.max_daily_loss:
+            logger.error(
+                f"[D58_RISKGUARD] Session stop for {symbol}: "
+                f"daily_loss={self.daily_loss_usd} >= max={self.risk_limits.max_daily_loss}"
+            )
+            return RiskGuardDecision.SESSION_STOP
+        
+        # 거래 허용
+        self.per_symbol_trades_allowed[symbol] = self.per_symbol_trades_allowed.get(symbol, 0) + 1
+        return RiskGuardDecision.OK
+    
+    def update_symbol_loss(self, symbol: str, pnl_usd: float) -> None:
+        """
+        D58: Symbol-aware loss update.
+        
+        특정 심볼의 손실을 업데이트한다.
+        
+        Args:
+            symbol: 거래 심볼
+            pnl_usd: 거래 손익 (음수면 손실)
+        """
+        if pnl_usd < 0:
+            loss = abs(pnl_usd)
+            self.per_symbol_loss[symbol] = self.per_symbol_loss.get(symbol, 0.0) + loss
+            self.daily_loss_usd += loss
+            logger.debug(
+                f"[D58_RISKGUARD] Symbol {symbol} loss updated: "
+                f"symbol_loss={self.per_symbol_loss[symbol]:.2f}, "
+                f"total_loss={self.daily_loss_usd:.2f} USD"
+            )
+    
+    def get_symbol_stats(self, symbol: str) -> Dict[str, Any]:
+        """
+        D58: Get per-symbol risk statistics.
+        
+        특정 심볼의 리스크 통계를 반환한다.
+        
+        Args:
+            symbol: 거래 심볼
+        
+        Returns:
+            {
+                'loss': float,
+                'trades_rejected': int,
+                'trades_allowed': int,
+            }
+        """
+        return {
+            'loss': self.per_symbol_loss.get(symbol, 0.0),
+            'trades_rejected': self.per_symbol_trades_rejected.get(symbol, 0),
+            'trades_allowed': self.per_symbol_trades_allowed.get(symbol, 0),
+        }
 
 
 @dataclass

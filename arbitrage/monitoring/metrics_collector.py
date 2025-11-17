@@ -6,6 +6,7 @@ D50: Metrics Collector
 D54: Async queue 지원 추가 (멀티심볼 v2.0 기반)
 D55: Async queue processing loop 추가 (완전 비동기 전환)
 D57: Per-symbol metrics structure 준비 (symbol 파라미터 추가)
+D58: Symbol-aware guard metrics 준비 (per-symbol guard stats)
 """
 
 import asyncio
@@ -53,6 +54,11 @@ class MetricsCollector:
         # D55: Async queue for metrics collection
         self._metrics_queue: Optional[asyncio.Queue] = None
         self._processing_task: Optional[asyncio.Task] = None
+        
+        # D58: Symbol-aware guard metrics
+        self.per_symbol_guard_rejected: Dict[str, int] = {}  # {symbol: rejected_count}
+        self.per_symbol_guard_allowed: Dict[str, int] = {}  # {symbol: allowed_count}
+        self.per_symbol_guard_loss: Dict[str, float] = {}  # {symbol: total_loss}
     
     def update_loop_metrics(
         self,
