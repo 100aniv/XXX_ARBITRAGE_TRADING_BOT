@@ -7,6 +7,7 @@ Paper 모드 우선 구현 + RiskGuard 하드닝.
 
 D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
 D55: Complete async execution flow (완전 비동기 전환)
+D56: Multi-Symbol Engine Phase 1 (구조 기반 마련)
 """
 
 import asyncio
@@ -815,6 +816,191 @@ class ArbitrageLiveRunner:
             
             # 1회 루프 실행
             await self.arun_once()
+            
+            # 대기 (async sleep)
+            await asyncio.sleep(self.config.poll_interval_seconds)
+    
+    def run_once_for_symbol(self, symbol: str) -> bool:
+        """
+        D56: Single-symbol loop execution (sync version)
+        
+        특정 심볼에 대해 1회 루프를 실행한다.
+        멀티심볼 엔진 v2.0 기반.
+        
+        Args:
+            symbol: 거래 쌍 (예: "KRW-BTC", "BTCUSDT")
+        
+        Returns:
+            성공 여부
+        """
+        loop_start = time.time()
+        self._loop_count += 1
+        
+        # Snapshot 조회
+        if self.market_data_provider is not None:
+            snapshot = self.market_data_provider.get_latest_snapshot(symbol)
+            if snapshot is None:
+                logger.warning(f"[D56_MULTISYMBOL] No snapshot for {symbol}")
+                return False
+        else:
+            snapshot = self.build_snapshot()
+        
+        if snapshot is None:
+            logger.warning(f"[D56_MULTISYMBOL] Failed to build snapshot for {symbol}")
+            return False
+        
+        # 엔진 처리 (sync 유지)
+        trades = self.process_snapshot(snapshot)
+        
+        # 주문 실행
+        trades_opened_delta = sum(1 for t in trades if t.is_open)
+        self.execute_trades(trades)
+        
+        # 메트릭 수집
+        loop_end = time.time()
+        loop_time_ms = (loop_end - loop_start) * 1000.0
+        self._last_loop_time_ms = loop_time_ms
+        
+        last_spread_bps = getattr(self.engine, 'last_spread_bps', self._last_spread_bps)
+        self._last_spread_bps = last_spread_bps
+        
+        if self.metrics_collector is not None:
+            if self.market_data_provider is not None:
+                ws_connected = getattr(self.market_data_provider, 'ws_connected', False)
+                ws_reconnects = getattr(self.market_data_provider, 'ws_reconnects', 0)
+            else:
+                ws_connected = False
+                ws_reconnects = 0
+            
+            self.metrics_collector.update_loop_metrics(
+                loop_time_ms=loop_time_ms,
+                trades_opened=trades_opened_delta,
+                spread_bps=last_spread_bps,
+                data_source=self.config.data_source,
+                ws_connected=ws_connected,
+                ws_reconnects=ws_reconnects,
+            )
+        
+        logger.debug(
+            f"[D56_MULTISYMBOL] Symbol {symbol}: "
+            f"trades={len(trades)}, loop_time={loop_time_ms:.2f}ms"
+        )
+        
+        return True
+    
+    async def arun_once_for_symbol(self, symbol: str) -> bool:
+        """
+        D56: Single-symbol loop execution (async version)
+        
+        특정 심볼에 대해 1회 루프를 비동기적으로 실행한다.
+        멀티심볼 엔진 v2.0 기반.
+        
+        Args:
+            symbol: 거래 쌍
+        
+        Returns:
+            성공 여부
+        """
+        loop_start = time.time()
+        self._loop_count += 1
+        
+        # Async snapshot 조회
+        if self.market_data_provider is not None:
+            snapshot = await self.market_data_provider.aget_latest_snapshot(symbol)
+            if snapshot is None:
+                logger.warning(f"[D56_MULTISYMBOL] No snapshot for {symbol}")
+                return False
+        else:
+            snapshot = self.build_snapshot()
+        
+        if snapshot is None:
+            logger.warning(f"[D56_MULTISYMBOL] Failed to build snapshot for {symbol}")
+            return False
+        
+        # 엔진 처리 (sync 유지)
+        trades = self.process_snapshot(snapshot)
+        
+        # 주문 실행
+        trades_opened_delta = sum(1 for t in trades if t.is_open)
+        self.execute_trades(trades)
+        
+        # 메트릭 수집
+        loop_end = time.time()
+        loop_time_ms = (loop_end - loop_start) * 1000.0
+        self._last_loop_time_ms = loop_time_ms
+        
+        last_spread_bps = getattr(self.engine, 'last_spread_bps', self._last_spread_bps)
+        self._last_spread_bps = last_spread_bps
+        
+        if self.metrics_collector is not None:
+            if self.market_data_provider is not None:
+                ws_connected = getattr(self.market_data_provider, 'ws_connected', False)
+                ws_reconnects = getattr(self.market_data_provider, 'ws_reconnects', 0)
+            else:
+                ws_connected = False
+                ws_reconnects = 0
+            
+            await self.metrics_collector.aupdate_loop_metrics(
+                loop_time_ms=loop_time_ms,
+                trades_opened=trades_opened_delta,
+                spread_bps=last_spread_bps,
+                data_source=self.config.data_source,
+                ws_connected=ws_connected,
+                ws_reconnects=ws_reconnects,
+            )
+        
+        logger.debug(
+            f"[D56_MULTISYMBOL] Symbol {symbol}: "
+            f"trades={len(trades)}, loop_time={loop_time_ms:.2f}ms"
+        )
+        
+        return True
+    
+    async def arun_multisymbol_loop(self, symbols: List[str]) -> None:
+        """
+        D56: Multi-symbol parallel execution loop
+        
+        여러 심볼에 대해 병렬로 루프를 실행한다.
+        asyncio.gather를 사용하여 동시 처리.
+        
+        Args:
+            symbols: 거래 쌍 리스트
+        """
+        logger.info(
+            f"[D56_MULTISYMBOL] Starting multi-symbol loop: "
+            f"symbols={symbols}, interval={self.config.poll_interval_seconds}s"
+        )
+        
+        while True:
+            # RiskGuard session_stop 확인
+            if self._session_stop_requested:
+                logger.info("[D56_MULTISYMBOL] Session stopped by RiskGuard")
+                break
+            
+            # 런타임 제한 확인
+            if self.config.max_runtime_seconds is not None:
+                elapsed = time.time() - self._start_time
+                if elapsed > self.config.max_runtime_seconds:
+                    logger.info(
+                        f"[D56_MULTISYMBOL] Max runtime exceeded: {elapsed:.1f}s > "
+                        f"{self.config.max_runtime_seconds}s"
+                    )
+                    break
+            
+            # 모든 심볼에 대해 병렬 실행
+            tasks = [
+                self.arun_once_for_symbol(symbol)
+                for symbol in symbols
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 결과 로깅
+            success_count = sum(1 for r in results if r is True)
+            logger.debug(
+                f"[D56_MULTISYMBOL] Loop completed: "
+                f"{success_count}/{len(symbols)} symbols succeeded"
+            )
             
             # 대기 (async sleep)
             await asyncio.sleep(self.config.poll_interval_seconds)
