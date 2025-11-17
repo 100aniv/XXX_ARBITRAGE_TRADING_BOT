@@ -22,7 +22,7 @@ import yaml
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from arbitrage.live_runner import ArbitrageLiveRunner, RiskLimits, RiskGuard
+from arbitrage.live_runner import ArbitrageLiveRunner, ArbitrageLiveConfig, RiskLimits, RiskGuard
 from arbitrage.exchanges.market_data_provider import RestMarketDataProvider
 from arbitrage.monitoring.metrics_collector import MetricsCollector
 from arbitrage.monitoring.longrun_analyzer import LongrunAnalyzer
@@ -127,47 +127,75 @@ class MultiSymbolLongrunRunner:
     
     def setup_logging(self) -> None:
         """로깅 설정"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='[%(asctime)s] %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_file),
-                logging.StreamHandler(),
-            ],
-        )
+        # 기존 핸들러 제거
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        # 새 핸들러 추가
+        file_handler = logging.FileHandler(self.log_file, encoding='utf-8')
+        stream_handler = logging.StreamHandler()
+        
+        formatter = logging.Formatter('[%(asctime)s] %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        stream_handler.setFormatter(formatter)
+        
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
+        logger.setLevel(logging.INFO)
+        
         logger.info(f"[D62_LONGRUN] Logging to {self.log_file}")
     
     async def run_async(self) -> None:
         """
-        D62: 멀티심볼 롱런 실행 (비동기)
+        D62-REAL: 멀티심볼 롱런 실행 (비동기)
         
-        간단한 시뮬레이션 버전:
-        - 실제 거래 없이 루프만 실행
+        실제 Arbitrage 엔진 기반:
+        - ArbitrageLiveRunner를 각 심볼별로 실행
+        - 실제 거래 시뮬레이션 (Paper Mode)
         - 심볼별 독립 상태 추적
-        - 로그 기반 모니터링
+        - 실시간 로그 모니터링
         """
         logger.info(
-            f"[D62_LONGRUN] Starting multi-symbol long-run: "
+            f"[D62_LONGRUN] Starting REAL multi-symbol long-run: "
             f"scenario={self.scenario}, symbols={self.symbols}, duration={self.duration_minutes}min"
         )
         
         self.start_time = time.time()
         
         try:
-            # 1. 포트폴리오 상태 초기화
-            portfolio = PortfolioState(
-                total_balance=self.config.get("initial_balance", 100000.0),
-                available_balance=self.config.get("initial_balance", 100000.0),
-            )
+            # 1. 거래소 생성 (Paper Mode)
+            from arbitrage.exchanges import PaperExchange
             
-            # 2. 리스크 가드 초기화
+            initial_balance_a = self.config.get("initial_balance_a", {"KRW": 1000000.0})
+            initial_balance_b = self.config.get("initial_balance_b", {"USDT": 10000.0})
+            
+            exchange_a = PaperExchange(initial_balance=initial_balance_a)
+            exchange_b = PaperExchange(initial_balance=initial_balance_b)
+            logger.info(f"[D62_LONGRUN] Created Paper exchanges: A={initial_balance_a}, B={initial_balance_b}")
+            
+            # 2. 엔진 생성
+            from arbitrage.arbitrage_core import ArbitrageEngine, ArbitrageConfig
+            
+            engine_config = self.config.get("engine", {})
+            arb_config = ArbitrageConfig(
+                min_spread_bps=engine_config.get("min_spread_bps", 30.0),
+                taker_fee_a_bps=engine_config.get("taker_fee_a_bps", 5.0),
+                taker_fee_b_bps=engine_config.get("taker_fee_b_bps", 5.0),
+                slippage_bps=engine_config.get("slippage_bps", 5.0),
+                max_position_usd=engine_config.get("max_position_usd", 1000.0),
+                max_open_trades=engine_config.get("max_open_trades", 1),
+            )
+            engine = ArbitrageEngine(arb_config)
+            logger.info(f"[D62_LONGRUN] Created ArbitrageEngine with config: {arb_config}")
+            
+            # 3. 리스크 가드 초기화
             risk_limits = RiskLimits(
                 max_notional_per_trade=self.config.get("max_notional_per_trade", 5000.0),
                 max_daily_loss=self.config.get("max_daily_loss", 10000.0),
                 max_open_trades=self.config.get("max_open_trades", 1),
             )
             
-            # 3. 심볼별 리스크 한도 설정 (D60)
+            # 4. 심볼별 리스크 한도 설정 (D60)
             risk_guard = RiskGuard(risk_limits)
             
             for symbol in self.symbols:
@@ -179,36 +207,77 @@ class MultiSymbolLongrunRunner:
                     max_daily_loss=self.config.get("symbol_max_daily_loss", 5000.0),
                 )
                 risk_guard.set_symbol_limits(symbol_limits)
-                
-                # 초기 상태 설정
-                portfolio.update_symbol_capital_used(symbol, 0.0)
-                portfolio.update_symbol_position_count(symbol, 0)
-                portfolio.update_symbol_daily_loss(symbol, 0.0)
             
-            # 4. Executor Factory 설정 (D61)
-            executor_factory = ExecutorFactory()
+            # 5. MarketDataProvider 생성 (REST 강제)
+            exchanges_dict = {"a": exchange_a, "b": exchange_b}
+            provider = RestMarketDataProvider(exchanges=exchanges_dict)
+            logger.info("[D62_LONGRUN] Created RestMarketDataProvider")
+            
+            # 6. MetricsCollector 생성
+            metrics = MetricsCollector(buffer_size=300)
+            logger.info("[D62_LONGRUN] Created MetricsCollector")
+            
+            # 7. 멀티심볼 러너 생성 (각 심볼별로 ArbitrageLiveRunner 생성)
+            runners = {}
             for symbol in self.symbols:
-                executor_factory.create_paper_executor(
-                    symbol=symbol,
-                    portfolio_state=portfolio,
-                    risk_guard=risk_guard,
+                # 각 심볼에 대해 쌍을 정의 (예: KRW-BTC vs BTCUSDT)
+                symbol_a = symbol
+                symbol_b = self._get_pair_symbol(symbol)
+                
+                live_config = ArbitrageLiveConfig(
+                    symbol_a=symbol_a,
+                    symbol_b=symbol_b,
+                    min_spread_bps=engine_config.get("min_spread_bps", 30.0),
+                    taker_fee_a_bps=engine_config.get("taker_fee_a_bps", 5.0),
+                    taker_fee_b_bps=engine_config.get("taker_fee_b_bps", 5.0),
+                    slippage_bps=engine_config.get("slippage_bps", 5.0),
+                    max_position_usd=engine_config.get("max_position_usd", 1000.0),
+                    poll_interval_seconds=1.0,
+                    max_concurrent_trades=1,
+                    mode="paper",
+                    log_level="INFO",
+                    max_runtime_seconds=None,
+                    risk_limits=risk_limits,
+                    paper_simulation_enabled=True,
+                    paper_volatility_range_bps=100.0,
+                    paper_spread_injection_interval=5,
+                    data_source="rest",
                 )
+                
+                runner = ArbitrageLiveRunner(
+                    engine=engine,
+                    exchange_a=exchange_a,
+                    exchange_b=exchange_b,
+                    config=live_config,
+                    market_data_provider=provider,
+                    metrics_collector=metrics,
+                )
+                runners[symbol] = runner
+                logger.info(f"[D62_LONGRUN] Created ArbitrageLiveRunner for {symbol_a} vs {symbol_b}")
             
-            # 5. 롱런 루프 실행 (간단한 시뮬레이션)
+            # 8. 롱런 루프 실행
             logger.info(f"[D62_LONGRUN] Starting main loop for {self.duration_seconds}s")
             logger.info(f"[D62_LONGRUN] Symbols: {self.symbols}")
-            logger.info(f"[D62_LONGRUN] Executors: {len(executor_factory.get_all_executors())}")
+            logger.info(f"[D62_LONGRUN] Runners: {len(runners)}")
             
             loop_count = 0
             symbol_loop_counts = {symbol: 0 for symbol in self.symbols}
+            total_trades_opened = 0
+            total_trades_closed = 0
             
             while time.time() - self.start_time < self.duration_seconds:
                 try:
                     # 각 심볼에 대해 한 번씩 실행
                     for symbol in self.symbols:
-                        executor = executor_factory.get_executor(symbol)
-                        if executor:
+                        runner = runners[symbol]
+                        
+                        # 실제 엔진 루프 실행
+                        success = runner.run_once()
+                        
+                        if success:
                             symbol_loop_counts[symbol] += 1
+                            total_trades_opened += runner._total_trades_opened
+                            total_trades_closed += runner._total_trades_closed
                     
                     loop_count += 1
                     
@@ -219,6 +288,8 @@ class MultiSymbolLongrunRunner:
                             f"[D62_LONGRUN] Progress: "
                             f"loop={loop_count}, elapsed={elapsed:.1f}s, "
                             f"symbols={len(self.symbols)}, "
+                            f"trades_opened={total_trades_opened}, "
+                            f"trades_closed={total_trades_closed}, "
                             f"per_symbol_loops={symbol_loop_counts}"
                         )
                     
@@ -229,17 +300,51 @@ class MultiSymbolLongrunRunner:
                     logger.error(f"[D62_LONGRUN] Loop error: {e}", exc_info=True)
                     break
             
-            # 6. 최종 통계
+            # 9. 최종 통계
             elapsed = time.time() - self.start_time
             logger.info(
                 f"[D62_LONGRUN] Completed: "
-                f"elapsed={elapsed:.1f}s, loops={loop_count}, symbols={len(self.symbols)}"
+                f"elapsed={elapsed:.1f}s, loops={loop_count}, symbols={len(self.symbols)}, "
+                f"total_trades_opened={total_trades_opened}, total_trades_closed={total_trades_closed}"
             )
             logger.info(f"[D62_LONGRUN] Per-symbol loop counts: {symbol_loop_counts}")
+            
+            # 10. 최종 메트릭 출력
+            if metrics:
+                avg_loop_time = sum(metrics.loop_times) / len(metrics.loop_times) if metrics.loop_times else 0
+                logger.info(
+                    f"[D62_LONGRUN] Metrics: "
+                    f"avg_loop_time={avg_loop_time:.2f}ms, "
+                    f"total_trades={metrics.trades_opened_total}, "
+                    f"data_source={metrics.data_source}"
+                )
         
         except Exception as e:
             logger.error(f"[D62_LONGRUN] Fatal error: {e}", exc_info=True)
             raise
+    
+    def _get_pair_symbol(self, symbol: str) -> str:
+        """
+        심볼에 대한 쌍 심볼 반환
+        
+        Args:
+            symbol: 입력 심볼 (예: "KRW-BTC")
+        
+        Returns:
+            쌍 심볼 (예: "BTCUSDT")
+        """
+        # KRW-BTC -> BTCUSDT 매핑
+        mapping = {
+            "KRW-BTC": "BTCUSDT",
+            "KRW-ETH": "ETHUSDT",
+            "KRW-XRP": "XRPUSDT",
+            "KRW-ADA": "ADAUSDT",
+            "BTCUSDT": "KRW-BTC",
+            "ETHUSDT": "KRW-ETH",
+            "XRPUSDT": "KRW-XRP",
+            "ADAUSDT": "KRW-ADA",
+        }
+        return mapping.get(symbol, "BTCUSDT")
     
     def run(self) -> None:
         """동기 래퍼"""
@@ -294,9 +399,10 @@ def main():
     )
     parser.add_argument(
         "--scenario",
+        type=str,
         default="S0",
-        choices=["S0", "S1", "S2", "S3"],
-        help="시나리오 (S0=3min, S1=1h, S2=6h, S3=12h+)",
+        choices=["S0", "S0_REAL", "S1", "S2", "S3"],
+        help="시나리오: S0 (1분 드라이런), S0_REAL (10분 실행), S1 (1시간), S2 (6시간), S3 (12시간+)",
     )
     parser.add_argument(
         "--duration-minutes",
