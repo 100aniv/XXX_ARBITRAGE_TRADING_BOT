@@ -2,8 +2,11 @@
 D50: Metrics Collector
 
 루프 메트릭을 수집하고 관리한다.
+
+D54: Async queue 지원 추가 (멀티심볼 v2.0 기반)
 """
 
+import asyncio
 import logging
 import time
 from collections import deque
@@ -160,3 +163,39 @@ class MetricsCollector:
         self.trades_opened_total = 0
         self.start_time = time.time()
         logger.info("[D50_METRICS] Metrics reset")
+    
+    async def aupdate_loop_metrics(
+        self,
+        loop_time_ms: float,
+        trades_opened: int,
+        spread_bps: float,
+        data_source: str,
+        ws_connected: bool = False,
+        ws_reconnects: int = 0,
+    ) -> None:
+        """
+        D54: Async wrapper for update_loop_metrics
+        
+        멀티심볼 병렬 처리를 위한 async 인터페이스.
+        내부적으로는 sync 메서드를 호출하되, 추후 async queue 기반 수집 대비.
+        
+        Args:
+            loop_time_ms: 루프 실행 시간 (ms)
+            trades_opened: 이번 루프에서 체결된 거래 수
+            spread_bps: 스프레드 (basis points)
+            data_source: 데이터 소스 ("rest" 또는 "ws")
+            ws_connected: WebSocket 연결 상태
+            ws_reconnects: WebSocket 재연결 횟수
+        """
+        # 현재는 sync 메서드를 event loop에서 실행
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self.update_loop_metrics,
+            loop_time_ms,
+            trades_opened,
+            spread_bps,
+            data_source,
+            ws_connected,
+            ws_reconnects,
+        )

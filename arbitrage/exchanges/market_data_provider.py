@@ -7,8 +7,11 @@ REST 폴링 또는 WebSocket 스트림 중 하나를 선택하여 사용할 수 
 구현체:
 - RestMarketDataProvider: REST 기반 폴링
 - WebSocketMarketDataProvider: WebSocket 스트림 기반 (D49+)
+
+D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
 """
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
@@ -59,6 +62,23 @@ class MarketDataProvider(ABC):
         - WebSocket: 연결 종료
         """
         pass
+    
+    async def aget_latest_snapshot(self, symbol: str) -> Optional[OrderBookSnapshot]:
+        """
+        D54: Async wrapper for get_latest_snapshot
+        
+        멀티심볼 병렬 처리를 위한 async 인터페이스.
+        내부적으로는 sync 메서드를 호출하되, 추후 완전 async 전환 대비.
+        
+        Args:
+            symbol: 거래 쌍
+        
+        Returns:
+            OrderBookSnapshot 또는 None
+        """
+        # 현재는 sync 메서드를 event loop에서 실행
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.get_latest_snapshot, symbol)
 
 
 class RestMarketDataProvider(MarketDataProvider):

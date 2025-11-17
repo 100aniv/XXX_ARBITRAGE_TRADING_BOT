@@ -4,8 +4,11 @@ D44 Arbitrage Live Runner with RiskGuard
 
 ArbitrageEngine + Exchange Adapter를 연결하는 실시간 루프.
 Paper 모드 우선 구현 + RiskGuard 하드닝.
+
+D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
 """
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -686,3 +689,131 @@ class ArbitrageLiveRunner:
             "active_orders": len(self._active_orders),
             "avg_loop_time_ms": (elapsed / self._loop_count * 1000) if self._loop_count > 0 else 0,
         }
+    
+    async def arun_once(self) -> bool:
+        """
+        D54: Async wrapper for run_once
+        
+        멀티심볼 병렬 처리를 위한 async 인터페이스.
+        엔진 로직은 sync 유지, snapshot/metrics만 async 래핑.
+        
+        Returns:
+            성공 여부
+        """
+        loop_start = time.time()
+        self._loop_count += 1
+        
+        # D54: async snapshot 조회
+        if self.market_data_provider is not None:
+            snapshot_a = await self.market_data_provider.aget_latest_snapshot(self.config.symbol_a)
+            snapshot_b = await self.market_data_provider.aget_latest_snapshot(self.config.symbol_b)
+            
+            if snapshot_a is None or snapshot_b is None:
+                logger.warning(
+                    f"[D54_ASYNC] MarketDataProvider returned None snapshot: "
+                    f"A={snapshot_a is not None}, B={snapshot_b is not None}"
+                )
+                return False
+            
+            # OrderBookSnapshot 생성
+            best_bid_a = snapshot_a.bids[0][0] if snapshot_a.bids else None
+            best_ask_a = snapshot_a.asks[0][0] if snapshot_a.asks else None
+            best_bid_b = snapshot_b.bids[0][0] if snapshot_b.bids else None
+            best_ask_b = snapshot_b.asks[0][0] if snapshot_b.asks else None
+            
+            if not all([best_bid_a, best_ask_a, best_bid_b, best_ask_b]):
+                logger.warning("[D54_ASYNC] Invalid snapshot data from MarketDataProvider")
+                return False
+            
+            snapshot = OrderBookSnapshot(
+                timestamp=datetime.utcnow().isoformat(),
+                best_bid_a=best_bid_a,
+                best_ask_a=best_ask_a,
+                best_bid_b=best_bid_b,
+                best_ask_b=best_ask_b,
+            )
+        else:
+            # Fallback to sync snapshot
+            snapshot = self.build_snapshot()
+        
+        if snapshot is None:
+            logger.warning("[D54_ASYNC] Failed to build snapshot")
+            return False
+        
+        # 엔진 처리 (sync 유지)
+        trades = self.process_snapshot(snapshot)
+        
+        # 주문 실행
+        trades_opened_delta = sum(1 for t in trades if t.is_open)
+        self.execute_trades(trades)
+        
+        # 메트릭 수집
+        loop_end = time.time()
+        loop_time_ms = (loop_end - loop_start) * 1000.0
+        self._last_loop_time_ms = loop_time_ms
+        
+        last_spread_bps = getattr(self.engine, 'last_spread_bps', self._last_spread_bps)
+        self._last_spread_bps = last_spread_bps
+        
+        # D54: async metrics 업데이트
+        if self.metrics_collector is not None:
+            if self.market_data_provider is not None:
+                ws_connected = getattr(self.market_data_provider, 'ws_connected', False)
+                ws_reconnects = getattr(self.market_data_provider, 'ws_reconnects', 0)
+            else:
+                ws_connected = False
+                ws_reconnects = 0
+            
+            await self.metrics_collector.aupdate_loop_metrics(
+                loop_time_ms=loop_time_ms,
+                trades_opened=trades_opened_delta,
+                spread_bps=last_spread_bps,
+                data_source=self.config.data_source,
+                ws_connected=ws_connected,
+                ws_reconnects=ws_reconnects,
+            )
+        
+        logger.debug(
+            f"[D54_ASYNC] Loop {self._loop_count}: "
+            f"trades={len(trades)}, active_orders={len(self._active_orders)}, "
+            f"loop_time={loop_time_ms:.2f}ms"
+        )
+        
+        return True
+    
+    async def arun_forever(self) -> None:
+        """
+        D54: Async wrapper for run_forever
+        
+        멀티심볼 병렬 처리를 위한 async 루프.
+        
+        Returns:
+            None
+        """
+        logger.info(
+            f"[D54_ASYNC] Starting async live loop: "
+            f"interval={self.config.poll_interval_seconds}s, "
+            f"max_runtime={self.config.max_runtime_seconds}s"
+        )
+        
+        while True:
+            # RiskGuard session_stop 확인
+            if self._session_stop_requested:
+                logger.info("[D54_ASYNC] Session stopped by RiskGuard")
+                break
+            
+            # 런타임 제한 확인
+            if self.config.max_runtime_seconds is not None:
+                elapsed = time.time() - self._start_time
+                if elapsed > self.config.max_runtime_seconds:
+                    logger.info(
+                        f"[D54_ASYNC] Max runtime exceeded: {elapsed:.1f}s > "
+                        f"{self.config.max_runtime_seconds}s"
+                    )
+                    break
+            
+            # 1회 루프 실행
+            await self.arun_once()
+            
+            # 대기 (async sleep)
+            await asyncio.sleep(self.config.poll_interval_seconds)
