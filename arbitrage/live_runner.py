@@ -53,6 +53,11 @@ class RiskGuard:
     D58: Multi-Symbol Integration
     - symbol-aware state tracking 준비
     - per-symbol loss tracking (future-proofing)
+    
+    D60: Multi-Symbol Capital & Position Limits
+    - Per-symbol capital limits
+    - Per-symbol position limits
+    - Per-symbol concurrent trade limits
     """
     
     def __init__(self, risk_limits: "RiskLimits"):
@@ -69,8 +74,13 @@ class RiskGuard:
         self.per_symbol_trades_rejected: Dict[str, int] = {}  # {symbol: count}
         self.per_symbol_trades_allowed: Dict[str, int] = {}  # {symbol: count}
         
+        # D60: Multi-Symbol Capital & Position Limits
+        self.per_symbol_limits: Dict[str, "SymbolRiskLimits"] = {}  # {symbol: SymbolRiskLimits}
+        self.per_symbol_capital_used: Dict[str, float] = {}  # {symbol: used_capital}
+        self.per_symbol_position_count: Dict[str, int] = {}  # {symbol: position_count}
+        
         logger.info(
-            f"[D58_RISKGUARD] Initialized: "
+            f"[D60_RISKGUARD] Initialized: "
             f"max_notional={risk_limits.max_notional_per_trade}, "
             f"max_daily_loss={risk_limits.max_daily_loss}, "
             f"max_open_trades={risk_limits.max_open_trades}"
@@ -222,6 +232,107 @@ class RiskGuard:
             'trades_rejected': self.per_symbol_trades_rejected.get(symbol, 0),
             'trades_allowed': self.per_symbol_trades_allowed.get(symbol, 0),
         }
+    
+    def set_symbol_limits(self, symbol_limits: "SymbolRiskLimits") -> None:
+        """
+        D60: Set per-symbol risk limits.
+        
+        특정 심볼의 리스크 한도를 설정한다.
+        
+        Args:
+            symbol_limits: SymbolRiskLimits 객체
+        """
+        self.per_symbol_limits[symbol_limits.symbol] = symbol_limits
+        logger.info(
+            f"[D60_RISKGUARD] Set limits for {symbol_limits.symbol}: "
+            f"capital={symbol_limits.capital_limit_notional}, "
+            f"max_positions={symbol_limits.max_positions}, "
+            f"max_trades={symbol_limits.max_concurrent_trades}"
+        )
+    
+    def check_symbol_capital_limit(self, symbol: str, required_capital: float) -> bool:
+        """
+        D60: Check if symbol capital limit is exceeded.
+        
+        심볼별 자본 한도를 확인한다.
+        
+        Args:
+            symbol: 거래 심볼
+            required_capital: 필요한 자본 (USD)
+        
+        Returns:
+            True if within limit, False otherwise
+        """
+        if symbol not in self.per_symbol_limits:
+            # 한도가 설정되지 않으면 통과
+            return True
+        
+        limits = self.per_symbol_limits[symbol]
+        current_capital = self.per_symbol_capital_used.get(symbol, 0.0)
+        
+        if current_capital + required_capital > limits.capital_limit_notional:
+            logger.warning(
+                f"[D60_RISKGUARD] Capital limit exceeded for {symbol}: "
+                f"current={current_capital}, required={required_capital}, "
+                f"limit={limits.capital_limit_notional}"
+            )
+            return False
+        
+        return True
+    
+    def check_symbol_position_limit(self, symbol: str) -> bool:
+        """
+        D60: Check if symbol position limit is exceeded.
+        
+        심볼별 포지션 한도를 확인한다.
+        
+        Args:
+            symbol: 거래 심볼
+        
+        Returns:
+            True if within limit, False otherwise
+        """
+        if symbol not in self.per_symbol_limits:
+            # 한도가 설정되지 않으면 통과
+            return True
+        
+        limits = self.per_symbol_limits[symbol]
+        current_positions = self.per_symbol_position_count.get(symbol, 0)
+        
+        if current_positions >= limits.max_positions:
+            logger.warning(
+                f"[D60_RISKGUARD] Position limit exceeded for {symbol}: "
+                f"current={current_positions}, limit={limits.max_positions}"
+            )
+            return False
+        
+        return True
+    
+    def update_symbol_capital_used(self, symbol: str, capital: float) -> None:
+        """
+        D60: Update per-symbol capital used.
+        
+        심볼별 사용된 자본을 업데이트한다.
+        
+        Args:
+            symbol: 거래 심볼
+            capital: 사용된 자본 (USD)
+        """
+        self.per_symbol_capital_used[symbol] = capital
+        logger.debug(f"[D60_RISKGUARD] Updated capital for {symbol}: {capital:.2f}")
+    
+    def update_symbol_position_count(self, symbol: str, count: int) -> None:
+        """
+        D60: Update per-symbol position count.
+        
+        심볼별 포지션 수를 업데이트한다.
+        
+        Args:
+            symbol: 거래 심볼
+            count: 포지션 수
+        """
+        self.per_symbol_position_count[symbol] = count
+        logger.debug(f"[D60_RISKGUARD] Updated position count for {symbol}: {count}")
 
 
 @dataclass

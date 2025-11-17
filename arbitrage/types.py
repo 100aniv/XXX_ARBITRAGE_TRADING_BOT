@@ -10,6 +10,11 @@ D57: Multi-Symbol Portfolio Integration
 - PortfolioState에 symbol-aware 필드 추가
 - Per-symbol position tracking 지원
 - 단일 심볼 모드 100% 호환성 유지
+
+D60: Multi-Symbol Capital & Position Limits
+- Per-symbol capital limits 정의
+- Per-symbol position limits 정의
+- Per-symbol risk tracking 준비
 """
 
 from dataclasses import dataclass, field
@@ -164,6 +169,31 @@ class RiskMetrics:
 
 
 @dataclass
+class SymbolRiskLimits:
+    """
+    D60: 심볼별 리스크 한도
+    
+    각 심볼에 대한 독립적인 리스크 제한을 정의한다.
+    """
+    symbol: str
+    capital_limit_notional: float  # 심볼별 최대 자본 (USD)
+    max_positions: int  # 심볼별 최대 포지션 수
+    max_concurrent_trades: int  # 심볼별 최대 동시 거래 수
+    max_daily_loss: float  # 심볼별 일일 최대 손실 (USD)
+    
+    def __post_init__(self):
+        """유효성 검사"""
+        if self.capital_limit_notional <= 0:
+            raise ValueError(f"capital_limit_notional must be positive: {self.capital_limit_notional}")
+        if self.max_positions <= 0:
+            raise ValueError(f"max_positions must be positive: {self.max_positions}")
+        if self.max_concurrent_trades <= 0:
+            raise ValueError(f"max_concurrent_trades must be positive: {self.max_concurrent_trades}")
+        if self.max_daily_loss <= 0:
+            raise ValueError(f"max_daily_loss must be positive: {self.max_daily_loss}")
+
+
+@dataclass
 class PortfolioState:
     """포트폴리오 상태"""
     total_balance: float
@@ -176,6 +206,11 @@ class PortfolioState:
     symbol: Optional[str] = None  # 단일 심볼 모드일 때 심볼 지정
     per_symbol_positions: Dict[str, Dict[str, Position]] = field(default_factory=dict)  # {symbol: {pos_id: Position}}
     per_symbol_orders: Dict[str, Dict[str, Order]] = field(default_factory=dict)  # {symbol: {order_id: Order}}
+    
+    # D60: Multi-Symbol Capital & Position Limits
+    per_symbol_capital_used: Dict[str, float] = field(default_factory=dict)  # {symbol: used_notional}
+    per_symbol_position_count: Dict[str, int] = field(default_factory=dict)  # {symbol: position_count}
+    per_symbol_daily_loss: Dict[str, float] = field(default_factory=dict)  # {symbol: daily_loss}
     
     @property
     def total_position_value(self) -> float:
@@ -251,3 +286,69 @@ class PortfolioState:
         """
         positions = self.get_symbol_positions(symbol)
         return sum(pos.quantity * pos.current_price for pos in positions.values())
+    
+    def get_symbol_capital_used(self, symbol: str) -> float:
+        """
+        D60: 특정 심볼의 사용된 자본 조회
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            사용된 자본 (USD)
+        """
+        return self.per_symbol_capital_used.get(symbol, 0.0)
+    
+    def get_symbol_position_count(self, symbol: str) -> int:
+        """
+        D60: 특정 심볼의 포지션 수 조회
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            포지션 수
+        """
+        return self.per_symbol_position_count.get(symbol, 0)
+    
+    def get_symbol_daily_loss(self, symbol: str) -> float:
+        """
+        D60: 특정 심볼의 일일 손실 조회
+        
+        Args:
+            symbol: 심볼
+        
+        Returns:
+            일일 손실 (USD)
+        """
+        return self.per_symbol_daily_loss.get(symbol, 0.0)
+    
+    def update_symbol_capital_used(self, symbol: str, capital: float) -> None:
+        """
+        D60: 특정 심볼의 사용된 자본 업데이트
+        
+        Args:
+            symbol: 심볼
+            capital: 사용된 자본 (USD)
+        """
+        self.per_symbol_capital_used[symbol] = capital
+    
+    def update_symbol_position_count(self, symbol: str, count: int) -> None:
+        """
+        D60: 특정 심볼의 포지션 수 업데이트
+        
+        Args:
+            symbol: 심볼
+            count: 포지션 수
+        """
+        self.per_symbol_position_count[symbol] = count
+    
+    def update_symbol_daily_loss(self, symbol: str, loss: float) -> None:
+        """
+        D60: 특정 심볼의 일일 손실 업데이트
+        
+        Args:
+            symbol: 심볼
+            loss: 일일 손실 (USD)
+        """
+        self.per_symbol_daily_loss[symbol] = loss
