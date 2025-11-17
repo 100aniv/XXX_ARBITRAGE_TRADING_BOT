@@ -1,0 +1,50 @@
+# D62: Multi-Symbol Long-run Campaign Configuration
+
+# 기본 자본
+initial_balance: 100000.0
+
+# 거래소 설정
+exchange_a: "upbit"
+exchange_b: "binance"
+
+# 글로벌 리스크 한도
+max_notional_per_trade: 5000.0
+max_daily_loss: 10000.0
+max_open_trades: 1
+
+# 심볼별 리스크 한도 (D60)
+symbol_capital_limit: 5000.0
+symbol_max_positions: 2
+symbol_max_concurrent_trades: 1
+symbol_max_daily_loss: 5000.0
+
+# 데이터 소스 (롱런은 REST 강제)
+data_source: "rest"
+
+# 모드
+mode: "paper"
+
+# 시나리오별 설정 예시
+# S0: 3분 (Mini Dry-run)
+# S1: 60분 (1시간)
+# S2: 360분 (6시간)
+# S3: 720분 (12시간)
+
+# 심볼 그룹 (CLI에서 --symbols로 오버라이드)
+symbols:
+  - "KRW-BTC"
+  - "KRW-ETH"
+
+# 로깅
+log_level: "INFO"
+log_dir: "logs"
+
+# 모니터링
+monitoring:
+  enabled: true
+  interval_seconds: 10
+  patterns:
+    - "ERROR"
+    - "Guard"
+    - "Entry"
+    - "Traceback"
