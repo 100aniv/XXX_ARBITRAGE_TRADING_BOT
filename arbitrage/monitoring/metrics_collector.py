@@ -4,6 +4,7 @@ D50: Metrics Collector
 루프 메트릭을 수집하고 관리한다.
 
 D54: Async queue 지원 추가 (멀티심볼 v2.0 기반)
+D55: Async queue processing loop 추가 (완전 비동기 전환)
 """
 
 import asyncio
@@ -47,6 +48,10 @@ class MetricsCollector:
         # 누적 통계
         self.trades_opened_total: int = 0
         self.start_time: float = time.time()
+        
+        # D55: Async queue for metrics collection
+        self._metrics_queue: Optional[asyncio.Queue] = None
+        self._processing_task: Optional[asyncio.Task] = None
     
     def update_loop_metrics(
         self,
@@ -199,3 +204,90 @@ class MetricsCollector:
             ws_connected,
             ws_reconnects,
         )
+    
+    async def astart_queue_processing(self) -> None:
+        """
+        D55: Start async queue processing loop
+        
+        메트릭을 비동기 큐에서 처리한다.
+        """
+        self._metrics_queue = asyncio.Queue()
+        self._processing_task = asyncio.create_task(self._process_metrics_queue())
+        logger.info("[D55_METRICS] Async queue processing started")
+    
+    async def astop_queue_processing(self) -> None:
+        """
+        D55: Stop async queue processing loop
+        
+        비동기 큐 처리를 종료한다.
+        """
+        if self._processing_task:
+            self._processing_task.cancel()
+            try:
+                await self._processing_task
+            except asyncio.CancelledError:
+                pass
+        self._metrics_queue = None
+        logger.info("[D55_METRICS] Async queue processing stopped")
+    
+    async def aqueue_metrics(
+        self,
+        loop_time_ms: float,
+        trades_opened: int,
+        spread_bps: float,
+        data_source: str,
+        ws_connected: bool = False,
+        ws_reconnects: int = 0,
+    ) -> None:
+        """
+        D55: Queue metrics for async processing
+        
+        메트릭을 비동기 큐에 추가한다.
+        """
+        if self._metrics_queue is None:
+            logger.warning("[D55_METRICS] Queue not initialized")
+            return
+        
+        metric_data = {
+            "loop_time_ms": loop_time_ms,
+            "trades_opened": trades_opened,
+            "spread_bps": spread_bps,
+            "data_source": data_source,
+            "ws_connected": ws_connected,
+            "ws_reconnects": ws_reconnects,
+        }
+        
+        await self._metrics_queue.put(metric_data)
+    
+    async def _process_metrics_queue(self) -> None:
+        """
+        D55: Process metrics from async queue
+        
+        비동기 큐에서 메트릭을 처리하는 루프.
+        """
+        while True:
+            try:
+                metric_data = await asyncio.wait_for(
+                    self._metrics_queue.get(),
+                    timeout=5.0,
+                )
+                
+                # Sync 메서드로 메트릭 업데이트
+                self.update_loop_metrics(
+                    loop_time_ms=metric_data["loop_time_ms"],
+                    trades_opened=metric_data["trades_opened"],
+                    spread_bps=metric_data["spread_bps"],
+                    data_source=metric_data["data_source"],
+                    ws_connected=metric_data["ws_connected"],
+                    ws_reconnects=metric_data["ws_reconnects"],
+                )
+                
+                self._metrics_queue.task_done()
+            
+            except asyncio.TimeoutError:
+                # 타임아웃은 정상 (큐가 비어있음)
+                continue
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[D55_METRICS] Queue processing error: {e}")

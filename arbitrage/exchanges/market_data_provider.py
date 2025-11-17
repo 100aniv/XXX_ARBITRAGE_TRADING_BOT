@@ -9,6 +9,7 @@ REST 폴링 또는 WebSocket 스트림 중 하나를 선택하여 사용할 수 
 - WebSocketMarketDataProvider: WebSocket 스트림 기반 (D49+)
 
 D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
+D55: Async-first design (완전 비동기 전환)
 """
 
 import asyncio
@@ -79,6 +80,24 @@ class MarketDataProvider(ABC):
         # 현재는 sync 메서드를 event loop에서 실행
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.get_latest_snapshot, symbol)
+    
+    async def astart(self) -> None:
+        """
+        D55: Async start method
+        
+        데이터 소스를 비동기적으로 시작한다.
+        기존 sync start()와 동일한 기능을 수행한다.
+        """
+        self.start()
+    
+    async def astop(self) -> None:
+        """
+        D55: Async stop method
+        
+        데이터 소스를 비동기적으로 종료한다.
+        기존 sync stop()과 동일한 기능을 수행한다.
+        """
+        self.stop()
 
 
 class RestMarketDataProvider(MarketDataProvider):

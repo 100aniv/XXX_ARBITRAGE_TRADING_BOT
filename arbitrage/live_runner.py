@@ -6,6 +6,7 @@ ArbitrageEngine + Exchange Adapter를 연결하는 실시간 루프.
 Paper 모드 우선 구현 + RiskGuard 하드닝.
 
 D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
+D55: Complete async execution flow (완전 비동기 전환)
 """
 
 import asyncio
