@@ -14,6 +14,11 @@ OrderbookSnapshot으로 변환한다.
     ...
   ]
 }
+
+D59: Multi-Symbol WebSocket Support
+- 여러 심볼을 한 번에 구독 가능 (symbols 리스트)
+- 심볼별 스냅샷 독립 관리 (_last_snapshots Dict)
+- 콜백 기반 심볼별 업데이트
 """
 
 import logging

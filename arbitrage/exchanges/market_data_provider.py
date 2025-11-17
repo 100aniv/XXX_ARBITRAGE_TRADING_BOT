@@ -10,6 +10,9 @@ REST 폴링 또는 WebSocket 스트림 중 하나를 선택하여 사용할 수 
 
 D54: Async wrapper 추가 (멀티심볼 v2.0 기반)
 D55: Async-first design (완전 비동기 전환)
+D59: Multi-Symbol WebSocket Support
+- Per-symbol snapshot storage (latest_snapshots Dict)
+- Symbol-aware get_latest_snapshot interface
 """
 
 import asyncio
@@ -184,6 +187,9 @@ class WebSocketMarketDataProvider(MarketDataProvider):
     메모리 버퍼에 최신 스냅샷을 유지한다.
     
     D49.5: Upbit/Binance WS 어댑터 연결 완료
+    D59: Multi-Symbol WebSocket Support
+    - Per-symbol snapshot storage (latest_snapshots Dict)
+    - Symbol-aware snapshot management
     """
     
     def __init__(self, ws_adapters: Dict[str, any]):
@@ -200,6 +206,9 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         self.snapshot_upbit: Optional[OrderBookSnapshot] = None
         self.snapshot_binance: Optional[OrderBookSnapshot] = None
         
+        # D59: Per-symbol snapshot storage (멀티심볼 지원)
+        self.latest_snapshots: Dict[str, OrderBookSnapshot] = {}  # {symbol: snapshot}
+        
         # D53: 심볼 패턴 캐싱 (반복 계산 제거)
         self._symbol_cache: Dict[str, str] = {}  # symbol -> "upbit" or "binance"
     
@@ -207,6 +216,7 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         """
         심볼 기반 최신 호가 스냅샷 반환
         D53: 심볼 패턴 캐싱으로 성능 개선
+        D59: Per-symbol snapshot storage 우선 사용
         
         Args:
             symbol: 거래 쌍 (예: "KRW-BTC", "BTCUSDT")
@@ -214,7 +224,11 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         Returns:
             OrderBookSnapshot 또는 None (데이터 없음)
         """
-        # D53: 캐시 확인
+        # D59: Per-symbol snapshot 먼저 확인 (멀티심볼 지원)
+        if symbol in self.latest_snapshots:
+            return self.latest_snapshots[symbol]
+        
+        # D53: 캐시 확인 (레거시 호환성)
         if symbol not in self._symbol_cache:
             # 심볼 패턴으로 거래소 판단 (첫 호출 시만)
             if "-" in symbol:  # Upbit (KRW-BTC)
@@ -222,10 +236,10 @@ class WebSocketMarketDataProvider(MarketDataProvider):
             elif symbol.endswith("USDT"):  # Binance (BTCUSDT)
                 self._symbol_cache[symbol] = "binance"
             else:
-                logger.warning(f"[D49.5_PROVIDER] Unknown symbol pattern: {symbol}")
+                logger.warning(f"[D59_PROVIDER] Unknown symbol pattern: {symbol}")
                 return None
         
-        # 캐시된 거래소 정보로 스냅샷 반환
+        # 캐시된 거래소 정보로 스냅샷 반환 (레거시)
         exchange = self._symbol_cache[symbol]
         if exchange == "upbit":
             return self.snapshot_upbit
@@ -258,19 +272,25 @@ class WebSocketMarketDataProvider(MarketDataProvider):
     def on_upbit_snapshot(self, snapshot: OrderBookSnapshot) -> None:
         """
         Upbit 스냅샷 콜백 (D49.5)
+        D59: Per-symbol snapshot storage 업데이트
         
         Args:
             snapshot: Upbit 호가 스냅샷
         """
         self.snapshot_upbit = snapshot
-        logger.debug(f"[D49.5_PROVIDER] Updated Upbit snapshot: {snapshot.symbol}")
+        # D59: Per-symbol snapshot 저장
+        self.latest_snapshots[snapshot.symbol] = snapshot
+        logger.debug(f"[D59_PROVIDER] Updated Upbit snapshot: {snapshot.symbol}")
     
     def on_binance_snapshot(self, snapshot: OrderBookSnapshot) -> None:
         """
         Binance 스냅샷 콜백 (D49.5)
+        D59: Per-symbol snapshot storage 업데이트
         
         Args:
             snapshot: Binance 호가 스냅샷
         """
         self.snapshot_binance = snapshot
-        logger.debug(f"[D49.5_PROVIDER] Updated Binance snapshot: {snapshot.symbol}")
+        # D59: Per-symbol snapshot 저장
+        self.latest_snapshots[snapshot.symbol] = snapshot
+        logger.debug(f"[D59_PROVIDER] Updated Binance snapshot: {snapshot.symbol}")
