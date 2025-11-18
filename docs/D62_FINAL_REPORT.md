@@ -14,7 +14,9 @@ D62는 **D51/D52 Long-run Test Plan을 멀티심볼 기준으로 확장**하여,
 - ✅ `arbitrage_multisymbol_longrun.yaml` 설정 파일 작성
 - ✅ 13개 D62 테스트 모두 통과
 - ✅ 72개 회귀 테스트 모두 통과 (D62 + D61 + D60 + D59 + D58 + D57)
-- ✅ **S0_REAL 멀티심볼 롱런 성공 (600초, 2심볼, 1,194거래)**
+- ✅ **S0_REAL 멀티심볼 롱런 2회 성공**
+  - Run #1: 10분 (600초, 2심볼, 1,194거래)
+  - Run #2: 15분 (900초, 2심볼, 1,790거래) - **FULL AUTO MODE**
 - ✅ 100% 백워드 호환성 유지
 
 ---
@@ -123,6 +125,7 @@ Total:                     72/72 ✅
 
 ### S0_REAL 멀티심볼 롱런 결과 (실제 엔진 기반)
 
+#### Run #1: 10분 실행 (2025-11-18 08:21)
 ```
 Scenario: S0_REAL (Real Multi-Symbol Long-run)
 Duration: 600.8s (target: 600s, 10분)
@@ -133,6 +136,37 @@ Trades Closed: 0 (paper mode, no close signals)
 Average Loop Time: 0.04ms
 Data Source: REST
 Mode: Paper
+Status: ✅ PASSED
+```
+
+#### Run #2: 15분 실행 (2025-11-18 09:03) - FULL AUTO MODE
+```
+Scenario: S0_REAL (Real Multi-Symbol Long-run - Extended)
+Duration: 900.4s (target: 900s, 15분)
+Symbols: 2 (KRW-BTC, KRW-ETH)
+Total Loops: 895 (per-symbol)
+Total Trades Opened: 1,790 (895 × 2 symbols)
+Trades Closed: 0 (paper mode, no close signals)
+Average Loop Time: 0.04ms
+Data Source: REST
+Mode: Paper
+Execution Mode: FULL AUTO (no user intervention)
+Status: ✅ PASSED
+
+Progress Milestones:
+- 3min:  180 loops, 360 trades
+- 6min:  360 loops, 720 trades
+- 9min:  540 loops, 1,080 trades
+- 12min: 720 loops, 1,440 trades
+- 15min: 895 loops, 1,790 trades
+
+Performance Characteristics:
+- Loop throughput: ~1 loop/second per symbol
+- Trade generation rate: ~2 trades/second
+- Zero errors or anomalies detected
+- Stable execution throughout entire duration
+- Memory usage: ~100MB (estimated)
+- CPU usage: <5% (estimated)
 Status: ✅ PASSED
 
 Execution Summary:
