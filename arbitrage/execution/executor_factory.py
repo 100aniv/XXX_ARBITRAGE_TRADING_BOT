@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 D61: Multi-Symbol Paper Execution — Executor Factory
+D64: Live Execution Integration — LiveExecutor Support
 
 심볼별 executor 생성 및 관리.
 """
 
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from arbitrage.types import PortfolioState
 from arbitrage.live_runner import RiskGuard
-from .executor import BaseExecutor, PaperExecutor
+from .executor import BaseExecutor, PaperExecutor, LiveExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,47 @@ class ExecutorFactory:
         
         self.executors[symbol] = executor
         logger.info(f"[D61_EXECUTOR_FACTORY] Created PaperExecutor for {symbol}")
+        
+        return executor
+    
+    def create_live_executor(
+        self,
+        symbol: str,
+        portfolio_state: PortfolioState,
+        risk_guard: RiskGuard,
+        upbit_api=None,
+        binance_api=None,
+        dry_run: bool = True,
+    ) -> LiveExecutor:
+        """
+        D64: Live Executor 생성
+        
+        Args:
+            symbol: 거래 심볼
+            portfolio_state: 포트폴리오 상태
+            risk_guard: 리스크 가드
+            upbit_api: Upbit API 클라이언트
+            binance_api: Binance API 클라이언트
+            dry_run: 드라이런 모드 (True면 실제 주문 안 함)
+        
+        Returns:
+            LiveExecutor 인스턴스
+        """
+        if symbol in self.executors:
+            logger.warning(f"[D64_EXECUTOR_FACTORY] Executor already exists for {symbol}")
+            return self.executors[symbol]
+        
+        executor = LiveExecutor(
+            symbol=symbol,
+            portfolio_state=portfolio_state,
+            risk_guard=risk_guard,
+            upbit_api=upbit_api,
+            binance_api=binance_api,
+            dry_run=dry_run,
+        )
+        
+        self.executors[symbol] = executor
+        logger.info(f"[D64_EXECUTOR_FACTORY] Created LiveExecutor for {symbol} (dry_run={dry_run})")
         
         return executor
     
