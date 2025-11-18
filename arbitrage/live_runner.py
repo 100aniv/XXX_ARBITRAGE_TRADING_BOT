@@ -443,6 +443,12 @@ class ArbitrageLiveRunner:
         self._last_spread_bps = 0.0
         self._last_loop_time_ms = 0.0
         
+        # D64: Exit 신호 생성을 위한 포지션 추적
+        # {trade_id: open_time} 형태로 포지션이 열린 시간 기록
+        self._position_open_times: Dict[int, float] = {}
+        # Paper 모드에서 Exit 신호를 생성할 시간 간격 (초)
+        self._paper_exit_trigger_interval = 10.0  # 10초 후 Exit 신호 생성
+        
         logger.info(
             f"[D43_LIVE] ArbitrageLiveRunner initialized: "
             f"{config.symbol_a} vs {config.symbol_b}, mode={config.mode}, "
@@ -549,14 +555,15 @@ class ArbitrageLiveRunner:
     
     def _inject_paper_prices(self) -> None:
         """
-        Paper 모드 호가 변동 시뮬레이션 (D45 개선).
+        Paper 모드 호가 변동 시뮬레이션 (D64 개선).
         
         5초마다 스프레드를 주입하여 거래 신호 생성.
+        포지션이 열린 후 일정 시간이 지나면 Exit 신호를 생성.
         
-        D45 개선사항:
-        - 환율 정규화 반영 (1 BTC = 100,000 KRW = 40,000 USDT)
-        - bid/ask 스프레드 추가 (현실적 호가)
-        - LONG_A_SHORT_B 신호 생성 최적화
+        D64 개선사항:
+        - 포지션 열린 시간 추적
+        - 일정 시간 후 스프레드를 음수로 변경하여 Exit 신호 생성
+        - Entry와 Exit의 완전한 사이클 구현
         """
         current_time = time.time()
         if current_time - self._last_price_injection_time < self.config.paper_spread_injection_interval:
@@ -564,7 +571,30 @@ class ArbitrageLiveRunner:
         
         self._last_price_injection_time = current_time
         
-        # D45: 환율 정규화 및 bid/ask 스프레드 추가
+        # D64: 포지션이 열린 후 일정 시간이 지났는지 확인
+        # 열린 포지션이 있으면, 일부는 Entry 신호, 일부는 Exit 신호 생성
+        open_trades = self.engine.get_open_trades()
+        
+        # 포지션 열린 시간 업데이트
+        for trade in open_trades:
+            trade_id = id(trade)
+            if trade_id not in self._position_open_times:
+                self._position_open_times[trade_id] = current_time
+                logger.info(f"[D64_PAPER] Position opened: {trade.side} at {current_time}")
+        
+        # 닫힌 포지션 정리
+        closed_trade_ids = [tid for tid in self._position_open_times if not any(id(t) == tid for t in open_trades)]
+        for tid in closed_trade_ids:
+            del self._position_open_times[tid]
+        
+        # D64: 포지션 나이에 따라 스프레드 결정
+        # - 새로운 포지션: Entry 신호 (양수 스프레드)
+        # - 오래된 포지션: Exit 신호 (음수 스프레드)
+        has_old_position = any(
+            current_time - open_time >= self._paper_exit_trigger_interval
+            for open_time in self._position_open_times.values()
+        )
+        
         # 기본 환율: 1 BTC = 100,000 KRW = 40,000 USDT
         # exchange_a_to_b_rate = 2.5 (100,000 / 40,000)
         
@@ -572,9 +602,7 @@ class ArbitrageLiveRunner:
         mid_a = 100000.0  # A (KRW)
         mid_b = 40000.0   # B (USDT)
         
-        # bid/ask 스프레드 (1% = 100 bps)
-        # bid = mid * (1 - spread_bps / 20000)
-        # ask = mid * (1 + spread_bps / 20000)
+        # bid/ask 스프레드
         spread_bps = 100.0  # 1% 스프레드
         spread_ratio = spread_bps / 20000.0  # 0.005
         
@@ -582,20 +610,24 @@ class ArbitrageLiveRunner:
         bid_a = mid_a * (1 - spread_ratio)  # 99,500
         ask_a = mid_a * (1 + spread_ratio)  # 100,500
         
-        # B 호가 (고가)
-        bid_b = mid_b * (1 + spread_ratio)  # 40,200
-        ask_b = mid_b * (1 + spread_ratio)  # 40,200
-        
-        # D45: 스프레드 계산 검증
-        # bid_b_normalized = 40,200 * 2.5 = 100,500
-        # spread = (100,500 - 100,500) / 100,500 * 10000 = 0 bps (경계선)
-        # 더 큰 스프레드를 위해 B를 더 높게 설정
-        bid_b = mid_b * (1 + spread_ratio * 2)  # 40,400
-        ask_b = mid_b * (1 + spread_ratio * 2)  # 40,400
-        
-        # 재검증:
-        # bid_b_normalized = 40,400 * 2.5 = 101,000
-        # spread = (101,000 - 100,500) / 100,500 * 10000 = 50 bps ✓
+        if has_old_position:
+            # D64: Exit 신호 생성 (스프레드를 음수로)
+            # bid_b_normalized = 39,600 * 2.5 = 99,000
+            # spread = (99,000 - 100,500) / 100,500 * 10000 = -150 bps (음수 = Exit)
+            bid_b = mid_b * (1 - spread_ratio * 2)  # 39,600
+            ask_b = mid_b * (1 - spread_ratio)  # 39,800 (bid < ask 유지)
+            logger.info(
+                f"[D64_PAPER] Exit signal: Old position detected, "
+                f"spread will be negative (bid_b={bid_b}, ask_b={ask_b})"
+            )
+        else:
+            # Entry 신호 (양수 스프레드)
+            bid_b = mid_b * (1 + spread_ratio * 2)  # 40,400
+            ask_b = mid_b * (1 + spread_ratio * 2.5)  # 40,500 (bid < ask 유지)
+            logger.info(
+                f"[D64_PAPER] Entry signal: New position, "
+                f"spread will be positive (bid_b={bid_b}, ask_b={ask_b})"
+            )
         
         # 호가 주입 (PaperExchange.set_orderbook 사용)
         from arbitrage.exchanges.base import OrderBookSnapshot as BaseOrderBookSnapshot
@@ -617,8 +649,9 @@ class ArbitrageLiveRunner:
         self.exchange_b.set_orderbook(self.config.symbol_b, snapshot_b)
         
         logger.info(
-            f"[D44_PAPER] Injected prices: "
-            f"A(bid={bid_a}, ask={ask_a}), B(bid={bid_b}, ask={ask_b})"
+            f"[D64_PAPER] Injected prices: "
+            f"A(bid={bid_a}, ask={ask_a}), B(bid={bid_b}, ask={ask_b}), "
+            f"open_positions={len(open_trades)}"
         )
     
     def process_snapshot(self, snapshot: OrderBookSnapshot) -> List[ArbitrageTrade]:
@@ -780,12 +813,18 @@ class ArbitrageLiveRunner:
         """
         거래 종료: 양쪽 거래소의 포지션 정리.
         
+        D64: Exit 신호 추적 및 상세 로깅
+        
         Args:
             trade: ArbitrageTrade
         """
         logger.info(
-            f"[D43_LIVE] Closing trade: {trade.side}, "
-            f"pnl={trade.pnl_usd}USD ({trade.pnl_bps}bps)"
+            f"[D64_EXIT] Closing trade: {trade.side}, "
+            f"entry_spread={trade.entry_spread_bps}bps, "
+            f"exit_spread={trade.exit_spread_bps}bps, "
+            f"pnl={trade.pnl_usd}USD ({trade.pnl_bps}bps), "
+            f"open_time={trade.open_timestamp}, "
+            f"close_time={trade.close_timestamp}"
         )
         
         # 주문 추적에서 제거
