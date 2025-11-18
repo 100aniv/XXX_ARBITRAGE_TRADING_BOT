@@ -59,6 +59,13 @@ class MetricsCollector:
         self.per_symbol_guard_rejected: Dict[str, int] = {}  # {symbol: rejected_count}
         self.per_symbol_guard_allowed: Dict[str, int] = {}  # {symbol: allowed_count}
         self.per_symbol_guard_loss: Dict[str, float] = {}  # {symbol: total_loss}
+        
+        # D63: WebSocket queue metrics
+        self.ws_queue_depth_max: int = 0  # 최대 큐 깊이
+        self.ws_queue_lag_ms_max: float = 0.0  # 최대 큐 지연 (ms)
+        self.ws_queue_lag_ms_warn_threshold: float = 1000.0  # 경고 임계값 (1초)
+        self.ws_queue_lag_warn_count: int = 0  # 경고 발생 횟수
+        self.per_symbol_queue_metrics: Dict[str, Dict[str, float]] = {}  # {symbol: {depth, lag_ms}}
     
     def update_loop_metrics(
         self,
@@ -158,6 +165,43 @@ class MetricsCollector:
             "buffer_usage": len(loop_times),
         }
     
+    def update_ws_queue_metrics(
+        self,
+        queue_depth: int,
+        queue_lag_ms: float,
+        symbol: Optional[str] = None,
+    ) -> None:
+        """
+        D63: WebSocket 큐 메트릭 업데이트
+        
+        Args:
+            queue_depth: 큐의 현재 깊이
+            queue_lag_ms: 큐 처리 지연 (ms)
+            symbol: 심볼 (선택사항)
+        """
+        # 최대값 업데이트
+        self.ws_queue_depth_max = max(self.ws_queue_depth_max, queue_depth)
+        self.ws_queue_lag_ms_max = max(self.ws_queue_lag_ms_max, queue_lag_ms)
+        
+        # 경고 조건 확인
+        if queue_lag_ms > self.ws_queue_lag_ms_warn_threshold:
+            self.ws_queue_lag_warn_count += 1
+            logger.warning(
+                f"[D63_METRICS] WS queue lag warning: {queue_lag_ms:.2f}ms "
+                f"(threshold: {self.ws_queue_lag_ms_warn_threshold}ms)"
+            )
+        
+        # 심볼별 메트릭 저장
+        if symbol:
+            self.per_symbol_queue_metrics[symbol] = {
+                "queue_depth": queue_depth,
+                "queue_lag_ms": queue_lag_ms,
+            }
+            logger.debug(
+                f"[D63_METRICS] Updated queue metrics for {symbol}: "
+                f"depth={queue_depth}, lag={queue_lag_ms:.2f}ms"
+            )
+    
     def get_health(self) -> Dict[str, Any]:
         """
         헬스 체크 정보 반환
@@ -170,6 +214,8 @@ class MetricsCollector:
             "data_source": self.data_source,
             "uptime_seconds": time.time() - self.start_time,
             "ws_connected": self.ws_connected,
+            "ws_queue_depth_max": self.ws_queue_depth_max,
+            "ws_queue_lag_ms_max": self.ws_queue_lag_ms_max,
         }
     
     def reset(self) -> None:

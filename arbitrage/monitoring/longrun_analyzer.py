@@ -76,6 +76,12 @@ class LongrunReport:
     ws_latency_warn_count: int = 0  # > 500ms 횟수
     ws_latency_error_count: int = 0  # > 2000ms 횟수
     
+    # D63: WebSocket Queue Optimization 메트릭
+    ws_queue_depth_max: int = 0  # 최대 큐 깊이
+    ws_queue_lag_ms_max: float = 0.0  # 최대 큐 지연
+    ws_queue_lag_warn_count: int = 0  # > 1000ms 경고 횟수
+    ws_queue_lag_stats: MetricStats = field(default_factory=MetricStats)
+    
     # 이상 징후
     anomalies: List[AnomalyAlert] = field(default_factory=list)
     
@@ -213,6 +219,20 @@ class LongrunAnalyzer:
             
             if entry.get("ws_message_gap", False):
                 report.ws_message_gap_count += 1
+            
+            # D63: WebSocket Queue Optimization 메트릭
+            if "ws_queue_depth" in entry:
+                queue_depth = entry["ws_queue_depth"]
+                report.ws_queue_depth_max = max(report.ws_queue_depth_max, queue_depth)
+            
+            if "ws_queue_lag_ms" in entry:
+                queue_lag = entry["ws_queue_lag_ms"]
+                report.ws_queue_lag_stats.update(queue_lag)
+                report.ws_queue_lag_ms_max = max(report.ws_queue_lag_ms_max, queue_lag)
+                
+                # 큐 지연 경고 (> 1000ms)
+                if queue_lag > 1000:
+                    report.ws_queue_lag_warn_count += 1
         
         # 이상 징후 탐지
         self._detect_anomalies(report)
@@ -331,7 +351,27 @@ class LongrunAnalyzer:
                 threshold=self.thresholds.get("ws_message_gap_max", 5),
             ))
         
-        # 11. 이상 징후가 없으면 상태를 OK로 설정
+        # 11. D63: WS Queue 지연 이상
+        if report.ws_queue_lag_warn_count > self.thresholds.get("ws_queue_lag_warn_max", 10):
+            report.add_anomaly(AnomalyAlert(
+                severity="WARN",
+                category="WS_QUEUE_LAG",
+                message=f"WS queue lag warning (> 1000ms): {report.ws_queue_lag_warn_count} times",
+                value=report.ws_queue_lag_warn_count,
+                threshold=self.thresholds.get("ws_queue_lag_warn_max", 10),
+            ))
+        
+        # 12. D63: WS Queue 깊이 이상
+        if report.ws_queue_depth_max > self.thresholds.get("ws_queue_depth_max", 100):
+            report.add_anomaly(AnomalyAlert(
+                severity="WARN",
+                category="WS_QUEUE_DEPTH",
+                message=f"WS queue depth high: {report.ws_queue_depth_max} > {self.thresholds.get('ws_queue_depth_max', 100)}",
+                value=report.ws_queue_depth_max,
+                threshold=self.thresholds.get("ws_queue_depth_max", 100),
+            ))
+        
+        # 13. 이상 징후가 없으면 상태를 OK로 설정
         if not report.anomalies and report.overall_status == "UNKNOWN":
             report.overall_status = "OK"
     
@@ -387,6 +427,16 @@ class LongrunAnalyzer:
             lines.append(f"지연 시간 최소: {report.ws_latency_stats.min:.2f} ms")
         lines.append(f"재연결 횟수: {report.ws_reconnect_count} 회")
         lines.append(f"메시지 갭: {report.ws_message_gap_count} 회")
+        
+        # D63: WebSocket Queue Optimization 메트릭
+        lines.append("")
+        lines.append("[WebSocket Queue Optimization (D63)]")
+        lines.append(f"최대 큐 깊이: {report.ws_queue_depth_max}")
+        if report.ws_queue_lag_stats.count > 0:
+            lines.append(f"큐 지연 평균: {report.ws_queue_lag_stats.mean:.2f} ms")
+            lines.append(f"큐 지연 최대: {report.ws_queue_lag_stats.max:.2f} ms")
+            lines.append(f"큐 지연 최소: {report.ws_queue_lag_stats.min:.2f} ms")
+        lines.append(f"큐 지연 경고 (> 1000ms): {report.ws_queue_lag_warn_count} 회")
         lines.append(f"지연 경고 (> 500ms): {report.ws_latency_warn_count} 회")
         lines.append(f"지연 에러 (> 2000ms): {report.ws_latency_error_count} 회")
         lines.append("")
@@ -430,6 +480,18 @@ class LongrunAnalyzer:
         lines.append("=" * 70)
         
         return "\n".join(lines)
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """
+        분석 요약 반환 (테스트용)
+        
+        Returns:
+            요약 dict
+        """
+        return {
+            "scenario": self.scenario,
+            "thresholds": self.thresholds,
+        }
 
 
 def analyze_longrun_log(log_file: str, scenario: str = "S1") -> LongrunReport:

@@ -190,6 +190,11 @@ class WebSocketMarketDataProvider(MarketDataProvider):
     D59: Multi-Symbol WebSocket Support
     - Per-symbol snapshot storage (latest_snapshots Dict)
     - Symbol-aware snapshot management
+    
+    D63: WebSocket Optimization
+    - Per-symbol asyncio.Queue for message buffering
+    - Async consumer loop for non-blocking snapshot processing
+    - WS queue metrics tracking (depth, lag)
     """
     
     def __init__(self, ws_adapters: Dict[str, any]):
@@ -211,6 +216,14 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         
         # D53: 심볼 패턴 캐싱 (반복 계산 제거)
         self._symbol_cache: Dict[str, str] = {}  # symbol -> "upbit" or "binance"
+        
+        # D63: Per-symbol asyncio.Queue for message buffering
+        self.symbol_queues: Dict[str, asyncio.Queue] = {}  # {symbol: asyncio.Queue}
+        self._consumer_tasks: Dict[str, asyncio.Task] = {}  # {symbol: consumer_task}
+        
+        # D63: WS queue metrics
+        self._queue_recv_timestamps: Dict[str, float] = {}  # {symbol: timestamp}
+        self._queue_process_timestamps: Dict[str, float] = {}  # {symbol: timestamp}
     
     def get_latest_snapshot(self, symbol: str) -> Optional[OrderBookSnapshot]:
         """
@@ -269,28 +282,134 @@ class WebSocketMarketDataProvider(MarketDataProvider):
         # for adapter in self.ws_adapters.values():
         #     await adapter.disconnect()
     
+    def _ensure_queue_for_symbol(self, symbol: str) -> None:
+        """
+        D63: 심볼에 대한 큐 생성 (필요시)
+        
+        Args:
+            symbol: 거래 쌍
+        """
+        if symbol not in self.symbol_queues:
+            self.symbol_queues[symbol] = asyncio.Queue(maxsize=1000)
+            logger.debug(f"[D63_PROVIDER] Created queue for symbol: {symbol}")
+    
     def on_upbit_snapshot(self, snapshot: OrderBookSnapshot) -> None:
         """
         Upbit 스냅샷 콜백 (D49.5)
         D59: Per-symbol snapshot storage 업데이트
+        D63: Queue-based message buffering
         
         Args:
             snapshot: Upbit 호가 스냅샷
         """
+        import time
+        
         self.snapshot_upbit = snapshot
         # D59: Per-symbol snapshot 저장
         self.latest_snapshots[snapshot.symbol] = snapshot
-        logger.debug(f"[D59_PROVIDER] Updated Upbit snapshot: {snapshot.symbol}")
+        
+        # D63: 큐에 메시지 적재 (논블로킹)
+        self._ensure_queue_for_symbol(snapshot.symbol)
+        self._queue_recv_timestamps[snapshot.symbol] = time.time()
+        
+        try:
+            self.symbol_queues[snapshot.symbol].put_nowait((snapshot, time.time()))
+        except asyncio.QueueFull:
+            logger.warning(f"[D63_PROVIDER] Queue full for {snapshot.symbol}, dropping message")
+        
+        logger.debug(f"[D63_PROVIDER] Queued Upbit snapshot: {snapshot.symbol}")
     
     def on_binance_snapshot(self, snapshot: OrderBookSnapshot) -> None:
         """
         Binance 스냅샷 콜백 (D49.5)
         D59: Per-symbol snapshot storage 업데이트
+        D63: Queue-based message buffering
         
         Args:
             snapshot: Binance 호가 스냅샷
         """
+        import time
+        
         self.snapshot_binance = snapshot
         # D59: Per-symbol snapshot 저장
         self.latest_snapshots[snapshot.symbol] = snapshot
-        logger.debug(f"[D59_PROVIDER] Updated Binance snapshot: {snapshot.symbol}")
+        
+        # D63: 큐에 메시지 적재 (논블로킹)
+        self._ensure_queue_for_symbol(snapshot.symbol)
+        self._queue_recv_timestamps[snapshot.symbol] = time.time()
+        
+        try:
+            self.symbol_queues[snapshot.symbol].put_nowait((snapshot, time.time()))
+        except asyncio.QueueFull:
+            logger.warning(f"[D63_PROVIDER] Queue full for {snapshot.symbol}, dropping message")
+        
+        logger.debug(f"[D63_PROVIDER] Queued Binance snapshot: {snapshot.symbol}")
+    
+    async def _consume_symbol_queue(self, symbol: str) -> None:
+        """
+        D63: 심볼별 큐 컨슈머 루프
+        
+        큐에서 메시지를 꺼내 처리하고, latest_snapshots를 업데이트한다.
+        
+        Args:
+            symbol: 거래 쌍
+        """
+        import time
+        
+        logger.info(f"[D63_PROVIDER] Started consumer for symbol: {symbol}")
+        
+        while self._is_running:
+            try:
+                # 큐에서 메시지 대기 (타임아웃 1초)
+                snapshot, recv_time = await asyncio.wait_for(
+                    self.symbol_queues[symbol].get(),
+                    timeout=1.0
+                )
+                
+                # 처리 시간 기록
+                process_time = time.time()
+                lag_ms = (process_time - recv_time) * 1000
+                
+                # 최신 스냅샷 업데이트 (이미 콜백에서 했지만, 명시적으로)
+                self.latest_snapshots[symbol] = snapshot
+                self._queue_process_timestamps[symbol] = process_time
+                
+                if lag_ms > 100:  # 100ms 이상 지연 시 경고
+                    logger.warning(f"[D63_PROVIDER] Queue lag for {symbol}: {lag_ms:.2f}ms")
+                
+            except asyncio.TimeoutError:
+                # 타임아웃은 정상 (메시지 없음)
+                pass
+            except asyncio.CancelledError:
+                logger.info(f"[D63_PROVIDER] Consumer cancelled for symbol: {symbol}")
+                break
+            except Exception as e:
+                logger.error(f"[D63_PROVIDER] Consumer error for {symbol}: {e}")
+                await asyncio.sleep(0.1)
+    
+    def get_queue_metrics(self, symbol: str) -> Dict[str, float]:
+        """
+        D63: 심볼별 큐 메트릭 반환
+        
+        Args:
+            symbol: 거래 쌍
+        
+        Returns:
+            {queue_depth, queue_lag_ms} dict
+        """
+        import time
+        
+        if symbol not in self.symbol_queues:
+            return {"queue_depth": 0, "queue_lag_ms": 0.0}
+        
+        queue_depth = self.symbol_queues[symbol].qsize()
+        
+        # 큐 지연 계산
+        queue_lag_ms = 0.0
+        if symbol in self._queue_recv_timestamps:
+            queue_lag_ms = (time.time() - self._queue_recv_timestamps[symbol]) * 1000
+        
+        return {
+            "queue_depth": queue_depth,
+            "queue_lag_ms": queue_lag_ms,
+        }
