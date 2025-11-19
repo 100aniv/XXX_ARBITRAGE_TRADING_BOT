@@ -31,12 +31,15 @@ def check_docker_status():
             ["docker", "ps", "-a"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='ignore',
             check=True
         )
         logger.info("[CLEANUP] Docker containers:")
-        for line in result.stdout.split('\n')[:10]:  # 처음 10줄만
-            if line.strip():
-                logger.info(f"  {line}")
+        if result.stdout:
+            for line in result.stdout.split('\n')[:10]:  # 처음 10줄만
+                if line.strip():
+                    logger.info(f"  {line}")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"[CLEANUP] Docker command failed: {e}")
@@ -46,8 +49,8 @@ def check_docker_status():
         return False
 
 
-def start_redis_container(container_name="redis"):
-    """Redis 컨테이너 시작"""
+def start_redis_container(container_name="arbitrage-redis"):
+    """Redis 컨테이너 시작 (arbitrage 전용: 포트 6380)"""
     logger.info(f"[CLEANUP] Starting Redis container: {container_name}")
     
     try:
@@ -72,7 +75,7 @@ def start_redis_container(container_name="redis"):
         else:
             logger.warning(f"[CLEANUP] Redis container '{container_name}' not found")
             logger.info("[CLEANUP] Please create Redis container first:")
-            logger.info(f"  docker run -d --name {container_name} -p 6379:6379 redis:latest")
+            logger.info(f"  docker run -d --name {container_name} -p 6380:6379 redis:latest")
             return False
     
     except subprocess.CalledProcessError as e:
@@ -80,8 +83,8 @@ def start_redis_container(container_name="redis"):
         return False
 
 
-def start_postgres_container(container_name="postgres"):
-    """Postgres 컨테이너 시작"""
+def start_postgres_container(container_name="arbitrage-postgres"):
+    """Postgres 컨테이너 시작 (arbitrage 전용: 포트 5432)"""
     logger.info(f"[CLEANUP] Starting Postgres container: {container_name}")
     
     try:
@@ -104,7 +107,7 @@ def start_postgres_container(container_name="postgres"):
         else:
             logger.warning(f"[CLEANUP] Postgres container '{container_name}' not found")
             logger.info("[CLEANUP] Please create Postgres container first:")
-            logger.info(f"  docker run -d --name {container_name} -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:latest")
+            logger.info(f"  docker run -d --name {container_name} -p 5432:5432 -e POSTGRES_PASSWORD=arbitrage postgres:latest")
             return False
     
     except subprocess.CalledProcessError as e:
@@ -112,8 +115,8 @@ def start_postgres_container(container_name="postgres"):
         return False
 
 
-def flush_redis(host="localhost", port=6379):
-    """Redis FLUSHALL 실행"""
+def flush_redis(host="localhost", port=6380):
+    """Redis FLUSHALL 실행 (arbitrage 전용: 포트 6380)"""
     logger.info(f"[CLEANUP] Flushing Redis at {host}:{port}...")
     
     try:
@@ -215,7 +218,7 @@ def main():
     parser.add_argument("--skip-redis", action="store_true", help="Skip Redis flush")
     parser.add_argument("--skip-logs", action="store_true", help="Skip log backup/clear")
     parser.add_argument("--redis-host", default="localhost", help="Redis host")
-    parser.add_argument("--redis-port", type=int, default=6379, help="Redis port")
+    parser.add_argument("--redis-port", type=int, default=6380, help="Redis port (arbitrage: 6380)")
     
     args = parser.parse_args()
     

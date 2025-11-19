@@ -28,6 +28,12 @@
 5. 상위 N개 결과 추출 및 리포트 생성
 6. D65/D66/D67 회귀 테스트 통과
 
+**테스트 구조 확인:**
+- ✅ `ParameterTuner._run_paper_campaign()`이 실제 Paper 엔진 사용
+- ✅ `param_set` → `ArbitrageConfig` (SSOT)
+- ✅ 스크립트는 캠페인 하네스 역할만 수행
+- ✅ 상세 분석: [D_TEST_ARCHITECTURE.md](./D_TEST_ARCHITECTURE.md)
+
 ---
 
 ## 2. 설계

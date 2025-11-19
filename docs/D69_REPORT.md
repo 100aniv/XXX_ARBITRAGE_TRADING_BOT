@@ -26,6 +26,12 @@
 - 엔진 안정성 검증 (크래시 방지)
 - (Robustness 극단 파라미터 주입은 Phase 2에서 활성화)
 
+**테스트 구조 확인:**
+- ✅ `run_robustness_scenario()`이 실제 Paper 엔진 사용
+- ✅ 시나리오 설정 → `ArbitrageConfig` (SSOT)
+- ✅ 스크립트는 캠페인 하네스 역할만 수행
+- ✅ 상세 분석: [D_TEST_ARCHITECTURE.md](./D_TEST_ARCHITECTURE.md)
+
 ---
 
 ## 1. Overview
