@@ -1669,6 +1669,35 @@ class ArbitrageLiveRunner:
         Returns:
             상태 딕셔너리
         """
+        # active_orders를 JSON-serializable하게 변환 (D70 fix)
+        serializable_orders = {}
+        for key, value in self._active_orders.items():
+            if isinstance(value, dict):
+                # 딕셔너리 형태로 저장된 경우, trade 객체를 직렬화
+                trade_obj = value.get('trade')
+                if trade_obj and hasattr(trade_obj, 'direction'):
+                    # ArbitrageTrade 객체인 경우
+                    serializable_orders[key] = {
+                        'trade': {
+                            'direction': str(trade_obj.direction.value) if hasattr(trade_obj.direction, 'value') else str(trade_obj.direction),
+                            'open_timestamp': str(trade_obj.open_timestamp),
+                            'entry_spread_bps': trade_obj.entry_spread_bps,
+                            'notional_usd': trade_obj.notional_usd
+                        },
+                        'order_a': value.get('order_a'),
+                        'order_b': value.get('order_b')
+                    }
+                else:
+                    # 이미 직렬화된 경우
+                    serializable_orders[key] = value
+            else:
+                # 객체 형태인 경우 기본 정보만 저장
+                serializable_orders[key] = {
+                    'trade_id': getattr(value, 'trade_id', None),
+                    'direction': getattr(value, 'direction', None),
+                    'timestamp': str(getattr(value, 'open_timestamp', ''))
+                }
+        
         return {
             'session': {
                 'session_id': self._session_id,
@@ -1685,7 +1714,7 @@ class ArbitrageLiveRunner:
                 'status': 'crashed' if self._session_stop_requested else 'running'
             },
             'positions': {
-                'active_orders': dict(self._active_orders),
+                'active_orders': serializable_orders,
                 'paper_position_open_times': {str(k): v for k, v in self._position_open_times.items()}
             },
             'metrics': {

@@ -68,6 +68,8 @@ class ArbitrageTrade:
     pnl_bps: Optional[float] = None
     is_open: bool = True
     meta: Dict[str, str] = field(default_factory=dict)
+    # D65: Exit 이유 추적
+    exit_reason: Optional[str] = None  # "spread_reversal", "take_profit", "stop_loss", etc.
 
     def close(
         self,
@@ -188,6 +190,8 @@ class ArbitrageEngine:
     def on_snapshot(self, snapshot: OrderBookSnapshot) -> List[ArbitrageTrade]:
         """
         스냅샷 처리: 거래 개설/종료.
+        
+        D65: Exit 이유 추적 (spread_reversal, take_profit, stop_loss)
 
         반환: 이 스냅샷에서 개설/종료된 거래 목록
         """
@@ -216,11 +220,11 @@ class ArbitrageEngine:
                         * 10_000.0
                     )
 
-                # 스프레드가 음수가 되면 종료
+                # 스프레드가 음수가 되면 종료 (D65: exit_reason 설정)
                 if current_spread < 0:
-                    trades_to_close.append(trade)
+                    trades_to_close.append((trade, "spread_reversal"))
 
-            for trade in trades_to_close:
+            for trade, exit_reason in trades_to_close:
                 trade.close(
                     close_timestamp=snapshot.timestamp,
                     exit_spread_bps=0.0,
@@ -228,6 +232,7 @@ class ArbitrageEngine:
                     taker_fee_b_bps=self.config.taker_fee_b_bps,
                     slippage_bps=self.config.slippage_bps,
                 )
+                trade.exit_reason = exit_reason  # D65: Exit 이유 설정
                 self._open_trades.remove(trade)
                 trades_changed.append(trade)
 
