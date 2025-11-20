@@ -338,16 +338,96 @@ Phase 2 (향후):
 블럭 C – 인프라/복구/스케일링 (D70 ~ D72)
 
 🧱 D70 – STATE_PERSISTENCE & RECOVERY (상태 영속화 & 재시작)
+상태: ⏳ **IN PROGRESS (D70-1 COMPLETED)**
+
 목표:
 엔진이 죽었다가 살아나도, 상태/포지션/가드가
-“말이 되는 상태”로 복구될 수 있도록 만드는 단계.
+"말이 되는 상태"로 복구될 수 있도록 만드는 단계.
 
-핵심 구현:
-	•	Redis + Postgres를 기준으로:
-	•	세션 상태, 포지션, 미체결 주문, 가드 상태를 저장/복원하는 로직
-	•	“클린 리셋” vs “중간 재시작” 두 모드 지원
-	•	완전 초기화 (지금 이미 있는 mode)
-	•	중간 재시작 (운영 단계에서 필요)
+### D70-1: STATE_CURRENT & DESIGN & IMPACT (✅ COMPLETED)
+
+**목표:** 현재 상태 파악 + 설계 + 영향도 분석
+
+**완료 사항:**
+	•	현재 상태 인벤토리 분석 완료
+	•	세션/포지션/메트릭/리스크 가드 상태 파악
+	•	Redis/PostgreSQL 사용 현황 분석
+	•	CLEAN_RESET vs RESUME_FROM_STATE 설계 완료
+	•	모듈별 영향도 분석 (~1400 lines 예상)
+	•	Acceptance Criteria 정의 (5개 시나리오)
+
+**산출물:**
+	•	📄 docs/D70_STATE_CURRENT.md
+	•	📄 docs/D70_STATE_PERSISTENCE_DESIGN.md
+	•	📄 docs/D70_STATE_IMPACT_ANALYSIS.md
+
+**핵심 발견:**
+	•	현재 대부분 메모리 기반 (재시작 시 소실)
+	•	Redis는 `StateManager` 존재하지만 실제 사용 안 함
+	•	PostgreSQL은 D68 튜닝 결과만 저장
+	•	활성 포지션, 메트릭, 리스크 가드 상태 모두 복원 불가
+
+**설계 결정:**
+	•	Redis: 실시간 상태 (TTL 없음)
+	•	PostgreSQL: 영구 스냅샷 (5분마다 + 거래 시 + 종료 시)
+	•	Hybrid Strategy: Redis 우선, PostgreSQL 비동기
+	•	StateStore 모듈 신규 생성 (~500 lines)
+
+### D70-2: ENGINE_HOOKS & STATE_STORE (⏳ TODO)
+
+**목표:** 상태 저장/복원 로직 구현
+
+**구현 예정:**
+	•	StateStore 모듈 생성 (arbitrage/state_store.py)
+	•	ArbitrageLiveRunner 훅 추가
+	•	`_initialize_session(mode, session_id)`
+	•	`_restore_state_from_snapshot()`
+	•	`_save_state_to_redis()`
+	•	`_save_snapshot_to_db_async()`
+	•	RiskGuard 상태 저장/복원
+	•	`get_state()`, `restore_state()`
+	•	PostgreSQL 스키마 생성
+	•	`session_snapshots`, `position_snapshots`, `metrics_snapshots`, `risk_guard_snapshots`
+	•	StateManager 확장
+	•	`save_session_state()`, `load_session_state()`, `delete_session_state()`
+
+**예상 변경:**
+	•	ArbitrageLiveRunner: ~300 lines
+	•	RiskGuard: ~50 lines
+	•	StateManager: ~100 lines
+	•	StateStore (새 모듈): ~500 lines
+	•	PostgreSQL Schema: ~150 lines (SQL)
+
+### D70-3: RESUME_SCENARIO_TESTS (⏳ TODO)
+
+**목표:** 복원 시나리오 테스트 및 검증
+
+**테스트 시나리오:**
+	•	Scenario 1: 단일 심볼 포지션 복원
+	•	Scenario 2: 멀티 심볼 포트폴리오 복원
+	•	Scenario 3: RiskGuard 상태 복원
+	•	Scenario 4: CLEAN_RESET vs RESUME 선택
+	•	Scenario 5: 스냅샷 손상 처리
+
+**회귀 테스트:**
+	•	D65/D66/D67 정상 동작 확인
+	•	성능 측정 (루프 시간 < 10% 증가)
+
+**산출물:**
+	•	scripts/test_d70_resume.py
+	•	docs/D70_REPORT.md
+
+Done 조건 (D70 전체):
+	•	⏳ D70-1: 설계 & 영향도 분석 완료 ✅
+	•	⏳ D70-2: StateStore 구현 완료
+	•	⏳ D70-3: 5개 시나리오 테스트 PASS
+	•	⏳ CLEAN_RESET 모드 정상 동작
+	•	⏳ RESUME_FROM_STATE 모드 정상 동작
+	•	⏳ 포지션 복원 정확도 100%
+	•	⏳ 메트릭 복원 정확도 100%
+	•	⏳ 루프 시간 증가 < 10%
+	•	⏳ 회귀 테스트 PASS (D65~D69)
+	•	⏳ docs/D70_REPORT.md 작성
 
 ⸻
 
