@@ -113,6 +113,35 @@ class OrderResult:
     def is_open(self) -> bool:
         """미체결 여부"""
         return self.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """D70: JSON 직렬화를 위한 dict 변환"""
+        return {
+            'order_id': self.order_id,
+            'symbol': self.symbol,
+            'side': self.side.value if hasattr(self.side, 'value') else str(self.side),
+            'qty': self.qty,
+            'price': self.price,
+            'order_type': self.order_type.value if hasattr(self.order_type, 'value') else str(self.order_type),
+            'status': self.status.value if hasattr(self.status, 'value') else str(self.status),
+            'filled_qty': self.filled_qty,
+            'timestamp': self.timestamp
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'OrderResult':
+        """D70: dict에서 OrderResult 객체 복원"""
+        return cls(
+            order_id=data['order_id'],
+            symbol=data['symbol'],
+            side=OrderSide(data['side']) if isinstance(data['side'], str) else data['side'],
+            qty=data['qty'],
+            price=data.get('price'),
+            order_type=OrderType(data['order_type']) if isinstance(data['order_type'], str) else data['order_type'],
+            status=OrderStatus(data['status']) if isinstance(data['status'], str) else data['status'],
+            filled_qty=data.get('filled_qty', 0.0),
+            timestamp=data.get('timestamp', __import__('time').time())
+        )
 
 
 class BaseExchange(ABC):

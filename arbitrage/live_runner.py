@@ -1669,33 +1669,24 @@ class ArbitrageLiveRunner:
         Returns:
             상태 딕셔너리
         """
-        # active_orders를 JSON-serializable하게 변환 (D70 fix)
+        # active_orders를 JSON-serializable하게 변환 (D70-3_FIX: to_dict() 사용)
         serializable_orders = {}
         for key, value in self._active_orders.items():
             if isinstance(value, dict):
-                # 딕셔너리 형태로 저장된 경우, trade 객체를 직렬화
+                # 딕셔너리 형태로 저장된 경우
                 trade_obj = value.get('trade')
-                if trade_obj and hasattr(trade_obj, 'direction'):
-                    # ArbitrageTrade 객체인 경우
-                    serializable_orders[key] = {
-                        'trade': {
-                            'direction': str(trade_obj.direction.value) if hasattr(trade_obj.direction, 'value') else str(trade_obj.direction),
-                            'open_timestamp': str(trade_obj.open_timestamp),
-                            'entry_spread_bps': trade_obj.entry_spread_bps,
-                            'notional_usd': trade_obj.notional_usd
-                        },
-                        'order_a': value.get('order_a'),
-                        'order_b': value.get('order_b')
-                    }
-                else:
-                    # 이미 직렬화된 경우
-                    serializable_orders[key] = value
-            else:
-                # 객체 형태인 경우 기본 정보만 저장
+                order_a_obj = value.get('order_a')
+                order_b_obj = value.get('order_b')
+                
                 serializable_orders[key] = {
-                    'trade_id': getattr(value, 'trade_id', None),
-                    'direction': getattr(value, 'direction', None),
-                    'timestamp': str(getattr(value, 'open_timestamp', ''))
+                    'trade': trade_obj.to_dict() if hasattr(trade_obj, 'to_dict') else (trade_obj if isinstance(trade_obj, dict) else None),
+                    'order_a': order_a_obj.to_dict() if hasattr(order_a_obj, 'to_dict') else (order_a_obj if isinstance(order_a_obj, dict) else None),
+                    'order_b': order_b_obj.to_dict() if hasattr(order_b_obj, 'to_dict') else (order_b_obj if isinstance(order_b_obj, dict) else None)
+                }
+            else:
+                # 객체 형태인 경우 (예상치 못한 경우)
+                serializable_orders[key] = {
+                    'trade': value.to_dict() if hasattr(value, 'to_dict') else str(value)
                 }
         
         return {

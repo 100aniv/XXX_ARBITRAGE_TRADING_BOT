@@ -97,30 +97,29 @@ def scenario_1_single_position(redis_client: redis.Redis, db_conn: psycopg2.exte
     
     metrics1 = run_runner_until_complete(runner1, "P1")
     
-    # Close all positions before saving snapshot (workaround for D70-3)
-    logger.info(f"[SCENARIO_1] Waiting for positions to close before snapshot...")
-    time.sleep(5)  # Wait for exit signals
-    
+    # D70-3_FIX: 직렬화 수정으로 workaround 제거
     runner1._save_state_to_redis()
-    snapshot_saved = runner1._save_snapshot_to_db(snapshot_type="s1")
+    snapshot_id = runner1._save_snapshot_to_db(snapshot_type="s1")
     
-    if not snapshot_saved:
-        logger.warning("[SCENARIO_1] ⚠️  Snapshot save failed, skipping test")
-        return True  # Skip test (not a hard failure)
+    if not snapshot_id:
+        logger.error("[SCENARIO_1] ❌ Snapshot save failed")
+        return False
     
     state1 = runner1._collect_current_state()
+    logger.info(f"[SCENARIO_1] Phase 1: trades={state1['metrics']['total_trades_opened']}, active_orders={len(state1['positions']['active_orders'])}")
     
     # Phase 2: RESUME
     runner2 = create_runner_with_state_store(engine, state_store, duration_seconds=30, campaign_id="S1")
     runner2._initialize_session(mode="RESUME_FROM_STATE", session_id=session_id)
     metrics2 = run_runner_until_complete(runner2, "P2")
     state2 = runner2._collect_current_state()
+    logger.info(f"[SCENARIO_1] Phase 2: trades={state2['metrics']['total_trades_opened']}, active_orders={len(state2['positions']['active_orders'])}")
     
     # Validate
     success = (metrics1['total_entries'] > 0 and 
                state2['metrics']['total_trades_opened'] >= state1['metrics']['total_trades_opened'])
     
-    logger.info(f"[SCENARIO_1] {'✅ PASS' if success else '❌ FAIL'}")
+    logger.info(f"[SCENARIO_1] Trades: {state1['metrics']['total_trades_opened']} -> {state2['metrics']['total_trades_opened']} | {'✅ PASS' if success else '❌ FAIL'}")
     return success
 
 

@@ -91,6 +91,39 @@ class ArbitrageTrade:
 
         self.pnl_bps = net_pnl_bps
         self.pnl_usd = (net_pnl_bps / 10_000.0) * self.notional_usd
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """D70: JSON 직렬화를 위한 dict 변환"""
+        return {
+            'open_timestamp': self.open_timestamp,
+            'close_timestamp': self.close_timestamp,
+            'side': self.side,
+            'entry_spread_bps': self.entry_spread_bps,
+            'exit_spread_bps': self.exit_spread_bps,
+            'notional_usd': self.notional_usd,
+            'pnl_usd': self.pnl_usd,
+            'pnl_bps': self.pnl_bps,
+            'is_open': self.is_open,
+            'meta': dict(self.meta),
+            'exit_reason': self.exit_reason
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ArbitrageTrade':
+        """D70: dict에서 ArbitrageTrade 객체 복원"""
+        return cls(
+            open_timestamp=data['open_timestamp'],
+            close_timestamp=data.get('close_timestamp'),
+            side=data.get('side', 'LONG_A_SHORT_B'),
+            entry_spread_bps=data.get('entry_spread_bps', 0.0),
+            exit_spread_bps=data.get('exit_spread_bps'),
+            notional_usd=data.get('notional_usd', 0.0),
+            pnl_usd=data.get('pnl_usd'),
+            pnl_bps=data.get('pnl_bps'),
+            is_open=data.get('is_open', True),
+            meta=data.get('meta', {}),
+            exit_reason=data.get('exit_reason')
+        )
 
 
 class ArbitrageEngine:
