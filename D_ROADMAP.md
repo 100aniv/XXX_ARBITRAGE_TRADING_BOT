@@ -697,18 +697,18 @@ docs/D72_5_DEPLOYMENT_INFRASTRUCTURE.md  (+850 lines)
 **목표:** 운영 가이드 및 Runbook 작성
 
 **작업:**
--  DEPLOYMENT_GUIDE.md
--  RUNBOOK.md
--  TROUBLESHOOTING.md
--  API_REFERENCE.md
+-  ✅ DEPLOYMENT_GUIDE.md
+-  ✅ RUNBOOK.md
+-  ✅ TROUBLESHOOTING.md
+-  ✅ API_REFERENCE.md
 
-Done 조건 (D72 전체):
--   D72-1: Config 표준화 완료 (dataclass, env-aware, validation)
--   D72-2: Redis Keyspace 정규화 완료 (KeyBuilder, TTL policy, 100% compliance)
--   D72-3: PostgreSQL Productionization 완료 (19 indexes, retention, backup)
--   D72-4: Logging & Monitoring MVP 완료 (4 backends, 60s metrics, CLI tool)
--   D72-5: Docker 배포 인프라 (multi-stage build, compose.prod.yml)
--   D72-6: 운영 문서 (DEPLOYMENT_GUIDE, RUNBOOK, TROUBLESHOOTING)
+Done 조건 (D72 전체): ✅ ALL COMPLETED
+-  ✅ D72-1: Config 표준화 완료 (dataclass, env-aware, validation)
+-  ✅ D72-2: Redis Keyspace 정규화 완료 (KeyBuilder, TTL policy, 100% compliance)
+-  ✅ D72-3: PostgreSQL Productionization 완료 (19 indexes, retention, backup)
+-  ✅ D72-4: Logging & Monitoring MVP 완료 (4 backends, 60s metrics, CLI tool)
+-  ✅ D72-5: Docker 배포 인프라 완료 (multi-stage build, healthcheck, systemd)
+-  ✅ D72-6: 운영 문서 완료 (DEPLOYMENT_GUIDE, RUNBOOK, TROUBLESHOOTING, API_REFERENCE)
 
 **D72 Infrastructure Summary:** +6,000 lines, 100% test coverage, Production-ready.  
 **세부 내역:** `docs/SYSTEM_DESIGN.md` 참조 (Multi-Symbol To-BE, Performance 10대 항목, Paper vs Live 차별화 포함)
