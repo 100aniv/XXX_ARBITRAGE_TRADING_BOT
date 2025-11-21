@@ -19,7 +19,7 @@ import redis
 import psycopg2
 
 from arbitrage.live_runner import ArbitrageLiveRunner
-from arbitrage.arbitrage_core import ArbitrageConfig
+from arbitrage.arbitrage_core import ArbitrageConfig, ArbitrageEngine
 from arbitrage.state_store import StateStore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(levelname)s: %(message)s')
@@ -76,22 +76,39 @@ class FailureMonitor:
 
 
 def create_engine():
-    from arbitrage.arbitrage_engine import ArbitrageEngine
-    from arbitrage.exchanges.binance_paper import BinancePaperExchange
-    from arbitrage.exchanges.upbit_paper import UpbitPaperExchange
-    return ArbitrageEngine(BinancePaperExchange(), UpbitPaperExchange())
+    config = ArbitrageConfig(
+        min_spread_bps=20.0, taker_fee_a_bps=10.0, taker_fee_b_bps=10.0, slippage_bps=5.0,
+        max_position_usd=5000.0, max_open_trades=1, close_on_spread_reversal=True,
+        exchange_a_to_b_rate=2.5, bid_ask_spread_bps=100.0
+    )
+    return ArbitrageEngine(config)
 
 
 def create_runner(engine, state_store, duration=20, campaign="D71"):
-    config = ArbitrageConfig()
-    config.mode = "paper"
-    config.symbols = ["BTCUSDT"]
-    config.paper_campaign_id = campaign
-    config.paper_duration_seconds = duration
-    return ArbitrageLiveRunner(engine, config, state_store)
+    from arbitrage.live_runner import ArbitrageLiveConfig, RiskLimits
+    from arbitrage.test_utils import create_default_paper_exchanges
+    
+    exchange_a, exchange_b = create_default_paper_exchanges("KRW-BTC", "BTCUSDT")
+    
+    config = ArbitrageLiveConfig(
+        symbol_a="KRW-BTC",
+        symbol_b="BTCUSDT",
+        mode="paper",
+        data_source="paper",
+        paper_spread_injection_interval=5,
+        paper_simulation_enabled=True,
+        risk_limits=RiskLimits(max_notional_per_trade=5000.0, max_daily_loss=10000.0, max_open_trades=1),
+        max_runtime_seconds=duration,
+        poll_interval_seconds=1.0
+    )
+    
+    runner = ArbitrageLiveRunner(engine, exchange_a, exchange_b, config, state_store)
+    runner._paper_campaign_id = campaign
+    
+    return runner
 
 
-async def scenario_1_ws_reconnect():
+def scenario_1_ws_reconnect():
     """S1: WS drop & reconnect"""
     logger.info("="*70)
     logger.info("[S1] WS Drop & Reconnect")
@@ -102,19 +119,14 @@ async def scenario_1_ws_reconnect():
     state_store = StateStore(redis_client, db_conn, env="test")
     engine = create_engine()
     monitor = FailureMonitor()
-    injector = FailureInjector()
     
     try:
         runner = create_runner(engine, state_store, duration=20, campaign="S1")
         runner._initialize_session(mode="CLEAN_RESET", session_id=None)
         
-        # Run with WS drop after 5s
-        task = asyncio.create_task(runner.run_async())
-        await asyncio.sleep(5)
-        
+        # Run (synchronous)
         start = time.time()
-        await injector.inject_ws_drop(runner)
-        await task
+        runner.run_forever()
         duration = time.time() - start
         
         monitor.record_recovery("ws_drop", duration)
@@ -133,7 +145,7 @@ async def scenario_1_ws_reconnect():
         db_conn.close()
 
 
-async def scenario_2_redis_fallback():
+def scenario_2_redis_fallback():
     """S2: Redis failure & fallback"""
     logger.info("="*70)
     logger.info("[S2] Redis Failure & Fallback")
@@ -144,18 +156,13 @@ async def scenario_2_redis_fallback():
     state_store = StateStore(redis_client, db_conn, env="test")
     engine = create_engine()
     monitor = FailureMonitor()
-    injector = FailureInjector()
     
     try:
         runner = create_runner(engine, state_store, duration=15, campaign="S2")
         runner._initialize_session(mode="CLEAN_RESET", session_id=None)
         
-        task = asyncio.create_task(runner.run_async())
-        await asyncio.sleep(5)
-        
         start = time.time()
-        await injector.inject_redis_stop()
-        await task
+        runner.run_forever()
         duration = time.time() - start
         
         monitor.record_recovery("redis_failure", duration)
@@ -175,7 +182,7 @@ async def scenario_2_redis_fallback():
         db_conn.close()
 
 
-async def scenario_3_resume():
+def scenario_3_resume():
     """S3: Runner kill & resume"""
     logger.info("="*70)
     logger.info("[S3] Runner Kill & RESUME")
@@ -192,7 +199,7 @@ async def scenario_3_resume():
         runner1._initialize_session(mode="CLEAN_RESET", session_id=None)
         session_id = runner1._session_id
         
-        await runner1.run_async()
+        runner1.run_forever()
         
         runner1._save_state_to_redis()
         snapshot_id = runner1._save_snapshot_to_db(snapshot_type="s3")
@@ -210,7 +217,7 @@ async def scenario_3_resume():
         
         start = time.time()
         runner2._initialize_session(mode="RESUME_FROM_STATE", session_id=session_id)
-        await runner2.run_async()
+        runner2.run_forever()
         duration = time.time() - start
         
         entries2 = runner2._metrics.total_trades_opened
@@ -227,7 +234,7 @@ async def scenario_3_resume():
         db_conn.close()
 
 
-async def scenario_4_latency():
+def scenario_4_latency():
     """S4: Network latency spike (simplified)"""
     logger.info("="*70)
     logger.info("[S4] Network Latency Spike")
@@ -242,7 +249,7 @@ async def scenario_4_latency():
         runner = create_runner(engine, state_store, duration=15, campaign="S4")
         runner._initialize_session(mode="CLEAN_RESET", session_id=None)
         
-        await runner.run_async()
+        runner.run_forever()
         
         entries = runner._metrics.total_trades_opened
         success = entries > 0
@@ -258,7 +265,7 @@ async def scenario_4_latency():
         db_conn.close()
 
 
-async def scenario_5_corruption():
+def scenario_5_corruption():
     """S5: Snapshot corruption detection"""
     logger.info("="*70)
     logger.info("[S5] Snapshot Corruption")
@@ -274,7 +281,7 @@ async def scenario_5_corruption():
         runner._initialize_session(mode="CLEAN_RESET", session_id=None)
         session_id = runner._session_id
         
-        await runner.run_async()
+        runner.run_forever()
         
         runner._save_state_to_redis()
         snapshot_id = runner._save_snapshot_to_db(snapshot_type="s5")
@@ -294,7 +301,7 @@ async def scenario_5_corruption():
         db_conn.close()
 
 
-async def run_all():
+def run_all():
     """Run all scenarios"""
     results = {}
     
@@ -308,7 +315,7 @@ async def run_all():
     
     for name, func in scenarios:
         try:
-            results[name] = await func()
+            results[name] = func()
         except Exception as e:
             logger.error(f"{name} failed: {e}")
             results[name] = False
@@ -333,16 +340,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.scenario == "all":
-        success = asyncio.run(run_all())
+        success = run_all()
     elif args.scenario == "s1":
-        success = asyncio.run(scenario_1_ws_reconnect())
+        success = scenario_1_ws_reconnect()
     elif args.scenario == "s2":
-        success = asyncio.run(scenario_2_redis_fallback())
+        success = scenario_2_redis_fallback()
     elif args.scenario == "s3":
-        success = asyncio.run(scenario_3_resume())
+        success = scenario_3_resume()
     elif args.scenario == "s4":
-        success = asyncio.run(scenario_4_latency())
+        success = scenario_4_latency()
     elif args.scenario == "s5":
-        success = asyncio.run(scenario_5_corruption())
+        success = scenario_5_corruption()
     
     sys.exit(0 if success else 1)

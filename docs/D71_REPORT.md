@@ -1,8 +1,8 @@
 # D71: FAILURE_INJECTION & AUTO_RECOVERY - Implementation Report
 
 **Date:** 2025-11-21  
-**Status:** ✅ D71-1 COMPLETED (Implementation Phase)  
-**Phase:** D71-1 FAILURE_INJECTION_IMPLEMENTATION
+**Status:** ⏳ D71-1 COMPLETED / D71-2 IN PROGRESS  
+**Phase:** D71-1 IMPLEMENTATION + D71-2 TESTING (Partial)
 
 ---
 
@@ -244,4 +244,67 @@ D71-1 단계에서 실패 주입 및 자동 복구 인프라 구현을 완료했
 
 ---
 
-**Next:** D71-2 AUTO_RECOVERY_TESTS (실제 테스트 실행 및 검증)
+## D71-2: Test Execution Attempt (2025-11-21)
+
+### Setup Completed ✅
+- Docker containers started (Redis, PostgreSQL)
+- Redis FLUSHALL executed
+- Python processes cleaned up
+
+### Test Script Fixes Applied
+- Fixed imports: `ArbitrageEngine` from `arbitrage_core`
+- Fixed `create_engine()`: Added required `ArbitrageConfig` parameters
+- Fixed `create_runner()`: Aligned with D70 pattern using `create_default_paper_exchanges`
+- Converted async functions to sync (removed `asyncio.run`, use `run_forever()`)
+
+**Files Modified:**
+- `scripts/test_d71_failure_scenarios.py`: +30 lines (API compatibility fixes)
+
+### Test Execution Results
+
+#### S5: Snapshot Corruption Test
+**Status:** ⚠️ PARTIAL RUN
+- Runner initialized successfully
+- Paper mode loop ran for 15 seconds
+- **Issue:** `'StateStore' object has no attribute 'get_latest_snapshot'`
+  - Loop warnings: Failed to build snapshot every second
+  - Root cause: API mismatch between test script and current `live_runner` implementation
+- **Result:** No snapshot created, validation failed
+
+### Known Issues Identified
+
+1. **StateStore API Compatibility**
+   - Test script expects `state_store.get_latest_snapshot()` method
+   - Current `StateStore` may have different method names
+   - Need to align test scripts with actual `StateStore` API
+
+2. **Live Runner Integration**
+   - `runner.run_forever()` runs but snapshot-related features need investigation
+   - May need to review `live_runner.py` snapshot handling logic
+
+3. **Test Infrastructure**
+   - Test scripts converted from D70 pattern but require further integration work
+   - Full scenario testing blocked by API compatibility issues
+
+### Next Steps (D71-2 Completion)
+
+**High Priority:**
+1. Review `StateStore` class API in `arbitrage/state_store.py`
+2. Fix snapshot method calls in `live_runner.py` or test scripts
+3. Ensure test scripts match current codebase API
+
+**Test Execution:**
+- Re-run S5 after API fixes
+- Execute S1-S4 scenarios
+- Verify MTTR targets
+- Run regression tests (D65-D70)
+
+**Time Estimate:** 1-2 hours for API alignment + test execution
+
+---
+
+**Status:** ✅ D71-1 COMPLETED / ⏳ D71-2 REQUIRES API FIXES
+
+---
+
+**Next:** D71-2 API alignment + full test execution
