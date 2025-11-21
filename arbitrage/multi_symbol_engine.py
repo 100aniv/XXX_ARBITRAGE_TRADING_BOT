@@ -133,29 +133,37 @@ class MultiSymbolEngineRunner:
             f"universe_mode={mode_str}"
         )
     
-    async def run_multi(self) -> None:
+    async def run_multi(self, max_iterations: Optional[int] = None, max_runtime_seconds: Optional[float] = None) -> Dict[str, Any]:
         """
         Multi-Symbol Engine 실행
         
         SymbolUniverse에서 얻은 심볼 리스트로 per-symbol 코루틴을 생성하여 동시 실행.
+        
+        Args:
+            max_iterations: 최대 iteration 수 (테스트용, None이면 무제한)
+            max_runtime_seconds: 최대 실행 시간 (초, None이면 무제한)
+        
+        Returns:
+            실행 통계 dict
         """
         # 1. Universe에서 심볼 리스트 조회
         symbols = self.universe.get_symbols()
         
         if not symbols:
             logger.warning("[D73-2_MULTI] No symbols from Universe, exiting")
-            return
+            return {"error": "No symbols"}
         
         logger.info(
             f"[D73-2_MULTI] Starting multi-symbol engine: "
-            f"{len(symbols)} symbols = {symbols}"
+            f"{len(symbols)} symbols = {symbols}, "
+            f"max_iterations={max_iterations}, max_runtime={max_runtime_seconds}s"
         )
         
         # 2. Per-symbol 코루틴 생성
         self._running = True
         tasks = [
             asyncio.create_task(
-                self._run_for_symbol(symbol),
+                self._run_for_symbol(symbol, max_iterations=max_iterations, max_runtime_seconds=max_runtime_seconds),
                 name=f"symbol_{symbol}"
             )
             for symbol in symbols
@@ -163,16 +171,38 @@ class MultiSymbolEngineRunner:
         self._tasks = tasks
         
         # 3. 모든 코루틴 동시 실행
+        start_time = time.time()
         try:
             # TODO(D74): Graceful shutdown, cancellation handling 강화
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            runtime = time.time() - start_time
+            
+            # 결과 집계
+            stats = {
+                "runtime_seconds": runtime,
+                "symbols": symbols,
+                "num_symbols": len(symbols),
+                "running": self._running,
+                "num_tasks": len(self._tasks),
+                "universe_mode": self.universe.config.mode.value if hasattr(self.universe.config.mode, 'value') else str(self.universe.config.mode),
+            }
+            
+            # Per-symbol 결과 집계
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.error(f"[D73-2_MULTI] Symbol {symbols[i]} failed: {result}")
+            
+            logger.info(f"[D73-2_MULTI] Multi-symbol engine completed: {stats}")
+            return stats
+            
         except Exception as e:
             logger.error(f"[D73-2_MULTI] Error in multi-symbol engine: {e}", exc_info=True)
+            return {"error": str(e), "runtime_seconds": time.time() - start_time}
         finally:
             self._running = False
             logger.info("[D73-2_MULTI] Multi-symbol engine stopped")
     
-    async def _run_for_symbol(self, symbol: str) -> None:
+    async def _run_for_symbol(self, symbol: str, max_iterations: Optional[int] = None, max_runtime_seconds: Optional[float] = None) -> Dict[str, Any]:
         """
         단일 심볼 엔진 실행 (per-symbol 코루틴)
         
@@ -180,8 +210,19 @@ class MultiSymbolEngineRunner:
         
         Args:
             symbol: 거래 심볼 (예: "BTCUSDT")
+            max_iterations: 최대 iteration 수 (D73-4: 테스트용)
+            max_runtime_seconds: 최대 실행 시간 (초)
+        
+        Returns:
+            실행 통계 dict
         """
         logger.info(f"[D73-2_MULTI] Starting engine for symbol: {symbol}")
+        
+        iteration_count = 0
+        trade_count = 0
+        risk_allowed_count = 0
+        risk_denied_count = 0
+        start_time = time.time()
         
         try:
             # D73-2: 기존 단일 심볼 엔진 재사용
@@ -205,33 +246,65 @@ class MultiSymbolEngineRunner:
             
             self._symbol_runners[symbol] = runner
             
-            # D73-2: 단일 심볼 엔진 실행
-            # NOTE: ArbitrageLiveRunner.run()은 sync 함수이므로,
-            #       실제로는 async wrapper가 필요하거나, run_loop()를 직접 호출해야 함.
-            #       여기서는 구조만 정의하고, 실제 통합은 D73-2 테스트에서 검증.
-            
-            # TODO(D73-2): ArbitrageLiveRunner를 async로 실행하는 방법:
-            #   1. ArbitrageLiveRunner에 async run_async() 메서드 추가
-            #   2. 또는 run_loop()를 직접 async로 호출
-            #   3. 또는 asyncio.to_thread()로 sync 함수를 async 컨텍스트에서 실행
-            
-            # 현재는 placeholder로 logger만 남김
             logger.info(
                 f"[D73-2_MULTI] Per-symbol runner created for {symbol}, "
                 f"config={symbol_config.symbol_a}/{symbol_config.symbol_b}"
             )
             
-            # D73-2: Dummy loop (실제 엔진 실행은 D73-2 통합 테스트에서)
-            # 여기서는 runner가 정상적으로 생성되었음을 확인하는 것으로 충분
-            await asyncio.sleep(0.1)  # Yield control
+            # D73-4: Controlled loop execution
+            while True:
+                # 종료 조건 체크
+                if max_iterations and iteration_count >= max_iterations:
+                    logger.info(f"[D73-4_MULTI] {symbol}: Max iterations ({max_iterations}) reached")
+                    break
+                
+                if max_runtime_seconds and (time.time() - start_time) >= max_runtime_seconds:
+                    logger.info(f"[D73-4_MULTI] {symbol}: Max runtime ({max_runtime_seconds}s) reached")
+                    break
+                
+                # 1회 loop 실행
+                try:
+                    success = runner.run_once()
+                    iteration_count += 1
+                    
+                    if success:
+                        # Trade 발생 시 카운트 (추후 정확한 로직 추가 가능)
+                        current_trades = getattr(runner, '_total_trades_opened', 0)
+                        if current_trades > trade_count:
+                            trade_count = current_trades
+                            logger.info(f"[D73-4_MULTI] {symbol}: Trade opened (total={trade_count})")
+                    
+                    # 짧은 대기 (CPU 과부하 방지)
+                    await asyncio.sleep(0.1)
+                
+                except Exception as loop_error:
+                    logger.error(f"[D73-4_MULTI] {symbol}: Loop error: {loop_error}")
+                    await asyncio.sleep(0.5)  # 에러 시 조금 더 대기
             
-            logger.info(f"[D73-2_MULTI] Engine for {symbol} started (placeholder)")
+            runtime = time.time() - start_time
+            stats = {
+                "symbol": symbol,
+                "iteration_count": iteration_count,
+                "trade_count": trade_count,
+                "runtime_seconds": runtime,
+                "success": True,
+            }
+            
+            logger.info(f"[D73-4_MULTI] {symbol} completed: {stats}")
+            return stats
         
         except Exception as e:
             logger.error(
                 f"[D73-2_MULTI] Error running engine for {symbol}: {e}",
                 exc_info=True
             )
+            return {
+                "symbol": symbol,
+                "error": str(e),
+                "iteration_count": iteration_count,
+                "runtime_seconds": time.time() - start_time,
+                "success": False,
+            }
     
     def _create_symbol_config(self, symbol: str) -> ArbitrageLiveConfig:
         """
