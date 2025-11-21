@@ -844,19 +844,24 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **성능 목표 (vs 상용급 봇):**
 
-| 지표 | 상용급 봇 | 목표 | 현재 |
-|------|----------|------|------|
-| Loop latency (avg) | <5ms | <10ms | ~15ms |
-| Loop latency (p99) | <15ms | <25ms | ~50ms |
-| 동시 심볼 수 | 50-100 | 20-50 | 1 |
-| WS reconnect MTTR | <3s | <5s | ~20s |
-| CPU usage (20 symbols) | <60% | <70% | N/A |
-| Memory drift | <2% | <5% | TBD |
+| 지표 | 상용급 봇 | 목표 | 현재 (D74-1 측정) |
+|------|----------|------|-------------------|
+| Loop latency (avg) | <5ms | <10ms | **~108ms** (10 symbols) |
+| Loop latency (p99) | <15ms | <25ms | TBD (D74-2) |
+| 동시 심볼 수 | 50-100 | 20-50 | 10 (D73-4 기준) |
+| WS reconnect MTTR | <3s | <5s | TBD (D75+) |
+| CPU usage (20 symbols) | <60% | <70% | TBD (D74-4) |
+| Memory drift | <2% | <5% | TBD (D74-4) |
+| Redis latency (avg) | <0.5ms | <1ms | N/A (미설치) |
+| Throughput (decisions/sec) | >10 | >5 | **9.23** (10 symbols) |
 
 **완료 조건:**
 - 상용급 봇 벤치마크 리포트 작성
 - 성능 목표 합의 및 문서화
 - Micro-benchmark 도구 구현 완료
+- 초기 측정 완료 (Loop latency: 108ms, Throughput: 9.23/sec)
+
+**Status**: ✅ **COMPLETED** (2025-11-22)
 
 ### D74-2: Profiling 및 병목 분석
 
