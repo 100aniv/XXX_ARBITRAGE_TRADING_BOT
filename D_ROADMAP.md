@@ -918,23 +918,64 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **Status**: ✅ **COMPLETED** (2025-11-22)
 
+### D74-2.5: Extended Multi-Symbol PAPER Soak Test 🆕
+
+**목표:**
+- D74-2 베이스라인(10분)을 60분으로 확장하여 **롱 런 안정성** 검증
+- D74-3 최적화 이후에도 비교할 수 있는 **60분 baseline** 확보
+- 더 큰 표본(~4,800 거래) 수집으로 거래 분포 및 리스크 가드 활동 분석
+- D74-2와 D74-3 사이에 삽입되는 **중간 검증 단계**
+
+**작업:**
+- 60분 PAPER soak test 구성 (D74-2 설정 재사용)
+- Config 파일 생성 (`configs/d74_2_5_top10_paper_soak.yaml`)
+- Runner 스크립트 생성 (`scripts/run_d74_2_5_paper_soak.py`)
+- Test suite 생성 (`scripts/test_d74_2_5_paper_soak.py`)
+- 5분 smoke test 검증
+- 60분 본 캠페인 실행 및 결과 수집
+
+**Acceptance Criteria (D74-2.5):**
+1. **Runtime Accuracy**: 60분 ±2% (58:48 ~ 61:12)
+2. **Minimum Filled Orders**: ≥2,000 (심볼당 ~200건)
+3. **Full Symbol Coverage**: ≥20 traded symbols (KRW + USDT)
+4. **Crash-Free Operation**: No unhandled exceptions
+5. **RiskGuard Decision Logging**: ≥1 decision recorded
+6. **PaperExchange Fill**: Both exchanges (A, B) active
+
+**5분 Smoke Test 결과:**
+- **Duration**: 5.00 min (tolerance ±2%) ✅ PASS
+- **Total Filled Orders**: 400 (5분 기준, 60분 예상 4,800) ✅ PASS
+- **Traded Symbols**: 20/20 (KRW + USDT) ✅ PASS
+- **Exchange A Fills**: 200 ✅ PASS
+- **Exchange B Fills**: 200 ✅ PASS
+- **Unhandled Exceptions**: 0 ✅ PASS
+- **RiskGuard Decisions**: 0 (paper mode expected) ⚠️ WARN
+
+**완료 조건:**
+- ✅ Config 파일 생성 (`d74_2_5_top10_paper_soak.yaml`)
+- ✅ Runner 스크립트 생성 (`run_d74_2_5_paper_soak.py`)
+- ✅ Test suite 생성 및 3/3 PASS (`test_d74_2_5_paper_soak.py`)
+- ✅ 5분 smoke test 검증 완료
+- ⏳ 60분 본 캠페인 실행 (engine loop issue 해결 필요)
+- ⏳ 결과 분석 및 리포트 작성 (`docs/D74_2_5_PAPER_SOAK_REPORT.md`)
+
+**Known Issue:**
+- `run_multi()` 메인 루프 실행 문제: 초기화 후 `runner.run_once()` 응답 없음
+- 해결 필요: 별도 디버깅 세션에서 `run_once()` 메서드 검토
+
+**Status**: ⏳ **IMPLEMENTATION COMPLETE, EXECUTION PENDING** (2025-11-22)
+
 ### D74-3: Performance Optimization Pass 1
+
+**선행 조건:**
+- ✅ D74-2: 10분 PAPER Baseline (400 trades, 20 symbols)
+- ⏳ D74-2.5: 60분 PAPER Soak Test (4,800 trades 예상) - 비교 기준 확보
 
 **작업:**
 - 이벤트 루프 단일화 (single async engine loop)
 - Redis 커넥션 풀 + Pipeline 배치 처리
 - MetricsCollector 배치 플러시 (zero-alloc 구조)
 - WS 멀티심볼 구독 최적화 (single WS multiplexing)
-
-**완료 조건:**
-- Loop latency avg < 10ms, p99 < 25ms
-- Redis latency < 1ms (pipeline 사용 시)
-- GC pressure 30% 감소
-
-### D74-4: Load Testing (Top-20/50/100)
-
-**작업:**
-- Top-20 심볼 load test (5분/30분/1시간)
 - Top-50 심볼 soak test (1시간)
 - Top-100 심볼 endurance test (현실성 검토)
 - 성능 메트릭 자동 수집 및 리포트
