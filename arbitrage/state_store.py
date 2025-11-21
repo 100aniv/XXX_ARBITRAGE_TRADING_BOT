@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 
 import psycopg2
 import redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,11 @@ class StateStore:
         self.redis_available = redis_client is not None
         self.db_available = db_conn is not None
         
+        # D71: Redis fallback 설정
+        self._redis_failure_count = 0
+        self._redis_failure_threshold = 3  # 3번 연속 실패 시 fallback
+        self._fallback_mode = False
+        
         if not self.redis_available:
             logger.warning("[STATE_STORE] Redis not available, state persistence disabled")
         if not self.db_available:
@@ -85,17 +91,28 @@ class StateStore:
             logger.debug("[STATE_STORE] Redis not available, skipping save")
             return False
         
+        # D71: Fallback 모드에서는 Redis 저장 스킨
+        if self._fallback_mode:
+            logger.debug("[STATE_STORE] In fallback mode, skipping Redis save")
+            return False
+        
         try:
             for category, data in state_data.items():
                 key = self._get_redis_key(session_id, category)
                 serialized = self._serialize_for_redis(data)
                 self.redis_client.set(key, serialized)
             
+            # D71: 성공 시 실패 카운터 리셋
+            self._redis_failure_count = 0
             logger.debug(f"[STATE_STORE] Saved state to Redis: {session_id}")
             return True
         
         except Exception as e:
             logger.error(f"[STATE_STORE] Failed to save to Redis: {e}")
+            # D71: 실패 카운터 증가
+            self._redis_failure_count += 1
+            if self._redis_failure_count >= self._redis_failure_threshold:
+                self._enable_fallback_mode()
             return False
     
     def load_state_from_redis(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -112,6 +129,11 @@ class StateStore:
             logger.debug("[STATE_STORE] Redis not available, cannot load")
             return None
         
+        # D71: Fallback 모드에서는 PostgreSQL에서 로드
+        if self._fallback_mode:
+            logger.info("[STATE_STORE] In fallback mode, loading from PostgreSQL")
+            return self._load_from_db_fallback(session_id)
+        
         try:
             categories = ['session', 'positions', 'metrics', 'risk_guard']
             state_data = {}
@@ -126,12 +148,18 @@ class StateStore:
                 logger.warning(f"[STATE_STORE] No state found in Redis: {session_id}")
                 return None
             
+            # D71: 성공 시 실패 카운터 리셋
+            self._redis_failure_count = 0
             logger.info(f"[STATE_STORE] Loaded state from Redis: {session_id}")
             return state_data
         
         except Exception as e:
             logger.error(f"[STATE_STORE] Failed to load from Redis: {e}")
-            return None
+            # D71: 실패 시 fallback
+            self._redis_failure_count += 1
+            if self._redis_failure_count >= self._redis_failure_threshold:
+                self._enable_fallback_mode()
+            return self._load_from_db_fallback(session_id)
     
     def delete_state_from_redis(self, session_id: str) -> bool:
         """
@@ -413,7 +441,92 @@ class StateStore:
             if cursor:
                 cursor.close()
     
-    # ========== Serialization ==========
+    # ========== D71: Fallback Logic ==========
+    
+    def _enable_fallback_mode(self):
+        """D71: Redis fallback 모드 활성화"""
+        if not self._fallback_mode:
+            logger.warning("[STATE_STORE] ⚠️ Enabling fallback mode: Redis unavailable, using PostgreSQL only")
+            self._fallback_mode = True
+    
+    def _load_from_db_fallback(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """D71: PostgreSQL에서 상태 로드 (fallback)"""
+        if not self.db_available:
+            logger.error("[STATE_STORE] PostgreSQL not available, cannot fallback")
+            return None
+        
+        try:
+            # 최신 스냅샷 로드
+            snapshot = self.load_latest_snapshot(session_id)
+            if not snapshot:
+                logger.warning(f"[STATE_STORE] No snapshot found for fallback: {session_id}")
+                return None
+            
+            logger.info(f"[STATE_STORE] Loaded state from PostgreSQL (fallback): {session_id}")
+            return snapshot
+        
+        except Exception as e:
+            logger.error(f"[STATE_STORE] Failed to load from PostgreSQL fallback: {e}")
+            return None
+    
+    def check_redis_health(self) -> bool:
+        """D71: Redis 연결 상태 확인"""
+        if not self.redis_available:
+            return False
+        
+        try:
+            self.redis_client.ping()
+            # D71: 성공 시 fallback 모드 해제
+            if self._fallback_mode:
+                logger.info("[STATE_STORE] ✅ Redis recovered, disabling fallback mode")
+                self._fallback_mode = False
+                self._redis_failure_count = 0
+            return True
+        except Exception as e:
+            logger.debug(f"[STATE_STORE] Redis health check failed: {e}")
+            return False
+    
+    def get_fallback_status(self) -> Dict[str, Any]:
+        """D71: Fallback 상태 조회"""
+        return {
+            "fallback_mode": self._fallback_mode,
+            "redis_available": self.redis_available,
+            "redis_healthy": self.check_redis_health() if self.redis_available else False,
+            "redis_failure_count": self._redis_failure_count,
+            "db_available": self.db_available
+        }
+    
+    def is_healthy(self) -> bool:
+        """StateStore 헬스 체크"""
+        return self.redis_available or self.db_available
+    
+    # ========== D71: Recovery Methods ==========
+    
+    def reload_from_snapshot(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """D71: PostgreSQL에서 스냅샷 재로드 후 Redis에 복원"""
+        if not self.db_available:
+            logger.error("[STATE_STORE] Cannot reload: PostgreSQL not available")
+            return None
+        
+        try:
+            # 1. PostgreSQL에서 로드
+            snapshot = self.load_latest_snapshot(session_id)
+            if not snapshot:
+                logger.warning(f"[STATE_STORE] No snapshot to reload: {session_id}")
+                return None
+            
+            # 2. Redis에 저장 (가능한 경우)
+            if self.redis_available and self.check_redis_health():
+                self.save_state_to_redis(session_id, snapshot)
+                logger.info(f"[STATE_STORE] Reloaded snapshot to Redis: {session_id}")
+            
+            return snapshot
+        
+        except Exception as e:
+            logger.error(f"[STATE_STORE] Failed to reload snapshot: {e}")
+            return None
+    
+    # ========== Serialization Helpers ==========
     
     def _serialize_for_redis(self, data: Any) -> str:
         """Redis 저장용 직렬화 (JSON)"""
