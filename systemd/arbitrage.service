@@ -1,0 +1,62 @@
+# ============================================================================
+# Arbitrage Trading Engine - systemd Service Unit
+# Production server deployment with auto-restart and monitoring
+# ============================================================================
+
+[Unit]
+Description=Arbitrage Trading Engine
+Documentation=https://github.com/arbitrage-trading/arbitrage-lite
+After=network.target docker.service redis.service postgresql.service
+Wants=docker.service redis.service postgresql.service
+ConditionPathExists=/opt/arbitrage
+
+[Service]
+Type=simple
+User=arbitrage
+Group=arbitrage
+WorkingDirectory=/opt/arbitrage
+
+# Environment file (contains secrets and config)
+EnvironmentFile=/etc/arbitrage/arbitrage.env
+
+# Pre-start checks
+ExecStartPre=/bin/bash -c 'docker ps -q -f name=arbitrage-redis || docker start arbitrage-redis'
+ExecStartPre=/bin/bash -c 'docker ps -q -f name=arbitrage-postgres || docker start arbitrage-postgres'
+ExecStartPre=/bin/sleep 10
+
+# Main command
+ExecStart=/opt/arbitrage/scripts/run_engine.sh
+
+# Post-stop cleanup
+ExecStopPost=/bin/bash -c 'echo "$(date): Engine stopped" >> /var/log/arbitrage/service.log'
+
+# Restart policy
+Restart=always
+RestartSec=30
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Resource limits
+LimitNOFILE=100000
+LimitNPROC=10000
+CPUQuota=200%
+MemoryLimit=2G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arbitrage-engine
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/arbitrage/logs /opt/arbitrage/tmp
+
+# Health monitoring (optional with systemd-notify)
+WatchdogSec=60
+NotifyAccess=main
+
+[Install]
+WantedBy=multi-user.target
