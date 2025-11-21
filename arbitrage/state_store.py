@@ -24,6 +24,8 @@ import psycopg2
 import redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from arbitrage.redis_keyspace import KeyBuilder, KeyDomain
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ class StateStore:
     """
     상태 영속화/복원 통합 모듈
     
-    Redis: 실시간 상태 (arbitrage:state:{env}:{session_id}:{category})
+    Redis: 실시간 상태 (KeyBuilder 사용)
     PostgreSQL: 영구 스냅샷 (session_snapshots, position_snapshots, metrics_snapshots, risk_guard_snapshots)
     
     Usage:
@@ -60,6 +62,9 @@ class StateStore:
         self.redis_available = redis_client is not None
         self.db_available = db_conn is not None
         
+        # KeyBuilder (session_id는 나중에 설정)
+        self._key_builder = None
+        
         # D71: Redis fallback 설정
         self._redis_failure_count = 0
         self._redis_failure_threshold = 3  # 3번 연속 실패 시 fallback
@@ -72,9 +77,29 @@ class StateStore:
     
     # ========== Redis Operations ==========
     
+    def _get_key_builder(self, session_id: str) -> KeyBuilder:
+        """Get or create KeyBuilder for session"""
+        if self._key_builder is None or self._key_builder.session_id != session_id:
+            self._key_builder = KeyBuilder(env=self.env, session_id=session_id)
+        return self._key_builder
+    
     def _get_redis_key(self, session_id: str, category: str) -> str:
-        """Redis 키 생성"""
-        return f"arbitrage:state:{self.env}:{session_id}:{category}"
+        """Redis 키 생성 (KeyBuilder 사용)"""
+        kb = self._get_key_builder(session_id)
+        # category를 domain으로 매핑
+        if category == 'session':
+            return kb.build_session_key()
+        elif category in ['positions', 'position']:
+            return kb.build(KeyDomain.STATE, field='positions')
+        elif category == 'metrics':
+            return kb.build(KeyDomain.METRICS, field='all')
+        elif category == 'risk_guard':
+            return kb.build_guard_key()
+        elif category == 'orders':
+            return kb.build(KeyDomain.STATE, field='orders')
+        else:
+            # Fallback to generic state key
+            return kb.build(KeyDomain.STATE, field=category)
     
     def save_state_to_redis(self, session_id: str, state_data: Dict[str, Any]) -> bool:
         """
@@ -175,7 +200,8 @@ class StateStore:
             return False
         
         try:
-            pattern = f"arbitrage:state:{self.env}:{session_id}:*"
+            kb = self._get_key_builder(session_id)
+            pattern = kb.get_all_session_keys_pattern()
             keys = list(self.redis_client.scan_iter(match=pattern))
             if keys:
                 self.redis_client.delete(*keys)
