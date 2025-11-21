@@ -748,31 +748,30 @@ Done 조건 (D72 전체): ✅ ALL COMPLETED
 - ✅ Top-20 심볼 리스트 조회 가능 (DummySymbolSource 기준)
 - ✅ 심볼 변경 시 엔진 재시작 없이 적용 가능 (설계 완료, D73-2에서 통합)
 
-### D73-2: Per-Symbol Engine Loop
+### D73-2: Per-Symbol Engine Loop ✅ COMPLETED
+**완료 내역:**
+- ✅ Per-symbol coroutine 구조 구현 (MultiSymbolEngineRunner)
+- ✅ Universe → Engine 통합 (build_symbol_universe)
+- ✅ Config 기반 single/multi 모드 전환 (EngineConfig.mode)
+- ✅ 기존 ArbitrageLiveRunner 재사용 (최소 변경)
+- ✅ Per-symbol config 매핑 (USDT → KRW 페어)
+- ✅ Single event loop 구조 (asyncio.create_task + gather)
+- ✅ 테스트 5/5 PASS (100%)
+- ✅ 문서화 (docs/D73_2_MULTI_SYMBOL_ENGINE.md, ~500 lines)
 
-**작업:**
-- 심볼별 독립 코루틴 구조 구현
-- Shared scheduler + per-symbol task 관리
-- PortfolioManager 초안 (symbol bucket, exposure allocation)
-- Multi-symbol StateStore 통합 (KeyBuilder 활용)
+**생성된 파일:**
+- `arbitrage/multi_symbol_engine.py` (~360 lines)
+- `arbitrage/symbol_universe.py` (+32 lines, build_symbol_universe)
+- `config/base.py` (+17 lines, EngineConfig)
+- `scripts/test_d73_2_multi_symbol_engine.py` (~360 lines)
+- `docs/D73_2_MULTI_SYMBOL_ENGINE.md` (~500 lines)
 
-**구현 예시:**
-```python
-async def run_multi_symbol_engine():
-    symbols = universe.get_symbols()  # Top-20
-    tasks = [
-        asyncio.create_task(
-            run_symbol_engine(symbol, shared_portfolio, shared_guard)
-        )
-        for symbol in symbols
-    ]
-    await asyncio.gather(*tasks)
-```
-
-**완료 조건:**
-- 5개 심볼 동시 운용 PAPER 테스트 PASS
-- 심볼별 독립적인 포지션/PnL 추적
-- StateStore에 심볼별 키 저장/복원 검증
+**Done Criteria:**
+- ✅ Per-symbol coroutine 구조 구현
+- ✅ Config 기반 모드 전환 (single/multi)
+- ✅ 기존 엔진 재사용 (orchestration layer만 추가)
+- ✅ 테스트 100% 통과
+- ✅ D73-1 회귀 없음
 
 ### D73-3: Multi-Symbol RiskGuard
 

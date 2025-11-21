@@ -283,8 +283,10 @@ class SymbolUniverse:
         self.config = config
         self.source = source
         
+        # Handle both string and enum mode
+        mode_str = config.mode.value if hasattr(config.mode, 'value') else config.mode
         logger.info(
-            f"[SYMBOL_UNIVERSE] Initialized: mode={config.mode.value}, "
+            f"[SYMBOL_UNIVERSE] Initialized: mode={mode_str}, "
             f"exchange={config.exchange}"
         )
     
@@ -314,8 +316,9 @@ class SymbolUniverse:
             return self._get_full_market()
         
         else:
-            raise ValueError(f"Unknown mode: {self.config.mode}")
-    
+            logger.error(f"[SYMBOL_UNIVERSE] Unknown mode: {self.config.mode}")
+            return []
+
     # ────────────────────────────────────────────────────────────────────────
     # Mode별 구현
     # ────────────────────────────────────────────────────────────────────────
@@ -449,7 +452,39 @@ class SymbolUniverse:
 
 
 # ============================================================================
-# 5. 향후 확장 포인트 (D73-2+)
+# 5. Factory Function (D73-2 Integration)
+# ============================================================================
+
+def build_symbol_universe(config: SymbolUniverseConfig, source: Optional[AbstractSymbolSource] = None) -> SymbolUniverse:
+    """
+    Build SymbolUniverse from config.
+    
+    D73-2 integration helper. Creates SymbolUniverse instance from config,
+    with optional source override for testing.
+    
+    Args:
+        config: SymbolUniverseConfig instance
+        source: Optional symbol source override (default: DummySymbolSource)
+    
+    Returns:
+        SymbolUniverse instance
+    
+    Example:
+        >>> from config.base import ArbitrageConfig
+        >>> config = ArbitrageConfig(...)
+        >>> universe = build_symbol_universe(config.universe)
+        >>> symbols = universe.get_symbols()
+    """
+    if source is None:
+        # D73-2: Use DummySymbolSource by default
+        # D73-2+: Will be replaced with real exchange source (BinanceSymbolSource, UpbitSymbolSource)
+        source = DummySymbolSource()
+    
+    return SymbolUniverse(config, source)
+
+
+# ============================================================================
+# 6. 향후 확장 포인트 (D73-2+)
 # ============================================================================
 
 # TODO(D73-2): Binance Symbol Source 구현

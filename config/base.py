@@ -182,6 +182,20 @@ class SymbolUniverseConfig:
 
 
 @dataclass(frozen=True)
+class EngineConfig:
+    """
+    Engine 실행 모드 설정 (D73-2)
+    
+    Single-Symbol vs Multi-Symbol 전환을 위한 설정.
+    """
+    mode: str = 'single'  # 'single' (default), 'multi'
+    
+    # Multi-Symbol 전용 설정 (D73-2+)
+    multi_symbol_enabled: bool = False  # True일 때 multi 모드 강제
+    per_symbol_isolation: bool = True  # 심볼별 독립적 실행 (shared context는 Portfolio/RiskGuard만)
+
+
+@dataclass(frozen=True)
 class SessionConfig:
     """세션 관리 설정"""
     
@@ -219,6 +233,11 @@ class ArbitrageConfig:
     # D73-1: Symbol Universe (멀티심볼 지원)
     universe: SymbolUniverseConfig = field(
         default_factory=lambda: SymbolUniverseConfig()
+    )
+    
+    # D73-2: Engine 실행 모드
+    engine: EngineConfig = field(
+        default_factory=lambda: EngineConfig()
     )
     
     # Symbols (Legacy, D72 하위 호환용)
@@ -271,7 +290,7 @@ class ArbitrageConfig:
             symbol_b=symbol_b,
             mode=self.session.mode,
             data_source=self.session.data_source,
-            loop_interval_ms=self.session.loop_interval_ms,
+            poll_interval_seconds=self.session.loop_interval_ms / 1000.0,  # ms to seconds
             max_runtime_seconds=self.session.max_runtime_seconds
         )
     
