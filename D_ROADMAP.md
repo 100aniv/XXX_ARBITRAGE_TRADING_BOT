@@ -863,23 +863,43 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **Status**: ✅ **COMPLETED** (2025-11-22)
 
-### D74-2: Profiling 및 병목 분석 ✅ COMPLETED (2025-11-22)
+### D74-2: Profiling & Real PAPER Baseline ✅ COMPLETED (2025-11-22)
 
-**작업:**
+**작업 (Phase 1: Profiling):**
 - cProfile 기반 profiling 도구 구현
 - Top-10 케이스 병목 함수 식별 (cumtime 기준)
 - 카테고리별 분석 (Event Loop / Engine / Logging / RiskGuard)
 - D74-3 최적화 우선순위 결정
 
-**핵심 발견:**
+**핵심 발견 (Profiling):**
 - **Event loop 대기 시간이 98.8%** (`GetQueuedCompletionStatus` 10.7s)
   - `asyncio.sleep(100ms)` × 10 symbols = 의도된 throttling
   - 실제 CPU-bound 병목은 극히 적음 (<2%)
 - **엔진 로직은 1.6%** (`_run_for_symbol`, `run_once`, `build_snapshot`)
 - **RiskGuard/Logging은 병목 아님** (각각 0.5%, 0.3%)
 
+**작업 (Phase 2: Real PAPER Baseline):**
+- Top-10 심볼 10분 실제 PAPER 캠페인 수행
+- 완화된 RiskGuard 설정으로 실제 체결 유도
+- Acceptance criteria 검증 (>=3 symbols, >=10 trades, no crashes)
+- 베이스라인 성능 측정 및 문서화
+
+**PAPER Baseline 결과:**
+- **Duration**: 10.00 min (600.03s)
+- **Total Filled Orders**: 400 (목표 >=10)
+- **Traded Symbols**: 20 (10 KRW + 10 USDT pairs, 목표 >=3)
+- **Loop Latency**: ~109ms (D74-1: 108ms, consistency confirmed)
+- **Throughput**: 9.19 decisions/sec (55,130 iterations / 600s)
+- **Crashes**: 0 (no unhandled exceptions)
+- **Each Symbol**: 20 Entry trades on both exchanges
+
+**Issues Fixed:**
+1. `max_open_trades=1` blocking trades → Added `risk_limits` to `ArbitrageConfig.to_live_config()`
+2. OrderStatus enum comparison bug → Fixed string vs enum comparison
+3. `min_spread_bps` validation failure → Increased from 25 to 40 bps
+
 **D74-3 최적화 우선순위** (예상 효과):
-1. **Event Loop 단일화 & Sleep 조정** → 50~70% latency 감소 (108ms → 30~50ms)
+1. **Event Loop 단일화 & Sleep 조정** → 50~70% latency 감소 (109ms → 30~50ms)
 2. **Redis Pipeline & Batching** → 20~30% I/O latency 감소 (Paper 모드라 미측정)
 3. **Logging 최적화** → 5~10% latency 감소 (buffering, 레벨 조정)
 4. **Snapshot 캐싱** → 5~10% latency 감소 (incremental update)
@@ -890,7 +910,11 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 - ✅ 프로파일링 리포트 작성 (`docs/D74_2_PROFILING_REPORT.md`)
 - ✅ 상위 10개 병목 식별 및 카테고리 분석
 - ✅ D74-3 최적화 우선순위 결정
-- ✅ 테스트 작성 및 회귀 테스트 통과
+- ✅ PAPER Baseline 구현 (`configs/d74_2_top10_paper_baseline.yaml`, `scripts/run_d74_2_paper_baseline.py`)
+- ✅ 10분 실제 캠페인 수행 (400 trades, 20 symbols)
+- ✅ Acceptance criteria 모두 통과
+- ✅ 베이스라인 리포트 작성 (`docs/D74_2_PAPER_BASELINE_REPORT.md`)
+- ✅ 테스트 작성 및 회귀 테스트 통과 (3/3 passed)
 
 **Status**: ✅ **COMPLETED** (2025-11-22)
 

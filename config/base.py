@@ -324,7 +324,8 @@ class ArbitrageConfig:
             mode=self.session.mode,
             data_source=self.session.data_source,
             poll_interval_seconds=self.session.loop_interval_ms / 1000.0,  # ms to seconds
-            max_runtime_seconds=self.session.max_runtime_seconds
+            max_runtime_seconds=self.session.max_runtime_seconds,
+            risk_limits=self.to_risk_limits()  # D74-2: risk_limits 전달
         )
     
     def to_risk_limits(self):
