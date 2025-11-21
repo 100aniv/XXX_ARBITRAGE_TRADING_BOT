@@ -495,12 +495,103 @@ Done 조건 (D71 전체):
 -  회귀 테스트 PASS (D70)
 -  docs/D71_REPORT.md 작성
 
-	
+### D71-3: STABILITY VERIFICATION (✅ COMPLETED)
+**목표:** D72 진입 전 구조 안정성 최종 검증
+
+**검증 완료:**
+-  Automated stability check: 6/6 PASS
+-  WS reconnect edge cases 검증
+-  Redis fallback 타이밍 검증
+-  Snapshot corruption 감지 검증
+-  StateStore key consistency 검증
+-  Entry duplication 방지 검증
+-  RiskGuard edge-case recovery 검증
+
+**D72 Preparation:**
+-  docs/D72_START.md 작성
+-  docs/REDIS_KEYSPACE.md 작성
+-  Production readiness 분석 완료
+
+⸻
+
+🚀 D72 – PRODUCTION DEPLOYMENT PREPARATION
+상태: 🟡 **READY TO START**
+
+목표:
+D71까지 완료된 시스템을 Production 환경에 배포하기 위한 최종 준비.
+
+### D72-1: Configuration Standardization (⏳ TODO)
+**목표:** Production-ready Config 구조 확립
+
+**작업:**
+-  config/ 모듈 생성
+-  환경별 Config 분리 (dev/staging/prod)
+-  Secrets management (환경변수)
+-  Config validation (pydantic)
+-  기존 코드 migration
+
+### D72-2: Redis Keyspace Normalization (⏳ TODO)
+**목표:** Redis 키 구조 표준화
+
+**작업:**
+-  Redis 키 명세 문서 작성 (✅ 완료)
+-  키 prefix 통일
+-  TTL 정책 구현
+-  키 정리 스크립트
+
+### D72-3: PostgreSQL Productionization (⏳ TODO)
+**목표:** PostgreSQL 스키마 Production 준비
+
+**작업:**
+-  인덱스 최적화
+-  Retention policy 구현
+-  Backup 전략 수립
+-  Migration script
+
+### D72-4: Logging & Monitoring MVP (⏳ TODO)
+**목표:** 실시간 모니터링 지표 추출 (D73 사전작업)
+
+**작업:**
+-  구조화된 로그 포맷 적용
+-  핵심 지표 수집
+-  Metrics export endpoint (/metrics)
+-  Health check endpoint (/health)
+
+### D72-5: Deployment Infrastructure (⏳ TODO)
+**목표:** Docker 기반 배포 인프라 구축
+
+**작업:**
+-  Dockerfile 작성 (multi-stage build)
+-  docker-compose.prod.yml 작성
+-  환경변수 관리
+-  Health check 구현
+
+### D72-6: Operational Documentation (⏳ TODO)
+**목표:** 운영 가이드 및 Runbook 작성
+
+**작업:**
+-  DEPLOYMENT_GUIDE.md
+-  RUNBOOK.md
+-  TROUBLESHOOTING.md
+-  API_REFERENCE.md
+
+Done 조건 (D72 전체):
+-  Config 표준화 완료
+-  Secrets 관리 구현
+-  Redis 키 정리 완료
+-  PostgreSQL 최적화 완료
+-  Docker 배포 인프라 완성
+-  Health check 구현
+-  구조화된 로깅 적용
+-  운영 문서 작성 완료
+
+⸻
+
 블럭 D – 모니터링/운영/UI (D73 ~ D74)
 
- D73 – MONITORING_DASHBOARD (모니터링/알람)
+📊 D73 – MONITORING_DASHBOARD (모니터링/알람)
 목표:
-“로그 파일만 뒤져보는 봇”이 아니라,
+"로그 파일만 뒤져보는 봇"이 아니라,
 실시간으로 상태를 한눈에 볼 수 있는 모니터링 계층 만들기.
 
 구현:
