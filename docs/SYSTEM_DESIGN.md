@@ -281,12 +281,16 @@ python tools/monitor.py --search "trade execution"
 - **Position tracking:** Single position object
 - **RiskGuard:** Global limits only
 
-### Target State (D80-D89 PHASE18+)
+### Target State (D73-D74)
+
+**멀티심볼 엔진은 D73-D74에서 구현됩니다:**
+- **D73:** Multi-Symbol Engine Foundation
+- **D74:** Multi-Symbol Performance & Scalability (상용급 봇 대비)
 
 #### Symbol Expansion Roadmap
-1. **Top-20:** 상위 20개 심볼 (D80-D82)
-2. **Top-50:** 상위 50개 심볼 (D83-D85)
-3. **Top-100:** 상위 100개 심볼 (D86-D89)
+1. **Top-10:** 초기 테스트 (D73-4)
+2. **Top-20:** 성능 검증 (D74-4)
+3. **Top-50:** 스케일 테스트 (D74-4)
 
 #### Multi-Symbol Engine Loop
 
@@ -431,7 +435,9 @@ class LiveExecutionManager(ExecutionManager):
 
 ## Performance Optimization
 
-### 상용급 성능 최적화 10대 항목 (D75-D79)
+### 상용급 성능 최적화 10대 항목 (D74)
+
+**D74에서 상용급 봇 대비 성능 경쟁력을 확보합니다.**
 
 #### 1. 이벤트 루프 단일화
 **Current:** Multiple event loops per component  
@@ -483,7 +489,7 @@ class LiveExecutionManager(ExecutionManager):
 **Target:** Distributed workers with Bayesian optimization  
 **Benefit:** 10x faster hyperparameter search
 
-### Performance Targets (D75-D79)
+### Performance Targets (D74)
 
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
@@ -493,6 +499,68 @@ class LiveExecutionManager(ExecutionManager):
 | CPU usage | ~60% | <70% | ✅ OK |
 | Memory (RSS) | Stable | Drift <5% | 🎯 Target |
 | WS reconnect MTTR | ~20s | <5s | 🎯 Target |
+
+---
+
+## Alerting & Monitoring
+
+### Alerting Infrastructure (D76)
+
+**목표:** 24/7 운영을 위한 실시간 알림 시스템
+
+**핵심 기능:**
+- **Telegram Bot 통합:** python-telegram-bot 기반
+- **Severity Mapping:** P0 (Critical) → P1 (High) → P2 (Medium) → P3 (Low)
+- **Alert Rules:** 20+ rules (Engine crash, High latency, WS disconnect, etc.)
+- **Rate Limiting:** Alert storm 방지 (max 10 msg/min)
+
+**Integration Points:**
+- LoggingManager: ERROR/CRITICAL → P1/P0 alert
+- MetricsCollector: Latency/error rate threshold → P1 alert
+- RiskGuard: Guard trigger → P2 alert
+- StateStore: Snapshot save failed → P2 alert
+
+**메시지 포맷 예시:**
+```
+🔴 [P0] Engine Crashed
+Time: 2025-11-21 14:30:22
+Session: prod-20251121-143022
+Reason: Redis connection timeout
+Action: Auto-recovery initiated
+```
+
+### Real-time Monitoring Dashboard (D77)
+
+**목표:** 실시간 모니터링 대시보드 (D99 Done Criteria 충족)
+
+**Prometheus Exporter:**
+- `/metrics` endpoint (15s scrape interval)
+- 10+ metrics 노출:
+  - Trading: trades_total, pnl_total, win_rate
+  - Performance: loop_latency_seconds, ws_latency_seconds
+  - System: cpu_usage_percent, memory_usage_bytes
+  - Risk: guard_triggers_total, open_positions_count
+
+**Grafana Dashboards (3개):**
+1. **System Health:** Service status, CPU/Memory, Redis/PostgreSQL status
+2. **Trading KPIs:** PnL timeline, Win rate, Trades/hour, Symbol heatmap
+3. **Risk & Guard:** Open positions, Exposure, Guard triggers, Drawdown
+
+**Alertmanager Integration:**
+- Grafana alert → Telegram (D76 통합)
+- 5+ alert rules (HighLoopLatency, HighErrorRate, etc.)
+
+**Core KPI 10종 (D99 Done Criteria):**
+1. Total PnL (실시간)
+2. Win Rate (%)
+3. Trades per Hour
+4. Loop Latency (avg, p99)
+5. WS Latency (avg)
+6. CPU Usage (%)
+7. Memory Usage (MB)
+8. Open Positions Count
+9. Guard Triggers per Hour
+10. Snapshot Save Success Rate (%)
 
 ---
 
