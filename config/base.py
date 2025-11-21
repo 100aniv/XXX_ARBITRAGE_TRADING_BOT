@@ -196,6 +196,34 @@ class EngineConfig:
 
 
 @dataclass(frozen=True)
+class MultiSymbolRiskGuardConfig:
+    """
+    Multi-Symbol RiskGuard 설정 (D73-3)
+    
+    3-Tier Risk Management:
+    - GlobalGuard: 전체 포트폴리오 한도
+    - PortfolioGuard: 심볼별 자본 할당
+    - SymbolGuard: 개별 심볼 리스크
+    """
+    # Global Guard
+    max_total_exposure_usd: float = 10000.0
+    max_daily_loss_usd: float = 500.0
+    emergency_stop_loss_usd: float = 1000.0
+    
+    # Portfolio Guard
+    total_capital_usd: float = 10000.0
+    max_symbol_allocation_pct: float = 0.3  # 심볼당 최대 30%
+    
+    # Symbol Guard (공통 설정)
+    max_position_size_usd: float = 1000.0
+    max_position_count: int = 3
+    cooldown_seconds: float = 60.0
+    max_symbol_daily_loss_usd: float = 200.0
+    circuit_breaker_loss_count: int = 3  # 연속 3회 손실 시 차단
+    circuit_breaker_duration: float = 300.0  # 5분간 차단
+
+
+@dataclass(frozen=True)
 class SessionConfig:
     """세션 관리 설정"""
     
@@ -238,6 +266,11 @@ class ArbitrageConfig:
     # D73-2: Engine 실행 모드
     engine: EngineConfig = field(
         default_factory=lambda: EngineConfig()
+    )
+    
+    # D73-3: Multi-Symbol RiskGuard
+    multi_symbol_risk_guard: MultiSymbolRiskGuardConfig = field(
+        default_factory=lambda: MultiSymbolRiskGuardConfig()
     )
     
     # Symbols (Legacy, D72 하위 호환용)

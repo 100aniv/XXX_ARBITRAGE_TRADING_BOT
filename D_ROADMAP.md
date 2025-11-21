@@ -768,39 +768,33 @@ Done 조건 (D72 전체): ✅ ALL COMPLETED
 
 **Done Criteria:**
 - ✅ Per-symbol coroutine 구조 구현
-- ✅ Config 기반 모드 전환 (single/multi)
-- ✅ 기존 엔진 재사용 (orchestration layer만 추가)
-- ✅ 테스트 100% 통과
-- ✅ D73-1 회귀 없음
-
 ### D73-3: Multi-Symbol RiskGuard
 
-**작업:**
-- RiskGuard 계층 구조 확장
-  - GlobalGuard: 전체 포트폴리오 한도
-  - PortfolioGuard: 노출 한도
-  - SymbolGuard[]: 심볼별 한도
-- 심볼별 Guard 상태 Redis 저장/로드
-- Portfolio 리스크 집계 로직
+**완료 내역:**
+- ✅ 3-Tier Risk Guard 계층 구현 (Global/Portfolio/Symbol)
+- ✅ GlobalGuard: 전체 포트폴리오 한도 (exposure, daily loss, emergency stop)
+- ✅ PortfolioGuard: 심볼별 자본 할당 (가중치 기반, max 30%)
+- ✅ SymbolGuard: 개별 심볼 리스크 (position size/count, cooldown, circuit breaker)
+- ✅ MultiSymbolRiskCoordinator: 3-tier 조정 및 통합
+- ✅ Config 기반 설정 (MultiSymbolRiskGuardConfig)
+- ✅ MultiSymbolEngineRunner 통합 (create_multi_symbol_runner)
+- ✅ 테스트 7/7 PASS (100%)
+- ✅ 문서화 (docs/D73_3_MULTI_SYMBOL_RISK_GUARD.md, ~500 lines)
 
-**Guard 계층 구조:**
-```
-GlobalGuard
-├── PortfolioGuard (max_total_exposure)
-├── SymbolGuard[BTC/USDT] (max_symbol_position, cooldown)
-├── SymbolGuard[ETH/USDT]
-└── ...
-```
+**생성된 파일:**
+- `arbitrage/risk/__init__.py` (26 lines)
+- `arbitrage/risk/multi_symbol_risk_guard.py` (~700 lines)
+- `config/base.py` (+28 lines, MultiSymbolRiskGuardConfig)
+- `arbitrage/multi_symbol_engine.py` (+70 lines, RiskCoordinator 통합)
+- `scripts/test_d73_3_multi_symbol_risk_guard.py` (~450 lines)
+- `docs/D73_3_MULTI_SYMBOL_RISK_GUARD.md` (~500 lines)
 
-**완료 조건:**
-- 심볼별 Guard 트리거 정상 동작
-- Portfolio 총 노출 한도 체크
-- Redis keyspace 검증 (심볼별 키 분리)
-
-### D73-4: Small-Scale Integration Test
-
-**작업:**
-- Top-10 심볼 PAPER 모드 통합 테스트
+**Done Criteria:**
+- ✅ 3-Tier Risk Guard 계층 구현
+- ✅ MultiSymbolRiskCoordinator 통합
+- ✅ Config 기반 설정
+- ✅ 테스트 100% 통과
+- ✅ D73-1, D73-2 회귀 없음
 - 5분 캠페인 실행 (Entry/Exit/PnL 검증)
 - Multi-symbol snapshot 저장/복원 테스트
 

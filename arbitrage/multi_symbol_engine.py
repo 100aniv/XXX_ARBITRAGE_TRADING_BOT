@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-D73-2: Multi-Symbol Engine Runner
+D73-2: Multi-Symbol Engine Loop
+D73-3: Multi-Symbol RiskGuard Integration
 
-Per-symbol coroutine 구조로 멀티심볼 동시 처리.
-기존 단일 심볼 엔진을 재사용하며, 상단에 오케스트레이션 레이어 추가.
+Per-symbol coroutine 구조로 멀티심볼 동시 처리 기반을 구축합니다.
+
+기존 단일 심볼 엔진(ArbitrageLiveRunner)을 재사용하여,
+상단에 orchestration layer만 추가하는 방식으로 구현됩니다.
 
 Architecture:
-┌─────────────────────────────────────────────────────────┐
-│            MultiSymbolEngineRunner                      │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  async def run_multi():                           │  │
-│  │      symbols = universe.get_symbols()             │  │
-│  │      tasks = [                                    │  │
-│  │          create_task(run_for_symbol(symbol, ...)) │  │
-│  │          for symbol in symbols                    │  │
-│  │      ]                                            │  │
+MultiSymbolEngineRunner
+├── MultiSymbolRiskCoordinator (D73-3)
+│   ├── GlobalGuard (전체 포트폴리오 한도)
+│   ├── PortfolioGuard (심볼별 자본 할당)
+│   └── SymbolGuard[] (개별 심볼 리스크)
+├── Universe.get_symbols() → ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+├── Per-symbol coroutine 생성
+│   ├── run_for_symbol(BTCUSDT) → RiskGuard → ArbitrageLiveRunner
+│   ├── run_for_symbol(ETHUSDT) → RiskGuard → ArbitrageLiveRunner
+│   └── run_for_symbol(BNBUSDT) → RiskGuard → ArbitrageLiveRunner
+└── asyncio.gather(*tasks)
 │  │      await gather(*tasks)                         │  │
 │  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -82,6 +87,7 @@ class MultiSymbolEngineRunner:
         exchange_b: BaseExchange,
         engine_config: LegacyEngineConfig,
         live_config: ArbitrageLiveConfig,
+        risk_coordinator: Optional[Any] = None,  # D73-3: MultiSymbolRiskCoordinator
         market_data_provider: Optional[Any] = None,
         metrics_collector: Optional[Any] = None,
         state_store: Optional[Any] = None,
@@ -93,6 +99,7 @@ class MultiSymbolEngineRunner:
             exchange_b: Exchange B (Binance 역할)
             engine_config: ArbitrageConfig (engine config)
             live_config: ArbitrageLiveConfig (live runner config)
+            risk_coordinator: MultiSymbolRiskCoordinator (D73-3, 선택)
             market_data_provider: MarketDataProvider (선택)
             metrics_collector: MetricsCollector (선택)
             state_store: StateStore (선택)
@@ -102,6 +109,7 @@ class MultiSymbolEngineRunner:
         self.exchange_b = exchange_b
         self.engine_config = engine_config
         self.live_config = live_config
+        self.risk_coordinator = risk_coordinator  # D73-3
         self.market_data_provider = market_data_provider
         self.metrics_collector = metrics_collector
         self.state_store = state_store
@@ -109,9 +117,9 @@ class MultiSymbolEngineRunner:
         # Per-symbol runner 인스턴스 관리
         self._symbol_runners: Dict[str, ArbitrageLiveRunner] = {}
         
-        # Shared context (D73-3에서 강화 예정)
-        self._shared_portfolio = None  # TODO(D73-3): PortfolioManager 통합
-        self._shared_risk_guard = None  # TODO(D73-3): Multi-Symbol RiskGuard 통합
+        # Shared context
+        self._shared_portfolio = None  # TODO(D73-4): PortfolioManager 통합
+        self._shared_risk_guard = risk_coordinator  # D73-3: MultiSymbolRiskCoordinator 통합
         
         # Runtime state
         self._start_time = time.time()
@@ -318,12 +326,51 @@ def create_multi_symbol_runner(
     Returns:
         MultiSymbolEngineRunner instance
     """
+    from arbitrage.risk.multi_symbol_risk_guard import (
+        GlobalGuard,
+        PortfolioGuard,
+        MultiSymbolRiskCoordinator,
+    )
+    
     # Universe 생성
     universe = build_symbol_universe(config.universe)
     
     # Legacy config 변환
     engine_config = config.to_legacy_config()
     live_config = config.to_live_config()
+    
+    # D73-3: MultiSymbolRiskCoordinator 생성
+    risk_config = config.multi_symbol_risk_guard
+    symbols = universe.get_symbols()
+    
+    global_guard = GlobalGuard(
+        max_total_exposure_usd=risk_config.max_total_exposure_usd,
+        max_daily_loss_usd=risk_config.max_daily_loss_usd,
+        emergency_stop_loss_usd=risk_config.emergency_stop_loss_usd,
+    )
+    
+    portfolio_guard = PortfolioGuard(
+        total_capital_usd=risk_config.total_capital_usd,
+        max_symbol_allocation_pct=risk_config.max_symbol_allocation_pct,
+    )
+    
+    # 심볼별 자본 할당
+    if symbols:
+        portfolio_guard.allocate_capital(symbols)
+    
+    risk_coordinator = MultiSymbolRiskCoordinator(
+        global_guard=global_guard,
+        portfolio_guard=portfolio_guard,
+        symbols=symbols,
+        symbol_guard_config={
+            "max_position_size_usd": risk_config.max_position_size_usd,
+            "max_position_count": risk_config.max_position_count,
+            "cooldown_seconds": risk_config.cooldown_seconds,
+            "max_symbol_daily_loss_usd": risk_config.max_symbol_daily_loss_usd,
+            "circuit_breaker_loss_count": risk_config.circuit_breaker_loss_count,
+            "circuit_breaker_duration": risk_config.circuit_breaker_duration,
+        },
+    )
     
     # Runner 생성
     runner = MultiSymbolEngineRunner(
@@ -332,6 +379,7 @@ def create_multi_symbol_runner(
         exchange_b=exchange_b,
         engine_config=engine_config,
         live_config=live_config,
+        risk_coordinator=risk_coordinator,  # D73-3
         **kwargs
     )
     
@@ -339,12 +387,18 @@ def create_multi_symbol_runner(
 
 
 # ============================================================================
-# D73-2 Done
+# D73-2 Done, D73-3 Done
 # ============================================================================
 # 
-# TODO(D73-3): Multi-Symbol RiskGuard 통합
+# ✅ D73-2: Multi-Symbol Engine Loop
+# - Per-symbol coroutine 구조 구현
+# - Config 기반 single/multi 모드 전환
+# - 기존 단일 심볼 엔진 재사용
+# 
+# ✅ D73-3: Multi-Symbol RiskGuard Integration
 # - GlobalGuard / PortfolioGuard / SymbolGuard 계층
 # - 심볼별 리스크 한도 자동 분배
+# - 3-Tier Risk Management (Global → Portfolio → Symbol)
 # 
 # TODO(D73-4): Small-Scale Integration Test
 # - Top-10 심볼 PAPER 모드 통합 테스트
