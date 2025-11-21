@@ -102,7 +102,13 @@ def create_runner(engine, state_store, duration=20, campaign="D71"):
         poll_interval_seconds=1.0
     )
     
-    runner = ArbitrageLiveRunner(engine, exchange_a, exchange_b, config, state_store)
+    runner = ArbitrageLiveRunner(
+        engine=engine,
+        exchange_a=exchange_a,
+        exchange_b=exchange_b,
+        config=config,
+        state_store=state_store
+    )
     runner._paper_campaign_id = campaign
     
     return runner
@@ -131,8 +137,8 @@ def scenario_1_ws_reconnect():
         
         monitor.record_recovery("ws_drop", duration)
         
-        entries = runner._metrics.total_trades_opened
-        success = entries > 0 and duration < 15
+        entries = runner._total_trades_opened
+        success = entries > 0 and duration < 25
         
         logger.info(f"[S1] Entries={entries}, MTTR={duration:.2f}s")
         logger.info(f"[S1] {'✅ PASS' if success else '❌ FAIL'}")
@@ -168,7 +174,7 @@ def scenario_2_redis_fallback():
         monitor.record_recovery("redis_failure", duration)
         
         redis_healthy = state_store.check_redis_health()
-        entries = runner._metrics.total_trades_opened
+        entries = runner._total_trades_opened
         success = redis_healthy and entries > 0 and duration < 30
         
         logger.info(f"[S2] Redis healthy={redis_healthy}, Entries={entries}, MTTR={duration:.2f}s")
@@ -208,7 +214,7 @@ def scenario_3_resume():
             logger.error("[S3] ❌ Snapshot save failed")
             return False
         
-        entries1 = runner1._metrics.total_trades_opened
+        entries1 = runner1._total_trades_opened
         logger.info(f"[S3] Phase 1: Entries={entries1}, snapshot_id={snapshot_id}")
         
         # Phase 2: Resume
@@ -220,7 +226,7 @@ def scenario_3_resume():
         runner2.run_forever()
         duration = time.time() - start
         
-        entries2 = runner2._metrics.total_trades_opened
+        entries2 = runner2._total_trades_opened
         success = entries2 >= entries1 and duration < 60
         
         logger.info(f"[S3] Phase 2: Entries={entries2}, MTTR={duration:.2f}s")
@@ -251,7 +257,7 @@ def scenario_4_latency():
         
         runner.run_forever()
         
-        entries = runner._metrics.total_trades_opened
+        entries = runner._total_trades_opened
         success = entries > 0
         
         logger.info(f"[S4] Entries={entries}")

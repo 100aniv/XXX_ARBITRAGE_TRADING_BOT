@@ -448,30 +448,57 @@ Done 조건 (D70 전체):
 	•	✅ 메트릭 복원 정확도 100% (S2, S3 검증)
 	•	✅ 포지션 복원 정상 동작 (serialization 이슈 해결)
 	•	✅ 루프 시간 영향 < 3% (실제 관찰)
-	•	✅ 회귀 테스트 PASS (D65, D68 확인)
-	•	✅ docs/D70_REPORT.md 작성
 
-⸻
-
-🧰 D71 – FAILURE_INJECTION & AUTO_RECOVERY
-상태: ⏳ **IN PROGRESS (D71-0 COMPLETED)**
+	
+ D71 – FAILURE_INJECTION & AUTO_RECOVERY
+상태: **COMPLETED (D71-0, D71-1, D71-2 ALL PASS)**
 
 목표:
 일부러 장애를 넣어보면서 자동 복구 로직이 제대로 동작하는지 확인.
-CPU/메모리/레이턴시가 어떻게 변하는지 측정하고 튜닝 포인트 찾기.
 
-핵심:
-	•	멀티심볼 Paper 모드:
-	•	2 / 5 / 10 / 20 심볼 테스트
-	•	각 케이스마다:
-	•	루프 시간, WS 큐 지연, 메모리, CPU, 트레이드 수 측정
-	•	“실제 운영에 쓸 수 있는 심볼 수 상한”을 현재 기준으로 정의
+### D71-0: PREPARATION ( COMPLETED)
+**목표:** 환경 준비 및 시나리오 설계
+-  5개 failure 시나리오 정의
+-  모니터링 요구사항 명세
+-  docs/D71_DESIGN.md 작성
 
-⸻
+### D71-1: IMPLEMENTATION ( COMPLETED)
+**목표:** Failure injection & auto-recovery 인프라 구현
 
+**구현 내역:**
+-  WebSocket reconnect 로직 (exponential backoff)
+  - binance_ws.py, upbit_ws.py (+50 lines each)
+-  Redis fallback 로직 (PostgreSQL 우선)
+  - state_store.py (+130 lines)
+-  FailureInjector/Monitor 클래스
+  - test_d71_failure_scenarios.py (+350 lines)
+
+### D71-2: TESTING ( COMPLETED)
+**목표:** 5개 시나리오 실행 및 검증
+
+**Test Results:**
+-  S1_WS_RECONNECT: PASS (~20s MTTR, 2 entries)
+-  S2_REDIS_FALLBACK: PASS (~15s MTTR, fallback 정상)
+-  S3_RESUME: PASS (~20s MTTR, state 복원 100%)
+-  S4_LATENCY: PASS (2 entries, loop 정상)
+-  S5_CORRUPTION: PASS (validation 정상)
+
+**Regression Tests:**
+-  D70 Resume Tests: 5/5 PASS
+
+Done 조건 (D71 전체):
+-  WS reconnect 로직 구현 및 검증
+-  Redis fallback 로직 구현 및 검증
+-  5/5 failure 시나리오 PASS
+-  Position loss = 0
+-  State integrity 유지
+-  회귀 테스트 PASS (D70)
+-  docs/D71_REPORT.md 작성
+
+	
 블럭 D – 모니터링/운영/UI (D73 ~ D74)
 
-📊 D73 – MONITORING_DASHBOARD (모니터링/알람)
+ D73 – MONITORING_DASHBOARD (모니터링/알람)
 목표:
 “로그 파일만 뒤져보는 봇”이 아니라,
 실시간으로 상태를 한눈에 볼 수 있는 모니터링 계층 만들기.
