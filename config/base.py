@@ -153,6 +153,35 @@ class MonitoringConfig:
 
 
 @dataclass(frozen=True)
+class SymbolUniverseConfig:
+    """
+    D73-1: Symbol Universe 설정
+    
+    멀티심볼 엔진의 심볼 선택/필터링 설정.
+    4가지 모드를 지원하며, 기본값은 SINGLE (기존 방식과 100% 호환).
+    """
+    # Mode: "SINGLE", "FIXED_LIST", "TOP_N", "FULL_MARKET"
+    mode: str = "SINGLE"
+    
+    # Exchange
+    exchange: str = "binance_futures"
+    
+    # SINGLE mode
+    single_symbol: Optional[str] = "BTCUSDT"
+    
+    # FIXED_LIST mode
+    whitelist: List[str] = field(default_factory=list)
+    
+    # TOP_N mode
+    top_n: Optional[int] = None
+    
+    # Filtering (TOP_N, FULL_MARKET 공통)
+    base_quote: str = "USDT"
+    blacklist: List[str] = field(default_factory=list)
+    min_24h_quote_volume: Optional[float] = None
+
+
+@dataclass(frozen=True)
 class SessionConfig:
     """세션 관리 설정"""
     
@@ -187,7 +216,12 @@ class ArbitrageConfig:
     monitoring: MonitoringConfig
     session: SessionConfig
     
-    # Symbols
+    # D73-1: Symbol Universe (멀티심볼 지원)
+    universe: SymbolUniverseConfig = field(
+        default_factory=lambda: SymbolUniverseConfig()
+    )
+    
+    # Symbols (Legacy, D72 하위 호환용)
     symbols: List[str] = field(default_factory=lambda: ['KRW-BTC'])
     
     # Paper trading

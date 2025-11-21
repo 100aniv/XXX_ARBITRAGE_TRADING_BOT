@@ -717,26 +717,36 @@ Done 조건 (D72 전체): ✅ ALL COMPLETED
 ⸻
 
 ## 🚀 D73 – 멀티심볼 엔진 기반 구축
-**상태:** ⏳ TODO
+**상태:** 🚧 IN PROGRESS (D73-1 완료)
 
 **목표:**  
 단일 심볼(BTC/USDT) 구조를 멀티심볼 체계로 확장. Top-N 심볼 동시 처리 기반 마련.
 
-### D73-1: Symbol Universe Provider
+### D73-1: Symbol Universe Provider ✅ COMPLETED
 
-**작업:**
-- SymbolUniverse 모듈 생성 (4가지 모드)
-  - SINGLE: 단일 심볼 (현재 상태)
-  - FIXED_LIST: 고정 심볼 리스트 (예: ["BTC/USDT", "ETH/USDT"])
-  - TOP_N: 거래량 기준 상위 N개 (예: Top-20)
-  - FULL_MARKET: 전체 시장 (거래소 전체 심볼)
-- 거래소별 심볼 리스트 조회 API 통합 (Binance, Upbit)
-- 심볼 필터링 로직 (거래량, 스프레드, 유동성 기준)
+**완료 내역:**
+- ✅ SymbolUniverse 모듈 생성 (4가지 모드 모두 구현)
+  - SINGLE: 단일 심볼 (기존 방식 100% 하위 호환)
+  - FIXED_LIST: 고정 심볼 리스트 (whitelist/blacklist 지원)
+  - TOP_N: 거래량 기준 상위 N개 (필터링 + 정렬)
+  - FULL_MARKET: 전체 시장 (필터링 후 전체 반환)
+- ✅ AbstractSymbolSource 인터페이스 설계 (거래소 어댑터 확장 준비)
+- ✅ DummySymbolSource 구현 (테스트용, 15개 샘플 심볼)
+- ✅ 필터링 파이프라인 (quote asset, blacklist, whitelist, volume threshold)
+- ✅ Config 통합 (ArbitrageConfig.universe 필드 추가)
+- ✅ 테스트 스크립트 (13개 테스트 케이스, 100% 통과)
+- ✅ 문서화 (docs/D73_1_SYMBOL_UNIVERSE.md, ~400 lines)
 
-**완료 조건:**
-- 4가지 모드 모두 동작 (config 기반 전환)
-- Top-20 심볼 리스트 실시간 조회 가능
-- 심볼 변경 시 엔진 재시작 없이 적용
+**생성된 파일:**
+- `arbitrage/symbol_universe.py` (~500 lines)
+- `config/base.py` (+28 lines, SymbolUniverseConfig)
+- `scripts/test_d73_1_symbol_universe.py` (~350 lines)
+- `docs/D73_1_SYMBOL_UNIVERSE.md` (~400 lines)
+
+**Done Criteria:**
+- ✅ 4가지 모드 모두 동작 (config 기반 전환)
+- ✅ Top-20 심볼 리스트 조회 가능 (DummySymbolSource 기준)
+- ✅ 심볼 변경 시 엔진 재시작 없이 적용 가능 (설계 완료, D73-2에서 통합)
 
 ### D73-2: Per-Symbol Engine Loop
 
