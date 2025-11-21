@@ -581,23 +581,81 @@ After:  arbitrage:{env}:{session_id}:{domain}:{symbol}:{field}
 - Multisymbol support
 - Migration tool (dry-run 지원)
 
-### D72-3: PostgreSQL Productionization (⏳ TODO)
+### D72-3: PostgreSQL Productionization (✅ COMPLETED - 2025-11-21)
 **목표:** PostgreSQL 스키마 Production 준비
 
-**작업:**
--  인덱스 최적화
--  Retention policy 구현
--  Backup 전략 수립
--  Migration script
+**완료 내역:**
+-  ✅ 인덱스 최적화 (11개 신규, 총 19개)
+   - 복합 인덱스 (session_id + created_at)
+   - JSONB GIN 인덱스 (trade_data, per_symbol_*)
+   - 시계열 인덱스 (created_at DESC)
+-  ✅ Retention 정책 구현 (30일)
+   - cleanup_old_snapshots_30d() 함수
+   - stopped/crashed 세션만 삭제
+   - CASCADE delete 자동 처리
+-  ✅ Autovacuum 최적화
+   - 테이블별 aggressive 설정 (5% threshold)
+   - vacuum_snapshot_tables() 헬퍼 함수
+-  ✅ Backup 전략 수립
+   - pg_dump 기반 백업 스크립트
+   - gzip 압축 (~70% 절감)
+   - 30일 로테이션
+-  ✅ 성능 뷰 생성 (4개)
+   - v_latest_snapshot_details
+   - v_session_history
+   - v_index_usage_stats
+-  ✅ 통계 함수 (get_snapshot_table_stats)
+-  ✅ Migration SQL 완성 (280 lines)
+-  ✅ 8/8 Smoke tests PASS
+-  ✅ 문서화 완료 (D72_3_POSTGRES_PRODUCTIONIZATION.md)
 
-### D72-4: Logging & Monitoring MVP (⏳ TODO)
+**성능 결과:**
+- INSERT latency: 3.52ms (target <20ms) ✅
+- SELECT latency: 3.99ms (target <10ms) ✅
+- JSONB query: 1.27ms (target <10ms) ✅
+- Total indexes: 19 (11 new)
+- Storage: 0.77 MB (test), ~260 MB (prod estimate)
+
+**생성된 파일:**
+```
+db/migrations/d72_postgres_optimize.sql      (+280 lines)
+scripts/apply_d72_migration.py               (+200 lines)
+scripts/backup_postgres.py                   (+350 lines)
+scripts/run_d72_postgres_smoke.py            (+430 lines)
+docs/D72_3_POSTGRES_PRODUCTIONIZATION.md     (+650 lines)
+```
+
+### D72-4: Logging & Monitoring MVP (✅ COMPLETED - 2025-11-21)
 **목표:** 실시간 모니터링 지표 추출 (D73 사전작업)
 
-**작업:**
--  구조화된 로그 포맷 적용
--  핵심 지표 수집
--  Metrics export endpoint (/metrics)
--  Health check endpoint (/health)
+**완료 내역:**
+-  ✅ LoggingManager (4 backends: File, Console, Redis, PostgreSQL)
+-  ✅ Environment-aware log filtering (dev/staging/production)
+-  ✅ Redis Stream for real-time logs (maxlen=1000)
+-  ✅ PostgreSQL system_logs table (WARNING+ persistence)
+-  ✅ MetricsCollector with 60s rolling window
+-  ✅ CLI monitoring tool (tail/metrics/errors/search)
+-  ✅ Database: 1 table, 9 indexes, 3 views, 3 functions
+-  ✅ Integration tests: 10/10 PASS (100%)
+-  ✅ Documentation: D72_4_LOGGING_MONITORING_MVP.md
+
+**생성된 파일:**
+```
+arbitrage/logging_manager.py          (+560 lines)
+arbitrage/metrics_collector.py        (+280 lines)
+tools/monitor.py                      (+360 lines)
+db/migrations/d72_4_logging_monitoring.sql  (+160 lines)
+scripts/apply_d72_4_migration.py      (+120 lines)
+scripts/test_d72_4_logging.py         (+430 lines)
+docs/D72_4_LOGGING_MONITORING_MVP.md  (+650 lines)
+```
+
+**테스트 결과:**
+- 10/10 tests PASS (100%)
+- File/Console/Redis/PostgreSQL logging verified
+- Metrics collection verified
+- Log level filtering verified
+- PostgreSQL views/functions verified
 
 ### D72-5: Deployment Infrastructure (⏳ TODO)
 **목표:** Docker 기반 배포 인프라 구축
@@ -626,7 +684,6 @@ Done 조건 (D72 전체):
 -  Health check 구현
 -  구조화된 로깅 적용
 -  운영 문서 작성 완료
-
 ⸻
 
 블럭 D – 모니터링/운영/UI (D73 ~ D74)
@@ -644,9 +701,7 @@ Done 조건 (D72 전체):
 	•	WS 큐 지연, 에러 카운트
 	•	알람 조건 정의 (예: DD > X%, WS 큐 지연 > Y 초 등)
 
-⸻
-
-🖥️ D74 – OPERATOR_UI / CLI (운영자용 제어판)
+### D74 – OPERATOR_UI / CLI (운영자용 제어판)
 목표:
 “CMD에서만 쓰는 개발자용 시스템”이 아니라,
 운영자가 UI/CLI로 안정적으로 컨트롤 가능한 형태 만들기.
@@ -659,58 +714,110 @@ Done 조건 (D72 전체):
 
 ⸻
 
-3. 네 질문에 대한 정리된 답
+### D75~D79: PERFORMANCE OPTIMIZATION PHASE (⏳ TODO)
+**Goal:** Latency < 10ms, 안정적인 Async 루프, 메모리 누수 0, 실시간 모니터링 인프라 구축
 
-	1.	“왜 엔트리만 있고 엑싯/승률이 없는데도 계속 D를 완료라고 했냐?”
+**Deliverables:**
+-  ✅ Latency 최적화 플랜: profiler 기반 병목 정리, event-loop tuning
+-  ✅ Async 개선: I/O bound task를 asyncio/uvloop 기반으로 재작성, backpressure 제어
+-  ✅ Memory leak 방지: objgraph/psutil 기반 추적, 주기적 heap snapshot
+-  ✅ Garbage/Memory Profiling 리포트 (before/after 비교)
+-  ✅ WS 안정성 강화: reconnect jitter, heartbeat, packet loss simulation
+-  ✅ Monitoring & Metrics: Prometheus exporter, Grafana 대시보드 초안, alert rule 초안
 
-지금까지의 D들은 **“구조/인프라 레벨 D (엔진/멀티심볼/가드/WS/롱런)”**에 초점을 맞췄고,
-“전략 품질·PnL·승률 검증”은 사실상 뒤로 밀려 있었던 게 맞다.
-그래서 “D 완료” = “구조·테스트 코드·롱런 인프라가 돌아간다” 기준이었지,
-“상품 수준의 트레이딩 퀄리티” 기준은 아니었다.
+**Done Criteria:**
+- 평균 루프 latency < 10ms / p99 < 25ms (5분 캠페인 기준)
+- CPU < 70%, RSS 안정화 (drift < 5%)
+- Async task backlog 0 (steady-state)
+- WS reconnect MTTR < 5s, packet drop 복구율 100%
+- Metrics endpoint + Dashboard + Alert rule 5종 이상 완료
 
-	2.	“그럼 이건 계획에 있던 거냐, 아니면 그냥 말만 상용급이었던 거냐?”
+### D80~D89: MULTI-SYMBOL PHASE (⏳ TODO)
+**Goal:** 단일 심볼 구조를 멀티심볼(Top-20/50/100)로 확장, 심볼 독립 루프 + 통합 포트폴리오/리스크 체계 구축
 
-초기 설계에서 “상용급”이라는 표현은
-구조/원칙/안정성 측면(단일 엔진, Redis/DB, Guard, 롱런 인프라) 기준으로는 맞는 방향이었지만,
-전략·PnL·승률·슬리피지까지 포함한 상용급 완성 계획은 문서/단계로 충분히 쪼개져 있지 않았던 게 사실이다.
-그래서 지금처럼 D64~D74 로드맵을 명시적으로 박는 작업이 필요했고, 그걸 지금 한 것.
+**Deliverables:**
+-  ✅ 심볼 독립 엔진 루프 (per-symbol coroutine, shared scheduler)
+-  ✅ 포트폴리오/리스크/Guard 구조 초안 (symbol bucket, exposure cap, guard state)
+-  ✅ Redis/DB Keyspace 멀티심볼 확장 (domain:symbol:* 패턴, TTL 검증)
+-  ✅ 멀티심볼 회귀 테스트 스위트 (Top-5 smoke, Top-20 soak, Top-50 endurance)
+-  ✅ Top-20 → Top-50 → Top-100 단계별 스케일 플랜 + 모니터링
+-  ✅ 멀티심볼 모니터링 패널 (symbol heatmap, allocation, guard state)
 
-	3.	“앞으로도 이런 식으로 진행되면 안 되는데, 어떻게 막을 거냐?”
-
-그래서 위에 적은 것처럼:
-	•	전역 D 규칙 강화
-	•	“기능만 추가하고 검증 미루는 D” 금지
-	•	각 D 별:
-	•	“어떤 테스트/캠페인에서 무엇까지 검증할 건지”를 처음부터 명시
-	•	DXX_FINAL_REPORT.md에
-	•	✅ 정상 동작 사례
-	•	⚠️ 한계
-	•	❌ 미해결 이슈를 명확히 기록
-	•	특히,
-	•	D65~D66에서 “엔트리–엑싯–PnL 정상화”를 강제
-	•	이게 해결되기 전까지는 “새 기능 D” 진행 금지.
-
-⸻
-
-4. 앞으로의 진행 방식 (정리)
-	•	지금부터는
-“D 숫자 올리기” < “해당 D 책임 범위를 완전히 검증하고 마무리하기”
-이게 최우선이다.
-	•	이미 네가 말한 것처럼,
-	•	Redis/DB/Docker/WS/멀티심볼/롱런/테스트/문서화까지
-진짜 상용급 프로젝트처럼 다뤄야 한다.
-	•	나는 이 D64~D74 로드맵을
-앞으로 “기본 축”으로 삼고,
-네가 “계획 바꾸자”라고 명시적으로 말하지 않는 한
-흐름을 이 축에서 벗어나게 틀지 않을 거야.
+**Done Criteria:**
+- 심볼 20개 동시 운용 시 CPU < 80%, latency < 15ms 유지
+- 포트폴리오 위험 한도/노출 한도 자동 분배 + Alert
+- 멀티심볼 회귀 테스트 (Entry/Exit, RiskGuard, Snapshot, Resume) 100% PASS
+- Keyspace 검사에서 symbol 분리/TTL 100% 검증, 스냅샷 저장/복원 100%
 
 ⸻
 
-원하면 이걸 바로 복붙해서
-docs/D_ROADMAP_V2.md로 저장해두고,
-다음부터는 D 시작 전에 항상:
+### D90~D94: HYPERPARAMETER TUNING CLUSTER (⏳ TODO)
+**Goal:** Grid/Random/Bayesian 혼합형 튜닝 클러스터 구축, walk-forward + stress 테스트 자동화
 
-“지금 우리가 D64~D74 중 어디에 있고,
-이 D의 Done 기준이 뭔지”
+**Deliverables:**
+-  ✅ tuning_results DB 스키마 (결과/메타/seed 저장, 시각화 뷰)
+-  ✅ Grid/Random/Bayesian orchestration 엔진 (플러그형 전략)
+-  ✅ Walk-forward optimization 파이프라인 (train/validate rolling, drift 감지)
+-  ✅ Stress test suite (Slippage shock, Flash dump, Liquidity vacuum, Latency spikes)
+-  ✅ Distributed Tuning Workers (queue + worker heartbeat, autoscale)
+-  ✅ Dashboard (experiment progress, best params, heatmap)
 
-부터 다시 체크하면서 가자.
+**Done Criteria:**
+- 단일 실험 100+ 파라미터 시나리오 자동 실행 가능 (동시 worker 10+)
+- tuning_results DB/대시보드에서 결과 비교/재현 가능
+- Walk-forward 결과 승률/Sharpe 10% 이상 개선 증빙 + 리포트
+- Stress test PASS (PnL drawdown/latency 한계 내, fail scenario 재현)
+
+⸻
+
+### D95~D96: ADVANCED BACKTEST ENGINE (⏳ TODO)
+**Goal:** 멀티심볼·멀티타임프레임 백테스트, Spread/Slippage/Exchange latency 시뮬레이션 정교화
+
+**Deliverables:**
+-  ✅ 멀티심볼 백테스트 코어 (symbol graph, shared liquidity, cross-exchange routing)
+-  ✅ 멀티타임프레임 엔진 (1s/1m/5m 동시 샘플링 + resync)
+-  ✅ Spread/Slippage historical simulation 데이터셋/엔진
+-  ✅ Exchange-latency/queue 모델링 (orderbook depth, delay distribution, throttling)
+-  ✅ 백테스트 결과 시각화 (PnL, drawdown, latency timeline, heatmap)
+
+**Done Criteria:**
+- 백테스트 vs 실거래 PnL 오차 < 5%
+- 멀티심볼 50개 / 1년 데이터 백테스트 < 2시간 (병렬 실행)
+- Latency/queue 모델링으로 failure 재현율 90% 이상
+
+⸻
+
+### D97~D98: OPERATION & DEPLOYMENT (⏳ TODO)
+**Goal:** Docker/K8s 기반 운영, systemd + crash auto-recovery, 운영 모니터링 대시보드 완성
+
+**Deliverables:**
+-  ✅ Docker/K8s manifest, Helm chart 초안 (staging/prod)
+-  ✅ systemd 서비스 스크립트 + health check + watchdog
+-  ✅ Crash auto-recovery (snapshot resume, failover pipeline)
+-  ✅ 운영 모니터링 Dashboard (Service map, SLO/Grafana, alert routing)
+-  ✅ Incident response Runbook + Oncall 절차
+
+**Done Criteria:**
+- Prod 배포 1-click (CI/CD) 가능, blue/green or canary 지원
+- Crash → auto-recovery < 60s (state resume 포함)
+- 모니터링 대시보드에서 Core KPI 10종 이상 노출 + Alert
+- 운영 Runbook/Oncall 가이드 승인 + DR drill PASS
+
+⸻
+
+### D99: FINAL QA & RELEASE (⏳ TODO)
+**Goal:** 12~24h 런타임 안정성 인증, 회귀 100% PASS, 최종 문서/릴리즈 패키지 확정
+
+**Deliverables:**
+-  ✅ 12h / 24h 안정성 캠페인 (paper + staging, WS/Redis/Postgres 모니터링)
+-  ✅ Regression (D65~D99) 100% PASS 리포트 + latency/metric 로그
+-  ✅ Final Docs sweep (Design / Ops / Monitoring / Runbook)
+-  ✅ RELEASE build artifact + checksum + changelog + handoff
+
+**Done Criteria:**
+- 24h 연속 실행 중 장애 0, latency/p99 정상 범위, leak 없음
+- 모든 회귀 테스트 스위트 GREEN (D65~D99, hyperparam/backtest 포함)
+- Docs/Runbook/Monitoring 최신 상태, 운영팀 인수 완료
+- 릴리즈 패키지 배포 체크리스트 완료, 사용자 인수 OK
+
+⸻
