@@ -53,21 +53,6 @@ D71까지 완료된 arbitrage 시스템을 Production 환경에 배포하기 위
 # 제안: config/ 디렉토리 구조
 config/
 ├── __init__.py
-├── base.py              # BaseConfig (SSOT)
-├── environments/
-│   ├── development.py   # DevConfig
-│   ├── staging.py       # StagingConfig
-│   └── production.py    # ProdConfig
-├── secrets.example.yaml # Secret template
-└── loader.py            # Config loader with env detection
-```
-
-**작업 항목:**
-- [ ] `config/` 모듈 생성
-- [ ] 환경별 Config 분리
-- [ ] Secrets management (환경변수 또는 .env)
-- [ ] Config validation (pydantic)
-- [ ] 기존 코드 migration
 
 ---
 

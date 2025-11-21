@@ -520,15 +520,38 @@ Done 조건 (D71 전체):
 목표:
 D71까지 완료된 시스템을 Production 환경에 배포하기 위한 최종 준비.
 
-### D72-1: Configuration Standardization (⏳ TODO)
+### D72-1: Configuration Standardization (✅ COMPLETED - 2025-11-21)
 **목표:** Production-ready Config 구조 확립
 
-**작업:**
--  config/ 모듈 생성
--  환경별 Config 분리 (dev/staging/prod)
--  Secrets management (환경변수)
--  Config validation (pydantic)
--  기존 코드 migration
+**완료 내역:**
+-  ✅ config/ 모듈 생성 (dataclass 기반, Python 3.7+ 호환)
+-  ✅ 환경별 Config 분리 (development/staging/production)
+-  ✅ Secrets management (환경변수 ${VAR} 치환)
+-  ✅ Config validation (spread vs fees, risk constraints)
+-  ✅ Legacy compatibility (to_legacy_config/to_live_config/to_risk_limits)
+-  ✅ 회귀 테스트 PASS (D70: 5/5)
+-  ✅ 문서화 완료 (CONFIG_DESIGN.md)
+
+**구현 파일:**
+```
+config/
+├── base.py              # Core config models (SSOT)
+├── loader.py            # Environment-aware loader
+├── validators.py        # Business validators
+├── secrets.example.yaml # Secrets template
+└── environments/
+    ├── development.py   # Dev config
+    ├── staging.py       # Staging config
+    └── production.py    # Prod config
+```
+
+**핵심 기능:**
+- SSOT (Single Source of Truth) 원칙
+- 불변(frozen) dataclass
+- Type-safe configuration
+- 환경변수 자동 치환
+- Spread profitability validation
+- Risk constraints validation
 
 ### D72-2: Redis Keyspace Normalization (⏳ TODO)
 **목표:** Redis 키 구조 표준화
