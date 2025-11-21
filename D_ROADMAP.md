@@ -553,14 +553,33 @@ config/
 - Spread profitability validation
 - Risk constraints validation
 
-### D72-2: Redis Keyspace Normalization (⏳ TODO)
+### D72-2: Redis Keyspace Normalization (✅ COMPLETED - 2025-11-21)
 **목표:** Redis 키 구조 표준화
 
-**작업:**
--  Redis 키 명세 문서 작성 (✅ 완료)
--  키 prefix 통일
--  TTL 정책 구현
--  키 정리 스크립트
+**완료 내역:**
+-  ✅ KeyBuilder 모듈 생성 (arbitrage/redis_keyspace.py, +350 lines)
+-  ✅ Domain enum 정의 (STATE, METRICS, GUARD, COOLDOWN, PORTFOLIO, SNAPSHOT, WS)
+-  ✅ TTL 정책 구현 (TTLPolicy 클래스)
+-  ✅ StateStore KeyBuilder 통합 (+40 lines)
+-  ✅ Migration script 작성 (scripts/migrate_d72_redis_keys.py, +320 lines)
+-  ✅ KeyspaceValidator 구현 (audit 기능)
+-  ✅ 통합 테스트 PASS (StateStore + KeyBuilder)
+-  ✅ 100% keyspace compliance
+-  ✅ 문서화 완료 (D72_2_REDIS_KEYSPACE_REPORT.md, +500 lines)
+
+**Key Format 표준화:**
+```
+Before: arbitrage:state:{env}:{session_id}:{category}
+After:  arbitrage:{env}:{session_id}:{domain}:{symbol}:{field}
+```
+
+**핵심 기능:**
+- Centralized key generation (KeyBuilder)
+- Domain-based organization
+- TTL policy enforcement
+- Key validation (100% compliance)
+- Multisymbol support
+- Migration tool (dry-run 지원)
 
 ### D72-3: PostgreSQL Productionization (⏳ TODO)
 **목표:** PostgreSQL 스키마 Production 준비
