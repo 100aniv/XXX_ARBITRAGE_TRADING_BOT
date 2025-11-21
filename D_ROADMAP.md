@@ -1286,6 +1286,7 @@ groups:
 **Done Criteria:**
 - 24h 연속 실행 중 장애 0, latency/p99 정상 범위, leak 없음
 - 모든 회귀 테스트 스위트 GREEN (D65~D99, hyperparam/backtest 포함)
+- **D77 Dashboard 완료: Core KPI 10종 대시보드 노출 + Telegram Alert 5종 연동**
 - Docs/Runbook/Monitoring 최신 상태, 운영팀 인수 완료
 - 릴리즈 패키지 배포 체크리스트 완료, 사용자 인수 OK
 
