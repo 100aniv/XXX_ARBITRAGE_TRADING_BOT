@@ -43,6 +43,10 @@ logs/
 *.csv
 *.json
 
+# Profiling (D74-2)
+profiles/
+*.prof
+
 # OS
 .DS_Store
 Thumbs.db
