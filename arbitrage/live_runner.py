@@ -681,10 +681,11 @@ class ArbitrageLiveRunner:
         bid_a = mid_a * (1 - spread_ratio)  # 99,500
         ask_a = mid_a * (1 + spread_ratio)  # 100,500
         
-        # D65: 포지션 나이에 따라 Exit 신호 결정
-        # 포지션이 없으면 Entry 신호, 포지션이 있고 충분히 오래되면 Exit 신호
+        # D65/D74-3: 포지션 나이에 따라 Exit 신호 결정
+        # D74-3: 지속적인 거래 생성을 위해 로직 개선
+        # 포지션이 많고 오래된 것이 있으면 Exit 신호, 그렇지 않으면 Entry 신호
         has_old_position = (
-            len(open_trades) > 0 and
+            len(open_trades) > 10 and  # D74-3: 포지션이 많을 때만 Exit 신호
             any(
                 current_time - open_time >= self._paper_exit_trigger_interval
                 for open_time in self._position_open_times.values()
@@ -1110,6 +1111,7 @@ class ArbitrageLiveRunner:
         1회 루프 실행: snapshot → engine → trades → orders.
         D50.5: 메트릭 수집 추가.
         D53: 성능 최적화 - dict 할당 제거, getattr 최소화.
+        D74-3: 디버그 로그 추가.
         
         Returns:
             성공 여부
@@ -1117,10 +1119,14 @@ class ArbitrageLiveRunner:
         loop_start = time.time()
         self._loop_count += 1
         
+        # D74-3: Debug logging
+        if self._loop_count % 100 == 1:  # 매 100번마다 로그
+            logger.debug(f"[D74-3_DEBUG] {self.config.symbol_b}: Starting loop {self._loop_count}")
+        
         # 스냅샷 생성
         snapshot = self.build_snapshot()
         if snapshot is None:
-            logger.warning("[D43_LIVE] Failed to build snapshot")
+            logger.warning(f"[D43_LIVE] {self.config.symbol_b}: Failed to build snapshot")
             return False
         
         # 엔진 처리

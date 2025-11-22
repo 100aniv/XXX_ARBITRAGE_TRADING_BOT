@@ -41,7 +41,7 @@ database:
 risk:
   max_notional_per_trade: 2000.0  # D73-4 대비 2배 (체결 유도)
   max_daily_loss: 10000.0  # 충분히 여유있게
-  max_open_trades: 20  # 멀티심볼이므로 충분히
+  max_open_trades: 1000  # D74-3: Increased for soak test
 
 # Trading Configuration - D74-2와 동일
 trading:

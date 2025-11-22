@@ -252,6 +252,10 @@ class MultiSymbolEngineRunner:
             )
             
             # D73-4: Controlled loop execution
+            # D74-3: Real-time monitoring for debugging
+            last_log_time = time.time()
+            log_interval = 10.0  # 10초마다 progress 로그
+            
             while True:
                 # 종료 조건 체크
                 if max_iterations and iteration_count >= max_iterations:
@@ -262,8 +266,23 @@ class MultiSymbolEngineRunner:
                     logger.info(f"[D73-4_MULTI] {symbol}: Max runtime ({max_runtime_seconds}s) reached")
                     break
                 
+                # D74-3: Periodic progress logging
+                current_time = time.time()
+                if current_time - last_log_time >= log_interval:
+                    elapsed = current_time - start_time
+                    iter_per_sec = iteration_count / elapsed if elapsed > 0 else 0
+                    logger.info(
+                        f"[D74-3_MONITOR] {symbol}: iter={iteration_count}, "
+                        f"trades={trade_count}, elapsed={elapsed:.1f}s, "
+                        f"iter/sec={iter_per_sec:.2f}"
+                    )
+                    last_log_time = current_time
+                
                 # 1회 loop 실행
                 try:
+                    # D74-3: Yield control before blocking call
+                    await asyncio.sleep(0)
+                    
                     success = runner.run_once()
                     iteration_count += 1
                     
@@ -274,8 +293,10 @@ class MultiSymbolEngineRunner:
                             trade_count = current_trades
                             logger.info(f"[D73-4_MULTI] {symbol}: Trade opened (total={trade_count})")
                     
-                    # 짧은 대기 (CPU 과부하 방지)
-                    await asyncio.sleep(0.1)
+                    # D74-3: Adaptive sleep based on activity
+                    # 거래가 없으면 짧게 대기, 있으면 더 길게 대기
+                    sleep_duration = 0.05 if success else 0.1
+                    await asyncio.sleep(sleep_duration)
                 
                 except Exception as loop_error:
                     logger.error(f"[D73-4_MULTI] {symbol}: Loop error: {loop_error}")
