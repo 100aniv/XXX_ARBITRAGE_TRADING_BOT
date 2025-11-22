@@ -134,6 +134,14 @@ class ArbitrageEngine:
         self.config = config
         self._open_trades: List[ArbitrageTrade] = []
         self._last_snapshot: Optional[OrderBookSnapshot] = None
+        
+        # D75-2: Pre-calculated values (Phase 2 최적화)
+        self._total_cost_bps = (
+            self.config.taker_fee_a_bps
+            + self.config.taker_fee_b_bps
+            + self.config.slippage_bps
+        )
+        self._exchange_a_to_b_rate = self.config.exchange_a_to_b_rate
 
     def detect_opportunity(
         self, snapshot: OrderBookSnapshot
@@ -167,10 +175,10 @@ class ArbitrageEngine:
         if snapshot.best_bid_b >= snapshot.best_ask_b:
             return None
 
-        # D45: 환율 정규화
+        # D45: 환율 정규화 (D75-2: cached exchange rate 사용)
         # bid_b와 ask_b를 A의 통화 단위로 정규화
-        bid_b_normalized = snapshot.best_bid_b * self.config.exchange_a_to_b_rate
-        ask_b_normalized = snapshot.best_ask_b * self.config.exchange_a_to_b_rate
+        bid_b_normalized = snapshot.best_bid_b * self._exchange_a_to_b_rate
+        ask_b_normalized = snapshot.best_ask_b * self._exchange_a_to_b_rate
 
         # LONG_A_SHORT_B 스프레드: A에서 매수(ask_a), B에서 매도(bid_b_normalized)
         # 수익 = bid_b_normalized - ask_a (절대값)
@@ -182,12 +190,8 @@ class ArbitrageEngine:
         # 수익률 = (bid_a - ask_b_normalized) / ask_b_normalized
         spread_b_to_a = (snapshot.best_bid_a - ask_b_normalized) / ask_b_normalized * 10_000.0
 
-        # 총 수수료 및 슬리피지
-        total_cost_bps = (
-            self.config.taker_fee_a_bps
-            + self.config.taker_fee_b_bps
-            + self.config.slippage_bps
-        )
+        # D75-2: Pre-calculated total cost (Phase 2 최적화)
+        total_cost_bps = self._total_cost_bps
 
         # 최적 방향 선택
         best_spread = max(spread_a_to_b, spread_b_to_a)
@@ -199,8 +203,9 @@ class ArbitrageEngine:
         if net_edge < 0:
             return None
 
-        # 최대 거래 수 확인
-        if len(self._open_trades) >= self.config.max_open_trades:
+        # D75-2: 최대 거래 수 확인 (len() 1회만 호출)
+        open_trade_count = len(self._open_trades)
+        if open_trade_count >= self.config.max_open_trades:
             return None
 
         # 최적 방향 결정
@@ -225,19 +230,22 @@ class ArbitrageEngine:
         스냅샷 처리: 거래 개설/종료.
         
         D65: Exit 이유 추적 (spread_reversal, take_profit, stop_loss)
+        D75-2: 환율 정규화 1회 계산 후 재사용 (Phase 2 최적화)
 
         반환: 이 스냅샷에서 개설/종료된 거래 목록
         """
         self._last_snapshot = snapshot
         trades_changed: List[ArbitrageTrade] = []
 
+        # D75-2: 환율 정규화 값을 1회만 계산 (Phase 2 최적화)
+        bid_b_normalized = snapshot.best_bid_b * self._exchange_a_to_b_rate
+        ask_b_normalized = snapshot.best_ask_b * self._exchange_a_to_b_rate
+
         # 기존 거래 종료 확인
         if self.config.close_on_spread_reversal:
             trades_to_close = []
             for trade in self._open_trades:
-                # D45: 환율 정규화 적용
-                bid_b_normalized = snapshot.best_bid_b * self.config.exchange_a_to_b_rate
-                ask_b_normalized = snapshot.best_ask_b * self.config.exchange_a_to_b_rate
+                # D75-2: 미리 계산된 normalized 값 재사용
                 
                 # 스프레드 역전 또는 음수 확인
                 if trade.side == "LONG_A_SHORT_B":

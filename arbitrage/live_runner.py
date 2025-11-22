@@ -870,10 +870,14 @@ class ArbitrageLiveRunner:
         """
         거래 목록을 실제 주문으로 변환하여 실행.
         RiskGuard 체크 포함 (D44).
+        D75-2 Phase 3: 고빈도 logging 최적화, snapshot 캐싱
         
         Args:
             trades: ArbitrageTrade 목록
         """
+        # D75-2: snapshot 1회만 조회하여 재사용 (Phase 3 최적화)
+        cached_snapshot = None
+        
         for trade in trades:
             try:
                 if trade.is_open:
@@ -884,16 +888,21 @@ class ArbitrageLiveRunner:
                     )
                     
                     if decision == RiskGuardDecision.SESSION_STOP:
-                        logger.error("[D44_RISKGUARD] Session stop requested")
+                        if logger.isEnabledFor(logging.ERROR):  # D75-2: logging 최적화
+                            logger.error("[D44_RISKGUARD] Session stop requested")
                         self._session_stop_requested = True
                         break
                     
                     if decision == RiskGuardDecision.TRADE_REJECTED:
-                        logger.warning(f"[D44_RISKGUARD] Trade rejected: {trade.side}")
+                        if logger.isEnabledFor(logging.WARNING):  # D75-2: logging 최적화
+                            logger.warning(f"[D44_RISKGUARD] Trade rejected: {trade.side}")
                         continue
                     
+                    # D75-2: snapshot 전달하여 중복 조회 방지 (Phase 3 최적화)
+                    if cached_snapshot is None:
+                        cached_snapshot = self.build_snapshot()
                     # 신규 거래 개설
-                    self._execute_open_trade(trade)
+                    self._execute_open_trade(trade, cached_snapshot)
                     self._total_trades_opened += 1
                 else:
                     # 거래 종료
@@ -908,25 +917,30 @@ class ArbitrageLiveRunner:
             except Exception as e:
                 logger.error(f"[D43_LIVE] Error executing trade: {e}")
     
-    def _execute_open_trade(self, trade: ArbitrageTrade) -> None:
+    def _execute_open_trade(self, trade: ArbitrageTrade, snapshot=None) -> None:
         """
         신규 거래 개설: 양쪽 거래소에 주문 생성.
         
         D45 개선: 현실적인 주문 수량 계산
+        D75-2 Phase 3: snapshot 재사용, logging 최적화
         
         Args:
             trade: ArbitrageTrade
+            snapshot: 미리 조회한 OrderBookSnapshot (D75-2: 성능 최적화)
         """
-        logger.info(
-            f"[D43_LIVE] Opening trade: {trade.side}, "
-            f"notional={trade.notional_usd}, spread={trade.entry_spread_bps}bps"
-        )
+        if logger.isEnabledFor(logging.INFO):  # D75-2: logging 최적화
+            logger.info(
+                f"[D43_LIVE] Opening trade: {trade.side}, "
+                f"notional={trade.notional_usd}, spread={trade.entry_spread_bps}bps"
+            )
         
         # D45: 현실적인 주문 수량 계산
-        # 마지막 스냅샷에서 현재가 조회
-        snapshot = self.build_snapshot()
+        # D75-2: snapshot 재사용 (없으면 새로 조회)
+        if snapshot is None:
+            snapshot = self.build_snapshot()
         if not snapshot:
-            logger.error("[D45_QUANTITY] Failed to get snapshot for quantity calculation")
+            if logger.isEnabledFor(logging.ERROR):  # D75-2: logging 최적화
+                logger.error("[D45_QUANTITY] Failed to get snapshot for quantity calculation")
             return
         
         # 기준가: Exchange A의 ask 가격 사용
@@ -941,10 +955,11 @@ class ArbitrageLiveRunner:
         # 수량 계산 (USD 기준)
         qty = trade.notional_usd / (ask_a * exchange_rate)
         
-        logger.debug(
-            f"[D45_QUANTITY] Calculated qty={qty:.6f} BTC "
-            f"(notional={trade.notional_usd}, ask_a={ask_a}, rate={exchange_rate})"
-        )
+        if logger.isEnabledFor(logging.DEBUG):  # D75-2: logging 최적화
+            logger.debug(
+                f"[D45_QUANTITY] Calculated qty={qty:.6f} BTC "
+                f"(notional={trade.notional_usd}, ask_a={ask_a}, rate={exchange_rate})"
+            )
         
         try:
             if trade.side == "LONG_A_SHORT_B":
