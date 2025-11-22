@@ -1271,7 +1271,15 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 - ✅ Spread-based risk 모델 설계
 - ✅ Cross-exchange exposure 관리 로직
 
-**Status:** ⏳ **TODO**
+**Status:** ✅ **COMPLETED**
+
+**구현 완료 내역:**
+- ✅ arbitrage/domain/risk_guard.py (650+ lines, 4-Tier 전체 구현)
+- ✅ Unit tests: 11/11 PASS (ExchangeGuard:3, RouteGuard:2, SymbolGuard:2, GlobalGuard:2, Aggregation:2)
+- ✅ Integration tests: 4/4 PASS (All Healthy→ALLOW, Streak Loss→COOLDOWN, Symbol Exposure→DEGRADE, Global Loss→BLOCK)
+- ✅ Latency: 0.0145ms avg (목표 0.1ms 대비 6.9배 우수, 1000 iter 측정)
+- ✅ docs/D75_5_4TIER_RISKGUARD_DESIGN.md (완전한 설계 명세 작성)
+- ✅ Core engine 변경: 0 lines (plug-in 방식)
 
 ---
 
@@ -1309,7 +1317,7 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 - ✅ D75-2: Core Optimization (Phase 2/3 완료)
 - ✅ D75-3: Rate Limit & Health Monitor 구현 (완료)
 - ✅ D75-4: ArbRoute & Cross-exchange Sync 구현 (완료)
-- ⏳ D75-5: 4-Tier RiskGuard 재설계
+- ✅ D75-5: 4-Tier RiskGuard 구현 (완료)
 - ⏳ D75-6: 문서화 및 Roadmap 업데이트
 
 **Target Completion:** 2025-11-25
@@ -1319,16 +1327,18 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 **TO-BE Architecture 핵심 18개 (D75~D85):**
 
 **Phase 1: Core Infrastructure (D75~D76)**
-1. Multi-Exchange Adapter (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
-2. Rate Limit Manager (Per-exchange hard/soft limits, token bucket) - D75-3 완료
-3. Exchange Health Monitor (Ping, status, degraded mode) - D75-3 완료
-4. 4-Tier RiskGuard (Exchange → Route → Symbol → Global)
-5. WebSocket Market Stream (Real-time L2 orderbook aggregation)
+1. ⏳ **Multi-Exchange Adapter** (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
+2. ✅ **Rate Limit Manager** (Per-exchange hard/soft limits, token bucket) - D75-3 완료
+3. ✅ **Exchange Health Monitor** (Ping, status, degraded mode) - D75-3 완료
+4. ✅ **4-Tier RiskGuard** (Exchange → Route → Symbol → Global) - D75-5 완료
+5. ⏳ **WebSocket Market Stream** (Real-time L2 orderbook aggregation)
 
 **Phase 2: Advanced Trading (D77~D78)**
-6. ArbUniverse / ArbRoute (Route health scoring, prioritization) - D75-4 완료
-7. Cross-Exchange Position Sync (Real-time aggregation, imbalance detection) - D75-4 완료
-8. Multi-Exchange Hedging Engine (Spot-futures, cross-exchange inventory hedge)
+6. ✅ **ArbUniverse / ArbRoute** (Route health scoring, prioritization) - D75-4 완료
+7. ✅ **Cross-Exchange Position Sync** (Real-time aggregation, imbalance detection) - D75-4 완료
+8. ⏳ **Multi-Exchange Hedging Engine** (Spot-futures, cross-exchange inventory hedge)
+9. ⏳ **Trade Ack Latency Monitor** (Order submission → ack time tracking)
+10. ⏳ **Dynamic Symbol Selection** (Real-time spread ranking, volume-weighted prioritization)
 9. Trade Ack Latency Monitor (Order submission → ack time tracking)
 10. Dynamic Symbol Selection (Real-time spread ranking, volume-weighted prioritization)
 

@@ -1,7 +1,7 @@
 """
-D75-4: Arbitrage Domain Layer
+D75-4/D75-5: Arbitrage Domain Layer
 
-ArbRoute, ArbUniverse, CrossSync 등
+ArbRoute, ArbUniverse, CrossSync, RiskGuard 등
 아비트라지 비즈니스 로직 계층
 """
 
@@ -23,6 +23,23 @@ from arbitrage.domain.cross_sync import (
     InventoryTracker,
     RebalanceSignal,
 )
+from arbitrage.domain.risk_guard import (
+    FourTierRiskGuard,
+    RiskGuardDecision,
+    TierDecision,
+    GuardTier,
+    GuardDecisionType,
+    GuardReasonCode,
+    FourTierRiskGuardConfig,
+    ExchangeGuardConfig,
+    RouteGuardConfig,
+    SymbolGuardConfig,
+    GlobalGuardConfig,
+    ExchangeState,
+    RouteState,
+    SymbolState,
+    GlobalState,
+)
 
 __all__ = [
     "MarketSpec",
@@ -39,4 +56,19 @@ __all__ = [
     "Inventory",
     "InventoryTracker",
     "RebalanceSignal",
+    "FourTierRiskGuard",
+    "RiskGuardDecision",
+    "TierDecision",
+    "GuardTier",
+    "GuardDecisionType",
+    "GuardReasonCode",
+    "FourTierRiskGuardConfig",
+    "ExchangeGuardConfig",
+    "RouteGuardConfig",
+    "SymbolGuardConfig",
+    "GlobalGuardConfig",
+    "ExchangeState",
+    "RouteState",
+    "SymbolState",
+    "GlobalState",
 ]
