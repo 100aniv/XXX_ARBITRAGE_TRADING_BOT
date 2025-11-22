@@ -280,10 +280,8 @@ class MultiSymbolEngineRunner:
                 
                 # 1회 loop 실행
                 try:
-                    # D74-3: Yield control before blocking call
-                    await asyncio.sleep(0)
-                    
-                    success = runner.run_once()
+                    # D75-1: run_once() is now async
+                    success = await runner.run_once()
                     iteration_count += 1
                     
                     if success:

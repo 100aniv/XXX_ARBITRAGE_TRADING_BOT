@@ -1106,12 +1106,13 @@ class ArbitrageLiveRunner:
             f"symbols={{{', '.join([f'{k}: ${v:.2f}' for k, v in self._per_symbol_pnl.items()])}}}"
         )
     
-    def run_once(self) -> bool:
+    async def run_once(self) -> bool:
         """
         1회 루프 실행: snapshot → engine → trades → orders.
         D50.5: 메트릭 수집 추가.
         D53: 성능 최적화 - dict 할당 제거, getattr 최소화.
         D74-3: 디버그 로그 추가.
+        D75-1: Async 변환 for loop latency <10ms.
         
         Returns:
             성공 여부
@@ -1129,8 +1130,14 @@ class ArbitrageLiveRunner:
             logger.warning(f"[D43_LIVE] {self.config.symbol_b}: Failed to build snapshot")
             return False
         
+        # D75-1: Yield to event loop after snapshot
+        await asyncio.sleep(0)
+        
         # 엔진 처리
         trades = self.process_snapshot(snapshot)
+        
+        # D75-1: Yield to event loop after engine processing
+        await asyncio.sleep(0)
         
         # 주문 실행 (D53: list comprehension 최소화)
         trades_opened_delta = sum(1 for t in trades if t.is_open)
@@ -1172,10 +1179,11 @@ class ArbitrageLiveRunner:
         
         return True
     
-    def run_forever(self) -> None:
+    async def run_forever(self) -> None:
         """
         무한 루프 실행 (또는 max_runtime_seconds 조건).
         RiskGuard session_stop 체크 포함 (D44).
+        D75-1: Async 변환.
         """
         logger.info(
             f"[D43_LIVE] Starting live loop: "
@@ -1200,10 +1208,10 @@ class ArbitrageLiveRunner:
                     break
             
             # 1회 루프 실행
-            self.run_once()
+            await self.run_once()
             
             # 대기
-            time.sleep(self.config.poll_interval_seconds)
+            await asyncio.sleep(self.config.poll_interval_seconds)
     
     def get_stats(self) -> Dict[str, Any]:
         """
