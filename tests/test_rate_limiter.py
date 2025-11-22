@@ -247,7 +247,3 @@ class TestExchangeRateLimitProfile:
         # 두 번째 호출은 캐싱된 인스턴스 반환
         limiter2 = UPBIT_PROFILE.get_rest_limiter("public_orderbook")
         assert limiter is limiter2
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

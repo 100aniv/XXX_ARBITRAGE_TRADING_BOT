@@ -493,7 +493,3 @@ class TestAggregation:
         # allow=True 시나리오
         assert decision.allow is True
         assert "ALL_TIERS_OK" in summary
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

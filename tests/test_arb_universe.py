@@ -234,7 +234,3 @@ class TestUniverseProvider:
         if len(decision.ranked_routes) >= 2:
             assert decision.ranked_routes[0].symbol_a == "KRW-BTC"
             assert decision.ranked_routes[1].symbol_a == "KRW-ETH"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

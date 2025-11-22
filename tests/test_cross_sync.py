@@ -188,7 +188,3 @@ class TestInventoryTracker:
         assert signal.needed is True
         assert signal.recommended_action == "BUY_A_SELL_B"
         assert signal.imbalance_ratio < -0.3
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

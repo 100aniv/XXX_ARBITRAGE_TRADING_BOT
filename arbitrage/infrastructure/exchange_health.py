@@ -198,9 +198,9 @@ class HealthMonitor:
         Failover 실행 여부 판단.
         
         기준:
-        - FROZEN 상태 1분 이상 지속
+        - FROZEN 상태: 즉시 failover (가장 심각한 상태)
         - DOWN 상태 5분 이상 지속
-        - Error ratio > 10% (1분 이상)
+        - Error ratio > 10% (즉시 failover)
         
         Returns:
             True: Failover 필요, False: 정상
@@ -209,8 +209,8 @@ class HealthMonitor:
             status = self._current_status
             duration = time.time() - self._status_change_time
             
-            # FROZEN: 1분 이상 지속
-            if status == ExchangeHealthStatus.FROZEN and duration >= self._frozen_duration_threshold:
+            # FROZEN: 즉시 failover (duration 무시)
+            if status == ExchangeHealthStatus.FROZEN:
                 return True
             
             # DOWN: 5분 이상 지속
