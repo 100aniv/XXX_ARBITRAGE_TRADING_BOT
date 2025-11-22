@@ -1178,33 +1178,61 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **완료 조건:** 
 - ✅ Loop latency < 25ms (avg) - 측정 필요
-### D75-4: ArbRoute / ArbUniverse & Cross-Exchange Sync 설계
+### D75-4: ArbRoute / ArbUniverse & Cross-Exchange Sync ✅ COMPLETED (2025-11-22)
 
 **목표:** Multi-exchange arbitrage 아키텍처 확장
 
-**ArbRoute Layer:** 
-- Route 정의: (ExchangeA, ExchangeB, Symbol)
-- RouteHealthScore: spread, volume, latency
-- RoutePrioritizer: 최적 경로 선택 알고리즘
-- Multi-route arbitrage 확장 (Triangular, Split-leg)
+**ArbRoute Layer 구현 완료:**
+- ✅ RouteDecision (LONG_A_SHORT_B / LONG_B_SHORT_A / SKIP)
+- ✅ 4-Dimension RouteScore (Spread 40%, Health 30%, Fee 20%, Inventory 10%)
+- ✅ Health score with D75-3 HealthMonitor 통합
+- ✅ Spread normalization (KRW ↔ USDT FX 정규화)
+- ✅ Inventory penalty (같은 방향 trade = penalty)
 
-**ArbUniverse:** 
-- Universe = Set of ArbRoutes
-- Dynamic route addition/removal
-- Route health-based filtering
+**ArbUniverse 구현 완료:**
+- ✅ UniverseProvider (TOP_N, ALL_SYMBOLS, CUSTOM_LIST 모드)
+- ✅ Route ranking (score 기준 정렬)
+- ✅ Score threshold 필터링
+- ✅ Dynamic symbol add/remove
+- ✅ Multi-symbol 동시 평가 (5+ symbols)
 
-**Cross-Exchange Position Sync:** 
-- Real-time position aggregation
-- Inventory imbalance detection
-- Auto-rebalancing trigger 조건
-- Hedging strategy 설계
+**Cross-Exchange Sync 구현 완료:**
+- ✅ Inventory tracking (base + quote balance)
+- ✅ Imbalance ratio 계산 (-1.0 ~ 1.0)
+- ✅ Exposure risk 계산 (0.0 ~ 1.0)
+- ✅ Rebalance 판단 (threshold: 30%, exposure: 80%)
+- ✅ RebalanceSignal (BUY_A_SELL_B / BUY_B_SELL_A / NONE)
 
-**완료 조건:** 
-- ✅ ArbRoute 설계 문서
-- ✅ ArbUniverse 설계 문서
-- ✅ Cross-exchange sync 로직 설계
+**유틸리티 모듈:**
+- ✅ market_spec.py (FX normalization, ExchangeSpec)
+- ✅ fee_model.py (Maker/Taker fee, VIP tier)
 
-**Status:** ⏳ **TODO**
+**테스트 결과:**
+- ✅ Unit tests: 33/33 PASS (arb_route: 11, arb_universe: 9, cross_sync: 13)
+- ✅ Integration tests: 5/5 PASS
+- ✅ Latency overhead: 0.12ms (목표 10ms 대비 82배 우수)
+
+**성과물:**
+- arbitrage/domain/__init__.py
+- arbitrage/domain/market_spec.py (125 lines)
+- arbitrage/domain/fee_model.py (100 lines)
+- arbitrage/domain/arb_route.py (380 lines)
+- arbitrage/domain/arb_universe.py (200 lines)
+- arbitrage/domain/cross_sync.py (220 lines)
+- tests/test_arb_route.py (11 tests)
+- tests/test_arb_universe.py (9 tests)
+- tests/test_cross_sync.py (13 tests)
+- scripts/run_d75_4_integration.py (5 integration tests)
+- docs/D75_4_ROUTE_UNIVERSE_DESIGN.md
+
+**Acceptance Criteria:**
+- ✅ Core engine 변경: 0 lines
+- ✅ Latency overhead: 0.12ms (목표 1ms)
+- ✅ Unit tests: 33/33 (100%)
+- ✅ Integration tests: 5/5 (100%)
+- ✅ 문서 완성도: 100%
+
+**Status:** ✅ **COMPLETED**
 
 ---
 
@@ -1280,7 +1308,7 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 - ✅ D75-1: Async 변환 및 병목 분석 (완료)
 - ✅ D75-2: Core Optimization (Phase 2/3 완료)
 - ✅ D75-3: Rate Limit & Health Monitor 구현 (완료)
-- ⏳ D75-4: ArbRoute & Cross-exchange Sync 설계
+- ✅ D75-4: ArbRoute & Cross-exchange Sync 구현 (완료)
 - ⏳ D75-5: 4-Tier RiskGuard 재설계
 - ⏳ D75-6: 문서화 및 Roadmap 업데이트
 
@@ -1291,22 +1319,25 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 **TO-BE Architecture 핵심 18개 (D75~D85):**
 
 **Phase 1: Core Infrastructure (D75~D76)**
-1. ⏳ **Multi-Exchange Adapter** (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
-2. ✅ **Rate Limit Manager** (Per-exchange hard/soft limits, token bucket) - D75-3 완료
-3. ✅ **Exchange Health Monitor** (Ping, status, degraded mode) - D75-3 완료
-4. ⏳ **4-Tier RiskGuard** (Exchange → Route → Symbol → Global)
-5. ⏳ **WebSocket Market Stream** (Real-time L2 orderbook aggregation)
+1. Multi-Exchange Adapter (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
+2. Rate Limit Manager (Per-exchange hard/soft limits, token bucket) - D75-3 완료
+3. Exchange Health Monitor (Ping, status, degraded mode) - D75-3 완료
+4. 4-Tier RiskGuard (Exchange → Route → Symbol → Global)
+5. WebSocket Market Stream (Real-time L2 orderbook aggregation)
 
 **Phase 2: Advanced Trading (D77~D78)**
-6. ⏳ **ArbUniverse / ArbRoute** (Route health scoring, prioritization)
-7. ⏳ **Cross-Exchange Position Sync** (Real-time aggregation, imbalance detection)
-8. ⏳ **Multi-Exchange Hedging Engine** (Spot-futures, cross-exchange inventory hedge)
-9. ⏳ **Trade Ack Latency Monitor** (Order submission → ack time tracking)
-10. ⏳ **Dynamic Symbol Selection** (Real-time spread ranking, volume-weighted prioritization)
+6. ArbUniverse / ArbRoute (Route health scoring, prioritization) - D75-4 완료
+7. Cross-Exchange Position Sync (Real-time aggregation, imbalance detection) - D75-4 완료
+8. Multi-Exchange Hedging Engine (Spot-futures, cross-exchange inventory hedge)
+9. Trade Ack Latency Monitor (Order submission → ack time tracking)
+10. Dynamic Symbol Selection (Real-time spread ranking, volume-weighted prioritization)
 
 **Phase 3: Optimization & Analytics (D79~D80)**
-11. ⏳ **Spread-based Arbitrage Risk Model** (Volatility analysis, execution probability)
-12. ⏳ **Order Execution Optimizer** (TWAP/VWAP, smart order routing, slippage minimization)
+11. Spread-based Arbitrage Risk Model (Volatility analysis, execution probability)
+12. Order Execution Optimizer (TWAP/VWAP, smart order routing, slippage minimization)
+13. Backtest Engine 확장 (Multi-exchange, slippage modeling)
+14. Hyperparameter Tuning Cluster (Bayesian optimization, walk-forward analysis)
+15. Multi-Currency Support (KRW, USD, USDT, BTC base pairs)
 13. ⏳ **Backtest Engine 확장** (Multi-exchange, slippage modeling)
 14. ⏳ **Hyperparameter Tuning Cluster** (Bayesian optimization, walk-forward analysis)
 15. ⏳ **Multi-Currency Support** (KRW, USD, USDT, BTC base pairs)
