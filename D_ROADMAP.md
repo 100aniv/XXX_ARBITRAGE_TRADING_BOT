@@ -1366,7 +1366,7 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 ⸻
 
-## 🚀 D76 – 알림 인프라 (Telegram 통합)
+## 🚀 D76 – Alerting Infrastructure
 **상태:** ⏳ TODO
 
 **목표:**  

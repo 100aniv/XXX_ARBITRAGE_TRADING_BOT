@@ -14,7 +14,10 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from threading import Lock
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from arbitrage.alerting import AlertManager
 
 
 @dataclass
@@ -70,11 +73,12 @@ class HealthMonitor:
         >>> monitor.get_health_status()  # HEALTHY
     """
     
-    def __init__(self, exchange_name: str, history_size: int = 100):
+    def __init__(self, exchange_name: str, history_size: int = 100, alert_manager: Optional["AlertManager"] = None):
         """
         Args:
             exchange_name: 거래소 이름
             history_size: Latency history 크기
+            alert_manager: AlertManager for sending alerts (optional)
         """
         self.exchange_name = exchange_name
         self.metrics = HealthMetrics()
@@ -87,6 +91,10 @@ class HealthMonitor:
         self._status_change_time = time.time()
         self._down_duration_threshold = 300.0  # 5분
         self._frozen_duration_threshold = 60.0  # 1분
+        
+        # Alerting
+        self._alert_manager = alert_manager
+        self._last_alert_time = 0.0
     
     def update_latency(self, latency_ms: float):
         """
@@ -209,19 +217,58 @@ class HealthMonitor:
             status = self._current_status
             duration = time.time() - self._status_change_time
             
+            needs_failover = False
+            reason = ""
+            
             # FROZEN: 즉시 failover (duration 무시)
             if status == ExchangeHealthStatus.FROZEN:
-                return True
+                needs_failover = True
+                reason = "Exchange FROZEN (no API response)"
             
             # DOWN: 5분 이상 지속
-            if status == ExchangeHealthStatus.DOWN and duration >= self._down_duration_threshold:
-                return True
+            elif status == ExchangeHealthStatus.DOWN and duration >= self._down_duration_threshold:
+                needs_failover = True
+                reason = f"Exchange DOWN for {duration:.0f}s"
             
             # Error ratio > 10% (즉시 failover)
-            if self.metrics.error_ratio > 0.10:
-                return True
+            elif self.metrics.error_ratio > 0.10:
+                needs_failover = True
+                reason = f"High error ratio: {self.metrics.error_ratio:.1%}"
             
-            return False
+            if needs_failover:
+                self._send_failover_alert(reason)
+            
+            return needs_failover
+    
+    def _send_failover_alert(self, reason: str):
+        """Send P0 failover alert (throttled to once per 5 minutes)"""
+        if not self._alert_manager:
+            return
+        
+        now = time.time()
+        if now - self._last_alert_time < 300:  # Throttle: 1 alert per 5 minutes
+            return
+        
+        self._last_alert_time = now
+        
+        try:
+            from arbitrage.alerting import AlertSeverity, AlertSource
+            self._alert_manager.send_alert(
+                severity=AlertSeverity.P0,
+                source=AlertSource.HEALTH_MONITOR,
+                title=f"Exchange Failover Required: {self.exchange_name}",
+                message=f"Failover triggered. Reason: {reason}",
+                metadata={
+                    "exchange": self.exchange_name,
+                    "status": self._current_status.value,
+                    "latency_ms": self.metrics.rest_latency_ms,
+                    "error_ratio": self.metrics.error_ratio,
+                    "orderbook_age_ms": self.metrics.orderbook_age_ms,
+                }
+            )
+        except Exception as e:
+            # Don't fail the should_failover() call if alert fails
+            pass
     
     def get_metrics_summary(self) -> dict:
         """

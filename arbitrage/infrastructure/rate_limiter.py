@@ -13,7 +13,10 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from threading import Lock
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from arbitrage.alerting import AlertManager
 
 
 class RateLimitPolicy(Enum):
@@ -85,7 +88,7 @@ class TokenBucketRateLimiter(BaseRateLimiter):
         >>> limiter.wait_time()  # 0.0 (즉시 가능)
     """
     
-    def __init__(self, config: RateLimitConfig):
+    def __init__(self, config: RateLimitConfig, alert_manager: Optional["AlertManager"] = None):
         self.max_tokens = config.max_requests + config.burst_allowance
         self.refill_rate = config.max_requests / config.window_seconds  # tokens/sec
         self.tokens = float(self.max_tokens)
@@ -93,6 +96,8 @@ class TokenBucketRateLimiter(BaseRateLimiter):
         self._lock = Lock()
         self._consume_count = 0
         self._reject_count = 0
+        self._alert_manager = alert_manager
+        self._last_alert_time = 0.0  # Rate limit alert throttling
     
     def _refill(self):
         """Token refill (시간 경과에 따라)"""
@@ -110,7 +115,37 @@ class TokenBucketRateLimiter(BaseRateLimiter):
                 self._consume_count += 1
                 return True
             self._reject_count += 1
+            self._send_rate_limit_alert()
             return False
+    
+    def _send_rate_limit_alert(self):
+        """Send rate limit exhaustion alert (throttled to once per minute)"""
+        if not self._alert_manager:
+            return
+        
+        now = time.time()
+        if now - self._last_alert_time < 60:  # Throttle: 1 alert per minute
+            return
+        
+        self._last_alert_time = now
+        
+        try:
+            from arbitrage.alerting import AlertSeverity, AlertSource
+            self._alert_manager.send_alert(
+                severity=AlertSeverity.P2,
+                source=AlertSource.RATE_LIMITER,
+                title="Rate Limit Near Exhaustion",
+                message=f"Rate limiter tokens exhausted. Reject count: {self._reject_count}",
+                metadata={
+                    "tokens": self.tokens,
+                    "max_tokens": self.max_tokens,
+                    "reject_count": self._reject_count,
+                    "reject_ratio": self._reject_count / (self._consume_count + self._reject_count),
+                }
+            )
+        except Exception as e:
+            # Don't fail the consume() call if alert fails
+            pass
     
     def wait_time(self) -> float:
         with self._lock:
