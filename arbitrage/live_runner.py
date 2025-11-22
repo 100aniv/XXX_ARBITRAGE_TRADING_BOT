@@ -515,6 +515,18 @@ class ArbitrageLiveRunner:
         self._paper_stop_loss_bps = -20.0  # Stop Loss 임계값 (bps, 음수)
         self._paper_campaign_id = "default"  # 캠페인 ID (C1/C2/C3 등)
         
+        # D75-2: Orderbook/Balance 캐싱 (build_snapshot 최적화)
+        self._orderbook_cache_a = {}
+        self._orderbook_cache_b = {}
+        self._orderbook_cache_time_a = {}
+        self._orderbook_cache_time_b = {}
+        self._orderbook_cache_ttl = 0.1  # 100ms TTL
+        
+        self._balance_cache_a = None
+        self._balance_cache_b = None
+        self._balance_cache_time = 0.0
+        self._balance_cache_ttl = 1.0  # 1s TTL
+        
         logger.info(
             f"[D43_LIVE] ArbitrageLiveRunner initialized: "
             f"{config.symbol_a} vs {config.symbol_b}, mode={config.mode}, "
@@ -575,8 +587,19 @@ class ArbitrageLiveRunner:
             if self.config.paper_simulation_enabled:
                 self._inject_paper_prices()
             
-            # Exchange A 호가
-            orderbook_a = self.exchange_a.get_orderbook(self.config.symbol_a)
+            # D75-2: Orderbook 캐싱 (100ms TTL)
+            current_time = time.time()
+            
+            # Exchange A 호가 (캐싱 적용)
+            cache_key_a = self.config.symbol_a
+            if (cache_key_a in self._orderbook_cache_a and
+                current_time - self._orderbook_cache_time_a.get(cache_key_a, 0) < self._orderbook_cache_ttl):
+                orderbook_a = self._orderbook_cache_a[cache_key_a]
+            else:
+                orderbook_a = self.exchange_a.get_orderbook(self.config.symbol_a)
+                self._orderbook_cache_a[cache_key_a] = orderbook_a
+                self._orderbook_cache_time_a[cache_key_a] = current_time
+            
             if not orderbook_a.bids or not orderbook_a.asks:
                 logger.warning(f"[D43_LIVE] Empty orderbook for {self.config.symbol_a}")
                 return None
@@ -584,8 +607,16 @@ class ArbitrageLiveRunner:
             best_bid_a = orderbook_a.best_bid()
             best_ask_a = orderbook_a.best_ask()
             
-            # Exchange B 호가
-            orderbook_b = self.exchange_b.get_orderbook(self.config.symbol_b)
+            # Exchange B 호가 (캐싱 적용)
+            cache_key_b = self.config.symbol_b
+            if (cache_key_b in self._orderbook_cache_b and
+                current_time - self._orderbook_cache_time_b.get(cache_key_b, 0) < self._orderbook_cache_ttl):
+                orderbook_b = self._orderbook_cache_b[cache_key_b]
+            else:
+                orderbook_b = self.exchange_b.get_orderbook(self.config.symbol_b)
+                self._orderbook_cache_b[cache_key_b] = orderbook_b
+                self._orderbook_cache_time_b[cache_key_b] = current_time
+            
             if not orderbook_b.bids or not orderbook_b.asks:
                 logger.warning(f"[D43_LIVE] Empty orderbook for {self.config.symbol_b}")
                 return None

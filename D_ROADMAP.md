@@ -1151,32 +1151,39 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 ---
 
-### D75-2: Core Optimization Plan (병목 함수 최적화)
+### D75-2: Core Optimization Plan (병목 함수 최적화) 🔄 IN PROGRESS
 
 **목표:** Loop latency 62ms → 25ms
 
-**우선순위 1: build_snapshot() 최적화 (20ms → 12ms)** 
-- Orderbook 캐싱 (100ms TTL)
-- Price calculation 간소화
-- Balance 조회 최적화
+**우선순위 1: build_snapshot() 최적화 (20ms → 12ms)** ✅ Phase 1 완료
+- ✅ Orderbook 캐싱 (100ms TTL) - 구현 완료
+- ⏳ Price calculation 간소화 - TODO
+- ⏳ Balance 조회 최적화 - TODO
 
-**우선순위 2: process_snapshot() 최적화 (30ms → 17ms)** 
-- Spread validation 캐싱
-- Position sizing pre-calculation table
-- 불필요한 validation 제거
+**우선순위 2: process_snapshot() 최적화 (30ms → 17ms)** ⏳ TODO
+- ⏳ Spread validation 캐싱
+- ⏳ Position sizing pre-calculation table
+- ⏳ 불필요한 validation 제거
 
-**우선순위 3: execute_trades() 최적화 (10ms → 6ms)** 
-- RiskGuard batching
-- Order 생성 pooling
-- Async API call 준비 (Live mode)
+**우선순위 3: execute_trades() 최적화 (10ms → 6ms)** ⏳ TODO
+- ⏳ RiskGuard batching
+- ⏳ Order 생성 pooling
+- ⏳ Async API call 준비 (Live mode)
+
+**Integration Test 결과 (Top10, 1분):**
+- Runtime: 60.02s (±0.03%)
+- CPU: 5.90% avg, 13.30% max
+- Memory: 43.91MB avg, 48.07MB max
+- Filled Orders: 19,342
 
 **완료 조건:** 
-- ✅ Loop latency < 25ms (avg)
-- ✅ Loop latency < 40ms (p99)
-- ✅ Throughput ≥ 40 iter/s
-- ✅ CPU usage < 10% (Top10)
+- ⏳ Loop latency < 25ms (avg) - 측정 필요
+- ⏳ Loop latency < 40ms (p99) - 측정 필요
+- ⏳ Throughput ≥ 40 iter/s - 측정 필요
+- ✅ CPU usage < 10% (5.90% ✅)
+- ✅ Resource efficiency 검증 완료
 
-**Status:** ⏳ **TODO**
+**Status:** 🔄 **IN PROGRESS (Phase 1/3 완료)**
 
 ---
 
