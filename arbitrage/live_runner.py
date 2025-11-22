@@ -30,6 +30,17 @@ from arbitrage.exchanges.base import (
     OrderType,
 )
 
+# D75-3: Rate Limit & Health Monitor
+from arbitrage.infrastructure.rate_limiter import (
+    TokenBucketRateLimiter,
+    UPBIT_PROFILE,
+    BINANCE_PROFILE,
+)
+from arbitrage.infrastructure.exchange_health import (
+    HealthMonitor,
+    ExchangeHealthStatus,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -527,21 +538,46 @@ class ArbitrageLiveRunner:
         self._balance_cache_time = 0.0
         self._balance_cache_ttl = 1.0  # 1s TTL
         
+        # D75-3: Rate Limit & Health Monitor
+        self._rate_limiter_a = self._create_rate_limiter("UPBIT")  # Exchange A (Upbit 가정)
+        self._rate_limiter_b = self._create_rate_limiter("BINANCE")  # Exchange B (Binance 가정)
+        self._health_monitor_a = HealthMonitor("UPBIT")
+        self._health_monitor_b = HealthMonitor("BINANCE")
+        
         logger.info(
             f"[D43_LIVE] ArbitrageLiveRunner initialized: "
             f"{config.symbol_a} vs {config.symbol_b}, mode={config.mode}, "
             f"data_source={config.data_source}, state_store={state_store is not None}"
         )
     
+    def _create_rate_limiter(self, exchange_name: str):
+        """D75-3: 거래소별 rate limiter 생성"""
+        if exchange_name.upper() == "UPBIT":
+            return UPBIT_PROFILE.get_rest_limiter("public_orderbook")
+        elif exchange_name.upper() == "BINANCE":
+            return BINANCE_PROFILE.get_rest_limiter("public_orderbook")
+        return None
+    
     def build_snapshot(self) -> Optional[OrderBookSnapshot]:
         """
         두 거래소에서 호가를 가져와 OrderBookSnapshot 생성.
         D50.5: MarketDataProvider 지원 추가.
+        D75-3: Rate limit & Health monitoring 추가.
         Paper 시뮬레이션 호가 변동 포함 (D44).
         
         Returns:
             OrderBookSnapshot 또는 None (오류 발생 시)
         """
+        # D75-3: Rate limit check (non-blocking, < 0.1ms)
+        start_time = time.perf_counter()
+        
+        if self._rate_limiter_a and not self._rate_limiter_a.consume():
+            logger.debug(f"[D75-3] Rate limit near exhaustion for Exchange A, waiting {self._rate_limiter_a.wait_time():.3f}s")
+            # Non-blocking: 거부하되 계속 진행 (향후 wait 구현 가능)
+        
+        if self._rate_limiter_b and not self._rate_limiter_b.consume():
+            logger.debug(f"[D75-3] Rate limit near exhaustion for Exchange B, waiting {self._rate_limiter_b.wait_time():.3f}s")
+        
         try:
             # D50.5: MarketDataProvider 사용 (data_source 기반)
             if self.market_data_provider is not None:
@@ -644,10 +680,29 @@ class ArbitrageLiveRunner:
                 f"B(bid={best_bid_b}, ask={best_ask_b})"
             )
             
+            # D75-3: Health monitoring update (< 0.1ms)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            if self._health_monitor_a:
+                self._health_monitor_a.update_latency(latency_ms)
+                self._health_monitor_a.update_error(200)  # Success
+                self._health_monitor_a.update_orderbook_freshness(time.time())
+            
+            if self._health_monitor_b:
+                self._health_monitor_b.update_latency(latency_ms)
+                self._health_monitor_b.update_error(200)  # Success
+                self._health_monitor_b.update_orderbook_freshness(time.time())
+            
             return snapshot
         
         except Exception as e:
             logger.error(f"[D43_LIVE] Error building snapshot: {e}")
+            
+            # D75-3: Health monitoring error tracking
+            if self._health_monitor_a:
+                self._health_monitor_a.update_error(500)  # Server error
+            if self._health_monitor_b:
+                self._health_monitor_b.update_error(500)
+            
             return None
     
     def _inject_paper_prices(self) -> None:

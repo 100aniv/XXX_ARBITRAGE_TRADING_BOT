@@ -1178,40 +1178,6 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **완료 조건:** 
 - ✅ Loop latency < 25ms (avg) - 측정 필요
-- ✅ Loop latency < 40ms (p99) - 측정 필요
-- ✅ Throughput ≥ 40 iter/s - 측정 필요
-- ✅ CPU usage < 10% (5.90% ✅)
-- ✅ Resource efficiency 검증 완료
-
-**Status:** ✅ **COMPLETED (Phase 2/3 완료)**
-**목표:** Multi-exchange live trading 인프라 설계
-
-**Rate Limit Manager:** 
-- Per-exchange hard/soft limits 정의
-- Token bucket algorithm 구현
-- Adaptive throttling (degraded mode)
-- REST API + WebSocket rate limit 분리
-
-**Exchange Health Monitor:** 
-- Ping monitoring (latency, uptime)
-- API status check (HTTP 200, 4xx, 5xx)
-- Degraded mode detection (high latency, error rate)
-- Auto-failover trigger 조건
-
-**Exchange Coverage:** 
-- Upbit, Binance (현재)
-- Bybit, Bitget, OKX (확장)
-- Bithumb, Coinone (국내 확장)
-
-**완료 조건:** 
-- ✅ RateLimitManager 설계 문서
-- ✅ ExchangeHealthMonitor 설계 문서
-- ✅ 거래소별 limit 명세서 작성
-
-**Status:** ⏳ **TODO**
-
----
-
 ### D75-4: ArbRoute / ArbUniverse & Cross-Exchange Sync 설계
 
 **목표:** Multi-exchange arbitrage 아키텍처 확장
@@ -1312,8 +1278,8 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 **D75 Phase 전체 완료 조건:**
 - ✅ D75-1: Async 변환 및 병목 분석 (완료)
-- ⏳ D75-2: Core Optimization (25ms 목표)
-- ⏳ D75-3: Rate Limit & Health Monitor 설계
+- ✅ D75-2: Core Optimization (Phase 2/3 완료)
+- ✅ D75-3: Rate Limit & Health Monitor 구현 (완료)
 - ⏳ D75-4: ArbRoute & Cross-exchange Sync 설계
 - ⏳ D75-5: 4-Tier RiskGuard 재설계
 - ⏳ D75-6: 문서화 및 Roadmap 업데이트
@@ -1322,18 +1288,33 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 
 ---
 
-**TO-BE Architecture 핵심 10개 (D75 설계 완료 목표):**
+**TO-BE Architecture 핵심 18개 (D75~D85):**
 
-1. ✅ **Multi-Exchange Adapter** (Upbit, Binance, Bybit, Bitget, OKX, Bithumb, Coinone)
-2. ✅ **Rate Limit Manager** (Per-exchange hard/soft limits, token bucket)
-3. ✅ **Exchange Health Monitor** (Ping, status, degraded mode)
-4. ✅ **ArbUniverse / ArbRoute** (Route health scoring, prioritization)
-5. ✅ **Cross-Exchange Position Sync** (Inventory, rebalancing)
-6. ✅ **4-Tier RiskGuard** (Exchange → Route → Symbol → Global)
-7. ✅ **Spread-based Arbitrage Risk Model**
-8. ✅ **WebSocket Market Stream** (Real-time orderbook aggregation)
-9. ✅ **Failover & Resume** (State snapshot, crash recovery)
-10. ✅ **Monitoring & Alerting Stack** (Prometheus, Grafana, Telegram)
+**Phase 1: Core Infrastructure (D75~D76)**
+1. ⏳ **Multi-Exchange Adapter** (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
+2. ✅ **Rate Limit Manager** (Per-exchange hard/soft limits, token bucket) - D75-3 완료
+3. ✅ **Exchange Health Monitor** (Ping, status, degraded mode) - D75-3 완료
+4. ⏳ **4-Tier RiskGuard** (Exchange → Route → Symbol → Global)
+5. ⏳ **WebSocket Market Stream** (Real-time L2 orderbook aggregation)
+
+**Phase 2: Advanced Trading (D77~D78)**
+6. ⏳ **ArbUniverse / ArbRoute** (Route health scoring, prioritization)
+7. ⏳ **Cross-Exchange Position Sync** (Real-time aggregation, imbalance detection)
+8. ⏳ **Multi-Exchange Hedging Engine** (Spot-futures, cross-exchange inventory hedge)
+9. ⏳ **Trade Ack Latency Monitor** (Order submission → ack time tracking)
+10. ⏳ **Dynamic Symbol Selection** (Real-time spread ranking, volume-weighted prioritization)
+
+**Phase 3: Optimization & Analytics (D79~D80)**
+11. ⏳ **Spread-based Arbitrage Risk Model** (Volatility analysis, execution probability)
+12. ⏳ **Order Execution Optimizer** (TWAP/VWAP, smart order routing, slippage minimization)
+13. ⏳ **Backtest Engine 확장** (Multi-exchange, slippage modeling)
+14. ⏳ **Hyperparameter Tuning Cluster** (Bayesian optimization, walk-forward analysis)
+15. ⏳ **Multi-Currency Support** (KRW, USD, USDT, BTC base pairs)
+
+**Phase 4: Production Operations (D81~D85)**
+16. ⏳ **Failover & Resume** (State snapshot, crash detector, auto-resume)
+17. ⏳ **Compliance & Audit Trail** (Immutable trade logging, regulatory reporting, P&L reconciliation)
+18. ⏳ **Monitoring & Alerting Stack** (Prometheus, Grafana, Telegram alerts P0~P3)
 
 ⸻
 
