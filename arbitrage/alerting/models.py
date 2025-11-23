@@ -18,6 +18,7 @@ class AlertSource(Enum):
     """Alert event sources"""
     RATE_LIMITER = "RATE_LIMITER"
     HEALTH_MONITOR = "HEALTH_MONITOR"
+    EXCHANGE_HEALTH = "HEALTH_MONITOR"  # Alias for backward compatibility
     ARB_ROUTE = "ARB_ROUTE"
     ARB_UNIVERSE = "ARB_UNIVERSE"
     CROSS_SYNC = "CROSS_SYNC"
