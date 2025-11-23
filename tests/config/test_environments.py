@@ -12,7 +12,7 @@ class TestDevelopmentConfig:
     
     def test_development_config_structure(self):
         """Development config 기본 구조"""
-        config = DevelopmentConfig.get_development_config()
+        config = DevelopmentConfig()
         
         assert isinstance(config, ArbitrageConfig)
         assert config.env == 'development'
@@ -21,7 +21,7 @@ class TestDevelopmentConfig:
     
     def test_development_no_secrets_required(self):
         """Development는 secrets 불필요"""
-        config = DevelopmentConfig.get_development_config()
+        config = DevelopmentConfig()
         
         # API keys는 None이어도 됨 (Paper mode)
         assert config.exchange.upbit_access_key is None
@@ -29,7 +29,7 @@ class TestDevelopmentConfig:
     
     def test_development_low_risk(self):
         """Development는 낮은 리스크 한도"""
-        config = DevelopmentConfig.get_development_config()
+        config = DevelopmentConfig()
         
         assert config.risk.max_notional_per_trade == 5000.0
         assert config.risk.max_open_trades == 1
@@ -40,7 +40,7 @@ class TestStagingConfig:
     
     def test_staging_config_structure(self):
         """Staging config 기본 구조"""
-        config = StagingConfig.get_staging_config()
+        config = StagingConfig()
         
         assert isinstance(config, ArbitrageConfig)
         assert config.env == 'staging'
@@ -50,14 +50,14 @@ class TestStagingConfig:
     
     def test_staging_multi_symbol(self):
         """Staging는 멀티 심볼 테스트"""
-        config = StagingConfig.get_staging_config()
+        config = StagingConfig()
         
         assert len(config.symbols) >= 2
         assert 'KRW-BTC' in config.symbols
     
     def test_staging_medium_risk(self):
         """Staging는 중간 리스크 한도"""
-        config = StagingConfig.get_staging_config()
+        config = StagingConfig()
         
         assert config.risk.max_notional_per_trade == 10000.0
         assert config.risk.max_open_trades == 2
@@ -68,7 +68,7 @@ class TestProductionConfig:
     
     def test_production_config_structure(self):
         """Production config 기본 구조"""
-        config = ProductionConfig.get_production_config()
+        config = ProductionConfig()
         
         assert isinstance(config, ArbitrageConfig)
         assert config.env == 'production'
@@ -77,7 +77,7 @@ class TestProductionConfig:
     
     def test_production_conservative_risk(self):
         """Production는 보수적인 리스크 한도"""
-        config = ProductionConfig.get_production_config()
+        config = ProductionConfig()
         
         assert config.risk.max_notional_per_trade == 5000.0
         assert config.risk.max_open_trades == 1
@@ -85,7 +85,7 @@ class TestProductionConfig:
     
     def test_production_secrets_placeholders(self):
         """Production은 환경변수 placeholder 사용"""
-        config = ProductionConfig.get_production_config()
+        config = ProductionConfig()
         
         # 환경변수 placeholder 형식
         assert config.exchange.upbit_access_key.startswith('${')
