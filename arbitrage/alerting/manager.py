@@ -7,6 +7,7 @@ from collections import defaultdict
 import threading
 
 from .models import AlertSeverity, AlertSource, AlertRecord
+from .rule_engine import RuleEngine, AlertDispatchPlan
 
 
 class AlertManager:
@@ -24,6 +25,7 @@ class AlertManager:
         self,
         rate_limit_window_seconds: int = 60,
         rate_limit_per_window: Dict[AlertSeverity, int] = None,
+        rule_engine: Optional[RuleEngine] = None,
     ):
         """
         Initialize AlertManager
@@ -31,6 +33,7 @@ class AlertManager:
         Args:
             rate_limit_window_seconds: Rate limit window duration
             rate_limit_per_window: Max alerts per window for each severity
+            rule_engine: Rule engine for channel routing (creates default if None)
         """
         self.rate_limit_window_seconds = rate_limit_window_seconds
         self.rate_limit_per_window = rate_limit_per_window or {
@@ -40,6 +43,9 @@ class AlertManager:
             AlertSeverity.P3: 1,   # Low: max 1/min
         }
         
+        # Rule engine for channel routing
+        self.rule_engine = rule_engine or RuleEngine()
+        
         # Alert history (in-memory)
         self._alert_history: List[AlertRecord] = []
         
@@ -47,16 +53,22 @@ class AlertManager:
         self._rate_limit_tracker: Dict[tuple, List[float]] = defaultdict(list)
         
         # Notifiers and storage (to be injected)
-        self._notifiers: List[Any] = []
+        # Key: channel name ("telegram", "slack", "email")
+        self._notifiers: Dict[str, Any] = {}
         self._storage: Optional[Any] = None
         
         # Thread safety
         self._lock = threading.RLock()
     
-    def register_notifier(self, notifier: Any):
-        """Register a notifier (Telegram, Slack, Email, etc.)"""
+    def register_notifier(self, channel_name: str, notifier: Any):
+        """Register a notifier for a specific channel
+        
+        Args:
+            channel_name: Channel name ("telegram", "slack", "email")
+            notifier: Notifier instance
+        """
         with self._lock:
-            self._notifiers.append(notifier)
+            self._notifiers[channel_name] = notifier
     
     def register_storage(self, storage: Any):
         """Register storage backend (PostgreSQL, etc.)"""
@@ -70,9 +82,10 @@ class AlertManager:
         title: str,
         message: str,
         metadata: Optional[Dict[str, Any]] = None,
+        rule_id: Optional[str] = None,
     ) -> bool:
         """
-        Send alert with rate limiting
+        Send alert with rate limiting and rule-based channel routing
         
         Args:
             severity: Alert severity
@@ -80,6 +93,7 @@ class AlertManager:
             title: Alert title
             message: Alert message
             metadata: Additional metadata
+            rule_id: Optional rule ID for specific rule routing
         
         Returns:
             True if alert was sent, False if rate limited
@@ -105,16 +119,30 @@ class AlertManager:
             key = (severity, source)
             self._rate_limit_tracker[key].append(time.time())
             
-            # Send to notifiers
-            for notifier in self._notifiers:
-                try:
-                    notifier.send(alert)
-                except Exception as e:
-                    # Log error but don't fail the entire alert
-                    print(f"Notifier error: {e}")
+            # Get dispatch plan from rule engine
+            dispatch_plan = self.rule_engine.evaluate_alert(alert, rule_id)
             
-            # Persist to storage
-            if self._storage:
+            # Send to notifiers based on dispatch plan
+            if dispatch_plan.telegram and "telegram" in self._notifiers:
+                try:
+                    self._notifiers["telegram"].send(alert)
+                except Exception as e:
+                    print(f"Telegram notifier error: {e}")
+            
+            if dispatch_plan.slack and "slack" in self._notifiers:
+                try:
+                    self._notifiers["slack"].send(alert)
+                except Exception as e:
+                    print(f"Slack notifier error: {e}")
+            
+            if dispatch_plan.email and "email" in self._notifiers:
+                try:
+                    self._notifiers["email"].send(alert)
+                except Exception as e:
+                    print(f"Email notifier error: {e}")
+            
+            # Persist to storage if dispatch plan enables it
+            if dispatch_plan.postgres and self._storage:
                 try:
                     self._storage.save(alert)
                 except Exception as e:

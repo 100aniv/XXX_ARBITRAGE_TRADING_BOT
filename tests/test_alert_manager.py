@@ -127,6 +127,10 @@ class TestAlertManager:
     
     def test_notifier_registration(self):
         """Register notifiers"""
+        import os
+        # Set to DEV environment so P1 alerts go to all channels
+        os.environ["APP_ENV"] = "development"
+        
         manager = AlertManager()
         
         class MockNotifier:
@@ -137,7 +141,7 @@ class TestAlertManager:
                 self.sent_alerts.append(alert)
         
         notifier = MockNotifier()
-        manager.register_notifier(notifier)
+        manager.register_notifier("telegram", notifier)
         
         manager.send_alert(
             AlertSeverity.P1,
@@ -148,9 +152,16 @@ class TestAlertManager:
         
         assert len(notifier.sent_alerts) == 1
         assert notifier.sent_alerts[0].title == "Test"
+        
+        # Clean up
+        del os.environ["APP_ENV"]
     
     def test_storage_registration(self):
         """Register storage"""
+        import os
+        # Set to DEV environment so P1 alerts are stored
+        os.environ["APP_ENV"] = "development"
+        
         manager = AlertManager()
         
         class MockStorage:
@@ -159,6 +170,7 @@ class TestAlertManager:
             
             def save(self, alert):
                 self.saved_alerts.append(alert)
+                return True
         
         storage = MockStorage()
         manager.register_storage(storage)
@@ -172,6 +184,9 @@ class TestAlertManager:
         
         assert len(storage.saved_alerts) == 1
         assert storage.saved_alerts[0].title == "Test"
+        
+        # Clean up
+        del os.environ["APP_ENV"]
     
     def test_clear_history(self):
         """Clear alert history"""

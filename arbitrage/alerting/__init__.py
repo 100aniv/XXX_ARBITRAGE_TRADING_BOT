@@ -17,10 +17,24 @@ Event sources:
 
 from .models import AlertSeverity, AlertSource, AlertRecord
 from .manager import AlertManager
+from .rule_engine import (
+    RuleEngine,
+    RuleRegistry,
+    AlertRule,
+    AlertDispatchPlan,
+    AlertChannel,
+    Environment,
+)
 
 __all__ = [
     "AlertSeverity",
     "AlertSource",
     "AlertRecord",
     "AlertManager",
+    "RuleEngine",
+    "RuleRegistry",
+    "AlertRule",
+    "AlertDispatchPlan",
+    "AlertChannel",
+    "Environment",
 ]
