@@ -1367,7 +1367,7 @@ Regression Tests: D73-1 (6/6), D73-3 (7/7) PASS
 ⸻
 
 ## 🚀 D76 – Alerting Infrastructure
-**상태:** ✅ **COMPLETED (D76-1)** | ⏳ TODO (D76-2~D76-4)
+**상태:** ✅ **COMPLETED (D76-1, D76-2)** | ⏳ TODO (D76-3~D76-4)
 
 **목표:**  
 실시간 알림 시스템 구축. Telegram 봇 통합으로 24/7 모니터링 지원.
@@ -1431,6 +1431,59 @@ Action: Auto-recovery initiated
 - Telegram 봇 생성 및 연동
 - Alert 메시지 발송 정상 동작
 - Rate limiting 검증 (max 10 msg/min)
+
+### D76-2: Additional Notifiers & Storage ✅ COMPLETED (2025-11-23)
+
+**구현 완료:**
+- ✅ **SlackNotifier** (Webhook-based)
+  - Severity-based emoji formatting (P0🔴, P1🟠, P2🟡, P3🔵)
+  - Retry with exponential backoff (429, 5xx errors)
+  - Mockable network layer (requests.Session injection)
+  - Environment variable config (SLACK_WEBHOOK_URL)
+- ✅ **EmailNotifier** (SMTP-based)
+  - HTML template rendering (single alert + daily summary)
+  - Immediate mode (P0-P2) + Daily summary mode (P3)
+  - Environment variable config (SMTP_HOST, PORT, USER, PASS)
+  - Mock SMTP for testing
+- ✅ **PostgreSQLAlertStorage**
+  - Persistent alert history in PostgreSQL
+  - Query by severity, source, time range
+  - Automatic cleanup (30-day retention)
+  - Indexed for fast queries (severity, source, timestamp)
+  - JSONB metadata storage
+  - SQL migration script + application script
+
+**Infrastructure:**
+- ✅ `db/migrations/d76_alert_storage.sql`: Alert history table schema
+- ✅ `scripts/apply_d76_alert_migration.py`: Migration application script
+- ✅ Updated `arbitrage/alerting/models.py`: Added EXCHANGE_HEALTH alias
+- ✅ Updated module `__init__.py` files to expose new notifiers/storage
+
+**테스트 결과:**
+- ✅ SlackNotifier: 14 tests PASS
+- ✅ EmailNotifier: 15 tests PASS
+- ✅ PostgreSQLAlertStorage: 12 tests PASS
+- ✅ **D76-2 Total: 41 tests PASS**
+- ✅ **Full Regression (D75+D76-1+D76-2): 139 tests PASS, 1 skipped in 5.76s**
+- ✅ HANG detected: 0
+
+**Git Commit:**
+- `cada5e5`: [D76-2] Slack/Email Notifiers + PostgreSQL Alert Storage
+
+**Done Criteria (모두 충족):**
+- ✅ SlackNotifier 구현 (Webhook + retry logic)
+- ✅ EmailNotifier 구현 (SMTP + HTML templates)
+- ✅ PostgreSQLAlertStorage 구현 (persistent storage)
+- ✅ 테스트 커버리지 100% (41/41)
+- ✅ 회귀 테스트 안정화 (139 tests PASS)
+- ✅ PostgreSQL migration 및 scripts
+
+**Dependencies Added:**
+- `psycopg2-binary`: PostgreSQL adapter for Python
+
+**Files Changed:** 12 files
+- New: 6 implementation files, 3 test files, 2 scripts, 1 migration
+- Modified: 3 files (models, __init__ files)
 
 ### D76-3: Alert Rule Engine Integration
 
