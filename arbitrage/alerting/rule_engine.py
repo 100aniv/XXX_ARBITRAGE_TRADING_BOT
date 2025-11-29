@@ -262,6 +262,24 @@ class RuleRegistry:
             description="Failed to save state snapshot",
             throttle_seconds=120,
         ))
+        
+        self.register_rule(AlertRule(
+            rule_id="D75.SYSTEM.REDIS_CONNECTION_LOST",
+            source=AlertSource.SYSTEM,
+            severity=AlertSeverity.P0,
+            title="Redis Connection Lost",
+            description="Redis connection timeout or failure",
+            throttle_seconds=0,  # Never throttle P0
+        ))
+        
+        self.register_rule(AlertRule(
+            rule_id="D75.SYSTEM.WS_RECONNECT_STORM",
+            source=AlertSource.SYSTEM,
+            severity=AlertSeverity.P1,
+            title="WebSocket Reconnect Storm",
+            description="Excessive WS reconnections detected",
+            throttle_seconds=300,
+        ))
     
     def register_rule(self, rule: AlertRule):
         """Register a rule"""
@@ -324,6 +342,7 @@ class RuleEngine:
         self,
         alert: AlertRecord,
         rule_id: Optional[str] = None,
+        skip_throttle: bool = False,
     ) -> AlertDispatchPlan:
         """
         Evaluate alert and determine which channels to use
@@ -331,6 +350,7 @@ class RuleEngine:
         Args:
             alert: Alert record
             rule_id: Optional specific rule ID (auto-detect if None)
+            skip_throttle: Skip throttle checking (for testing/simulation)
         
         Returns:
             AlertDispatchPlan specifying which channels to use
@@ -348,8 +368,8 @@ class RuleEngine:
         if not rule.enabled:
             return AlertDispatchPlan()  # All channels OFF
         
-        # Check throttle
-        if not self._check_throttle(rule):
+        # Check throttle (skip in simulation mode)
+        if not skip_throttle and not self._check_throttle(rule):
             return AlertDispatchPlan()  # Throttled, no dispatch
         
         # Determine channels based on environment and severity

@@ -940,6 +940,275 @@ docker-compose logs arbitrage-engine | grep "opportunity"
 
 ---
 
+## D76 – Alerting Incident Response
+
+### Alert Severity & Response Times
+
+| Severity | Response Time | Escalation | Channels (PROD) |
+|----------|---------------|------------|-----------------|
+| **P0 (Critical)** | 15 minutes | Immediate | Telegram + PostgreSQL |
+| **P1 (High)** | 1 hour | If unresolved after 2h | Telegram + PostgreSQL |
+| **P2 (Medium)** | 4 hours | If unresolved after 8h | PostgreSQL only |
+| **P3 (Low)** | Next business day | None | PostgreSQL only |
+
+### Incident Response Procedures
+
+#### 1. Redis Connection Lost (P0)
+
+**Rule ID:** `D75.SYSTEM.REDIS_CONNECTION_LOST`
+
+**Alert Message:** "Redis connection timeout after 3 retry attempts..."
+
+**Immediate Actions:**
+1. Check Redis container status: `docker ps | grep redis`
+2. Check Redis logs: `docker logs arbitrage-redis --tail 100`
+3. If Redis is down: `docker restart arbitrage-redis`
+4. Verify connection: `docker exec arbitrage-redis redis-cli PING`
+5. Monitor engine recovery in logs
+
+**Root Cause Investigation:**
+- Redis OOM killer
+- Network issues
+- Docker daemon problems
+
+**Resolution Time:** < 5 minutes
+
+---
+
+#### 2. High Loop Latency (P1)
+
+**Rule ID:** `D75.SYSTEM.ENGINE_LATENCY`
+
+**Alert Message:** "Loop latency exceeded 100ms threshold..."
+
+**Immediate Actions:**
+1. Check CPU usage: `docker stats arbitrage-engine`
+2. Check active processes: `ps aux | grep python`
+3. Review recent trades: Check if trade burst occurred
+4. Check database connection: `docker logs arbitrage-postgres | grep -i error`
+
+**Mitigation:**
+- If CPU > 80%: Consider scaling or reducing symbol count
+- If DB slow: Run `VACUUM` or check slow queries
+
+**Resolution Time:** 1-2 hours
+
+---
+
+#### 3. Global Risk Block (P0)
+
+**Rule ID:** `D75.RISK_GUARD.GLOBAL_BLOCK`
+
+**Alert Message:** "GLOBAL BLOCK - Trading HALTED. Daily loss limit exceeded..."
+
+**Immediate Actions:**
+1. **DO NOT restart engine** - Block is intentional
+2. Review daily PnL: Check PostgreSQL `session_snapshots` table
+3. Investigate loss causes: Review trade history
+4. Notify trading team lead
+5. Decision: Adjust limits or keep halted
+
+**Manual Override (ONLY IF APPROVED):**
+```python
+# Update RiskGuard limits in config
+# Requires approval from Trading Lead + SRE
+```
+
+**Resolution Time:** Manual decision required
+
+---
+
+#### 4. WS Reconnect Storm (P1)
+
+**Rule ID:** `D75.SYSTEM.WS_RECONNECT_STORM`
+
+**Alert Message:** "Excessive WS reconnections detected. 15 reconnects in 5 minutes..."
+
+**Immediate Actions:**
+1. Check exchange status: Visit exchange status pages
+2. Check network: `ping api.upbit.com`, `ping api.binance.com`
+3. Review WS logs: `docker logs arbitrage-engine | grep WebSocket`
+4. If persistent: Consider temporary pause
+
+**Resolution Time:** Auto-resolves when network stabilizes
+
+---
+
+#### 5. RateLimiter Low Remaining (P2)
+
+**Rule ID:** `D75.RATE_LIMITER.LOW_REMAINING`
+
+**Alert Message:** "Rate limit capacity below 20%..."
+
+**Immediate Actions:**
+1. Review request patterns: Check if burst occurred
+2. Verify rate limit configuration
+3. If sustained: Reduce polling frequency
+4. Monitor recovery
+
+**Resolution Time:** Typically auto-resolves in < 10 minutes
+
+---
+
+#### 6. RateLimiter HTTP 429 (P1)
+
+**Rule ID:** `D75.RATE_LIMITER.HTTP_429`
+
+**Alert Message:** "HTTP 429 received. Request rate exceeded exchange limits..."
+
+**Immediate Actions:**
+1. **System auto-applies backoff** - No action needed initially
+2. Monitor retry attempts
+3. If repeated: Check for config errors (rate limits too high)
+4. Review recent deployment changes
+
+**Resolution Time:** Auto-resolves after backoff period (typically 1-5 minutes)
+
+---
+
+#### 7. Exchange Health DOWN (P1)
+
+**Rule ID:** `D75.HEALTH.DOWN`
+
+**Alert Message:** "Exchange health status degraded to DOWN..."
+
+**Immediate Actions:**
+1. Verify exchange status: Check exchange official status page
+2. Check alternative exchanges: Ensure other exchanges operational
+3. Review impact: Trading on affected exchange automatically suspended
+4. Monitor recovery
+
+**Resolution Time:** Depends on exchange recovery (typically 5-30 minutes)
+
+---
+
+#### 8. Exchange Health FROZEN (P0)
+
+**Rule ID:** `D75.HEALTH.FROZEN`
+
+**Alert Message:** "Exchange health status degraded to FROZEN. Extended downtime detected (>10 minutes)..."
+
+**Immediate Actions:**
+1. **Critical:** All trading on this exchange halted
+2. Verify: Check exchange official channels (Twitter, status page)
+3. Review positions: Check open positions on frozen exchange
+4. Risk assessment: Evaluate exposure risk
+5. Consider manual intervention if needed
+
+**Resolution Time:** Depends on exchange (can be hours)
+
+---
+
+#### 9. ArbUniverse ALL_SKIP (P1)
+
+**Rule ID:** `D75.ARB_UNIVERSE.ALL_SKIP`
+
+**Alert Message:** "All 15 monitored routes returned SKIP decision..."
+
+**Immediate Actions:**
+1. Check market conditions: Low volatility is normal
+2. Review spread thresholds: Verify configuration
+3. Check data feeds: Ensure orderbook data is fresh
+4. If > 1 hour: Review route health scores
+
+**Resolution Time:** Typically auto-resolves when market volatility returns
+
+---
+
+#### 10. CrossSync High Imbalance (P2)
+
+**Rule ID:** `D75.CROSS_SYNC.HIGH_IMBALANCE`
+
+**Alert Message:** "Inventory imbalance > 50%..."
+
+**Immediate Actions:**
+1. Review current inventory: Check balances on both exchanges
+2. Review recent trades: Identify rebalancing opportunities
+3. System will auto-rebalance if profitable routes exist
+4. Manual rebalance if needed (requires approval)
+
+**Resolution Time:** 30 minutes - 2 hours (market-dependent)
+
+---
+
+#### 11. CrossSync High Exposure (P1)
+
+**Rule ID:** `D75.CROSS_SYNC.HIGH_EXPOSURE`
+
+**Alert Message:** "Total cross-exchange exposure exceeds 80%..."
+
+**Immediate Actions:**
+1. Review open positions: Identify largest exposures
+2. Consider closing positions: If risk tolerance exceeded
+3. Adjust position limits: If appropriate
+4. Monitor for automatic position reduction
+
+**Resolution Time:** 1-4 hours
+
+---
+
+#### 12. State Snapshot Save Failed (P2)
+
+**Rule ID:** `D75.SYSTEM.STATE_SAVE_FAILED`
+
+**Alert Message:** "Failed to save engine state snapshot..."
+
+**Immediate Actions:**
+1. Check PostgreSQL: `docker ps | grep postgres`
+2. Check disk space: `df -h`
+3. Check PostgreSQL logs: `docker logs arbitrage-postgres | grep ERROR`
+4. If DB connection issue: Investigate network/permissions
+
+**Impact:** Failover/resume capability degraded until resolved
+
+**Resolution Time:** < 30 minutes
+
+---
+
+### Alert Response Workflow
+
+```
+Alert Received (Telegram/Email)
+         ↓
+1. Acknowledge (reply "ACK" to Telegram bot)
+         ↓
+2. Check Alert Severity (P0/P1/P2/P3)
+         ↓
+3. Follow Incident-Specific Procedure (above)
+         ↓
+4. Document Actions (in PostgreSQL alerts table)
+         ↓
+5. Resolve & Close
+         ↓
+6. Post-Incident Review (for P0/P1 only)
+```
+
+### On-Call Alert Handling
+
+**Telegram Bot Commands:**
+```
+/ack <alert_id>     - Acknowledge alert
+/status             - Show current alerts
+/mute <rule_id> 1h  - Temporarily mute rule
+/history            - Show recent incidents
+```
+
+**PostgreSQL Alert History:**
+```sql
+-- View recent alerts
+SELECT * FROM alert_history 
+ORDER BY timestamp DESC 
+LIMIT 20;
+
+-- View P0/P1 alerts in last 24h
+SELECT * FROM alert_history 
+WHERE severity IN ('P0', 'P1')
+  AND timestamp > NOW() - INTERVAL '24 hours'
+ORDER BY timestamp DESC;
+```
+
+---
+
 **End of RUNBOOK.md**
 
 For deployment procedures, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).  

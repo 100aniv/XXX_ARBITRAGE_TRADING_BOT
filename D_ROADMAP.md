@@ -1552,35 +1552,36 @@ DEV/TEST Environment:
 - ✅ 문서화 완료 (D76_ALERT_RULE_ENGINE_DESIGN.md)
 - ✅ 성능 기준 충족 (< 0.05ms overhead)
 
-### D76-4: Incident Simulation & RUNBOOK Update
+### D76-4: Incident Simulation & RUNBOOK Update ✅ COMPLETED (2025-11-23)
 
-**작업:**
-- PAPER 모드에서 incident simulation (10+ scenarios)
-- Alert 발송 테스트 및 검증
-- RUNBOOK.md 및 TROUBLESHOOTING.md 업데이트 (alert 대응 절차)
+**구현 완료:**
+- ✅ **12 Incident Scenarios** (12/12 PASS)
+  - Redis Connection Lost (P0), High Loop Latency (P1), Global Risk Block (P0)
+  - WS Reconnect Storm (P1), RateLimiter Low/429 (P2/P1), Exchange Health DOWN/FROZEN (P1/P0)
+  - ArbUniverse ALL_SKIP (P1), CrossSync High Imbalance/Exposure (P2/P1), State Save Failed (P2)
 
-**Simulation Scenarios:**
-- Redis connection loss
-- High loop latency spike
-- RiskGuard daily loss limit hit
-- WS reconnect storm
+- ✅ **Incident Simulation Infrastructure**
+  - `arbitrage/alerting/simulation/` module (~800 lines)
+  - `scripts/run_d76_4_incident_simulation.py` CLI tool
+  - Environment-aware validation (PROD/DEV)
 
-**완료 조건:**
-- 10개 시나리오 시뮬레이션 PASS
-- Alert 발송 100% 정확도
-- RUNBOOK/TROUBLESHOOTING 업데이트 완료
+- ✅ **Telegram-first Policy Validation**
+  - PROD: P0/P1 → Telegram + PostgreSQL (9/12 = 75%)
+  - PROD: P2 → PostgreSQL only (3/12 = 25%)
+  - DEV: All channels (Telegram 100%, Slack 100%, Email 25%)
 
-**D76 전체 완료 조건:**
-- ✅ Alert taxonomy 및 20+ rules 정의
-- ✅ Telegram 봇 통합 완료
-- ✅ Alert rule engine 구현
-- ✅ 10개 incident simulation PASS
-- ✅ 문서화: D76_ALERTING_INFRASTRUCTURE.md
+- ✅ **Documentation Updates**
+  - `RUNBOOK.md` +269 lines (12 incident response procedures)
+  - `TROUBLESHOOTING.md` +234 lines (7 alert problems)
+  - `D76_INCIDENT_SIMULATION_REPORT.md` (full report)
 
-⸻
+- ✅ **Testing**
+  - 14 new pytest tests (14/14 PASS)
+  - CLI simulation: PROD 12/12 PASS, DEV 12/12 PASS
+  - Full regression: 157 tests PASS in 6.35s, HANG 0
 
-## 🚀 D77 – 실시간 모니터링 대시보드 (Prometheus/Grafana)
-**상태:** ⏳ TODO
+**Files Created:** 5 files (~1,900 lines)
+**Files Modified:** 4 files (+523 lines)
 
 **목표:**  
 실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.

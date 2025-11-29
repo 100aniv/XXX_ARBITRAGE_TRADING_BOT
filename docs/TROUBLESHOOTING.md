@@ -1249,6 +1249,240 @@ docker-compose logs arbitrage-engine | grep -i "api"
 
 ---
 
+## D76 – Alerting Troubleshooting
+
+### Problem: Alerts Not Being Sent
+
+**Symptoms:**
+- Expected alert from incident but not received
+- Telegram/Slack/Email silent
+
+**Diagnosis:**
+```bash
+# Check AlertManager logs
+docker logs arbitrage-engine | grep -i "alert"
+
+# Check Telegram Bot Token
+echo $TELEGRAM_BOT_TOKEN
+
+# Check notifier registration
+docker logs arbitrage-engine | grep "register_notifier"
+
+# Test Telegram manually
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+  -d "chat_id=$TELEGRAM_CHAT_ID" \
+  -d "text=Test message"
+```
+
+**Common Causes:**
+1. **Bot Token Invalid:** Check `TELEGRAM_BOT_TOKEN` env var
+2. **Chat ID Wrong:** Verify `TELEGRAM_CHAT_ID` 
+3. **Network Issues:** Check internet connectivity
+4. **Notifier Not Registered:** Verify AlertManager initialization
+
+**Solution:**
+- Validate credentials in config/env vars
+- Check AlertManager initialization logs
+- Test notifiers independently
+
+---
+
+### Problem: Too Many Alerts (Alert Storm)
+
+**Symptoms:**
+- Telegram flooded with messages
+- Alerts repeating every few seconds
+- Alert throttle not working
+
+**Diagnosis:**
+```bash
+# Check alert frequency
+docker logs arbitrage-engine | grep "send_alert" | tail -50
+
+# Check throttle settings
+cat configs/production.yaml | grep throttle
+
+# Check RuleEngine state
+# Alert throttle should be working - if not, check implementation
+```
+
+**Common Causes:**
+1. **Test/Simulation Mode:** Incident simulation with `skip_throttle=True`
+2. **Config Error:** Throttle seconds set to 0 for non-P0 alerts
+3. **Clock Skew:** System time incorrect
+
+**Solution:**
+- Ensure production mode (not running simulations)
+- Review throttle_seconds in RuleRegistry
+- Verify system clock: `date`
+
+---
+
+### Problem: Slack/Email Always OFF in PROD
+
+**Symptoms:**
+- Slack/Email not sending in production environment
+- Only Telegram + PostgreSQL active
+
+**Diagnosis:**
+```bash
+# Check environment
+echo $APP_ENV
+
+# Check RuleEngine configuration
+docker logs arbitrage-engine | grep "environment.*production"
+```
+
+**This is EXPECTED Behavior:**
+- **Telegram-first Policy:** PROD environment intentionally uses Telegram + PostgreSQL only
+- Slack/Email are for DEV/TEST environments only
+- This is by design to minimize noise in production
+
+**If you need Slack/Email in PROD:**
+- This violates the Telegram-first policy
+- Requires architecture review and approval
+- Not recommended
+
+---
+
+### Problem: P2 Alerts Not on Telegram (PROD)
+
+**Symptoms:**
+- P2 alerts only in PostgreSQL
+- No Telegram notification
+
+**This is EXPECTED Behavior:**
+- PROD P2: PostgreSQL only (by design)
+- Telegram for P2 is opt-in via `ALERT_P2_TELEGRAM=true`
+
+**Solution (if needed):**
+```bash
+# Enable P2 on Telegram (optional)
+export ALERT_P2_TELEGRAM=true
+
+# Restart engine
+docker restart arbitrage-engine
+```
+
+---
+
+### Problem: Alert Database Not Saving
+
+**Symptoms:**
+- Alerts not appearing in `alert_history` table
+- PostgreSQL storage failing
+
+**Diagnosis:**
+```bash
+# Check PostgreSQL connection
+docker exec arbitrage-postgres psql -U arbitrage -c "SELECT 1"
+
+# Check alert_history table exists
+docker exec arbitrage-postgres psql -U arbitrage -c "\dt alert_history"
+
+# Check recent alerts
+docker exec arbitrage-postgres psql -U arbitrage -c "SELECT COUNT(*) FROM alert_history"
+
+# Check AlertManager logs
+docker logs arbitrage-engine | grep -i "postgresql.*alert"
+```
+
+**Common Causes:**
+1. **Table Not Created:** Migration not run
+2. **Permission Issues:** Database user lacks INSERT permission
+3. **Connection Issues:** PostgreSQL unreachable
+
+**Solution:**
+```bash
+# Run D76 migration
+python scripts/apply_d76_alert_migration.py
+
+# Verify table
+docker exec arbitrage-postgres psql -U arbitrage -c "\d alert_history"
+
+# Check permissions
+docker exec arbitrage-postgres psql -U arbitrage -c "GRANT ALL ON alert_history TO arbitrage;"
+```
+
+---
+
+### Problem: Wrong Environment Detected
+
+**Symptoms:**
+- DEV alerts going to Telegram+Slack instead of expected channels
+- PROD alerts including Slack (should be Telegram-only)
+
+**Diagnosis:**
+```bash
+# Check APP_ENV
+echo $APP_ENV
+
+# Check RuleEngine initialization
+docker logs arbitrage-engine | grep "RuleEngine.*environment"
+```
+
+**Common Causes:**
+1. **APP_ENV Not Set:** Defaults to "development"
+2. **Wrong Value:** Typo in env var (`prodution` instead of `production`)
+3. **Container Env Var:** Env var not passed to Docker container
+
+**Solution:**
+```bash
+# Set correct environment
+export APP_ENV=production  # or development, test, staging
+
+# For Docker Compose
+# Edit docker-compose.yml:
+environment:
+  - APP_ENV=production
+
+# Restart
+docker-compose restart arbitrage-engine
+```
+
+---
+
+### Problem: Rule ID Not Found
+
+**Symptoms:**
+- Alert sent without Rule ID
+- Using default dispatch instead of rule-based
+
+**Diagnosis:**
+```bash
+# Check available rules
+python -c "from arbitrage.alerting.rule_engine import RuleRegistry; r = RuleRegistry(); print([rule.rule_id for rule in r.rules.values()])"
+
+# Check logs for rule_id usage
+docker logs arbitrage-engine | grep "rule_id"
+```
+
+**Common Causes:**
+1. **Typo in Rule ID:** `D75.SYSTEM.ENGINE_LATECY` instead of `D75.SYSTEM.ENGINE_LATENCY`
+2. **Rule Not Registered:** Missing from RuleRegistry initialization
+3. **Version Mismatch:** Old code without new rules
+
+**Solution:**
+- Verify rule ID spelling in source code
+- Check RuleRegistry in `arbitrage/alerting/rule_engine.py`
+- Update code and restart
+
+---
+
+### Alert Verification Checklist
+
+Before filing a bug report, verify:
+
+- [ ] `APP_ENV` is set correctly (`production`, `development`, `test`, `staging`)
+- [ ] Telegram Bot Token and Chat ID are valid
+- [ ] AlertManager is initialized with RuleEngine
+- [ ] Notifiers are registered correctly
+- [ ] PostgreSQL `alert_history` table exists
+- [ ] D76 migration has been applied
+- [ ] Check logs for any error messages
+
+---
+
 **End of TROUBLESHOOTING.md**
 
 For deployment procedures, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).  
