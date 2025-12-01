@@ -84,6 +84,10 @@ class CrossExchangePosition:
     def is_closed(self) -> bool:
         """Position이 closed 상태인지 확인"""
         return self.state == PositionState.CLOSED
+    
+    def is_closing(self) -> bool:
+        """Position이 closing 상태인지 확인"""
+        return self.state == PositionState.CLOSING
 
 
 class CrossExchangePositionManager:
@@ -234,6 +238,54 @@ class CrossExchangePositionManager:
             f"[CROSS_POSITION_MGR] Closed position: {upbit_symbol} "
             f"(reason={exit_reason}, pnl={position.exit_pnl_krw:,.0f} KRW, "
             f"holding_time={position.get_holding_time():.0f}s)"
+        )
+        
+        return position
+    
+    def mark_position_closing(
+        self,
+        upbit_symbol: str,
+        upbit_order_id: Optional[str] = None,
+        binance_order_id: Optional[str] = None,
+    ) -> Optional[CrossExchangePosition]:
+        """
+        포지션을 CLOSING 상태로 전환 (주문 실행 시작)
+        
+        Args:
+            upbit_symbol: Upbit 심볼
+            upbit_order_id: Upbit 주문 ID (optional)
+            binance_order_id: Binance 주문 ID (optional)
+        
+        Returns:
+            Updated position 또는 None
+        """
+        position = self.get_position(upbit_symbol)
+        
+        if not position:
+            logger.warning(f"[CROSS_POSITION_MGR] No position found for {upbit_symbol}")
+            return None
+        
+        if not position.is_open():
+            logger.warning(
+                f"[CROSS_POSITION_MGR] Position not open for {upbit_symbol} "
+                f"(state={position.state.value})"
+            )
+            return position
+        
+        # Update to CLOSING state
+        position.state = PositionState.CLOSING
+        
+        if upbit_order_id:
+            position.upbit_order_id = upbit_order_id
+        if binance_order_id:
+            position.binance_order_id = binance_order_id
+        
+        # Save to Redis
+        self._save_position(upbit_symbol, position)
+        
+        logger.info(
+            f"[CROSS_POSITION_MGR] Marked position as CLOSING: {upbit_symbol} "
+            f"(upbit_order={upbit_order_id}, binance_order={binance_order_id})"
         )
         
         return position

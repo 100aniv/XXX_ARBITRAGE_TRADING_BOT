@@ -12,6 +12,12 @@ from .universe_provider import CrossExchangeUniverseProvider
 from .strategy import CrossExchangeStrategy, CrossExchangeSignal, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager, CrossExchangePosition, PositionState
 from .integration import CrossExchangeIntegration, CrossExchangeDecision
+from .executor import (
+    CrossExchangeExecutor,
+    LegExecutionResult,
+    CrossExecutionResult,
+    CrossExchangeOrchestrator,
+)
 
 __all__ = [
     "SymbolMapper",
@@ -29,4 +35,8 @@ __all__ = [
     "PositionState",
     "CrossExchangeIntegration",
     "CrossExchangeDecision",
+    "CrossExchangeExecutor",
+    "LegExecutionResult",
+    "CrossExecutionResult",
+    "CrossExchangeOrchestrator",
 ]
