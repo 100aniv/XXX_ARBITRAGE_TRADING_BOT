@@ -1896,38 +1896,85 @@ python scripts/validate_env.py --env paper --verbose
       - BLOCK 시 실제 주문 0건 보장
       - RiskDecision 정보 executor 로그에 포함
     - Alert/Metric Hook:  
-      - D76 AlertManager, D77 Prometheus 
+      - D76 AlertManager, D77 Prometheus 연계용 Hook 정의(실제 연동은 D79-6 이후)
     - Tests (`tests/test_d79_5_risk_guard.py`): 18/18 PASS  
-    - 60/60 PASS
+    - 전체 D79-2~5 테스트: 60/60 PASS
 
 - **D79-6: Cross-Exchange Monitoring & Metrics**
-  - Status: 
-  - 목표:
-    - Cross-Exchange 
-    - D76 AlertManager, D77 Prometheus 
-    - TopN/ 
+  - Status: ✅ COMPLETE
   - Summary:
     - `CrossExchangeMetrics` (~450 lines):
-      - RiskGuard decision 
-      - Executor result 
-      - PnL snapshot 
-      - Prometheus export 
-      - AlertManager (Circuit breaker P1 alert)
-    - `InMemoryMetricsBackend`: 
-    - RiskGuard/Executor Hook :
+      - RiskGuard decision 기록 (Counter: blocks_total, first_trigger, final_block)
+      - Executor result 기록 (Counter: orders_total, rollbacks_total, Histogram: latency)
+      - PnL snapshot 기록 (Gauge: daily_pnl, unrealized_pnl, consecutive_loss, winrate)
+      - Prometheus export 인터페이스
+      - AlertManager 연계 (Circuit breaker → P1 alert)
+    - `InMemoryMetricsBackend`: 테스트/개발용 in-memory backend
+    - RiskGuard/Executor Hook 통합:
       - `CrossExchangeRiskGuard._record_metrics_decision()`
       - `CrossExchangeExecutor._record_execution_metrics()`
-    - First Trigger vs Final Block :
-      - D79-5 
-      - first_trigger_reason final_block_reason 
+    - First Trigger vs Final Block 구분:
+      - D79-5에서 발견한 "exposure_limit 우선 트리거" 문제 해결
+      - first_trigger_reason과 final_block_reason 분리 기록
     - Tests (`tests/test_d79_6_monitoring.py`): 12/12 PASS
-    - 72/72 PASS
+    - 전체 D79-2~6 테스트: 72/72 PASS
 
+---
+
+### D80: Multi-Currency Support (KRW/USD/USDT/BTC Base Pairs)
+
+- **D80-0: Domain & Interface Design**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - **Currency Domain Model** (~650 lines):
+      - `Currency` Enum (KRW, USD, USDT, BTC, ETH)
+      - `Money` Value Object (amount + currency, immutable, type-safe)
+      - `FxRateProvider` Protocol (환율 제공자 인터페이스)
+      - `StaticFxRateProvider` (테스트/개발용 고정 환율)
+    - **Design Document** (~870 lines):
+      - 요구사항 정의 (Functional, Non-Functional)
+      - 도메인 모델 상세 설계
+      - Integration Points (PnL, RiskGuard, Metrics, Executor)
+      - Architecture & Data Flow
+      - Migration Plan (D80-0~3 단계별 로드맵)
+      - Risks & Mitigations
+    - **Money Operations**:
+      - 같은 통화끼리만 연산 허용 (덧셈/뺄셈/비교)
+      - 다른 통화 직접 연산 시 ValueError 발생
+      - `convert_to()` 메서드로 FxRateProvider 통한 환율 변환
+      - 통화별 소수점 자릿수 반올림 (Banker's rounding)
+      - 사람이 읽기 쉬운 포맷 (₩1,000,000, $1,234.56 등)
+    - **Backward Compatibility**:
+      - 기존 코드 변경 없음 (새 모듈만 추가)
+      - 기존 D79 테스트 72/72 유지
+    - Tests (`tests/test_d80_0_currency_domain.py`): 30/30 PASS (예상)
+    - 전체 D79+D80-0 테스트: 102/102 PASS (예상)
+
+- **D80-1: Core Layer Refactoring (계획)**
+  - Status: 🟡 PLANNED
+  - 목표:
+    - CrossExchangePnLTracker → Money 기반 리팩토링
+    - CrossExchangeRiskGuard → Currency-aware Exposure/Imbalance
+    - CrossExchangeMetrics → `base_currency` dimension 추가
+    - 기존 테스트 100% 유지
+
+- **D80-2: Exchange Adapter & Universe Integration (계획)**
+  - Status: 🟡 PLANNED
+  - 목표:
+    - Universe에 Currency 메타데이터 추가
+    - Exchange Adapter에서 Local Currency Money 생성
+    - CrossExchangeExecutor → Currency-aware 주문 금액 계산
+
+- **D80-3: Real FX Rate Provider (계획)**
+  - Status: 🟡 PLANNED
+  - 목표:
+    - Binance FX API 연동 (USDT/USD → KRW)
+    - 외부 환율 API 연동 (fallback)
+    - FX Rate 캐싱 + Staleness 감지
 
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 
-
 
 **Deliverables:**
 -  ✅ tuning_results DB 스키마 (결과/메타/seed 저장, 시각화 뷰)
