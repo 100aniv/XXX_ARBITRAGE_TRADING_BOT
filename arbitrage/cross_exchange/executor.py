@@ -121,6 +121,7 @@ class CrossExchangeExecutor:
         health_monitor: Any,
         settings: Any,
         risk_guard: Optional[CrossExchangeRiskGuard] = None,
+        metrics_collector: Optional[Any] = None,
         alert_manager: Optional[Any] = None,
     ):
         """
@@ -143,16 +144,18 @@ class CrossExchangeExecutor:
         self.health_monitor = health_monitor
         self.settings = settings
         self.risk_guard = risk_guard
+        self.metrics_collector = metrics_collector
         self.alert_manager = alert_manager
         
-        # Metrics
+        # Metrics (내부용, 하위 호환성 유지)
         self.total_executions = 0
         self.successful_executions = 0
         self.failed_executions = 0
         self.partial_hedged_executions = 0
         self.rolled_back_executions = 0
         
-        logger.info("[CROSS_EXECUTOR] Initialized")
+        logger.info("[CROSS_EXECUTOR] Initialized (metrics=%s)",
+                    type(self.metrics_collector).__name__ if self.metrics_collector else "None")
     
     def execute_decision(self, decision: CrossExchangeDecision) -> CrossExecutionResult:
         """
@@ -219,6 +222,9 @@ class CrossExchangeExecutor:
                 self.partial_hedged_executions += 1
             else:
                 self.failed_executions += 1
+            
+            # Record metrics to CrossExchangeMetrics (D79-6)
+            self._record_execution_metrics(result)
             
             logger.info(
                 f"[CROSS_EXECUTOR] Execution result: {result.status} "
@@ -673,6 +679,34 @@ class CrossExchangeExecutor:
             status=status,
             note=reason,
         )
+    
+    def _record_execution_metrics(self, result: CrossExecutionResult) -> None:
+        """
+        CrossExchangeMetrics에 실행 결과 기록 (D79-6)
+        
+        Args:
+            result: CrossExecutionResult
+        """
+        if self.metrics_collector is None:
+            return
+        
+        try:
+            # CrossExecutionResult를 그대로 전달
+            # (cross_exchange_metrics.py의 CrossExecutionResult와 호환)
+            from arbitrage.monitoring.cross_exchange_metrics import CrossExecutionResult as MetricsResult
+            
+            metrics_result = MetricsResult(
+                status=result.status,
+                upbit_result=result.upbit,
+                binance_result=result.binance,
+                total_latency=result.execution_time_ms / 1000.0 if result.execution_time_ms else None,  # ms → s
+                rollback_reason=result.note if result.status == "rolled_back" else None,
+            )
+            
+            self.metrics_collector.record_execution_result(metrics_result)
+        
+        except Exception as e:
+            logger.error(f"[CROSS_EXECUTOR] Metrics recording failed: {e}", exc_info=True)
     
     def get_metrics(self) -> Dict[str, Any]:
         """실행 메트릭 반환"""

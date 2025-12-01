@@ -5,5 +5,17 @@ D50: Monitoring & Metrics Layer
 """
 
 from arbitrage.monitoring.metrics_collector import MetricsCollector
+from arbitrage.monitoring.cross_exchange_metrics import (
+    CrossExchangeMetrics,
+    InMemoryMetricsBackend,
+    CrossExchangePnLSnapshot,
+    CrossExecutionResult,
+)
 
-__all__ = ["MetricsCollector"]
+__all__ = [
+    "MetricsCollector",
+    "CrossExchangeMetrics",
+    "InMemoryMetricsBackend",
+    "CrossExchangePnLSnapshot",
+    "CrossExecutionResult",
+]

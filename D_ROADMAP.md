@@ -1842,10 +1842,92 @@ python scripts/validate_env.py --env paper --verbose
 - 멀티심볼 회귀 테스트 (Entry/Exit, RiskGuard, Snapshot, Resume) 100% PASS
 - Keyspace 검사에서 symbol 분리/TTL 100% 검증, 스냅샷 저장/복원 100%
 
-⸻
+### D79: Cross-Exchange Arbitrage Stack (Upbit ↔ Binance)
 
-### D90~D94: HYPERPARAMETER TUNING CLUSTER (⏳ TODO)
-**Goal:** Grid/Random/Bayesian 혼합형 튜닝 클러스터 구축, walk-forward + stress 테스트 자동화
+- **D79-1: Symbol Mapping & Spread Model**
+  - Status: ✅ COMPLETE
+  - Summary:  
+    - Upbit KRW 마켓 ↔ Binance 선물 심볼 매핑
+    - 스프레드 계산 모델(비교 기준 가격, 수수료/슬리피지 반영 기본 구조) 구현
+    - 단위 테스트/통합 테스트 통과
+
+- **D79-2: Cross-Exchange Entry/Exit Strategy + Position Manager**
+  - Status: ✅ COMPLETE
+  - Summary:  
+    - CrossExchangeStrategy: 엔트리/익절/손절/타임아웃/리버설 로직
+    - CrossExchangePositionManager: 포지션 상태/보유 시간/인벤토리 관리
+    - Tests: 24/24 PASS
+
+- **D79-3: Engine Integration (Paper Mode)**
+  - Status: ✅ COMPLETE
+  - Summary:  
+    - 엔진(v2) + CrossExchangeStrategy + PositionManager 통합 (Paper 모드)
+    - Universe/SpreadModel/FXConverter 연동
+    - Redis 의존 테스트 1개는 상황에 따라 SKIP
+    - Tests: 7/7 PASS (1 SKIP)
+
+- **D79-4: Cross-Exchange Real Order Execution**
+  - Status: ✅ COMPLETE  
+    - Commit: `f8fd37e`
+  - Summary:  
+    - `CrossExchangeExecutor` (~850 lines):  
+      - Upbit/Binance 실 주문 실행
+      - Pre-flight check(Health/Secrets/RiskGuard placeholder)
+      - Partial fill 감지 및 롤백
+      - Position state machine (OPEN → CLOSING → CLOSED)
+    - `CrossExchangeOrchestrator`:  
+      - Paper/Real 모드 스위치 (`enable_execution`)
+      - Entry/Exit tick 처리
+    - Tests: 11/11 PASS (총 41/42)
+
+- **D79-5: Cross-Exchange Advanced Risk Management**
+  - Status: ✅ COMPLETE  
+    - Commit: `9e0a0fe`
+  - Summary:
+    - `CrossExchangeRiskGuard` (5th Tier Risk):  
+      - Cross-exposure limit  
+      - Inventory imbalance detection  
+      - Directional bias 방지  
+      - Circuit breaker (Daily loss / Consecutive loss)  
+      - Cooldown, Dynamic threshold placeholder
+    - `CrossExchangePnLTracker`:  
+      - 일별 PnL, 연속 손실 횟수 추적, 일 단위 리셋
+    - Executor `_precheck()` 통합:
+      - BLOCK 시 실제 주문 0건 보장
+      - RiskDecision 정보 executor 로그에 포함
+    - Alert/Metric Hook:  
+      - D76 AlertManager, D77 Prometheus 
+    - Tests (`tests/test_d79_5_risk_guard.py`): 18/18 PASS  
+    - 60/60 PASS
+
+- **D79-6: Cross-Exchange Monitoring & Metrics**
+  - Status: 
+  - 목표:
+    - Cross-Exchange 
+    - D76 AlertManager, D77 Prometheus 
+    - TopN/ 
+  - Summary:
+    - `CrossExchangeMetrics` (~450 lines):
+      - RiskGuard decision 
+      - Executor result 
+      - PnL snapshot 
+      - Prometheus export 
+      - AlertManager (Circuit breaker P1 alert)
+    - `InMemoryMetricsBackend`: 
+    - RiskGuard/Executor Hook :
+      - `CrossExchangeRiskGuard._record_metrics_decision()`
+      - `CrossExchangeExecutor._record_execution_metrics()`
+    - First Trigger vs Final Block :
+      - D79-5 
+      - first_trigger_reason final_block_reason 
+    - Tests (`tests/test_d79_6_monitoring.py`): 12/12 PASS
+    - 72/72 PASS
+
+
+ 
+### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
+**Goal:** Grid/Random/Bayesian , walk-forward + stress 
+
 
 **Deliverables:**
 -  ✅ tuning_results DB 스키마 (결과/메타/seed 저장, 시각화 뷰)

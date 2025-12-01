@@ -211,6 +211,7 @@ class CrossExchangeRiskGuard:
         config: Optional[CrossExchangeRiskGuardConfig] = None,
         pnl_tracker: Optional[CrossExchangePnLTracker] = None,
         alert_manager: Optional[Any] = None,  # D76 AlertManager (optional)
+        metrics_collector: Optional[Any] = None,  # D79-6 CrossExchangeMetrics (optional)
     ):
         """
         Initialize CrossExchangeRiskGuard
@@ -222,6 +223,7 @@ class CrossExchangeRiskGuard:
             config: CrossExchangeRiskGuardConfig (None 시 기본값)
             pnl_tracker: CrossExchangePnLTracker (None 시 신규 생성)
             alert_manager: D76 AlertManager (optional)
+            metrics_collector: D79-6 CrossExchangeMetrics (optional)
         """
         self.four_tier_risk_guard = four_tier_risk_guard
         self.inventory_tracker = inventory_tracker
@@ -229,11 +231,12 @@ class CrossExchangeRiskGuard:
         self.config = config or CrossExchangeRiskGuardConfig()
         self.pnl_tracker = pnl_tracker or CrossExchangePnLTracker()
         self.alert_manager = alert_manager
+        self.metrics_collector = metrics_collector
         
         # Cooldown state (symbol → cooldown_until timestamp)
         self._cooldown_state: Dict[str, float] = {}
         
-        # Metrics counters
+        # Metrics counters (내부용, 하위 호환성 유지)
         self.total_checks = 0
         self.blocked_by_tier: Dict[str, int] = {
             "exchange": 0,
@@ -244,7 +247,8 @@ class CrossExchangeRiskGuard:
         }
         self.blocked_by_reason: Dict[str, int] = {}
         
-        logger.info("[CROSS_RISK_GUARD] Initialized")
+        logger.info("[CROSS_RISK_GUARD] Initialized (metrics=%s)",
+                    type(self.metrics_collector).__name__ if self.metrics_collector else "None")
     
     def check_cross_exchange_trade(
         self,
@@ -286,6 +290,7 @@ class CrossExchangeRiskGuard:
             cross_sync_decision = self._check_cross_sync_rules(decision)
             if not cross_sync_decision.allowed:
                 self._update_metrics(cross_sync_decision)
+                self._record_metrics_decision(cross_sync_decision, decision)
                 self._send_alert(cross_sync_decision, decision)
                 return cross_sync_decision
             
@@ -293,6 +298,7 @@ class CrossExchangeRiskGuard:
             position_decision = self._check_position_rules(decision)
             if not position_decision.allowed:
                 self._update_metrics(position_decision)
+                self._record_metrics_decision(position_decision, decision)
                 self._send_alert(position_decision, decision)
                 return position_decision
             
@@ -300,6 +306,7 @@ class CrossExchangeRiskGuard:
             circuit_decision = self._check_circuit_breaker(decision)
             if not circuit_decision.allowed:
                 self._update_metrics(circuit_decision)
+                self._record_metrics_decision(circuit_decision, decision)
                 self._send_alert(circuit_decision, decision)
                 # Cooldown 설정
                 self._set_cooldown(
@@ -692,6 +699,34 @@ class CrossExchangeRiskGuard:
         
         except Exception as e:
             logger.error(f"[CROSS_RISK_GUARD] Alert send error: {e}", exc_info=True)
+    
+    def _record_metrics_decision(
+        self,
+        decision: CrossRiskDecision,
+        trade_decision: CrossExchangeDecision,
+    ) -> None:
+        """
+        CrossExchangeMetrics에 decision 기록 (D79-6)
+        
+        Args:
+            decision: CrossRiskDecision
+            trade_decision: CrossExchangeDecision (context 정보용)
+        """
+        if self.metrics_collector is None:
+            return
+        
+        try:
+            decision_context = {
+                "symbol_upbit": trade_decision.symbol_upbit,
+                "symbol_binance": trade_decision.symbol_binance,
+                "action": trade_decision.action.value,
+                # first_trigger_reason은 향후 다단계 체크에서 설정
+            }
+            
+            self.metrics_collector.record_risk_decision(decision, decision_context)
+        
+        except Exception as e:
+            logger.error(f"[CROSS_RISK_GUARD] Metrics recording failed: {e}", exc_info=True)
     
     def get_metrics(self) -> Dict[str, Any]:
         """Metrics 조회"""
