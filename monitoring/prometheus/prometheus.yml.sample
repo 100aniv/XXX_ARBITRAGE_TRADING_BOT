@@ -1,0 +1,71 @@
+# Prometheus Configuration for TopN Arbitrage PAPER Monitoring
+# D77-1: Prometheus Exporter Integration
+
+global:
+  scrape_interval: 5s      # 5초마다 스크래핑 (D77-1 기준)
+  evaluation_interval: 5s  # Rule 평가 주기
+  
+  # 외부 Label (선택사항, Alertmanager/Grafana 연동 시 유용)
+  external_labels:
+    environment: 'paper'
+    cluster: 'arbitrage-lite'
+    project: 'd77-topn-arb'
+
+scrape_configs:
+  # Job 1: TopN Arbitrage PAPER Runner
+  - job_name: 'arb_topn_paper'
+    static_configs:
+      - targets: ['localhost:9100']  # Windows localhost (기본 포트: 9100)
+        labels:
+          service: 'topn_paper_runner'
+          version: 'd77-1'
+          
+    # 타임아웃 설정
+    scrape_timeout: 3s
+    
+    # Relabeling (선택사항)
+    # relabel_configs:
+    #   - source_labels: [__address__]
+    #     target_label: instance
+    #     replacement: 'topn-paper-primary'
+
+# ============================================================================
+# 향후 확장 (D77-2, D77-3)
+# ============================================================================
+
+# D77-3: AlertManager 연동
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['localhost:9093']
+
+# D77-3: Recording Rules (집계 메트릭)
+# rule_files:
+#   - "rules/arb_topn_rules.yml"
+
+# ============================================================================
+# 실행 방법 (참고)
+# ============================================================================
+# 
+# 1. Prometheus 다운로드 (Windows)
+#    https://prometheus.io/download/
+#    
+# 2. 이 파일을 prometheus.yml로 복사
+#    cp monitoring/prometheus/prometheus.yml.sample monitoring/prometheus/prometheus.yml
+#    
+# 3. TopN PAPER Runner 실행 (monitoring 활성화)
+#    python -m scripts.run_d77_0_topn_arbitrage_paper --universe top20 --duration-minutes 5 --monitoring-enabled
+#    
+# 4. Prometheus 실행
+#    cd <prometheus_dir>
+#    .\prometheus.exe --config.file=<path_to_this_file>\prometheus.yml
+#    
+# 5. Prometheus UI 접속
+#    http://localhost:9090
+#    
+# 6. 쿼리 예시
+#    - arb_topn_round_trips_total
+#    - arb_topn_pnl_total
+#    - rate(arb_topn_trades_total[1m])
+#    - arb_topn_loop_latency_seconds{quantile="0.99"}
+#

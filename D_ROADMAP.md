@@ -1640,23 +1640,47 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 ### D77: Prometheus/Grafana Dashboard ⏳ TODO
 **목표:** 실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.
 
-### D77-1: Prometheus Exporter Implementation
+### D77-1: Prometheus Exporter Implementation ✅ COMPLETED (2025-12-01)
 
-**작업:**
-- Prometheus exporter endpoint 구현 (/metrics)
-- Core metrics 노출 (10+ metrics)
-  - Trading: trades_total, pnl_total, win_rate
-  - Performance: loop_latency_seconds, ws_latency_seconds
-  - System: cpu_usage_percent, memory_usage_bytes
-  - Risk: guard_triggers_total, open_positions_count
-  - State: snapshot_save_total, snapshot_restore_total
-- prometheus_client 라이브러리 통합
-- Metrics scrape 주기 설정 (15s)
+**Status:** ✅ **COMPLETE**
 
-**완료 조건:**
-- /metrics endpoint 정상 동작
-- 10개 이상 metric 노출
-- Prometheus scraping 검증
+**구현 완료:**
+- ✅ Prometheus exporter endpoint (`/metrics` on port 9100)
+- ✅ Core metrics 11개 노출
+  - Trading: `arb_topn_trades_total`, `arb_topn_pnl_total`, `arb_topn_win_rate`, `arb_topn_round_trips_total`
+  - Performance: `arb_topn_loop_latency_seconds` (Summary)
+  - System: `arb_topn_cpu_usage_percent`, `arb_topn_memory_usage_bytes`
+  - Risk: `arb_topn_guard_triggers_total`, `arb_topn_active_positions`
+  - Exit: `arb_topn_exit_reasons_total`, `arb_topn_alerts_total`
+- ✅ prometheus_client v0.23.1 통합
+- ✅ Label schema: `env`, `universe`, `strategy`
+
+**구현 파일:**
+- `arbitrage/monitoring/metrics.py` (370 lines)
+- `tests/test_d77_1_metrics.py` (15 tests, ALL PASS)
+- `monitoring/prometheus/prometheus.yml.sample`
+- `scripts/run_d77_0_topn_arbitrage_paper.py` (metrics hooks)
+
+**테스트 결과:**
+- ✅ Unit Tests: 15/15 PASS (0.18s)
+- ✅ Integration: 1분 Mock PAPER (27 round trips)
+- ✅ /metrics endpoint 정상 동작
+
+**Done Criteria:**
+- [x] ✅ /metrics endpoint 정상 동작
+- [x] ✅ 11 metrics 노출
+- [x] ✅ TopN PAPER 통합
+- [x] ✅ Unit Tests PASS
+- [x] ✅ 설계 문서 완성
+
+**Usage:**
+```bash
+python -m scripts.run_d77_0_topn_arbitrage_paper \
+  --universe top20 --duration-minutes 60 \
+  --monitoring-enabled --monitoring-port 9100
+```
+
+**Next:** D77-2 (Grafana Dashboard) or D77-0-RM (Real Market)
 
 ### D77-2: Grafana Dashboard Creation
 

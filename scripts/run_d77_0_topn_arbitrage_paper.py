@@ -28,6 +28,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -47,6 +52,19 @@ from config.base import (
 )
 from arbitrage.symbol_universe import SymbolUniverseMode
 from arbitrage.exchanges.paper_exchange import PaperExchange
+from arbitrage.monitoring.metrics import (
+    init_metrics,
+    start_metrics_server,
+    record_trade,
+    record_round_trip,
+    record_pnl,
+    record_win_rate,
+    record_loop_latency,
+    record_memory_usage,
+    record_cpu_usage,
+    record_exit_reason,
+    set_active_positions,
+)
 
 # logs/ 디렉토리 생성
 Path("logs/d77-0").mkdir(parents=True, exist_ok=True)
@@ -76,6 +94,8 @@ class D77PAPERRunner:
         universe_mode: TopNMode,
         duration_minutes: float,
         config_path: str,
+        monitoring_enabled: bool = False,
+        monitoring_port: int = 9100,
     ):
         """
         Args:
@@ -86,6 +106,8 @@ class D77PAPERRunner:
         self.universe_mode = universe_mode
         self.duration_minutes = duration_minutes
         self.config_path = config_path
+        self.monitoring_enabled = monitoring_enabled
+        self.monitoring_port = monitoring_port
         
         # TopN Provider
         self.topn_provider = TopNProvider(mode=universe_mode)
@@ -143,6 +165,21 @@ class D77PAPERRunner:
         logger.info(f"  Duration: {self.duration_minutes:.1f} minutes")
         logger.info(f"  Config: {self.config_path}")
         logger.info(f"  Session ID: {self.metrics['session_id']}")
+        logger.info(f"  Monitoring: {'ENABLED' if self.monitoring_enabled else 'DISABLED'}")
+        
+        # D77-1: Prometheus Metrics 초기화
+        if self.monitoring_enabled:
+            try:
+                init_metrics(
+                    env="paper",
+                    universe=self.universe_mode.name.lower(),
+                    strategy="topn_arb",
+                )
+                start_metrics_server(port=self.monitoring_port)
+                logger.info(f"[D77-1] Metrics server started on port {self.monitoring_port}")
+            except Exception as e:
+                logger.error(f"[D77-1] Failed to start metrics server: {e}")
+                self.monitoring_enabled = False
         
         # 1. TopN Universe 선정
         logger.info("[D77-0] Fetching TopN symbols...")
@@ -164,9 +201,14 @@ class D77PAPERRunner:
             await self._mock_arbitrage_iteration(iteration, topn_result.symbols)
             
             loop_latency_ms = (time.time() - loop_start) * 1000
+            loop_latency_seconds = loop_latency_ms / 1000.0
             self.loop_latencies.append(loop_latency_ms)
             
-            # Periodic logging
+            # D77-1: Record loop latency
+            if self.monitoring_enabled:
+                record_loop_latency(loop_latency_seconds)
+            
+            # Periodic logging + metrics update
             if iteration % 100 == 0:
                 logger.info(
                     f"[D77-0] Iteration {iteration}: "
@@ -174,6 +216,17 @@ class D77PAPERRunner:
                     f"PnL=${self.metrics['total_pnl_usd']:.2f}, "
                     f"Latency={loop_latency_ms:.1f}ms"
                 )
+                
+                # D77-1: Periodic metrics update (every 10s)
+                if self.monitoring_enabled and psutil:
+                    try:
+                        process = psutil.Process()
+                        record_win_rate(self.metrics["wins"], self.metrics["losses"])
+                        record_memory_usage(process.memory_info().rss)
+                        record_cpu_usage(process.cpu_percent())
+                        set_active_positions(len(self.exit_strategy.positions))
+                    except Exception as e:
+                        logger.debug(f"[D77-1] Failed to update periodic metrics: {e}")
             
             # Respect loop interval
             await asyncio.sleep(0.1)  # 100ms
@@ -206,42 +259,52 @@ class D77PAPERRunner:
             symbols: Symbol 리스트
         """
         # Simplified: 매 20번째 iteration마다 Entry 발생
+        mock_price_a = 50000.0  # Entry price A
+        mock_price_b = 50100.0  # Entry price B (positive spread)
+        mock_spread_bps = 200.0  # +200 bps
+        mock_size = 1.0  # 1 unit
+        
         if iteration % 20 == 0 and iteration > 0:
             # Mock Entry
             position_id = self.metrics["entry_trades"]
+            symbol_a, symbol_b = symbols[0]
             self.exit_strategy.register_position(
                 position_id=position_id,
-                symbol_a=symbols[0][0],
-                symbol_b=symbols[0][1],
-                entry_price_a=50000.0,
-                entry_price_b=50000.0,
-                entry_spread_bps=20.0,
-                size=1.0,
+                symbol_a=symbol_a,
+                symbol_b=symbol_b,
+                entry_price_a=mock_price_a,
+                entry_price_b=mock_price_b,
+                entry_spread_bps=mock_spread_bps,
+                size=mock_size,
             )
             self.metrics["entry_trades"] += 1
             self.metrics["total_trades"] += 1
+            
+            # D77-1: Record entry trade
+            if self.monitoring_enabled:
+                record_trade("entry")
         
         # Check Exit for open positions
         for position_id, position in list(self.exit_strategy.get_open_positions().items()):
             # Mock current prices (simulate TP scenario)
             # Gradually increase price to trigger TP
             if iteration % 10 == 0:
-                current_price_a = 50125.0  # +0.25% (TP trigger)
-                current_price_b = 50000.0
-                current_spread_bps = 15.0
+                mock_exit_price_a = 50125.0  # +0.25% (TP trigger)
+                mock_exit_price_b = 50100.0  # Keep B same
+                mock_exit_spread_bps = -50.0  # Spread reversal
             else:
-                current_price_a = 50050.0  # Small movement
-                current_price_b = 50000.0
-                current_spread_bps = 18.0
+                mock_exit_price_a = 50050.0  # Small movement
+                mock_exit_price_b = 50100.0
+                mock_exit_spread_bps = 100.0  # Still positive
             
-            exit_decision = self.exit_strategy.check_exit(
+            exit_signal = self.exit_strategy.check_exit(
                 position_id=position_id,
-                current_price_a=current_price_a,
-                current_price_b=current_price_b,
-                current_spread_bps=current_spread_bps,
+                current_price_a=mock_exit_price_a,
+                current_price_b=mock_exit_price_b,
+                current_spread_bps=mock_exit_spread_bps,
             )
             
-            if exit_decision.should_exit:
+            if exit_signal.should_exit:
                 # Mock Exit
                 self.exit_strategy.unregister_position(position_id)
                 self.metrics["exit_trades"] += 1
@@ -249,25 +312,24 @@ class D77PAPERRunner:
                 self.metrics["total_trades"] += 1
                 
                 # Update exit reason count
-                reason_key = exit_decision.reason.value
-                if reason_key in self.metrics["exit_reasons"]:
-                    self.metrics["exit_reasons"][reason_key] += 1
+                reason_key = exit_signal.reason.name.lower()
+                self.metrics["exit_reasons"][reason_key] += 1
                 
-                # Update PnL
-                if exit_decision.reason == ExitReason.TAKE_PROFIT:
+                # PnL calculation (mock)
+                pnl = mock_exit_price_a - mock_price_a
+                self.metrics["total_pnl_usd"] += pnl
+                
+                if pnl > 0:
                     self.metrics["wins"] += 1
-                    self.metrics["total_pnl_usd"] += 25.0  # Mock profit
-                elif exit_decision.reason == ExitReason.STOP_LOSS:
-                    self.metrics["losses"] += 1
-                    self.metrics["total_pnl_usd"] -= 10.0  # Mock loss
                 else:
-                    # Time limit / Spread reversal: assume break-even or small loss
-                    if exit_decision.current_pnl_pct > 0:
-                        self.metrics["wins"] += 1
-                        self.metrics["total_pnl_usd"] += 5.0
-                    else:
-                        self.metrics["losses"] += 1
-                        self.metrics["total_pnl_usd"] -= 5.0
+                    self.metrics["losses"] += 1
+                
+                # D77-1: Record exit trade, round trip, PnL, exit reason
+                if self.monitoring_enabled:
+                    record_trade("exit")
+                    record_round_trip()
+                    record_pnl(self.metrics["total_pnl_usd"])
+                    record_exit_reason(reason_key)
     
     def _calculate_final_metrics(self) -> None:
         """최종 metrics 계산"""
@@ -355,6 +417,17 @@ def parse_args() -> argparse.Namespace:
         default="PAPER",
         help="Environment (default: PAPER)",
     )
+    parser.add_argument(
+        "--monitoring-enabled",
+        action="store_true",
+        help="Enable Prometheus metrics (default: False)",
+    )
+    parser.add_argument(
+        "--monitoring-port",
+        type=int,
+        default=9100,
+        help="Prometheus metrics server port (default: 9100)",
+    )
     return parser.parse_args()
 
 
@@ -376,6 +449,8 @@ async def main():
         universe_mode=universe_mode,
         duration_minutes=args.duration_minutes,
         config_path=args.config,
+        monitoring_enabled=args.monitoring_enabled,
+        monitoring_port=args.monitoring_port,
     )
     
     try:
