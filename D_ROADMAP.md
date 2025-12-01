@@ -1951,15 +1951,20 @@ python scripts/validate_env.py --env paper --verbose
     - 전체 D79+D80-0 테스트: 102/102 PASS (예상)
 
 - **D80-1: Core Layer Refactoring (계획)**
-  - Status: 🟡 PLANNED
-  - 목표:
-    - CrossExchangePnLTracker → Money 기반 리팩토링
-    - CrossExchangeRiskGuard → Currency-aware Exposure/Imbalance
-    - CrossExchangeMetrics → `base_currency` dimension 추가
-    - 기존 테스트 100% 유지
+  - Status: PLANNED
+  - **Status:**
+    - PLANNED
+  - **Summary:**
+    - CrossExchangePnLTracker Money 기반: _daily_pnl: Money, add_trade(Union[Money, float]), FxProvider 지원
+    - CrossExchangeRiskGuardConfig Currency-aware: max_daily_loss: Money, base_currency, backward compat
+    - CrossExchangePnLSnapshot Money 기반: daily_pnl: Money, deprecated properties
+    - CrossExchangeMetrics: 새 메트릭 cross_daily_pnl{base_currency=...}, 구 메트릭 병행
+    - Circuit Breaker: Money 비교 로직
+    - Backward Compatibility 100%: float→Money 자동변환, D79 테스트 72/72 유지
+    - Tests: 16/16 PASS, 전체 129/129 PASS
 
 - **D80-2: Exchange Adapter & Universe Integration (계획)**
-  - Status: 🟡 PLANNED
+  - Status: PLANNED
   - 목표:
     - Universe에 Currency 메타데이터 추가
     - Exchange Adapter에서 Local Currency Money 생성

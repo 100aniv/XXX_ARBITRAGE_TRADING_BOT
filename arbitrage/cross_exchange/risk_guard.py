@@ -27,12 +27,14 @@ Architecture:
 import logging
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Any, Literal
+from typing import Dict, List, Optional, Any, Literal, Union
 
 from .integration import CrossExchangeDecision, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager
 from arbitrage.domain.cross_sync import InventoryTracker, RebalanceSignal
+from arbitrage.common.currency import Currency, Money, FxRateProvider, StaticFxRateProvider
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,10 @@ class CrossRiskDecision:
 
 @dataclass
 class CrossExchangeRiskGuardConfig:
-    """CrossExchangeRiskGuard 설정"""
+    """CrossExchangeRiskGuard 설정 (Multi-Currency 지원, D80-1)"""
+    # Base currency
+    base_currency: Currency = Currency.KRW
+    
     # Exposure limits
     max_cross_exposure: float = 0.6  # 60% 이상 한쪽 집중 시 BLOCK
     
@@ -91,8 +96,8 @@ class CrossExchangeRiskGuardConfig:
     max_directional_bias: float = 0.7  # 70% 이상 쏠림 시 추가 진입 BLOCK
     min_position_count_for_bias_check: int = 3  # 최소 포지션 수 (이하면 bias 체크 생략)
     
-    # Circuit breaker
-    max_daily_loss_krw: float = 5_000_000.0  # 500만원 일일 손실 시 BLOCK
+    # Circuit breaker (Money 기반)
+    max_daily_loss: Money = field(default_factory=lambda: Money(Decimal("5000000"), Currency.KRW))
     max_consecutive_loss: int = 5  # 연속 5회 손실 시 COOLDOWN
     circuit_breaker_cooldown: float = 3600.0  # 1시간 쿨다운
     consecutive_loss_cooldown: float = 900.0  # 15분 쿨다운
@@ -101,70 +106,124 @@ class CrossExchangeRiskGuardConfig:
     high_volatility_threshold: float = 0.05  # 5% 이상 변동성 시 강화
     volatility_exposure_multiplier: float = 0.7  # 고변동성 시 exposure limit 배수
     volatility_imbalance_multiplier: float = 0.8  # 고변동성 시 imbalance limit 배수
+    
+    # Backward compatibility (deprecated)
+    max_daily_loss_krw: Optional[float] = None
+    
+    def __post_init__(self):
+        """max_daily_loss_krw 제공 시 Money로 변환 (Backward compatibility)"""
+        if self.max_daily_loss_krw is not None:
+            self.max_daily_loss = Money(Decimal(str(self.max_daily_loss_krw)), Currency.KRW)
+            logger.warning(
+                "[CONFIG] max_daily_loss_krw is deprecated. Use max_daily_loss (Money) instead."
+            )
 
 
 class CrossExchangePnLTracker:
     """
-    Cross-Exchange PnL 추적기.
+    Cross-Exchange PnL 추적기 (Multi-Currency 지원, D80-1).
     
     Daily PnL 및 Consecutive loss 추적.
+    Base Currency 기준으로 모든 PnL을 통합 집계.
     
     Note: 현재는 in-memory 구현. 향후 Redis 등으로 확장 가능.
     """
     
-    def __init__(self):
-        self._daily_pnl_krw: float = 0.0
-        self._daily_pnl_reset_time: float = 0.0
-        self._consecutive_loss_count: int = 0
-        self._last_trade_pnl_krw: float = 0.0
-    
-    def add_trade(self, pnl_krw: float) -> None:
+    def __init__(
+        self,
+        base_currency: Currency = Currency.KRW,
+        fx_provider: Optional[FxRateProvider] = None,
+    ):
         """
-        거래 PnL 추가
+        Initialize PnLTracker.
         
         Args:
-            pnl_krw: 거래 손익 (KRW)
+            base_currency: 기준 통화 (기본: KRW)
+            fx_provider: 환율 제공자 (None 시 기본 StaticFxRateProvider with fallback rates)
         """
+        self.base_currency = base_currency
+        self.fx_provider = fx_provider or StaticFxRateProvider({
+            # Fallback rates (테스트/개발용)
+            (Currency.USD, Currency.KRW): Decimal("1420.50"),
+            (Currency.USDT, Currency.KRW): Decimal("1500.00"),
+        })
+        
+        self._daily_pnl: Money = Money(Decimal("0"), base_currency)
+        self._daily_pnl_reset_time: float = 0.0
+        self._consecutive_loss_count: int = 0
+        self._last_trade_pnl: Money = Money(Decimal("0"), base_currency)
+    
+    def add_trade(
+        self,
+        pnl: Union[Money, float],
+        currency: Optional[Currency] = None,
+    ) -> None:
+        """
+        거래 PnL 추가 (Backward compatible).
+        
+        Args:
+            pnl: 거래 손익 (Money 또는 float)
+            currency: pnl이 float인 경우 통화 (기본: KRW, backward compatible)
+        
+        Example:
+            # 새 방식 (Money)
+            tracker.add_trade(Money(Decimal("50000"), Currency.KRW))
+            
+            # 기존 방식 (float, 자동 KRW 변환)
+            tracker.add_trade(50000.0)
+            tracker.add_trade(50000.0, Currency.KRW)
+        """
+        # float → Money 변환 (Backward compatibility)
+        if isinstance(pnl, (int, float)):
+            if currency is None:
+                currency = Currency.KRW  # Default to KRW
+            pnl = Money(Decimal(str(pnl)), currency)
+        
         # Daily PnL 초기화 (자정 기준)
         now = time.time()
         current_day = int(now / 86400)
         reset_day = int(self._daily_pnl_reset_time / 86400)
         
         if current_day != reset_day:
-            self._daily_pnl_krw = 0.0
+            self._daily_pnl = Money(Decimal("0"), self.base_currency)
             self._daily_pnl_reset_time = now
         
-        # Daily PnL 누적
-        self._daily_pnl_krw += pnl_krw
+        # Base currency로 변환 후 누적
+        pnl_in_base = pnl.convert_to(self.base_currency, self.fx_provider)
+        self._daily_pnl += pnl_in_base
         
-        # Consecutive loss 카운팅
-        if pnl_krw < 0:
-            if self._last_trade_pnl_krw < 0:
+        # Consecutive loss 카운팅 (부호만 확인)
+        if pnl.is_negative:
+            if self._last_trade_pnl.is_negative:
                 self._consecutive_loss_count += 1
             else:
                 self._consecutive_loss_count = 1
         else:
             self._consecutive_loss_count = 0
         
-        self._last_trade_pnl_krw = pnl_krw
+        self._last_trade_pnl = pnl_in_base
         
         logger.debug(
-            f"[CROSS_PNL_TRACKER] Trade added: {pnl_krw:,.0f} KRW, "
-            f"Daily PnL: {self._daily_pnl_krw:,.0f} KRW, "
+            f"[CROSS_PNL_TRACKER] Trade added: {pnl}, "
+            f"Daily PnL: {self._daily_pnl}, "
             f"Consecutive loss: {self._consecutive_loss_count}"
         )
     
-    def get_daily_pnl(self) -> float:
-        """일일 PnL 조회 (KRW)"""
+    def get_daily_pnl(self) -> Money:
+        """일일 PnL 조회 (Money)"""
         # Daily PnL 초기화 확인
         now = time.time()
         current_day = int(now / 86400)
         reset_day = int(self._daily_pnl_reset_time / 86400)
         
         if current_day != reset_day:
-            return 0.0
+            return Money(Decimal("0"), self.base_currency)
         
-        return self._daily_pnl_krw
+        return self._daily_pnl
+    
+    def get_daily_pnl_amount(self) -> float:
+        """일일 PnL amount 조회 (Backward compatible, float)"""
+        return float(self.get_daily_pnl().amount)
     
     def get_consecutive_loss_count(self) -> int:
         """연속 손실 횟수 조회"""
@@ -602,26 +661,29 @@ class CrossExchangeRiskGuard:
     
     def _check_circuit_breaker(self, decision: CrossExchangeDecision) -> CrossRiskDecision:
         """
-        Circuit Breaker (PnL tracking)
+        Circuit Breaker (PnL tracking) - Money 기반 (D80-1).
         
         Rule 4: Daily Loss Limit
         Rule 5: Consecutive Loss Limit
         """
-        # Rule 4: Daily Loss Limit
-        daily_pnl = self.pnl_tracker.get_daily_pnl()
+        # Rule 4: Daily Loss Limit (Money 비교)
+        daily_pnl = self.pnl_tracker.get_daily_pnl()  # Money
         
-        if daily_pnl < -self.config.max_daily_loss_krw:
+        # Money 비교: daily_pnl < -max_daily_loss
+        if daily_pnl < -self.config.max_daily_loss:
             logger.error(
                 f"[CROSS_RISK_GUARD] Daily loss limit exceeded: "
-                f"{daily_pnl:,.0f} KRW < {-self.config.max_daily_loss_krw:,.0f} KRW"
+                f"{daily_pnl} < {-self.config.max_daily_loss}"
             )
             return CrossRiskDecision(
                 allowed=False,
                 tier="cross_exchange",
                 reason_code=CrossRiskReasonCode.CROSS_DAILY_LOSS_LIMIT.value,
                 details={
-                    "daily_pnl_krw": daily_pnl,
-                    "limit": -self.config.max_daily_loss_krw,
+                    "daily_pnl": str(daily_pnl),
+                    "max_daily_loss": str(self.config.max_daily_loss),
+                    "threshold": float(self.config.max_daily_loss.amount),
+                    "actual": float(daily_pnl.amount),
                 },
                 cooldown_until=time.time() + self.config.circuit_breaker_cooldown,
             )

@@ -375,9 +375,10 @@ class TestCrossExchangePnLTracker:
         
         tracker.add_trade(1_000_000)
         tracker.add_trade(-500_000)
-        tracker.add_trade(300_000)
+        tracker.add_trade(300_000.0)
         
-        daily_pnl = tracker.get_daily_pnl()
+        # D80-1: get_daily_pnl()은 이제 Money를 반환, get_daily_pnl_amount()로 float 조회
+        daily_pnl = tracker.get_daily_pnl_amount()
         
         assert daily_pnl == 800_000  # 1M - 500K + 300K
     

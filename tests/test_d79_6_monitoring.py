@@ -210,11 +210,15 @@ class TestCrossExchangeMetricsPnLSnapshot:
     
     def test_record_pnl_snapshot(self):
         """PnL 스냅샷 기록"""
+        from decimal import Decimal
+        from arbitrage.common.currency import Currency, Money
+        
         metrics = CrossExchangeMetrics()
         
+        # D80-1: CrossExchangePnLSnapshot은 이제 Money 객체 요구
         snapshot = CrossExchangePnLSnapshot(
-            daily_pnl_krw=1_234_567.89,
-            unrealized_pnl_krw=567_890.12,
+            daily_pnl=Money(Decimal("1234567.89"), Currency.KRW),
+            unrealized_pnl=Money(Decimal("567890.12"), Currency.KRW),
             consecutive_loss_count=2,
             win_count=48,
             loss_count=32,

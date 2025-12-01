@@ -23,6 +23,7 @@ Architecture:
 import logging
 from typing import Dict, List, Optional, Any, Protocol
 from dataclasses import dataclass
+from arbitrage.common.currency import Currency, Money
 
 logger = logging.getLogger(__name__)
 
@@ -145,13 +146,43 @@ class AlertManager(Protocol):
 
 @dataclass
 class CrossExchangePnLSnapshot:
-    """PnL 스냅샷 (PnLTracker → Metrics 전달용)"""
-    daily_pnl_krw: float
-    unrealized_pnl_krw: float = 0.0
+    """
+    PnL 스냅샷 (Multi-Currency 지원, D80-1).
+    
+    Base Currency 기준으로 PnL 집계.
+    """
+    daily_pnl: Money
+    unrealized_pnl: Optional[Money] = None
     consecutive_loss_count: int = 0
     win_count: int = 0
     loss_count: int = 0
     symbol: Optional[str] = None  # None이면 전체
+    
+    # Backward compatibility properties
+    @property
+    def daily_pnl_krw(self) -> float:
+        """Deprecated: KRW amount (backward compatible)"""
+        if self.daily_pnl.currency == Currency.KRW:
+            return float(self.daily_pnl.amount)
+        # 다른 통화면 경고
+        logger.warning(
+            f"[SNAPSHOT] daily_pnl_krw called but currency is {self.daily_pnl.currency}. "
+            "Use daily_pnl (Money) instead."
+        )
+        return float(self.daily_pnl.amount)
+    
+    @property
+    def unrealized_pnl_krw(self) -> float:
+        """Deprecated: KRW amount (backward compatible)"""
+        if self.unrealized_pnl is None:
+            return 0.0
+        if self.unrealized_pnl.currency == Currency.KRW:
+            return float(self.unrealized_pnl.amount)
+        logger.warning(
+            f"[SNAPSHOT] unrealized_pnl_krw called but currency is {self.unrealized_pnl.currency}. "
+            "Use unrealized_pnl (Money) instead."
+        )
+        return float(self.unrealized_pnl.amount)
 
 
 @dataclass
@@ -355,25 +386,40 @@ class CrossExchangeMetrics:
         snapshot: CrossExchangePnLSnapshot,
     ) -> None:
         """
-        PnL 스냅샷 기록.
+        PnL 스냅샷 기록 (Multi-Currency 지원, D80-1).
         
         Args:
-            snapshot: CrossExchangePnLSnapshot
+            snapshot: CrossExchangePnLSnapshot (Money 기반)
         """
         symbol_label = snapshot.symbol or "total"
+        base_currency = snapshot.daily_pnl.currency.value
         
-        # Gauge: Daily PnL
+        # Gauge: Daily PnL (새 메트릭 이름, base_currency dimension)
+        self.backend.set_gauge(
+            "cross_daily_pnl",
+            value=float(snapshot.daily_pnl.amount),
+            labels={"base_currency": base_currency, "symbol": symbol_label}
+        )
+        
+        # Gauge: Daily PnL (구 메트릭 이름, deprecated, backward compatible)
         self.backend.set_gauge(
             "cross_daily_pnl_krw",
-            value=snapshot.daily_pnl_krw,
+            value=float(snapshot.daily_pnl.amount),
             labels={"symbol": symbol_label}
         )
         
         # Gauge: Unrealized PnL
-        if snapshot.unrealized_pnl_krw is not None:
+        if snapshot.unrealized_pnl is not None:
+            self.backend.set_gauge(
+                "cross_unrealized_pnl",
+                value=float(snapshot.unrealized_pnl.amount),
+                labels={"base_currency": base_currency, "symbol": symbol_label}
+            )
+            
+            # Deprecated
             self.backend.set_gauge(
                 "cross_unrealized_pnl_krw",
-                value=snapshot.unrealized_pnl_krw,
+                value=float(snapshot.unrealized_pnl.amount),
                 labels={"symbol": symbol_label}
             )
         
@@ -395,8 +441,8 @@ class CrossExchangeMetrics:
             )
         
         logger.debug(
-            "[CROSS_METRICS] PnL snapshot: daily=%.2f, consecutive_loss=%d, winrate=%.2f%%",
-            snapshot.daily_pnl_krw,
+            "[CROSS_METRICS] PnL snapshot: daily=%s, consecutive_loss=%d, winrate=%.2f%%",
+            snapshot.daily_pnl,
             snapshot.consecutive_loss_count,
             (snapshot.win_count / total_trades * 100) if total_trades > 0 else 0.0
         )
