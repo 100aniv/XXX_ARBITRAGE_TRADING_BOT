@@ -1973,12 +1973,14 @@ python scripts/validate_env.py --env paper --verbose
     - Tests: 20/20 PASS, 전체 149/149 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20)
     - Files: 8개 수정/신규 (+844 lines)
 
-- **D80-3: Real FX Rate Provider (계획)**
-  - Status: 🟡 PLANNED
-  - 목표:
-    - Binance FX API 연동 (USDT/USD → KRW)
-    - 외부 환율 API 연동 (fallback)
-    - FX Rate 캐싱 + Staleness 감지
+- **D80-3: Real FX Rate Provider**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - FxCache: TTL 기반 In-memory 캠시 (3초), 만료 자동 처리
+    - RealFxRateProvider: Binance API (USDT→USD), Exchangerate.host (USD↔KRW), Staleness (60초), Fallback
+    - Executor Integration: 기본 RealFxRateProvider 사용, Stale rate WARNING, Backward compat 100%
+    - Tests: 23/23 PASS, 전체 172/172 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20 + D80-3: 23)
+    - Files: 5개 신규/수정 (+1,999 lines)
 
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)

@@ -172,11 +172,24 @@ class CrossExchangeExecutor:
         self.metrics_collector = metrics_collector
         self.alert_manager = alert_manager
         
-        # D80-2: Multi-Currency 지원
-        self.fx_provider = fx_provider or StaticFxRateProvider({
-            (Currency.USD, Currency.KRW): Decimal("1420.50"),
-            (Currency.USDT, Currency.KRW): Decimal("1420.00"),
-        })
+        # D80-2/D80-3: Multi-Currency 지원
+        if fx_provider is None:
+            # D80-3: RealFxRateProvider 기본 사용 (fallback to static)
+            try:
+                from arbitrage.common.currency import RealFxRateProvider
+                fx_provider = RealFxRateProvider()
+                logger.info("[CROSS_EXECUTOR] Using RealFxRateProvider (API-based FX rates)")
+            except Exception as e:
+                logger.warning(
+                    f"[CROSS_EXECUTOR] Failed to init RealFxRateProvider: {e}, "
+                    "falling back to StaticFxRateProvider"
+                )
+                fx_provider = StaticFxRateProvider({
+                    (Currency.USD, Currency.KRW): Decimal("1420.50"),
+                    (Currency.USDT, Currency.KRW): Decimal("1420.00"),
+                })
+        
+        self.fx_provider = fx_provider
         self.base_currency = base_currency
         
         # Metrics (내부용, 하위 호환성 유지)
@@ -694,7 +707,7 @@ class CrossExchangeExecutor:
         qty: float
     ) -> Money:
         """
-        D80-2: 주문 비용 추정 (Money 기반)
+        D80-2/D80-3: 주문 비용 추정 (Money 기반, staleness check 포함)
         
         Args:
             exchange: Exchange adapter
@@ -712,7 +725,19 @@ class CrossExchangeExecutor:
             >>> # Money(Decimal("100000"), Currency.KRW)
         """
         notional = Decimal(str(price)) * Decimal(str(qty))
-        return exchange.make_money(notional)
+        money = exchange.make_money(notional)
+        
+        # D80-3: Staleness check (RealFxRateProvider만 해당)
+        from arbitrage.common.currency import RealFxRateProvider
+        if isinstance(self.fx_provider, RealFxRateProvider):
+            if self.fx_provider.is_stale(money.currency, self.base_currency):
+                logger.warning(
+                    f"[CROSS_EXECUTOR] FX rate is STALE: "
+                    f"{money.currency.value}→{self.base_currency.value} "
+                    f"(age > {RealFxRateProvider.STALE_THRESHOLD_SECONDS}s)"
+                )
+        
+        return money
     
     def _failed_result(
         self,

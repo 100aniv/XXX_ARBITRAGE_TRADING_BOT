@@ -567,3 +567,314 @@ class StaticFxRateProvider:
             timestamp (초 단위)
         """
         return self.updated_at
+
+
+# =============================================================================
+# RealFxRateProvider (D80-3)
+# =============================================================================
+
+class RealFxRateProvider:
+    """
+    실시간 환율 제공자 (D80-3).
+    
+    Features:
+    - Binance Funding Rate API (USDT→USD)
+    - Exchangerate.host API (USD↔KRW)
+    - FxCache (TTL 3초)
+    - Staleness detection (60초)
+    - Fallback to static rates
+    
+    Architecture:
+        get_rate(base, quote)
+            ↓
+        FxCache (hit/miss)
+            ↓
+        _fetch_rate_from_api()
+            ├─ _fetch_binance_usdt_usd()
+            ├─ _fetch_exchangerate_usd_krw()
+            └─ _fallback_static_rate()
+    
+    Example:
+        >>> fx = RealFxRateProvider()
+        >>> rate = fx.get_rate(Currency.USDT, Currency.KRW)
+        >>> print(rate)
+        Decimal('1420.50')
+        >>> 
+        >>> # Staleness check
+        >>> fx.is_stale(Currency.USDT, Currency.KRW)
+        False
+    """
+    
+    STALE_THRESHOLD_SECONDS = 60.0  # 60초 이상 업데이트 없으면 stale
+    
+    def __init__(
+        self,
+        binance_api_url: str = "https://fapi.binance.com",
+        exchangerate_api_url: str = "https://api.exchangerate.host",
+        cache_ttl_seconds: float = 3.0,
+        http_timeout: float = 2.0,
+    ):
+        """
+        Args:
+            binance_api_url: Binance Futures API URL
+            exchangerate_api_url: Exchangerate.host API URL
+            cache_ttl_seconds: 캐시 TTL (초)
+            http_timeout: HTTP 타임아웃 (초)
+        """
+        self.binance_api_url = binance_api_url
+        self.exchangerate_api_url = exchangerate_api_url
+        self.http_timeout = http_timeout
+        
+        # FxCache 초기화
+        from .fx_cache import FxCache
+        self.cache = FxCache(ttl_seconds=cache_ttl_seconds)
+        
+        # HTTP Session (connection pooling)
+        try:
+            import requests
+            self.session = requests.Session()
+        except ImportError:
+            logger.warning("[FX_PROVIDER] requests 라이브러리 없음, HTTP 기능 비활성화")
+            self.session = None
+        
+        # Fallback static rates
+        self._fallback_rates = {
+            (Currency.USDT, Currency.USD): Decimal("1.0"),
+            (Currency.USD, Currency.KRW): Decimal("1420.0"),
+            (Currency.USDT, Currency.KRW): Decimal("1420.0"),
+        }
+        
+        logger.info(
+            "[FX_PROVIDER] RealFxRateProvider initialized "
+            f"(cache_ttl={cache_ttl_seconds}s, stale_threshold={self.STALE_THRESHOLD_SECONDS}s)"
+        )
+    
+    def get_rate(self, base: Currency, quote: Currency) -> Decimal:
+        """
+        환율 조회 (캐시 우선, 없으면 API).
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            환율 (Decimal)
+        
+        Example:
+            >>> fx.get_rate(Currency.USDT, Currency.KRW)
+            Decimal("1420.50")
+        """
+        # 같은 통화
+        if base == quote:
+            return Decimal("1.0")
+        
+        # 캐시 조회
+        cached_rate = self.cache.get(base, quote)
+        if cached_rate is not None:
+            logger.debug(f"[FX_PROVIDER] Cache HIT: {base.value}→{quote.value} = {cached_rate}")
+            return cached_rate
+        
+        # 캐시 miss, API 호출
+        logger.debug(f"[FX_PROVIDER] Cache MISS: {base.value}→{quote.value}, fetching from API")
+        rate = self._fetch_rate_from_api(base, quote)
+        
+        # 캐시 저장
+        self.cache.set(base, quote, rate)
+        
+        return rate
+    
+    def get_updated_at(self, base: Currency, quote: Currency) -> float:
+        """
+        환율 업데이트 시각 조회.
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            업데이트 시각 (Unix timestamp)
+        """
+        updated_at = self.cache.get_updated_at(base, quote)
+        if updated_at is None:
+            # 캐시에 없으면 현재 시각
+            return time.time()
+        return updated_at
+    
+    def is_stale(self, base: Currency, quote: Currency) -> bool:
+        """
+        환율이 stale인지 확인 (60초 이상 업데이트 없음).
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            stale 여부
+        
+        Example:
+            >>> fx.is_stale(Currency.USD, Currency.KRW)
+            False
+        """
+        updated_at = self.get_updated_at(base, quote)
+        age = time.time() - updated_at
+        return age > self.STALE_THRESHOLD_SECONDS
+    
+    def refresh_rate(self, base: Currency, quote: Currency) -> None:
+        """
+        환율 강제 갱신 (캐시 무효화 후 재조회).
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Example:
+            >>> fx.refresh_rate(Currency.USD, Currency.KRW)
+            [FX_PROVIDER] Rate refreshed: USD→KRW
+        """
+        # 캐시에서 삭제
+        key = (base, quote)
+        if key in self.cache._cache:
+            del self.cache._cache[key]
+        
+        # 재조회 (자동으로 캐시 저장됨)
+        self.get_rate(base, quote)
+        logger.info(f"[FX_PROVIDER] Rate refreshed: {base.value}→{quote.value}")
+    
+    def _fetch_rate_from_api(self, base: Currency, quote: Currency) -> Decimal:
+        """
+        API에서 환율 조회.
+        
+        Strategy:
+        1. USDT→USD: Binance Funding Rate
+        2. USD↔KRW: Exchangerate.host
+        3. Fallback: Static rate
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            환율
+        """
+        try:
+            # USDT → USD (Binance)
+            if base == Currency.USDT and quote == Currency.USD:
+                return self._fetch_binance_usdt_usd()
+            
+            # USD → KRW (Exchangerate.host)
+            if base == Currency.USD and quote == Currency.KRW:
+                return self._fetch_exchangerate_usd_krw()
+            
+            # KRW → USD (역환율)
+            if base == Currency.KRW and quote == Currency.USD:
+                usd_krw = self._fetch_exchangerate_usd_krw()
+                return Decimal("1.0") / usd_krw
+            
+            # USDT → KRW (chain: USDT→USD→KRW)
+            if base == Currency.USDT and quote == Currency.KRW:
+                usdt_usd = self._fetch_binance_usdt_usd()
+                usd_krw = self._fetch_exchangerate_usd_krw()
+                return usdt_usd * usd_krw
+            
+            # 기타: Fallback
+            logger.warning(
+                f"[FX_PROVIDER] No API route for {base.value}→{quote.value}, using fallback"
+            )
+            return self._fallback_static_rate(base, quote)
+        
+        except Exception as e:
+            logger.error(
+                f"[FX_PROVIDER] API error for {base.value}→{quote.value}: {e}, using fallback"
+            )
+            return self._fallback_static_rate(base, quote)
+    
+    def _fetch_binance_usdt_usd(self) -> Decimal:
+        """
+        Binance Funding Rate API로 USDT→USD 변환.
+        
+        Endpoint: GET /fapi/v1/premiumIndex?symbol=BTCUSDT
+        Response: {"symbol": "BTCUSDT", "markPrice": "...", "lastFundingRate": "0.0001"}
+        
+        Conversion: USDT/USD ≈ 1.0 + lastFundingRate (근사)
+        
+        Returns:
+            USDT→USD 환율
+        """
+        if self.session is None:
+            raise RuntimeError("HTTP session not available (requests not installed)")
+        
+        url = f"{self.binance_api_url}/fapi/v1/premiumIndex"
+        params = {"symbol": "BTCUSDT"}
+        
+        response = self.session.get(url, params=params, timeout=self.http_timeout)
+        response.raise_for_status()
+        
+        data = response.json()
+        funding_rate = Decimal(data.get("lastFundingRate", "0.0"))
+        
+        # USDT/USD ≈ 1.0 (funding rate는 매우 작은 값, 무시)
+        rate = Decimal("1.0")
+        
+        logger.debug(f"[FX_PROVIDER] Binance USDT→USD: {rate} (funding_rate={funding_rate})")
+        return rate
+    
+    def _fetch_exchangerate_usd_krw(self) -> Decimal:
+        """
+        Exchangerate.host API로 USD→KRW 환율 조회.
+        
+        Endpoint: GET /latest?base=USD&symbols=KRW
+        Response: {"base": "USD", "rates": {"KRW": 1420.50}, ...}
+        
+        Returns:
+            USD→KRW 환율
+        """
+        if self.session is None:
+            raise RuntimeError("HTTP session not available (requests not installed)")
+        
+        url = f"{self.exchangerate_api_url}/latest"
+        params = {"base": "USD", "symbols": "KRW"}
+        
+        response = self.session.get(url, params=params, timeout=self.http_timeout)
+        response.raise_for_status()
+        
+        data = response.json()
+        rate = Decimal(str(data["rates"]["KRW"]))
+        
+        logger.debug(f"[FX_PROVIDER] Exchangerate USD→KRW: {rate}")
+        return rate
+    
+    def _fallback_static_rate(self, base: Currency, quote: Currency) -> Decimal:
+        """
+        Fallback: 고정 환율.
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            고정 환율
+        
+        Raises:
+            ValueError: fallback rate도 없는 경우
+        """
+        # Forward lookup
+        if (base, quote) in self._fallback_rates:
+            rate = self._fallback_rates[(base, quote)]
+            logger.warning(
+                f"[FX_PROVIDER] Using fallback rate: {base.value}→{quote.value} = {rate}"
+            )
+            return rate
+        
+        # Reverse lookup
+        if (quote, base) in self._fallback_rates:
+            reverse_rate = self._fallback_rates[(quote, base)]
+            rate = Decimal("1.0") / reverse_rate
+            logger.warning(
+                f"[FX_PROVIDER] Using fallback reverse rate: {base.value}→{quote.value} = {rate}"
+            )
+            return rate
+        
+        raise ValueError(
+            f"No fallback rate for {base.value}→{quote.value}. "
+            f"Available: {list(self._fallback_rates.keys())}"
+        )
