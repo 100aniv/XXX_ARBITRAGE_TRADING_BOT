@@ -1,9 +1,20 @@
-"""Telegram notifier with mockable network calls"""
+"""
+Telegram notifier with mockable network calls
+
+D78-0 Update: Now uses centralized Settings for credentials
+"""
 
 import os
 from typing import Optional, Callable
 from ..models import AlertRecord, AlertSeverity
 from .base import NotifierBase
+
+# D78-0: Import Settings (optional, backward compatible)
+try:
+    from arbitrage.config.settings import get_settings
+    _HAS_SETTINGS = True
+except ImportError:
+    _HAS_SETTINGS = False
 
 
 class TelegramNotifier(NotifierBase):
@@ -33,10 +44,27 @@ class TelegramNotifier(NotifierBase):
         Initialize Telegram notifier
         
         Args:
-            bot_token: Telegram bot token (defaults to env TELEGRAM_BOT_TOKEN)
-            chat_id: Telegram chat ID (defaults to env TELEGRAM_CHAT_ID)
+            bot_token: Telegram bot token (defaults to Settings or env)
+            chat_id: Telegram chat ID (defaults to Settings or env)
             send_message_fn: Optional mock function for testing
+        
+        D78-0: Now uses centralized Settings if available
         """
+        # D78-0: Try Settings first, fallback to env var
+        if bot_token is None and _HAS_SETTINGS:
+            try:
+                settings = get_settings()
+                bot_token = settings.telegram_bot_token
+            except Exception:
+                pass  # Fallback to env var
+        
+        if chat_id is None and _HAS_SETTINGS:
+            try:
+                settings = get_settings()
+                chat_id = settings.telegram_default_chat_id
+            except Exception:
+                pass  # Fallback to env var
+        
         self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
         self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID")
         self._send_message_fn = send_message_fn or self._default_send_message

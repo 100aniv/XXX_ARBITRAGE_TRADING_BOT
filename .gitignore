@@ -36,6 +36,15 @@ env/
 # Config
 config/secrets.yml
 
+# Environment Variables (D78-0)
+.env
+.env.local_dev
+.env.paper
+.env.live
+# But allow .env.* example templates
+!.env.*.example
+!.env.example
+
 # Data
 data/
 logs/

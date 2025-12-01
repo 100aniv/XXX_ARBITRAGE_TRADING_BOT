@@ -1743,6 +1743,44 @@ python -m scripts.run_d77_0_topn_arbitrage_paper \
 
 ⸻
 
+### D78: Authentication & Secrets Layer
+
+### D78-0: Central Settings & Environment Management ✅ COMPLETED (2025-12-01)
+
+**Status:** ✅ **COMPLETE**
+
+**구현 완료:**
+- ✅ 중앙화된 Settings 모듈 (`arbitrage/config/settings.py`)
+- ✅ 3단계 환경 모델 (local_dev, paper, live)
+- ✅ 환경별 validation (local_dev: warnings, paper/live: strict)
+- ✅ .env 템플릿 4종 (example, local_dev, paper, live)
+- ✅ Backward compatibility (APP_ENV 지원)
+- ✅ 기존 코드 리팩토링 (Telegram, AlertManager)
+
+**구현 파일:**
+- `arbitrage/config/settings.py` (420 lines)
+- `.env.example`, `.env.local_dev.example`, `.env.paper.example`, `.env.live.example`
+- `tests/test_d78_settings.py` (16 tests, ALL PASS)
+- `docs/D78_SECRETS_AND_ENVIRONMENT_DESIGN.md`
+
+**테스트 결과:**
+- ✅ Tests: 16/16 PASS in 0.10s
+- ✅ Environment validation, DSN generation, Singleton behavior, Backward compatibility
+
+**Done Criteria:**
+- [x] ✅ 중앙 Settings 모듈 구현
+- [x] ✅ 3 environments (local_dev, paper, live)
+- [x] ✅ .env templates (4 files)
+- [x] ✅ Tests 16/16 PASS
+- [x] ✅ 설계 문서 완성
+
+**Centralized Credentials:**
+Upbit, Binance, Telegram, PostgreSQL, Redis, Email, Slack
+
+**Next:** D78-1 (Vault/KMS) or D77-0-RM (Real Market)
+
+⸻
+
 ### D75~D79: PERFORMANCE OPTIMIZATION PHASE (⏳ TODO)
 **Goal:** Latency < 10ms, 안정적인 Async 루프, 메모리 누수 0, 실시간 모니터링 인프라 구축
 

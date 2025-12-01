@@ -10,6 +10,8 @@ Severity → Channel Mapping:
 - P1 (High): Telegram + PostgreSQL, Slack optional (DEV only)
 - P2 (Medium): Telegram (optional), PostgreSQL, Slack/Email for DEV
 - P3 (Low): PostgreSQL only, Email for daily summary
+
+D78-0 Update: Now uses central Settings module for environment detection
 """
 
 import os
@@ -19,6 +21,13 @@ from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
 
 from .models import AlertSeverity, AlertSource, AlertRecord
+
+# D78-0: Import Settings for centralized environment management
+try:
+    from arbitrage.config.settings import get_app_env
+    _HAS_SETTINGS = True
+except ImportError:
+    _HAS_SETTINGS = False
 
 
 class Environment(Enum):
@@ -325,13 +334,33 @@ class RuleEngine:
         # Throttle tracking: rule_id -> last_alert_timestamp
         self._throttle_tracker: Dict[str, float] = {}
     
-    def _detect_environment(self) -> Environment:
-        """Detect environment from env var"""
-        env_str = os.getenv("APP_ENV", "development").lower()
+    @staticmethod
+    def _detect_environment() -> "Environment":
+        """
+        Auto-detect environment from APP_ENV or ARBITRAGE_ENV
+        
+        D78-0 Update: Checks os.getenv first for test compatibility,
+        then uses centralized Settings if available
+        """
+        # Priority 1: Direct env var (for test compatibility)
+        env_str = os.getenv("APP_ENV")
+        
+        # Priority 2: Try centralized Settings (if APP_ENV not set)
+        if not env_str and _HAS_SETTINGS:
+            try:
+                env_str = get_app_env()
+            except Exception:
+                env_str = "development"
+        
+        # Default
+        if not env_str:
+            env_str = "development"
+        
+        env_str = env_str.lower()
         
         if env_str in ["prod", "production"]:
             return Environment.PROD
-        elif env_str in ["staging"]:
+        elif env_str in ["staging", "paper"]:  # D78-0: Add "paper" mapping
             return Environment.STAGING
         elif env_str in ["test", "testing"]:
             return Environment.TEST
