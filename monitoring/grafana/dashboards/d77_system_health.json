@@ -1,0 +1,240 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "d77-system-health",
+    "title": "D77 TopN Arbitrage - System Health & Performance",
+    "tags": ["d77", "arbitrage", "system", "performance"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "Loop Latency - Average",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_loop_latency_seconds_sum{env=\"paper\"}[1m]) / rate(arb_topn_loop_latency_seconds_count{env=\"paper\"}[1m]) * 1000",
+            "legendFormat": "{{universe}} avg (ms)",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [50], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Loop Latency High",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "graph",
+        "title": "Loop Latency - p99",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(arb_topn_loop_latency_seconds_bucket{env=\"paper\"}[1m])) * 1000",
+            "legendFormat": "{{universe}} p99 (ms)",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency p99"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "graph",
+        "title": "CPU Usage (%)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_cpu_usage_percent{env=\"paper\"}",
+            "legendFormat": "{{universe}} CPU",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "CPU %", "max": 100, "min": 0},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 2,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [80], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "CPU Usage High",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "type": "graph",
+        "title": "Memory Usage (MB)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_memory_usage_bytes{env=\"paper\"} / 1024 / 1024",
+            "legendFormat": "{{universe}} Memory",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "decmbytes", "label": "Memory"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 2,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+        "type": "stat",
+        "title": "Iteration Rate (iter/s)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_loop_latency_seconds_count{env=\"paper\"}[1m])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+        "type": "stat",
+        "title": "Total Iterations",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_loop_latency_seconds_count{env=\"paper\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+        "type": "stat",
+        "title": "System Status",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "up{job=\"arb_topn_paper\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "textMode": "value"
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

@@ -1,0 +1,327 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "d77-risk-guard",
+    "title": "D77 TopN Arbitrage - Risk & Guard Monitoring",
+    "tags": ["d77", "arbitrage", "risk", "guard"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "Guard Triggers Timeline",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_guard_triggers_total{env=\"paper\"}[1m]) * 60",
+            "legendFormat": "{{guard_type}} per min",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Triggers/min"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "stack": true,
+        "nullPointMode": "null",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [10], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Guard Triggers High",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "graph",
+        "title": "Alerts by Severity",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_alerts_total{env=\"paper\"}[1m]) * 60",
+            "legendFormat": "{{severity}} - {{source}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Alerts/min"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "stack": false,
+        "nullPointMode": "null",
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 8},
+        "type": "gauge",
+        "title": "Active Positions (Risk Exposure)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_active_positions{env=\"paper\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "orange"},
+                {"value": 20, "color": "red"}
+              ]
+            },
+            "unit": "short",
+            "min": 0,
+            "max": 50
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 8},
+        "type": "stat",
+        "title": "Total Alerts (All Severities)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(arb_topn_alerts_total{env=\"paper\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8},
+        "type": "piechart",
+        "title": "Guard Trigger Types",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_guard_triggers_total{env=\"paper\"}",
+            "legendFormat": "{{guard_type}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "right"},
+          "pieType": "donut",
+          "displayLabels": ["percent", "name"]
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
+        "type": "stat",
+        "title": "Total Guard Triggers",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(arb_topn_guard_triggers_total{env=\"paper\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 100, "color": "yellow"},
+                {"value": 500, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+        "type": "table",
+        "title": "Risk Status Overview",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_active_positions{env=\"paper\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          },
+          {
+            "expr": "arb_topn_pnl_total{env=\"paper\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "B"
+          },
+          {
+            "expr": "arb_topn_win_rate{env=\"paper\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "C"
+          },
+          {
+            "expr": "sum by (universe) (arb_topn_guard_triggers_total{env=\"paper\"})",
+            "format": "table",
+            "instant": true,
+            "refId": "D"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true, "job": true, "instance": true},
+              "indexByName": {},
+              "renameByName": {
+                "universe": "Universe",
+                "Value #A": "Active Positions",
+                "Value #B": "Total PnL",
+                "Value #C": "Win Rate (%)",
+                "Value #D": "Guard Triggers"
+              }
+            }
+          }
+        ],
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "text"}
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Active Positions"},
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {"value": 0, "color": "green"},
+                      {"value": 5, "color": "yellow"},
+                      {"value": 10, "color": "red"}
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Total PnL"},
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "currencyUSD"
+                }
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Win Rate (%)"},
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                },
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {"value": 0, "color": "red"},
+                      {"value": 50, "color": "yellow"},
+                      {"value": 70, "color": "green"}
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

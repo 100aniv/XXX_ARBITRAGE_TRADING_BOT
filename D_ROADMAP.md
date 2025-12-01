@@ -1676,60 +1676,27 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 **Usage:**
 ```bash
 python -m scripts.run_d77_0_topn_arbitrage_paper \
-  --universe top20 --duration-minutes 60 \
-  --monitoring-enabled --monitoring-port 9100
+  --universe top20 --duration-minutes 60
 ```
 
 **Next:** D77-2 (Grafana Dashboard) or D77-0-RM (Real Market)
 
-### D77-2: Grafana Dashboard Creation
+### D77-2: Grafana Dashboard Creation ✅ COMPLETED (2025-12-01)
 
-**작업:**
-- Grafana 대시보드 템플릿 생성 (3개 대시보드)
-  1. **System Health Dashboard**
-     - Service status, Uptime, Error rate
-     - CPU/Memory usage
-     - Redis/PostgreSQL status
-  2. **Trading KPIs Dashboard**
-     - PnL timeline, Win rate
-     - Trades per hour
-     - Symbol heatmap (multi-symbol)
-  3. **Risk & Guard Dashboard**
-     - Open positions, Exposure
-     - Guard triggers
-     - Drawdown timeline
-- Panel 설계 및 PromQL 쿼리 작성
+**Status:** ✅ **COMPLETE**
 
-**완료 조건:**
-- 3개 대시보드 생성 완료
-- 모든 panel 데이터 정상 표시
-- Dashboard JSON export
+**구현 완료:**
+- ✅ 3개 Grafana 대시보드 JSON (21 panels 총)
+- ✅ PromQL 쿼리 30+ 작성
+- ✅ Alert rules 3개 포함
+- ✅ 설계 문서 완성
 
-### D77-3: Alertmanager Integration
-
-**작업:**
-- Prometheus Alertmanager 설정
-- Alert rules 작성 (YAML)
-- Grafana alert → Telegram 연동 (D76 통합)
-- Alert routing 및 grouping 설정
-
-**Alert Rules 예시:**
-```yaml
-groups:
-  - name: arbitrage_alerts
-    rules:
-      - alert: HighLoopLatency
-        expr: loop_latency_seconds > 0.050
-        for: 5m
-        labels:
-          severity: P1
-        annotations:
-          summary: "Loop latency too high"
-      
-      - alert: HighErrorRate
-        expr: rate(errors_total[5m]) > 0.1
-        for: 5m
-        labels:
+**구현 파일:**
+- `monitoring/grafana/dashboards/d77_topn_trading_kpis.json` (7 panels)
+- `monitoring/grafana/dashboards/d77_system_health.json` (7 panels)
+- `monitoring/grafana/dashboards/d77_risk_guard.json` (7 panels)
+- `docs/D77_2_GRAFANA_DASHBOARD_DESIGN.md`
+- `tests/test_d77_2_dashboards.py` (16 tests, ALL PASS)
           severity: P1
         annotations:
           summary: "Error rate exceeded threshold"

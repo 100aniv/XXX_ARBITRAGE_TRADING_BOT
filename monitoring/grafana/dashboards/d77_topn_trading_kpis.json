@@ -1,0 +1,209 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "d77-topn-trading-kpis",
+    "title": "D77 TopN Arbitrage - Trading KPIs",
+    "tags": ["d77", "arbitrage", "trading", "kpi"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "Total PnL (USD)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_pnl_total{env=\"paper\"}",
+            "legendFormat": "{{universe}} PnL",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyUSD", "label": "PnL"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "type": "gauge",
+        "title": "Win Rate (%)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_win_rate{env=\"paper\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 50, "color": "yellow"},
+                {"value": 70, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "type": "stat",
+        "title": "Round Trips Completed",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_round_trips_total{env=\"paper\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"},
+                {"value": 10, "color": "green"},
+                {"value": 50, "color": "yellow"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "graph",
+        "title": "Trades Total (Entry vs Exit)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_trades_total{env=\"paper\",trade_type=\"entry\"}[1m])",
+            "legendFormat": "Entry Rate",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(arb_topn_trades_total{env=\"paper\",trade_type=\"exit\"}[1m])",
+            "legendFormat": "Exit Rate",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Trades/sec"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2,
+        "stack": false,
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8},
+        "type": "piechart",
+        "title": "Exit Reasons Breakdown",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_exit_reasons_total{env=\"paper\"}",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "pieType": "pie",
+          "displayLabels": ["percent"]
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
+        "type": "stat",
+        "title": "Active Positions",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arb_topn_active_positions{env=\"paper\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+        "type": "graph",
+        "title": "Trade Rate (1min rolling)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arb_topn_trades_total{env=\"paper\"}[1m]) * 60",
+            "legendFormat": "{{trade_type}} per min",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Trades/min"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "stack": false,
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
+      }
+    ]
+  },
+  "overwrite": true
+}
