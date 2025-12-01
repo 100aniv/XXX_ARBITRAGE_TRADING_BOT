@@ -1633,9 +1633,38 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 - `docs/D77_0_TOPN_ARBITRAGE_PAPER_REPORT.md` (Validation Report)
 - `docs/D77_0_IMPLEMENTATION_REPORT.md` (Implementation Report)
 
-**Next Steps:**
-- **Option 1 (권장):** D77-1 (Prometheus Exporter) 진행 → D77 Dashboard 완성 → D77-0-RM (Real Market) 재검증
-- **Option 2:** D77-0-RM (Real Market Validation) 먼저 완료 → D77-1 진행
+### D77-0-RM: Real Market Validation ⚠️ PARTIAL (2025-12-01)
+
+**Status:** ⚠️ **PARTIAL COMPLETE** (10-minute validation)
+
+**구현 완료:**
+- ✅ Upbit/Binance Public Data Clients (시세 조회 전용, 인증 불필요)
+- ✅ TopN Provider Real 모드 (`data_source="real"`)
+- ✅ Runner --data-source real 옵션
+- ✅ Real Market PAPER 10분 실행 성공 (276 round trips, $34,500 PnL)
+
+**구현 파일:**
+- `arbitrage/exchanges/upbit_public_data.py`, `binance_public_data.py` (430 lines)
+- `arbitrage/domain/topn_provider.py` (+150 lines)
+- `tests/test_d77_0_rm_public_data.py` (8/8 PASS)
+- `docs/D77_0_RM_REAL_MARKET_VALIDATION_REPORT.md`
+
+**실행 결과 (10분):**
+- Trades: 552 (Entry: 276, Exit: 276), Round Trips: 276
+- Win Rate: 100.0%, PnL: $34,500
+- Latency: 0.0ms (avg), 0.1ms (p99)
+- Memory: 150MB, CPU: 35%
+
+**Done Criteria:**
+- [x] ✅ Implementation (Real Data Clients, TopN Real mode)
+- [x] ✅ 10분 실행 성공
+- [ ] ⏳ 1시간+ 실행 (환경 제약으로 미달, D77-0-RM-EXT 필요)
+
+**판단:** ⚠️ **CONDITIONAL GO** (기술 구조 검증 완료, 장기 실행은 향후)
+
+**Next:** D77-0-RM-EXT (1h+ Extended Validation) or D79 (Cross-Exchange)
+
+⸻
 
 ### D77: Prometheus/Grafana Dashboard ⏳ TODO
 **목표:** 실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.

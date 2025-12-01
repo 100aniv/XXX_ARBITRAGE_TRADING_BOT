@@ -94,6 +94,7 @@ class D77PAPERRunner:
         universe_mode: TopNMode,
         duration_minutes: float,
         config_path: str,
+        data_source: str = "mock",  # D77-0-RM: "mock" | "real"
         monitoring_enabled: bool = False,
         monitoring_port: int = 9100,
     ):
@@ -102,15 +103,17 @@ class D77PAPERRunner:
             universe_mode: TopN 모드
             duration_minutes: 실행 시간 (분)
             config_path: Config 파일 경로
+            data_source: "mock" | "real" (D77-0-RM)
         """
         self.universe_mode = universe_mode
         self.duration_minutes = duration_minutes
         self.config_path = config_path
+        self.data_source = data_source
         self.monitoring_enabled = monitoring_enabled
         self.monitoring_port = monitoring_port
         
         # TopN Provider
-        self.topn_provider = TopNProvider(mode=universe_mode)
+        self.topn_provider = TopNProvider(mode=universe_mode, data_source=data_source)
         
         # Exit Strategy
         self.exit_strategy = ExitStrategy(
@@ -428,6 +431,13 @@ def parse_args() -> argparse.Namespace:
         default=9100,
         help="Prometheus metrics server port (default: 9100)",
     )
+    parser.add_argument(
+        "--data-source",
+        type=str,
+        choices=["mock", "real"],
+        default="mock",
+        help="Data source: mock (default) | real (D77-0-RM)",
+    )
     return parser.parse_args()
 
 
@@ -447,6 +457,7 @@ async def main():
     # Runner 생성 및 실행
     runner = D77PAPERRunner(
         universe_mode=universe_mode,
+        data_source=args.data_source,  # D77-0-RM
         duration_minutes=args.duration_minutes,
         config_path=args.config,
         monitoring_enabled=args.monitoring_enabled,

@@ -7,14 +7,21 @@ D77-0: TopN Universe Provider
 - Composite Score 계산 (40% volume + 30% liquidity + 30% spread)
 - Top10/Top20/Top50/Top100 지원
 - 1h TTL 캐싱
+
+D77-0-RM:
+- data_source: "mock" | "real" 지원
+- Real Market 모드에서 Public Data Clients 사용
 """
 
+import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 class TopNMode(Enum):
@@ -79,6 +86,7 @@ class TopNProvider:
     def __init__(
         self,
         mode: TopNMode = TopNMode.TOP_20,
+        data_source: str = "mock",  # D77-0-RM: "mock" | "real"
         cache_ttl_seconds: int = 3600,  # 1h
         upbit_api_base: str = "https://api.upbit.com/v1",
         binance_api_base: str = "https://api.binance.com/api/v3",
@@ -89,6 +97,7 @@ class TopNProvider:
         """
         Args:
             mode: TopN 모드
+            data_source: "mock" | "real" (D77-0-RM)
             cache_ttl_seconds: 캐시 TTL (초)
             upbit_api_base: Upbit API base URL
             binance_api_base: Binance API base URL
@@ -97,6 +106,7 @@ class TopNProvider:
             max_spread_bps: 최대 스프레드 (bps)
         """
         self.mode = mode
+        self.data_source = data_source
         self.cache_ttl_seconds = cache_ttl_seconds
         self.upbit_api_base = upbit_api_base
         self.binance_api_base = binance_api_base
@@ -110,6 +120,12 @@ class TopNProvider:
         
         # Previous result (for churn calculation)
         self._previous_symbols: List[Tuple[str, str]] = []
+        
+        # D77-0-RM: Public Data Clients (lazy init)
+        self._upbit_client = None
+        self._binance_client = None
+        
+        logger.info(f"[TOPN_PROVIDER] Initialized: mode={mode.name}, data_source={data_source}")
     
     def get_topn_symbols(
         self,
@@ -183,12 +199,25 @@ class TopNProvider:
         """
         모든 심볼의 metrics 수집.
         
+        D77-0-RM: data_source에 따라 mock 또는 real 사용
+        
         Returns:
             {symbol: SymbolMetrics}
         """
-        # PAPER mode / Mock implementation
-        # 실제 운영 시에는 Upbit/Binance API 호출
-        
+        if self.data_source == "mock":
+            logger.info("[TOPN_PROVIDER] Using MOCK data source")
+            return self._fetch_mock_metrics()
+        elif self.data_source == "real":
+            logger.info("[TOPN_PROVIDER] Using REAL data source (Public APIs)")
+            return self._fetch_real_metrics()
+        else:
+            logger.warning(f"[TOPN_PROVIDER] Unknown data_source: {self.data_source}, using mock")
+            return self._fetch_mock_metrics()
+    
+    def _fetch_mock_metrics(self) -> Dict[str, SymbolMetrics]:
+        """
+        Mock metrics (for testing/development).
+        """
         # Mock data (Top 30 crypto by market cap)
         mock_symbols = [
             "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "MATIC", "DOT", "AVAX",
@@ -209,6 +238,79 @@ class TopNProvider:
                 spread_bps=10.0 + (i * 1.0),  # 10 bps ~ 40 bps
             )
         
+        return metrics
+    
+    def _fetch_real_metrics(self) -> Dict[str, SymbolMetrics]:
+        """
+        D77-0-RM: Real market metrics from Upbit/Binance Public APIs.
+        """
+        # Lazy init clients
+        if self._upbit_client is None:
+            from arbitrage.exchanges.upbit_public_data import UpbitPublicDataClient
+            self._upbit_client = UpbitPublicDataClient()
+        
+        if self._binance_client is None:
+            from arbitrage.exchanges.binance_public_data import BinancePublicDataClient
+            self._binance_client = BinancePublicDataClient()
+        
+        # Fetch top symbols from Upbit (KRW market)
+        upbit_symbols = self._upbit_client.fetch_top_symbols(
+            market="KRW",
+            limit=50,  # Fetch top 50, we'll filter later
+            sort_by="acc_trade_price_24h",
+        )
+        
+        logger.info(f"[TOPN_PROVIDER] Fetched {len(upbit_symbols)} Upbit symbols")
+        
+        metrics: Dict[str, SymbolMetrics] = {}
+        
+        # Fetch metrics for each symbol
+        for upbit_symbol in upbit_symbols:
+            try:
+                # Upbit ticker
+                ticker = self._upbit_client.fetch_ticker(upbit_symbol)
+                if ticker is None:
+                    continue
+                
+                # Upbit orderbook
+                orderbook = self._upbit_client.fetch_orderbook(upbit_symbol)
+                if orderbook is None or not orderbook.bids or not orderbook.asks:
+                    continue
+                
+                # Calculate metrics
+                volume_krw = ticker.acc_trade_price_24h
+                volume_usd = volume_krw / 1300.0  # Approx KRW/USD conversion
+                
+                # Liquidity: sum of top 5 bid/ask levels
+                liquidity_krw = sum(b.price * b.size for b in orderbook.bids[:5])
+                liquidity_krw += sum(a.price * a.size for a in orderbook.asks[:5])
+                liquidity_usd = liquidity_krw / 1300.0
+                
+                # Spread
+                best_bid = orderbook.bids[0].price if orderbook.bids else 0.0
+                best_ask = orderbook.asks[0].price if orderbook.asks else 0.0
+                mid = (best_bid + best_ask) / 2.0 if (best_bid and best_ask) else 0.0
+                spread_bps = ((best_ask - best_bid) / mid * 10000.0) if mid > 0 else 999.0
+                
+                # Convert symbol format: "KRW-BTC" → "BTC/KRW"
+                parts = upbit_symbol.split("-")
+                if len(parts) == 2:
+                    symbol_formatted = f"{parts[1]}/{parts[0]}"
+                else:
+                    symbol_formatted = upbit_symbol
+                
+                metrics[symbol_formatted] = SymbolMetrics(
+                    symbol=symbol_formatted,
+                    volume_24h=volume_usd,
+                    liquidity_depth=liquidity_usd,
+                    spread_bps=spread_bps,
+                )
+            
+            except Exception as e:
+                logger.warning(f"[TOPN_PROVIDER] Failed to fetch metrics for {upbit_symbol}: {e}")
+                continue
+        
+        logger.info(f"[TOPN_PROVIDER] Successfully fetched {len(metrics)} symbol metrics")
         return metrics
     
     def _filter_by_thresholds(
