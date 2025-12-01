@@ -22,6 +22,7 @@ from arbitrage.exchanges.base import (
     PositionSide,
     OrderBookSnapshot,
 )
+from arbitrage.common.currency import Currency
 from arbitrage.exchanges.exceptions import (
     InsufficientBalanceError,
     OrderNotFoundError,
@@ -68,7 +69,16 @@ class PaperExchange(BaseExchange):
         # 호가 캐시 (테스트용)
         self._orderbook_cache: Dict[str, OrderBookSnapshot] = {}
         
-        logger.info(f"[D42_PAPER] PaperExchange initialized with balance: {self._balance}")
+        logger.info(f"[D42_PAPER] PaperExchange initialized with balance: {self._balance}, base_currency={self.base_currency.value}")
+    
+    def _infer_base_currency(self) -> Currency:
+        """
+        D80-2: PaperExchange 기본 통화 (기본값: KRW, config로 변경 가능)
+        
+        Returns:
+            Currency (기본값: KRW)
+        """
+        return self.config.get("base_currency", Currency.KRW)
     
     def set_orderbook(self, symbol: str, snapshot: OrderBookSnapshot) -> None:
         """

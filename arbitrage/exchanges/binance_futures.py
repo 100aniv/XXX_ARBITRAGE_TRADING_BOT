@@ -32,6 +32,7 @@ from arbitrage.exchanges.base import (
     PositionSide,
     OrderBookSnapshot,
 )
+from arbitrage.common.currency import Currency
 from arbitrage.exchanges.exceptions import (
     NetworkError,
     AuthenticationError,
@@ -90,8 +91,17 @@ class BinanceFuturesExchange(BaseExchange):
         
         logger.info(
             f"[D42_BINANCE] BinanceFuturesExchange initialized: "
-            f"base_url={self.base_url}, leverage={self.leverage}"
+            f"base_url={self.base_url}, leverage={self.leverage}, base_currency={self.base_currency.value}"
         )
+    
+    def _infer_base_currency(self) -> Currency:
+        """
+        D80-2: Binance Futures는 USDT 마켓
+        
+        Returns:
+            Currency.USDT
+        """
+        return self.config.get("base_currency", Currency.USDT)
     
     def get_orderbook(self, symbol: str) -> OrderBookSnapshot:
         """

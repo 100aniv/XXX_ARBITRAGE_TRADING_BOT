@@ -32,6 +32,7 @@ from arbitrage.exchanges.base import (
     Position,
     OrderBookSnapshot,
 )
+from arbitrage.common.currency import Currency
 from arbitrage.exchanges.exceptions import (
     NetworkError,
     AuthenticationError,
@@ -86,7 +87,16 @@ class UpbitSpotExchange(BaseExchange):
         if not self.live_enabled:
             logger.warning("[D42_UPBIT] Live trading is DISABLED. Use Paper mode or enable live_enabled=True")
         
-        logger.info(f"[D42_UPBIT] UpbitSpotExchange initialized: base_url={self.base_url}")
+        logger.info(f"[D42_UPBIT] UpbitSpotExchange initialized: base_url={self.base_url}, base_currency={self.base_currency.value}")
+    
+    def _infer_base_currency(self) -> Currency:
+        """
+        D80-2: Upbit은 KRW 마켓
+        
+        Returns:
+            Currency.KRW
+        """
+        return self.config.get("base_currency", Currency.KRW)
     
     def get_orderbook(self, symbol: str) -> OrderBookSnapshot:
         """

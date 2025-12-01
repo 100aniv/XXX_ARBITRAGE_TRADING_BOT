@@ -24,14 +24,16 @@ Architecture:
 
 import logging
 import time
+from decimal import Decimal
 from typing import Optional, Dict, Any, Literal
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
 from .integration import CrossExchangeDecision, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager
 from .fx_converter import FXConverter
 from .risk_guard import CrossExchangeRiskGuard, CrossRiskDecision
-from arbitrage.exchanges.base import OrderSide, OrderType, OrderStatus, OrderResult
+from arbitrage.exchanges.base import OrderSide, OrderType, OrderStatus, OrderResult, BaseExchange
+from arbitrage.common.currency import Money, Currency, FxRateProvider, StaticFxRateProvider
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +64,15 @@ class LegExecutionResult:
 class CrossExecutionResult:
     """
     교차 거래소 실행 결과
+    
+    D80-2: pnl (Money) 추가, pnl_krw deprecated
     """
     decision: CrossExchangeDecision
     upbit: LegExecutionResult
     binance: LegExecutionResult
     status: Literal["success", "partial_hedged", "rolled_back", "failed", "blocked"]
-    pnl_krw: Optional[float] = None
+    pnl: Optional[Money] = None  # D80-2: Money 기반 PnL
+    pnl_krw: Optional[float] = None  # DEPRECATED: backward compat
     note: Optional[str] = None
     execution_time_ms: Optional[float] = None
     
@@ -75,9 +80,25 @@ class CrossExecutionResult:
         """성공 여부"""
         return self.status == "success"
     
+    @property
+    def pnl_krw_amount(self) -> float:
+        """
+        D80-2: DEPRECATED backward compatible accessor
+        
+        Returns:
+            PnL amount (float)
+        """
+        if self.pnl is not None:
+            return float(self.pnl.amount)
+        return self.pnl_krw or 0.0
+    
     def to_dict(self) -> Dict[str, Any]:
         """Dict로 변환"""
-        return asdict(self)
+        data = asdict(self)
+        # Money 객체를 JSON 직렬화 가능하게 변환
+        if self.pnl is not None:
+            data['pnl'] = {'amount': str(self.pnl.amount), 'currency': self.pnl.currency.value}
+        return data
 
 
 class CrossExchangeExecutor:
@@ -123,6 +144,8 @@ class CrossExchangeExecutor:
         risk_guard: Optional[CrossExchangeRiskGuard] = None,
         metrics_collector: Optional[Any] = None,
         alert_manager: Optional[Any] = None,
+        fx_provider: Optional[FxRateProvider] = None,  # D80-2
+        base_currency: Currency = Currency.KRW,  # D80-2
     ):
         """
         Initialize CrossExchangeExecutor
@@ -136,6 +159,8 @@ class CrossExchangeExecutor:
             settings: Settings (D78)
             risk_guard: CrossExchangeRiskGuard (optional, D79-5)
             alert_manager: AlertManager (optional, D76)
+            fx_provider: FxRateProvider (optional, D80-2)
+            base_currency: 기본 통화 (D80-2)
         """
         self.upbit_client = upbit_client
         self.binance_client = binance_client
@@ -147,6 +172,13 @@ class CrossExchangeExecutor:
         self.metrics_collector = metrics_collector
         self.alert_manager = alert_manager
         
+        # D80-2: Multi-Currency 지원
+        self.fx_provider = fx_provider or StaticFxRateProvider({
+            (Currency.USD, Currency.KRW): Decimal("1420.50"),
+            (Currency.USDT, Currency.KRW): Decimal("1420.00"),
+        })
+        self.base_currency = base_currency
+        
         # Metrics (내부용, 하위 호환성 유지)
         self.total_executions = 0
         self.successful_executions = 0
@@ -154,8 +186,11 @@ class CrossExchangeExecutor:
         self.partial_hedged_executions = 0
         self.rolled_back_executions = 0
         
-        logger.info("[CROSS_EXECUTOR] Initialized (metrics=%s)",
-                    type(self.metrics_collector).__name__ if self.metrics_collector else "None")
+        logger.info(
+            "[CROSS_EXECUTOR] Initialized (metrics=%s, base_currency=%s)",
+            type(self.metrics_collector).__name__ if self.metrics_collector else "None",
+            self.base_currency.value
+        )
     
     def execute_decision(self, decision: CrossExchangeDecision) -> CrossExecutionResult:
         """
@@ -650,6 +685,34 @@ class CrossExchangeExecutor:
                 status="rolled_back",
                 note="Both orders canceled, no exposure",
             )
+    
+    def _estimate_order_cost(
+        self,
+        exchange: BaseExchange,
+        symbol: str,
+        price: float,
+        qty: float
+    ) -> Money:
+        """
+        D80-2: 주문 비용 추정 (Money 기반)
+        
+        Args:
+            exchange: Exchange adapter
+            symbol: 거래 쌍
+            price: 가격
+            qty: 수량
+        
+        Returns:
+            Money 객체 (주문 비용)
+        
+        Example:
+            >>> upbit_cost = executor._estimate_order_cost(
+            ...     self.upbit_client, "KRW-BTC", 100_000_000, 0.001
+            ... )
+            >>> # Money(Decimal("100000"), Currency.KRW)
+        """
+        notional = Decimal(str(price)) * Decimal(str(qty))
+        return exchange.make_money(notional)
     
     def _failed_result(
         self,

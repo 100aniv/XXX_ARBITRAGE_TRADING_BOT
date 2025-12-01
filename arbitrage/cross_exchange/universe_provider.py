@@ -14,6 +14,8 @@ import logging
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
+from arbitrage.common.currency import Currency
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,11 +23,14 @@ logger = logging.getLogger(__name__)
 class CrossSymbol:
     """
     교차 거래소 심볼 정보
+    
+    D80-2: base_currency 추가
     """
     mapping: any  # SymbolMapping
     upbit_volume_24h: float  # Upbit 24h 거래량 (KRW)
     binance_volume_24h: float  # Binance 24h 거래량 (USDT)
     combined_score: float  # 종합 점수 (유동성 기준)
+    base_currency: Currency = Currency.KRW  # D80-2: 기본 통화 (Upbit=KRW)
 
 
 class CrossExchangeUniverseProvider:
@@ -170,6 +175,7 @@ class CrossExchangeUniverseProvider:
                 upbit_volume_24h=upbit_volume_krw,
                 binance_volume_24h=binance_volume_usdt,
                 combined_score=combined_score,
+                base_currency=Currency.KRW,  # D80-2: Upbit KRW 마켓
             )
             
             cross_symbols.append(cross_symbol)

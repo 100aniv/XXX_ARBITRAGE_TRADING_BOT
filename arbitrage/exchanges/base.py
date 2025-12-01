@@ -8,8 +8,11 @@ D42 Exchange Adapter Layer - Base Interface
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
+
+from arbitrage.common.currency import Currency, Money
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +152,8 @@ class BaseExchange(ABC):
     거래소 어댑터 기본 인터페이스.
     
     모든 거래소 어댑터는 이 클래스를 상속받아 구현해야 한다.
+    
+    D80-2: base_currency 속성 및 make_money() 헬퍼 추가
     """
     
     def __init__(self, name: str, config: Optional[Dict[str, Any]] = None):
@@ -159,7 +164,43 @@ class BaseExchange(ABC):
         """
         self.name = name
         self.config = config or {}
-        logger.info(f"[D42_EXCHANGE] {name} initialized")
+        self.base_currency: Currency = self._infer_base_currency()  # D80-2
+        logger.info(f"[D42_EXCHANGE] {name} initialized (base_currency={self.base_currency.value})")
+    
+    def _infer_base_currency(self) -> Currency:
+        """
+        D80-2: 거래소별 기본 통화 추론
+        
+        Returns:
+            Currency (기본값: KRW)
+        
+        Note:
+            하위 클래스에서 override하여 거래소별 통화 설정
+        """
+        return self.config.get("base_currency", Currency.KRW)
+    
+    def make_money(
+        self,
+        amount: Union[Decimal, float, int],
+        currency: Optional[Currency] = None
+    ) -> Money:
+        """
+        D80-2: Money 객체 생성 헬퍼
+        
+        Args:
+            amount: 금액 (Decimal, float, int)
+            currency: 통화 (기본값: self.base_currency)
+        
+        Returns:
+            Money 객체
+        
+        Example:
+            >>> exchange.make_money(10000)  # Money(Decimal("10000"), Currency.KRW)
+            >>> exchange.make_money(100, Currency.USDT)  # Money(Decimal("100"), Currency.USDT)
+        """
+        if currency is None:
+            currency = self.base_currency
+        return Money(Decimal(str(amount)), currency)
     
     @abstractmethod
     def get_orderbook(self, symbol: str) -> OrderBookSnapshot:

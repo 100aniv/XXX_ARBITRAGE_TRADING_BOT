@@ -1963,12 +1963,15 @@ python scripts/validate_env.py --env paper --verbose
     - Backward Compatibility 100%: float→Money 자동변환, D79 테스트 72/72 유지
     - Tests: 16/16 PASS, 전체 129/129 PASS
 
-- **D80-2: Exchange Adapter & Universe Integration (계획)**
-  - Status: PLANNED
-  - 목표:
-    - Universe에 Currency 메타데이터 추가
-    - Exchange Adapter에서 Local Currency Money 생성
-    - CrossExchangeExecutor → Currency-aware 주문 금액 계산
+- **D80-2: Exchange Adapter & Universe Integration**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - Universe Layer: CrossSymbol에 base_currency 추가 (KRW/USDT 지원)
+    - Exchange Adapters: BaseExchange.base_currency + make_money() 헬퍼, Upbit=KRW, Binance=USDT
+    - Executor: _estimate_order_cost() 헬퍼, CrossExecutionResult.pnl (Money), pnl_krw deprecated
+    - Backward Compatibility 100%: 기존 인터페이스 유지, optional/기본값 제공
+    - Tests: 20/20 PASS, 전체 149/149 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20)
+    - Files: 8개 수정/신규 (+844 lines)
 
 - **D80-3: Real FX Rate Provider (계획)**
   - Status: 🟡 PLANNED
