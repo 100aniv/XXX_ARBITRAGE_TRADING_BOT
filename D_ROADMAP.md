@@ -1664,10 +1664,7 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 
 **Next:** D77-0-RM-EXT (1h+ Extended Validation) or D79 (Cross-Exchange)
 
-⸻
-
-### D77: Prometheus/Grafana Dashboard ⏳ TODO
-**목표:** 실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.
+### D78-2: Vault/KMS Integration ✅ COMPLETED (2025-12-01)
 
 ### D77-1: Prometheus Exporter Implementation ✅ COMPLETED (2025-12-01)
 

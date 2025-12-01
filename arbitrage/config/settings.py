@@ -58,8 +58,11 @@ settings = get_settings(overrides={"env": "local_dev"})
 
 import os
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass, field
+
+if TYPE_CHECKING:
+    from arbitrage.config.secrets_providers.base import SecretsProviderBase
 
 
 class RuntimeEnv(str, Enum):
@@ -132,44 +135,67 @@ class Settings:
     # Misc
     app_env: Optional[str] = None  # Backward compatibility (APP_ENV)
     
+    # D78-2: Secrets Provider (optional)
+    secrets_provider: Optional["SecretsProviderBase"] = field(default=None, repr=False)
+    
     @classmethod
-    def from_env(cls, overrides: Optional[Dict[str, Any]] = None) -> "Settings":
+    def from_env(
+        cls,
+        overrides: Optional[Dict[str, Any]] = None,
+        secrets_provider: Optional["SecretsProviderBase"] = None,
+    ) -> "Settings":
         """
         Load settings from environment variables
         
         Args:
             overrides: Optional dict to override specific settings (for testing)
+            secrets_provider: Optional SecretsProvider (D78-2)
+                            If None, uses environment variables (backward compatible)
         
         Returns:
             Settings instance
         """
+        # D78-2: Auto-select secrets provider if not provided
+        if secrets_provider is None:
+            # Default: EnvSecretsProvider (backward compatible)
+            from arbitrage.config.secrets_providers import EnvSecretsProvider
+            secrets_provider = EnvSecretsProvider()
+        
+        # Helper function to get value from provider or env
+        def get_value(key: str, default: Optional[str] = None) -> Optional[str]:
+            try:
+                return secrets_provider.get_secret(key, default=default)
+            except Exception:
+                # Fallback to environment variable
+                return os.getenv(key, default)
+        
         # Environment
-        env_str = os.getenv("ARBITRAGE_ENV", "local_dev").lower()
+        env_str = get_value("ARBITRAGE_ENV", "local_dev").lower()
         try:
             env = RuntimeEnv(env_str)
         except ValueError:
             print(f"Warning: Invalid ARBITRAGE_ENV '{env_str}', defaulting to local_dev")
             env = RuntimeEnv.LOCAL_DEV
         
-        # Upbit
-        upbit_access_key = os.getenv("UPBIT_ACCESS_KEY")
-        upbit_secret_key = os.getenv("UPBIT_SECRET_KEY")
+        # Upbit (use secrets provider)
+        upbit_access_key = get_value("UPBIT_ACCESS_KEY")
+        upbit_secret_key = get_value("UPBIT_SECRET_KEY")
         
-        # Binance
-        binance_api_key = os.getenv("BINANCE_API_KEY")
-        binance_api_secret = os.getenv("BINANCE_API_SECRET")
+        # Binance (use secrets provider)
+        binance_api_key = get_value("BINANCE_API_KEY")
+        binance_api_secret = get_value("BINANCE_API_SECRET")
         
-        # Telegram
-        telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        telegram_default_chat_id = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_DEFAULT_CHAT_ID")
+        # Telegram (use secrets provider)
+        telegram_bot_token = get_value("TELEGRAM_BOT_TOKEN")
+        telegram_default_chat_id = get_value("TELEGRAM_CHAT_ID") or get_value("TELEGRAM_DEFAULT_CHAT_ID")
         
-        # PostgreSQL
-        postgres_dsn = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_DSN")
+        # PostgreSQL (use secrets provider for password)
+        postgres_dsn = get_value("DATABASE_URL") or get_value("POSTGRES_DSN")
         postgres_host = os.getenv("POSTGRES_HOST", "localhost")
         postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))
         postgres_db = os.getenv("POSTGRES_DB", "arbitrage")
         postgres_user = os.getenv("POSTGRES_USER", "arbitrage")
-        postgres_password = os.getenv("POSTGRES_PASSWORD", "arbitrage")
+        postgres_password = get_value("POSTGRES_PASSWORD", "arbitrage")
         
         # Redis
         redis_url = os.getenv("REDIS_URL")
@@ -177,11 +203,11 @@ class Settings:
         redis_port = int(os.getenv("REDIS_PORT", "6379"))
         redis_db = int(os.getenv("REDIS_DB", "0"))
         
-        # Email (SMTP)
+        # Email (SMTP - use secrets provider for password)
         smtp_host = os.getenv("SMTP_HOST")
         smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_password = os.getenv("SMTP_PASSWORD")
+        smtp_user = get_value("SMTP_USER")
+        smtp_password = get_value("SMTP_PASSWORD")
         smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
         
         # Slack
@@ -223,6 +249,7 @@ class Settings:
             prometheus_port=prometheus_port,
             grafana_enabled=grafana_enabled,
             app_env=app_env,
+            secrets_provider=secrets_provider,  # D78-2
         )
         
         # Apply overrides (for testing)
