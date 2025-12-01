@@ -333,27 +333,43 @@ tests/
 
 ## Next Steps (D77+)
 
-D76-4 completes the **D76 Alerting Infrastructure** phase. Next priorities:
+**⚠️ IMPORTANT:** D76-4 완료 후 메타 분석 결과, 상용급(1조+) 기준 **Critical Gaps** 발견됨.  
+**현재 로드맵이 D_ROADMAP.md에서 재정렬되었습니다. 최신 우선순위는 아래 참조:**
 
-1. **D77: Multi-Exchange Architecture**
-   - ExchangeRegistry (Upbit, Binance, Bybit, OKX, Bitget, Bithumb, Coinone)
-   - Live WebSocket integration
-   - Real-time orderbook aggregation
+### 🔴 CRITICAL: D77-0 (TopN Arbitrage PAPER Baseline) - 필수 선행
 
-2. **D78: Cross-Exchange Trading**
-   - Multi-exchange position management
-   - Cross-exchange hedging engine
-   - Rebalancing automation
+D76-4 completes the **D76 Alerting Infrastructure** phase, **하지만 UI/UX 개발 전에 다음이 필수:**
 
-3. **D79: Performance Optimization**
-   - Loop latency: 62ms → 25ms target
-   - Throughput: 16 iter/s → 40 iter/s target
-   - CPU optimization
+**D77-0: TopN Arbitrage PAPER Baseline (CRITICAL)**
+- **목표:** Top50+ 심볼 대상 아비트라지 엔진 Full Cycle (Entry → Exit → PnL) PAPER 검증
+- **Why Critical:** 
+  - Q1~Q4 모두 NO → Critical Gap (docs/PHASE_STATUS_SNAPSHOT_D76.md, Section 7.5)
+  - D74 PAPER 테스트는 "Entry only, no Exit" (완전한 arbitrage cycle 미검증)
+  - D75 Infrastructure (ArbRoute, Universe, CrossSync, RiskGuard) 실제 시장 통합 테스트 없음
+  - Top50 scalability 미검증 (D74-4에서 명시적으로 "미수행")
+- **Done Criteria:** Top50 PAPER 1h+ 실행 → Entry/Exit/PnL 검증 → Core KPI 10종 수집 → 리포트 작성
+- **상세:** `D_ROADMAP.md` (Line 1588-1620)
 
-4. **D80: Production Hardening**
-   - Failover & resume
-   - Compliance & audit trail
-   - Prometheus + Grafana monitoring
+### 🟠 HIGH: D77 (Prometheus/Grafana Dashboard)
+
+D77-0 완료 후:
+- Prometheus exporter endpoint (/metrics)
+- Grafana 3개 대시보드 (System Health, Trading KPIs, Risk & Guard)
+- Alertmanager integration (D76 연동)
+- **Core KPI 10종 노출 (D99 Done Criteria 충족)**
+
+### 🟡 MEDIUM: D78+ (Multi-Exchange, Cross-Exchange, Performance)
+
+**Note:** 아래 우선순위는 D_ROADMAP.md의 최종 로드맵을 참조하세요.  
+D76 Report 작성 당시의 Next Steps(D77~D80)는 참고용이며, 현재 공식 로드맵은 D_ROADMAP.md입니다.
+
+**참고용 Next Steps (D76 Report 작성 당시):**
+1. ~~D77: Multi-Exchange Architecture~~ → **현재: D78로 재번호**
+2. ~~D78: Cross-Exchange Trading~~ → **현재: D79로 재번호**
+3. ~~D79: Performance Optimization~~ → **현재: D80으로 재번호**
+4. ~~D80: Production Hardening~~ → **현재: D81로 재번호**
+
+**최신 로드맵:** `D_ROADMAP.md` (Line 1588-1838) 참조
 
 ---
 

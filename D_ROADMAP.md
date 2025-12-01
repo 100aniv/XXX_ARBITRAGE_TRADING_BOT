@@ -1583,8 +1583,45 @@ DEV/TEST Environment:
 **Files Created:** 5 files (~1,900 lines)
 **Files Modified:** 4 files (+523 lines)
 
-**목표:**  
-실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.
+⸻
+
+## D77-0: TopN Arbitrage PAPER Baseline ⏳ TODO (CRITICAL)
+
+**Status:** ⏳ **TODO** (Critical Gap - UI/UX 개발 전 필수)
+
+**배경:**
+- D74~D76 Phase 완료 후 메타 분석 결과, **상용급(1조+) 기준 Critical Gaps** 발견
+- **근거 문서:** `docs/PHASE_STATUS_SNAPSHOT_D76.md` (Section 7.5 Critical Gaps Table)
+- **Q1~Q4 모두 NO** → 🔴 **CRITICAL GAP**
+
+**목표:**
+UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top50) 심볼**에 대해 **아비트라지 엔진 Full Cycle (Entry → Exit → PnL)**을 PAPER 모드로 최소 1h(이상적으로 12h) 실행하고, 그 결과를 리포트/정량 지표로 남긴다.
+
+**핵심 작업:**
+1. Universe Provider 구현/보완 (`arbitrage/domain/universe/topn_provider.py`)
+2. PAPER Runner/Script (`scripts/run_d77_0_topn_arbitrage_paper.py`)
+3. Exit Strategy 구현/강화 (TP/SL, Time-based, Spread reversal)
+4. D75 Infrastructure 통합 검증 (ArbRoute, Universe, CrossSync, RiskGuard, AlertManager)
+5. 테스트 (`tests/test_d77_0_topn_arbitrage_paper.py`)
+
+**Done Criteria (상용급 기준):**
+- [ ] Top50 전체 PAPER 엔진 정상 루프 수행
+- [ ] Entry → Exit → PnL Full Cycle 검증 (최소 10+ round trips)
+- [ ] Core KPI 10종 이상 수집
+- [ ] Alert/RiskGuard/RateLimiter/HealthMonitor 정상 동작
+- [ ] D75 Infrastructure 실제 시장 통합 검증
+- [ ] 결과 리포트: `docs/D77_0_TOPN_ARBITRAGE_PAPER_REPORT.md`
+- [ ] Full regression + 신규 테스트 PASS
+
+**설계 문서:**
+- `docs/D77_0_TOPN_ARBITRAGE_PAPER_DESIGN.md`
+- `docs/D77_0_TOPN_ARBITRAGE_PAPER_REPORT_TEMPLATE.md`
+
+⸻
+
+## D77: Prometheus/Grafana Dashboard ⏳ TODO
+
+**목표:** 실시간 모니터링 대시보드 구축. **D99 Done Criteria 충족 (Core KPI 10종 이상)**.
 
 ### D77-1: Prometheus Exporter Implementation
 
