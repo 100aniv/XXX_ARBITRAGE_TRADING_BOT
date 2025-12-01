@@ -510,12 +510,267 @@ D78-0은 arbitrage-lite 프로젝트의 **인증 및 비밀정보 관리를 중�
 ✅ **문서화**: 완전한 설계 문서 및 사용 가이드  
 
 **Next Steps:**
-- D78-1: Vault/KMS Integration (향후)
+- ✅ D78-1: Env Setup Wizard & Validator (COMPLETED)
+- D78-2: Vault/KMS Integration (향후)
 - D77-0-RM: Real Market Validation with D78 (권장)
 - Production deployment with `.env.live`
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-12-01  
-**Author:** D78-0 Implementation Team
+## 13. D78-1: Env Setup Wizard & Validator
+
+**Status:** ✅ COMPLETED  
+**Date:** 2025-12-01
+
+### 13.1 Overview
+
+D78-1은 **비기술 사용자도 쉽게 .env 파일을 생성/검증**할 수 있도록 하는 CLI 유틸리티를 제공합니다.
+
+**핵심 기능:**
+- ✅ 대화형 마법사 (`setup_env.py`)
+- ✅ 환경 검증기 (`validate_env.py`)
+- ✅ 비밀 값 마스킹 (보안)
+- ✅ 기존 값 보존
+- ✅ 백업 생성
+
+### 13.2 Setup Wizard (scripts/setup_env.py)
+
+#### Usage
+
+```bash
+# Local development 환경 설정
+python scripts/setup_env.py --env local_dev
+
+# Paper trading 환경 설정
+python scripts/setup_env.py --env paper
+
+# Live trading 환경 설정 (주의!)
+python scripts/setup_env.py --env live
+
+# Non-interactive 모드 (CI용)
+python scripts/setup_env.py --env paper --non-interactive
+```
+
+#### Features
+
+1. **대화형 프롬프트**
+   - 각 필드에 대한 설명 제공
+   - 기존 값이 있으면 마스킹하여 표시 (`****abcd`)
+   - 비밀 필드는 입력 시 숨김 처리
+
+2. **환경별 필수 필드 검증**
+   - `local_dev`: 대부분 optional
+   - `paper`: Exchange (Upbit or Binance), Telegram, PostgreSQL, Redis
+   - `live`: 위와 동일 + 추가 경고
+
+3. **기존 파일 처리**
+   - Keep: 기존 파일 유지
+   - Update: 업데이트
+   - Backup: 백업 생성 후 업데이트 (`.env.<env>.bak.YYYYMMDDHHMMSS`)
+
+4. **보안**
+   - 비밀 값은 출력하지 않음
+   - getpass 사용 (터미널에서 입력 시 숨김)
+   - 생성된 파일에 환경별 경고 포함
+
+#### Example Session
+
+```
+==================================================================
+[D78-1] Env Setup Wizard - PAPER
+==================================================================
+Target file: .env.paper
+
+⚠️  File already exists: .env.paper
+Choose: (K)eep existing, (U)pdate, (B)ackup+Update? [K/u/b]: b
+✅ Backup created: .env.paper.bak.20251201183000
+
+==================================================================
+🔧 Environment: PAPER
+==================================================================
+
+📝 Upbit Access Key
+   Upbit REST API access key (READ-ONLY 권장)
+   Current: ****cSEx - Keep? [Y/n]: y
+
+📝 Telegram Bot Token
+   Telegram bot token (from @BotFather)
+   Current: ****6SLM - Keep? [Y/n]: y
+
+...
+
+==================================================================
+✅ .env.paper saved successfully!
+==================================================================
+
+Next steps:
+  1. Review the file: .env.paper
+  2. Validate: python scripts/validate_env.py --env paper
+  3. Test: Set ARBITRAGE_ENV=paper and run your application
+```
+
+### 13.3 Env Validator (scripts/validate_env.py)
+
+#### Usage
+
+```bash
+# Validate paper environment
+python scripts/validate_env.py --env paper
+
+# Validate live environment with verbose output
+python scripts/validate_env.py --env live --verbose
+```
+
+#### Features
+
+1. **필수 필드 검증**
+   - 환경별 필수 credentials 확인
+   - Settings 모듈과 통합
+
+2. **의심스러운 설정 경고**
+   - Live 모드에서 `localhost` 사용
+   - Live 모드에서 테스트용 Telegram chat ID
+   - 기타 production readiness 검사
+
+3. **Exit Codes**
+   - `0`: OK (모든 필수 필드 존재)
+   - `1`: FAIL (필수 필드 누락)
+   - `2`: ERROR (내부 오류)
+
+4. **Verbose Mode**
+   - 설정 요약 출력
+   - 각 시스템별 configured 상태 표시
+   - 실제 비밀 값은 출력하지 않음
+
+#### Example Output
+
+```
+==================================================================
+[D78-1] Env Validation Results - PAPER
+==================================================================
+
+✅ Status: OK
+   All required credentials are present.
+
+🎉 Environment is properly configured!
+
+==================================================================
+```
+
+```
+==================================================================
+[D78-1] Env Validation Results - LIVE
+==================================================================
+
+⚠️  Status: WARN
+   Configuration loaded, but some issues detected.
+
+⚠️  Warnings:
+   - PostgreSQL host is 'localhost' in LIVE mode (should be production DB)
+   - Redis host is 'localhost' in LIVE mode (should be production Redis)
+
+💡 Recommendations:
+   - Review warnings carefully for production readiness
+   - Ensure all services use production endpoints (not localhost)
+   - Verify Telegram alerts go to the correct chat
+
+==================================================================
+```
+
+### 13.4 Tests (tests/test_d78_env_setup.py)
+
+**Test Coverage:**
+- ✅ `test_validate_env_local_dev_minimal`: Local dev 최소 구성 검증
+- ✅ `test_validate_env_paper_missing_required`: Paper 필수 필드 누락 감지
+- ✅ `test_validate_env_paper_complete`: Paper 완전 구성 검증
+- ✅ `test_validate_env_live_warns_localhost`: Live 모드 localhost 경고
+- ✅ `test_validate_env_live_warns_test_chat_id`: Live 모드 테스트 chat ID 경고
+- ✅ `test_validate_env_verbose`: Verbose 모드 출력 검증
+- ✅ `test_no_secret_values_in_validate_output`: 비밀 값 출력 방지 검증
+- ✅ `test_setup_env_non_interactive_preserves_existing`: Non-interactive 모드 기존 값 보존
+- ✅ `test_setup_env_file_structure`: 생성된 파일 구조 검증
+- ✅ `test_mask_secret`: 비밀 마스킹 유틸리티 검증
+- ✅ `test_validate_env_integrates_with_settings`: Settings 모듈 통합 검증
+
+### 13.5 Workflow Examples
+
+#### First-time Setup (New User)
+
+```bash
+# Step 1: Create .env.paper
+python scripts/setup_env.py --env paper
+
+# Step 2: Validate
+python scripts/validate_env.py --env paper
+
+# Step 3: Test
+export ARBITRAGE_ENV=paper
+python -m scripts.run_d77_0_topn_arbitrage_paper --universe top20 --duration-minutes 1
+```
+
+#### Updating Existing Config
+
+```bash
+# Update with backup
+python scripts/setup_env.py --env paper
+# Choose: (B)ackup+Update
+
+# Validate changes
+python scripts/validate_env.py --env paper --verbose
+```
+
+#### CI/CD Integration
+
+```bash
+# Non-interactive validation
+python scripts/validate_env.py --env paper
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "❌ Environment validation failed!"
+  exit 1
+fi
+```
+
+### 13.6 Security Best Practices
+
+1. **Never commit .env files**
+   - `.gitignore` includes `.env*` (except `.env*.example`)
+   - Use `.env*.example` as templates only
+
+2. **Use read-only API keys for paper mode**
+   - Upbit/Binance: Create separate API keys with read-only permissions
+   - Never use keys with trading/withdrawal permissions in paper mode
+
+3. **Rotate credentials regularly**
+   - Update API keys every 90 days
+   - Use different keys for dev/paper/live
+
+4. **Protect .env.live**
+   - Store in secure location (not in Git)
+   - Use file permissions: `chmod 600 .env.live`
+   - Consider using Vault/KMS (D78-2) for production
+
+### 13.7 Files
+
+**New Files (3):**
+- `scripts/setup_env.py` (~450 lines) - 대화형 마법사
+- `scripts/validate_env.py` (~250 lines) - 환경 검증기
+- `tests/test_d78_env_setup.py` (~320 lines) - 테스트 스위트
+
+**Total:** 3 files, ~1,020 lines
+
+### 13.8 Done Criteria
+
+- [x] ✅ `setup_env.py` 구현 (대화형 + non-interactive)
+- [x] ✅ `validate_env.py` 구현 (환경별 검증 + 경고)
+- [x] ✅ Tests 11/11 PASS
+- [x] ✅ Settings 모듈 통합
+- [x] ✅ 비밀 값 보호 (마스킹, getpass, 출력 방지)
+- [x] ✅ 문서화 (usage examples, workflows)
+
+---
+
+**Document Version:** 1.1  
+**Last Updated:** 2025-12-01 18:30  
+**Author:** D78 Implementation Team

@@ -1801,39 +1801,39 @@ python -m scripts.run_d77_0_topn_arbitrage_paper \
 - [x] ✅ 3 environments (local_dev, paper, live)
 - [x] ✅ .env templates (4 files)
 - [x] ✅ Tests 16/16 PASS
-- [x] ✅ 설계 문서 완성
-
 **Centralized Credentials:**
 Upbit, Binance, Telegram, PostgreSQL, Redis, Email, Slack
 
-**Next:** D78-1 (Vault/KMS) or D77-0-RM (Real Market)
+**Next:** ✅ D78-1 (Env Setup Wizard) or D77-0-RM (Real Market)
 
-⸻
+### D78-1: Env Setup Wizard & Validator ✅ COMPLETED (2025-12-01)
 
-### D75~D79: PERFORMANCE OPTIMIZATION PHASE (⏳ TODO)
-**Goal:** Latency < 10ms, 안정적인 Async 루프, 메모리 누수 0, 실시간 모니터링 인프라 구축
+**Status:** ✅ **COMPLETE**
 
-**Deliverables:**
--  ✅ Latency 최적화 플랜: profiler 기반 병목 정리, event-loop tuning
--  ✅ Async 개선: I/O bound task를 asyncio/uvloop 기반으로 재작성, backpressure 제어
--  ✅ Memory leak 방지: objgraph/psutil 기반 추적, 주기적 heap snapshot
--  ✅ Garbage/Memory Profiling 리포트 (before/after 비교)
--  ✅ WS 안정성 강화: reconnect jitter, heartbeat, packet loss simulation
--  ✅ Monitoring & Metrics: Prometheus exporter, Grafana 대시보드 초안, alert rule 초안
+**구현 완료:**
+- ✅ 대화형 환경 설정 마법사 (`scripts/setup_env.py`)
+- ✅ 환경 검증기 (`scripts/validate_env.py`)
+- ✅ 비밀 값 마스킹 및 보호
+- ✅ 기존 값 보존 및 백업
+- ✅ 환경별 필수 필드 검증
+- ✅ 의심스러운 설정 경고 (live 모드 localhost 등)
 
-**Done Criteria:**
-- 평균 루프 latency < 10ms / p99 < 25ms (5분 캠페인 기준)
-- CPU < 70%, RSS 안정화 (drift < 5%)
-- Async task backlog 0 (steady-state)
-- WS reconnect MTTR < 5s, packet drop 복구율 100%
-- Metrics endpoint + Dashboard + Alert rule 5종 이상 완료
+**구현 파일:**
+- `scripts/setup_env.py` (~450 lines)
+- `scripts/validate_env.py` (~250 lines)
+- `tests/test_d78_env_setup.py` (~320 lines, 11 tests)
+- `docs/D78_SECRETS_AND_ENVIRONMENT_DESIGN.md` (+255 lines)
 
-### D80~D89: MULTI-SYMBOL PHASE (⏳ TODO)
-**Goal:** 단일 심볼 구조를 멀티심볼(Top-20/50/100)로 확장, 심볼 독립 루프 + 통합 포트폴리오/리스크 체계 구축
+**Usage:'''
+```bash
+python scripts/setup_env.py --env paper
+python scripts/validate_env.py --env paper --verbose
+```
 
-**Deliverables:**
--  ✅ 심볼 독립 엔진 루프 (per-symbol coroutine, shared scheduler)
--  ✅ 포트폴리오/리스크/Guard 구조 초안 (symbol bucket, exposure cap, guard state)
+**Features:**
+- 대화형 프롬프트, 기존 값 마스킹, getpass 사용
+- 환경별 필수 필드 검증, 백업 생성
+- Exit codes: 0 (OK), 1 (FAIL), 2 (ERROR)
 -  ✅ Redis/DB Keyspace 멀티심볼 확장 (domain:symbol:* 패턴, TTL 검증)
 -  ✅ 멀티심볼 회귀 테스트 스위트 (Top-5 smoke, Top-20 soak, Top-50 endurance)
 -  ✅ Top-20 → Top-50 → Top-100 단계별 스케일 플랜 + 모니터링
