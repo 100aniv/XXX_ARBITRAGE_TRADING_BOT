@@ -30,6 +30,7 @@ from dataclasses import dataclass, asdict
 from .integration import CrossExchangeDecision, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager
 from .fx_converter import FXConverter
+from .risk_guard import CrossExchangeRiskGuard, CrossRiskDecision
 from arbitrage.exchanges.base import OrderSide, OrderType, OrderStatus, OrderResult
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ class CrossExchangeExecutor:
         fx_converter: FXConverter,
         health_monitor: Any,
         settings: Any,
-        risk_guard: Optional[Any] = None,
+        risk_guard: Optional[CrossExchangeRiskGuard] = None,
         alert_manager: Optional[Any] = None,
     ):
         """
@@ -132,7 +133,7 @@ class CrossExchangeExecutor:
             fx_converter: FXConverter
             health_monitor: HealthMonitor (D75-3)
             settings: Settings (D78)
-            risk_guard: RiskGuard (optional, D75-5)
+            risk_guard: CrossExchangeRiskGuard (optional, D79-5)
             alert_manager: AlertManager (optional, D76)
         """
         self.upbit_client = upbit_client
@@ -241,23 +242,32 @@ class CrossExchangeExecutor:
         실행 전 사전 체크
         
         Returns:
-            {"ok": bool, "reason": str}
+            {"ok": bool, "reason": str, "risk_decision": Optional[CrossRiskDecision]}
         """
         # 1. Health check
         if not self._check_health():
-            return {"ok": False, "reason": "Health degraded"}
+            return {"ok": False, "reason": "Health degraded", "risk_decision": None}
         
         # 2. Secrets check
         if not self._check_secrets():
-            return {"ok": False, "reason": "Secrets unavailable"}
+            return {"ok": False, "reason": "Secrets unavailable", "risk_decision": None}
         
-        # 3. RiskGuard check (optional)
+        # 3. CrossExchangeRiskGuard check (D79-5)
         if self.risk_guard:
-            # 미래 구현: risk_guard.check_cross_exchange_trade(decision)
-            # 현재는 placeholder
-            pass
+            risk_decision = self.risk_guard.check_cross_exchange_trade(decision)
+            
+            if not risk_decision.allowed:
+                logger.warning(
+                    f"[CROSS_EXECUTOR] Trade blocked by RiskGuard: "
+                    f"tier={risk_decision.tier}, reason={risk_decision.reason_code}"
+                )
+                return {
+                    "ok": False,
+                    "reason": f"RiskGuard: {risk_decision.tier}/{risk_decision.reason_code}",
+                    "risk_decision": risk_decision,
+                }
         
-        return {"ok": True, "reason": ""}
+        return {"ok": True, "reason": "", "risk_decision": None}
     
     def _check_health(self) -> bool:
         """Exchange health 확인"""

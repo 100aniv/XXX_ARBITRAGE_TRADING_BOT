@@ -18,6 +18,13 @@ from .executor import (
     CrossExecutionResult,
     CrossExchangeOrchestrator,
 )
+from .risk_guard import (
+    CrossExchangeRiskGuard,
+    CrossRiskDecision,
+    CrossRiskReasonCode,
+    CrossExchangeRiskGuardConfig,
+    CrossExchangePnLTracker,
+)
 
 __all__ = [
     "SymbolMapper",
@@ -39,4 +46,9 @@ __all__ = [
     "LegExecutionResult",
     "CrossExecutionResult",
     "CrossExchangeOrchestrator",
+    "CrossExchangeRiskGuard",
+    "CrossRiskDecision",
+    "CrossRiskReasonCode",
+    "CrossExchangeRiskGuardConfig",
+    "CrossExchangePnLTracker",
 ]
