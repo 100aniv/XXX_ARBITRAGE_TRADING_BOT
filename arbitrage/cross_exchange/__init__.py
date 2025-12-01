@@ -11,6 +11,7 @@ from .spread_model import SpreadModel, CrossSpread
 from .universe_provider import CrossExchangeUniverseProvider
 from .strategy import CrossExchangeStrategy, CrossExchangeSignal, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager, CrossExchangePosition, PositionState
+from .integration import CrossExchangeIntegration, CrossExchangeDecision
 
 __all__ = [
     "SymbolMapper",
@@ -26,4 +27,6 @@ __all__ = [
     "CrossExchangePositionManager",
     "CrossExchangePosition",
     "PositionState",
+    "CrossExchangeIntegration",
+    "CrossExchangeDecision",
 ]
