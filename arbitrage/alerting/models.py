@@ -24,6 +24,10 @@ class AlertSource(Enum):
     CROSS_SYNC = "CROSS_SYNC"
     RISK_GUARD = "RISK_GUARD"
     SYSTEM = "SYSTEM"
+    # D80-7: Cross-Exchange Arbitrage specific sources
+    FX_LAYER = "FX_LAYER"
+    EXECUTOR = "EXECUTOR"
+    WS_CLIENT = "WS_CLIENT"
 
 
 @dataclass
