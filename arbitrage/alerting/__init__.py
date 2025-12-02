@@ -1,5 +1,5 @@
 """
-D76: Alerting Infrastructure + D80-7: Cross-Exchange Alert Layer
+D76: Alerting Infrastructure + D80-7: Cross-Exchange Alert Layer + D80-11: Fail-Safe Architecture
 
 Alert severity classification:
 - P0 (Critical): Service down, global risk limit breached
@@ -16,6 +16,12 @@ Event sources:
 - FX_LAYER (D80-7)
 - EXECUTOR (D80-7)
 - WS_CLIENT (D80-7)
+
+D80-11 Features:
+- Persistent alert queue (Redis-based, crash-safe)
+- Fail-safe notifier wrappers (timeout, circuit breaker, fallback)
+- Async dispatcher (worker thread, retry, DLQ)
+- Prometheus metrics (delivery rate, latency, availability)
 """
 
 from .models import AlertSeverity, AlertSource, AlertRecord
@@ -66,6 +72,25 @@ from .helpers import (
     emit_ws_reconnect_failed_alert,
 )
 
+# D80-11: Fail-Safe Architecture
+from .queue_backend import PersistentAlertQueue
+from .failsafe_notifier import (
+    FailSafeNotifier,
+    NotifierFallbackChain,
+    LocalLogNotifier,
+    NotifierStatus,
+)
+from .dispatcher import (
+    AlertDispatcher,
+    get_global_alert_dispatcher,
+    reset_global_alert_dispatcher,
+)
+from .metrics_exporter import (
+    AlertMetrics,
+    get_global_alert_metrics,
+    reset_global_alert_metrics,
+)
+
 __all__ = [
     # D76
     "AlertSeverity",
@@ -108,4 +133,16 @@ __all__ = [
     "emit_risk_limit_alert",
     "emit_ws_staleness_alert",
     "emit_ws_reconnect_failed_alert",
+    # D80-11
+    "PersistentAlertQueue",
+    "FailSafeNotifier",
+    "NotifierFallbackChain",
+    "LocalLogNotifier",
+    "NotifierStatus",
+    "AlertDispatcher",
+    "get_global_alert_dispatcher",
+    "reset_global_alert_dispatcher",
+    "AlertMetrics",
+    "get_global_alert_metrics",
+    "reset_global_alert_metrics",
 ]

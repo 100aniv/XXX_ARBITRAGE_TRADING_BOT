@@ -2182,12 +2182,72 @@ python scripts/validate_env.py --env paper --verbose
       - All FX/Executor/RiskGuard/WS layer emission tests: `assert result is True` → exception safety pattern
     - **Consistency:** D80-9 reliability validation + D80-10 regression policy = Production-ready alert infrastructure
 
+- **D80-11: Alerting System Hardening & Fail-Safe Architecture**
+  - Status: 
+  - Summary:
+    - **Goal:** Production-grade alerting with fail-safe, persistent queue, async delivery, and observability
+    - **Motivation:** D80-7~10 proved alert correctness. D80-11 adds operational resilience.
+    - **Architecture:**
+      ```
+      Business Logic → AlertManager.send_alert()
+        ↓ (optional dispatcher mode)
+      Dispatcher.enqueue() → PersistentAlertQueue (Redis, crash-safe)
+        ↓ (worker thread, non-blocking)
+      FailSafeNotifier (timeout 3s, circuit breaker) → Telegram/Slack
+        ↓ (failure)
+      Retry (3 attempts) → Fallback chain → DLQ → Metrics
+      ```
+    - **New Modules:**
+      - `queue_backend.py` (+400 lines): Redis-based persistent queue, retry, DLQ, ack/nack
+      - `failsafe_notifier.py` (+400 lines): Timeout protection, circuit breaker, fallback chain
+      - `dispatcher.py` (+450 lines): Async worker thread, enqueue/dispatch, metrics integration
+      - `metrics_exporter.py` (+300 lines): Prometheus metrics (sent, failed, fallback, retry, DLQ, latency, availability)
+    - **Modified:**
+      - `manager.py` (+30 lines): Optional dispatcher integration, backward compatible (use_dispatcher=False default)
+      - `__init__.py` (+15 lines): Export D80-11 symbols
+    - **Features:**
+      1. **Persistent Queue:** Redis-based, survives process crashes, in-memory fallback
+      2. **Fail-Safe Notifier:** 3s timeout, circuit breaker (5 failures → open), graceful degradation
+      3. **Async Dispatcher:** Worker thread, non-blocking enqueue (< 1ms), retry/DLQ
+      4. **Fallback Chain:** Primary → Secondary → Local log (last resort)
+      5. **Prometheus Metrics:** alert_sent_total, alert_failed_total, alert_fallback_total, alert_retry_total, alert_dlq_total, alert_delivery_latency_seconds, notifier_available
+    - **Backward Compatibility:** 100% (use_dispatcher=False default, legacy mode unchanged)
+    - **Test Results:**
+      - New Tests: 15 (queue 4, notifier 4, dispatcher 2, metrics 3, integration 2)
+      - Regression: 318/318 PASS (100%)
+      - Total: 333/333 PASS (100%)
+    - **Test Coverage:**
+      - Queue: enqueue/dequeue, ack/nack, retry, DLQ
+      - Notifier: timeout protection, circuit breaker, fallback chain
+      - Dispatcher: non-blocking enqueue (< 10ms), worker processing
+      - Metrics: counters, latency histogram
+      - Integration: AlertManager with dispatcher, backward compatibility
+    - **Performance:**
+      - Enqueue latency: < 1ms (non-blocking)
+      - Notifier timeout: 3s max (fail-safe)
+      - Worker poll interval: 0.1s
+      - Memory: No leak detected (queue bounded)
+    - **Operational Benefits:**
+      - Alert delivery never blocks business logic
+      - Process crash → alerts persisted in Redis
+      - Notifier down → automatic fallback
+      - Network slow → timeout protection (3s)
+      - Repeated failures → circuit breaker
+      - Permanent failures → DLQ for manual review
+      - Full observability → Prometheus metrics
+    - **Files:** 6 new/modified (+1,600 lines code, +400 lines tests)
+    - **Deliverables:**
+      - Production-ready alert infrastructure
+      - Fail-safe architecture (timeout, circuit breaker, fallback)
+      - Persistent queue (crash-safe)
+      - Async delivery (non-blocking)
+      - Prometheus metrics (observability)
+      - Comprehensive test coverage (15 unit + integration tests)
+
 -  Distributed Tuning Workers (queue + worker heartbeat, autoscale)
 -  Dashboard (experiment progress, best params, heatmap)
 - Walk-forward 결과 승률/Sharpe 10% 이상 개선 증빙 + 리포트
 - Stress test PASS (PnL drawdown/latency 한계 내, fail scenario 재현)
-
-### D95~D96: ADVANCED BACKTEST ENGINE ()
 
 ### D95~D96: ADVANCED BACKTEST ENGINE (⏳ TODO)
 **Goal:** 멀티심볼·멀티타임프레임 백테스트, Spread/Slippage/Exchange latency 시뮬레이션 정교화

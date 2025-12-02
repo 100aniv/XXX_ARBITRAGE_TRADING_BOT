@@ -19,6 +19,7 @@ class AlertManager:
     - Rate limiting per (severity, source) combination
     - In-memory alert history
     - Thread-safe operations
+    - (D80-11) Optional dispatcher integration for fail-safe async delivery
     """
     
     def __init__(
@@ -26,6 +27,8 @@ class AlertManager:
         rate_limit_window_seconds: int = 60,
         rate_limit_per_window: Dict[AlertSeverity, int] = None,
         rule_engine: Optional[RuleEngine] = None,
+        use_dispatcher: bool = False,
+        dispatcher: Optional[Any] = None,
     ):
         """
         Initialize AlertManager
@@ -34,6 +37,8 @@ class AlertManager:
             rate_limit_window_seconds: Rate limit window duration
             rate_limit_per_window: Max alerts per window for each severity
             rule_engine: Rule engine for channel routing (creates default if None)
+            use_dispatcher: (D80-11) If True, use dispatcher for async delivery (default: False for backward compat)
+            dispatcher: (D80-11) Dispatcher instance (creates default if None and use_dispatcher=True)
         """
         self.rate_limit_window_seconds = rate_limit_window_seconds
         self.rate_limit_per_window = rate_limit_per_window or {
@@ -45,6 +50,17 @@ class AlertManager:
         
         # Rule engine for channel routing
         self.rule_engine = rule_engine or RuleEngine()
+        
+        # (D80-11) Dispatcher integration (backward compatible)
+        self.use_dispatcher = use_dispatcher
+        self._dispatcher: Optional[Any] = None
+        if use_dispatcher:
+            if dispatcher:
+                self._dispatcher = dispatcher
+            else:
+                # Auto-create dispatcher
+                from .dispatcher import AlertDispatcher
+                self._dispatcher = AlertDispatcher(rule_engine=self.rule_engine)
         
         # Alert history (in-memory)
         self._alert_history: List[AlertRecord] = []
@@ -87,6 +103,9 @@ class AlertManager:
         """
         Send alert with rate limiting and rule-based channel routing
         
+        (D80-11) If use_dispatcher=True, alert is enqueued for async delivery.
+        Otherwise, uses legacy synchronous delivery (backward compatible).
+        
         Args:
             severity: Alert severity
             source: Alert source
@@ -96,7 +115,7 @@ class AlertManager:
             rule_id: Optional rule ID for specific rule routing
         
         Returns:
-            True if alert was sent, False if rate limited
+            True if alert was sent/enqueued, False if rate limited
         """
         with self._lock:
             # Check rate limit
@@ -119,6 +138,11 @@ class AlertManager:
             key = (severity, source)
             self._rate_limit_tracker[key].append(time.time())
             
+            # (D80-11) Dispatcher mode: enqueue for async delivery
+            if self.use_dispatcher and self._dispatcher:
+                return self._dispatcher.enqueue(alert, rule_id=rule_id)
+            
+            # Legacy mode: synchronous delivery
             # Get dispatch plan from rule engine
             dispatch_plan = self.rule_engine.evaluate_alert(alert, rule_id)
             
