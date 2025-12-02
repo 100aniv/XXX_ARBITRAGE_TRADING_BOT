@@ -1669,32 +1669,24 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 ### D77-1: Prometheus Exporter Implementation ✅ COMPLETED (2025-12-01)
 
 **Status:** ✅ **COMPLETE**
-
-**구현 완료:**
-- ✅ Prometheus exporter endpoint (`/metrics` on port 9100)
-- ✅ Core metrics 11개 노출
-  - Trading: `arb_topn_trades_total`, `arb_topn_pnl_total`, `arb_topn_win_rate`, `arb_topn_round_trips_total`
-  - Performance: `arb_topn_loop_latency_seconds` (Summary)
-  - System: `arb_topn_cpu_usage_percent`, `arb_topn_memory_usage_bytes`
-  - Risk: `arb_topn_guard_triggers_total`, `arb_topn_active_positions`
-  - Exit: `arb_topn_exit_reasons_total`, `arb_topn_alerts_total`
-- ✅ prometheus_client v0.23.1 통합
-- ✅ Label schema: `env`, `universe`, `strategy`
-
-**구현 파일:**
-- `arbitrage/monitoring/metrics.py` (370 lines)
-- `tests/test_d77_1_metrics.py` (15 tests, ALL PASS)
 - `monitoring/prometheus/prometheus.yml.sample`
-- `scripts/run_d77_0_topn_arbitrage_paper.py` (metrics hooks)
 
 **테스트 결과:**
-- ✅ Unit Tests: 15/15 PASS (0.18s)
-- ✅ Integration: 1분 Mock PAPER (27 round trips)
+- ✅ CrossExchange Tests: 15/15 PASS
+- ✅ Integration Tests: 11/11 PASS
+- ✅ Regression: 378/378 PASS (100%)
+- ✅ Total: 404/404 PASS (100%)
 - ✅ /metrics endpoint 정상 동작
 
 **Done Criteria:**
 - [x] ✅ /metrics endpoint 정상 동작
 - [x] ✅ 11 metrics 노출
+- [x] ✅ Alert Metrics 통합
+- [x] ✅ Unified /metrics endpoint
+- [x] ✅ Test coverage (26 tests)
+- [x] ✅ Thread-safe operations
+- [x] ✅ Label-based filtering
+- [x] ✅ Custom registry support
 - [x] ✅ TopN PAPER 통합
 - [x] ✅ Unit Tests PASS
 - [x] ✅ 설계 문서 완성
@@ -2329,6 +2321,17 @@ python scripts/validate_env.py --env paper --verbose
       - Fault injection framework (test-only)
       - Comprehensive chaos test coverage (17 tests)
       - Operational resilience proof (350/350 tests PASS)
+
+- **D80-13: Alert Routing Rules Implementation**
+  - Status: 
+  - Summary:
+    - Rule-based routing with priority (P1/P2/P3), multi-destination, aggregation, escalation
+    - New: routing.py (+480), alert_routing.yml, test (+550, 28 tests)
+    - Modified: dispatcher.py (+50), __init__.py (+20)
+    - Features: Priority routing, multi-dest (telegram/slack/email/log), 5-min aggregation, escalation tracking, YAML config
+    - Backward compatible: enable_routing=False default
+    - Tests: 378/378 PASS (350 regression + 28 new)
+    - Files: 4 new/modified (+1,100 code, +550 tests)
 
 ### D94: Distributed Tuning Workers & Dashboard (⏳ TODO)
 - Distributed Tuning Workers (queue + worker heartbeat, autoscale)

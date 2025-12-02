@@ -29,15 +29,17 @@ class AlertMetrics:
     Compatible with Prometheus, but also works standalone.
     """
     
-    def __init__(self, enable_prometheus: bool = False):
+    def __init__(self, enable_prometheus: bool = False, registry=None):
         """
         Initialize metrics collector
         
         Args:
             enable_prometheus: If True, use prometheus_client library
+            registry: Prometheus CollectorRegistry (None = default REGISTRY)
         """
         # Store flag
         self._enable_prometheus = enable_prometheus
+        self._registry = registry
         
         # In-memory metrics (always available)
         self._counters: Dict[str, int] = defaultdict(int)
@@ -66,6 +68,7 @@ class AlertMetrics:
                 "alert_sent_total",
                 "Total alerts sent",
                 labelnames=["rule_id", "notifier"],
+                registry=self._registry,
             )
             
             # alert_failed_total
@@ -73,6 +76,7 @@ class AlertMetrics:
                 "alert_failed_total",
                 "Total alerts failed",
                 labelnames=["rule_id", "notifier", "reason"],
+                registry=self._registry,
             )
             
             # alert_fallback_total
@@ -80,6 +84,7 @@ class AlertMetrics:
                 "alert_fallback_total",
                 "Total alerts sent via fallback",
                 labelnames=["from_notifier", "to_notifier"],
+                registry=self._registry,
             )
             
             # alert_retry_total
@@ -87,6 +92,7 @@ class AlertMetrics:
                 "alert_retry_total",
                 "Total alerts retried",
                 labelnames=["rule_id"],
+                registry=self._registry,
             )
             
             # alert_dlq_total
@@ -94,6 +100,7 @@ class AlertMetrics:
                 "alert_dlq_total",
                 "Total alerts moved to DLQ",
                 labelnames=["rule_id", "reason"],
+                registry=self._registry,
             )
             
             # alert_delivery_latency_seconds
@@ -102,6 +109,7 @@ class AlertMetrics:
                 "Alert delivery latency in seconds",
                 labelnames=["notifier"],
                 buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 3.0, 5.0, 10.0),
+                registry=self._registry,
             )
             
             # notifier_available
@@ -109,6 +117,7 @@ class AlertMetrics:
                 "notifier_available",
                 "Notifier availability status (1=available, 0.5=degraded, 0=unavailable)",
                 labelnames=["notifier", "status"],
+                registry=self._registry,
             )
             
             logger.info("Prometheus metrics initialized")
