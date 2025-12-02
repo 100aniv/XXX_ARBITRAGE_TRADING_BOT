@@ -1724,13 +1724,8 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 - 회귀 테스트 안정화 (109/109)
 - Grafana Import 가능한 JSON 형식
 
-**Next:** D77-3 (Alertmanager Integration) or D79 (Cross-Exchange)
+**Next:** D77-3 (Monitoring Runbook & Alerting Playbook)
 
-### D77-4: D99 Done Criteria 검증 
-
-**작업:**
-- **D99 Done Criteria 명시적 연결**
-  - "모니터링 대시보드에서 Core KPI 10종 이상 노출 + Alert"
 - Core KPI 10종 확인 및 문서화
 - Dashboard 최종 검증 및 운영팀 인수
 
