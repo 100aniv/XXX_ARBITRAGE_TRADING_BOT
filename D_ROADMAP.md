@@ -2012,13 +2012,24 @@ python scripts/validate_env.py --env paper --verbose
     - Files: 6개 신규/수정 (+928 lines)
     - Note: Institutional-grade FX infrastructure (1조급 시스템 품질)
 
+- **D80-6: Multi-Source FX Monitoring & Grafana Dashboard**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - **Prometheus Integration:** PrometheusClientBackend (prometheus_client 기반), PrometheusExporter (HTTP /metrics endpoint)
+    - **Monitoring Stack:** Prometheus + Grafana docker-compose (자동 provisioning)
+    - **FX Dashboard:** 6개 패널 (Valid Sources, Median Rate, Outliers, Connection Status, Source Rates, Staleness)
+    - **Demo Script:** run_fx_monitoring_demo.py (MultiSource + Metrics 실시간 기록)
+    - **End-to-end Observability:** FX WebSocket → Metrics → Prometheus → Grafana Dashboard
+    - **Operational Guide:** Normal patterns, Anomaly detection, Daily/Weekly checklist
+    - **Prometheus Metrics:** 12개 (source_count, outlier_total, median, {source}_connected/rate/age)
+    - **Deployment:** http://localhost:9100/metrics → http://localhost:9090 → http://localhost:3000
+    - **Grafana Credentials:** admin/admin (첫 로그인 후 변경 권장)
+    - Files: 8개 신규 + 1개 수정 (+1,084 lines)
+    - Note: Institutional-grade Monitoring (from WebSocket to Dashboard)
+
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 
-
-**Deliverables:**
--  ✅ tuning_results DB 스키마 (결과/메타/seed 저장, 시각화 뷰)
--  ✅ Grid/Random/Bayesian orchestration 엔진 (플러그형 전략)
 -  ✅ Walk-forward optimization 파이프라인 (train/validate rolling, drift 감지)
 -  ✅ Stress test suite (Slippage shock, Flash dump, Liquidity vacuum, Latency spikes)
 -  ✅ Distributed Tuning Workers (queue + worker heartbeat, autoscale)

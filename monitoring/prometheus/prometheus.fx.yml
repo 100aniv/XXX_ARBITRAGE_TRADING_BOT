@@ -1,0 +1,49 @@
+# Prometheus Configuration for FX Multi-Source Monitoring (D80-6)
+
+global:
+  scrape_interval: 5s      # 5초마다 스크래핑
+  evaluation_interval: 5s  # Rule 평가 주기
+  
+  # 외부 Label (Grafana 연동 시 유용)
+  external_labels:
+    environment: 'dev'
+    cluster: 'arbitrage-lite'
+    project: 'd80-fx-monitoring'
+
+scrape_configs:
+  # Job 1: FX Multi-Source Provider
+  - job_name: 'arbitrage_fx'
+    static_configs:
+      # Windows: host.docker.internal 사용 (Docker Desktop)
+      # Linux: 172.17.0.1 또는 bridge network IP
+      - targets: ['host.docker.internal:9100']
+        labels:
+          service: 'fx_multi_source'
+          version: 'd80-6'
+    
+    # 타임아웃 설정
+    scrape_timeout: 3s
+  
+  # Job 2: Redis Exporter (기존 인프라)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+  
+  # Job 3: Postgres Exporter (기존 인프라)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+
+# 향후 확장: Recording Rules (집계 메트릭)
+# rule_files:
+#   - "rules/fx_recording_rules.yml"
+
+# 향후 확장: AlertManager 연동
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']

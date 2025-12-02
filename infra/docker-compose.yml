@@ -417,7 +417,8 @@ services:
       - "9090:9090"
     
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      # D80-6: FX Multi-Source Prometheus 설정
+      - ../monitoring/prometheus/prometheus.fx.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     
     networks:
@@ -443,9 +444,14 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_INSTALL_PLUGINS: grafana-piechart-panel
+      # D80-6: Provisioning 활성화
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
     
     volumes:
       - grafana_data:/var/lib/grafana
+      # D80-6: Dashboard & Datasource Provisioning
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     
     depends_on:
       prometheus:

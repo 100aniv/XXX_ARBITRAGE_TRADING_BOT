@@ -1,0 +1,14 @@
+# Grafana Dashboard Provisioning (D80-6)
+
+apiVersion: 1
+
+providers:
+  - name: 'FX Multi-Source'
+    orgId: 1
+    folder: 'D80 FX Monitoring'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
