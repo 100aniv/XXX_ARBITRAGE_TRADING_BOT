@@ -497,6 +497,20 @@ class CrossExchangeRiskGuard:
                     f"[CROSS_RISK_GUARD] Exposure limit exceeded: "
                     f"{exposure_risk:.2%} > {self.config.max_cross_exposure:.2%}"
                 )
+                
+                # D80-8: RG-002 Alert (Exposure limit)
+                try:
+                    from arbitrage.alerting import emit_risk_limit_alert
+                    emit_risk_limit_alert(
+                        limit_type="exposure",
+                        current_value=f"{exposure_risk:.1%}",
+                        limit_value=f"{self.config.max_cross_exposure:.1%}",
+                        action="BLOCK",
+                        symbol=f"{decision.symbol_upbit}/{decision.symbol_binance}",
+                    )
+                except Exception as e:
+                    logger.debug(f"[CROSS_RISK_GUARD] Alert emission failed: {e}")
+                
                 return CrossRiskDecision(
                     allowed=False,
                     tier="cross_exchange",

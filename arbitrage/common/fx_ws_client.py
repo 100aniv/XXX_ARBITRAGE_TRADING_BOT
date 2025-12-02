@@ -144,6 +144,20 @@ class BinanceFxWebSocketClient:
         """
         last_message_age = time.time() - self._last_message_time if self._last_message_time > 0 else 0.0
         
+        # D80-8: WS-001 Alert (Staleness)
+        if last_message_age > 60.0 and self._connected:
+            try:
+                from arbitrage.alerting import emit_ws_staleness_alert
+                import datetime
+                emit_ws_staleness_alert(
+                    source="binance",
+                    stream=f"markPrice@{self.symbol}",
+                    age_seconds=int(last_message_age),
+                    last_message_time=datetime.datetime.fromtimestamp(self._last_message_time).strftime("%Y-%m-%d %H:%M:%S"),
+                )
+            except Exception as e:
+                logger.debug(f"[FX_WS] Alert emission failed: {e}")
+        
         return {
             "connected": self._connected,
             "reconnect_count": self._reconnect_count,
@@ -173,6 +187,20 @@ class BinanceFxWebSocketClient:
                         f"[FX_WS] Max reconnect attempts ({self.MAX_RECONNECT_ATTEMPTS}) "
                         "exceeded, stopping WebSocket client"
                     )
+                    
+                    # D80-8: WS-002 Alert (Reconnect failed)
+                    try:
+                        from arbitrage.alerting import emit_ws_reconnect_failed_alert
+                        emit_ws_reconnect_failed_alert(
+                            source="binance",
+                            stream=f"markPrice@{self.symbol}",
+                            attempts=self._reconnect_count,
+                            max_attempts=self.MAX_RECONNECT_ATTEMPTS,
+                            error_message=str(e),
+                        )
+                    except Exception as alert_err:
+                        logger.debug(f"[FX_WS] Alert emission failed: {alert_err}")
+                    
                     break
                 
                 # Exponential backoff

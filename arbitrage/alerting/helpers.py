@@ -65,28 +65,17 @@ def emit_rule_based_alert(
         context: Template formatting context (kwargs for format_alert)
         manager: AlertManager instance (uses global if None)
         throttler: AlertThrottler instance (uses global if None)
-        enabled: Enable alert emission (for testing/config)
     
     Returns:
-        True if alert was sent, False if throttled/disabled/error
-    
-    Example:
-        >>> emit_rule_based_alert(
-        ...     "FX-001",
-        ...     context={
-        ...         "source": "binance",
-        ...         "duration_seconds": 35,
-        ...         "pair": "USDT/USD",
-        ...         "last_update": "2025-01-01 00:00:00",
-        ...     }
-        ... )
+        True if alert was sent
     """
-    # Check if enabled
+    # Check explicit enabled flag
     if not enabled:
         return False
     
-    # Check config
+    # Get config
     config = get_alert_config()
+    
     if not config.enabled:
         return False
     
@@ -184,9 +173,11 @@ def emit_fx_source_down_alert(
         "pair": pair,
         "last_update": last_update or "N/A",
     }
+    # Extract enabled flag
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("FX-001", context)
+    return emit_rule_based_alert("FX-001", context, enabled=enabled)
 
 
 def emit_fx_all_sources_down_alert(
@@ -212,9 +203,10 @@ def emit_fx_all_sources_down_alert(
         "down_sources": down_sources,
         "duration_seconds": duration_seconds,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("FX-002", context)
+    return emit_rule_based_alert("FX-002", context, enabled=enabled)
 
 
 def emit_fx_median_deviation_alert(
@@ -249,9 +241,10 @@ def emit_fx_median_deviation_alert(
         "deviation_percent": deviation_percent,
         "outliers": outliers,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("FX-003", context)
+    return emit_rule_based_alert("FX-003", context, enabled=enabled)
 
 
 def emit_fx_staleness_alert(
@@ -280,9 +273,10 @@ def emit_fx_staleness_alert(
         "age_seconds": age_seconds,
         "last_rate": last_rate,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("FX-004", context)
+    return emit_rule_based_alert("FX-004", context, enabled=enabled)
 
 
 def emit_executor_order_error_alert(
@@ -314,9 +308,10 @@ def emit_executor_order_error_alert(
         "error_message": error_message,
         "action": action,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("EX-001", context)
+    return emit_rule_based_alert("EX-001", context, enabled=enabled)
 
 
 def emit_executor_rollback_alert(
@@ -348,9 +343,10 @@ def emit_executor_rollback_alert(
         "requested_qty": requested_qty,
         "status": status,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("EX-002", context)
+    return emit_rule_based_alert("EX-002", context, enabled=enabled)
 
 
 def emit_circuit_breaker_alert(
@@ -379,9 +375,10 @@ def emit_circuit_breaker_alert(
         "current_value": current_value,
         "cooldown_seconds": cooldown_seconds,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("RG-001", context)
+    return emit_rule_based_alert("RG-001", context, enabled=enabled)
 
 
 def emit_risk_limit_alert(
@@ -410,9 +407,10 @@ def emit_risk_limit_alert(
         "limit_value": limit_value,
         "action": action,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("RG-002", context)
+    return emit_rule_based_alert("RG-002", context, enabled=enabled)
 
 
 def emit_ws_staleness_alert(
@@ -441,9 +439,10 @@ def emit_ws_staleness_alert(
         "age_seconds": age_seconds,
         "last_message_time": last_message_time,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("WS-001", context)
+    return emit_rule_based_alert("WS-001", context, enabled=enabled)
 
 
 def emit_ws_reconnect_failed_alert(
@@ -478,6 +477,7 @@ def emit_ws_reconnect_failed_alert(
         "error_message": error_message,
         "action": action,
     }
+    enabled = kwargs.pop("enabled", True)
     context.update(kwargs)
     
-    return emit_rule_based_alert("WS-002", context)
+    return emit_rule_based_alert("WS-002", context, enabled=enabled)

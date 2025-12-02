@@ -1233,6 +1233,23 @@ class MultiSourceFxRateProvider:
             f"[MULTI_SOURCE_FX] Source update: {source}={rate}, ts={timestamp}"
         )
         
+        # D80-8: FX-001 Alert (Source down check)
+        # Check other sources for staleness (>60s)
+        try:
+            now = time.time()
+            for check_source, check_ts in self._source_timestamps.items():
+                if check_source == source:
+                    continue  # Skip current source
+                age = now - check_ts if check_ts > 0 else float('inf')
+                if age > 60.0 and self._source_rates[check_source] is None:
+                    from arbitrage.alerting import emit_fx_source_down_alert
+                    emit_fx_source_down_alert(
+                        source=check_source,
+                        duration_seconds=int(age),
+                    )
+        except Exception as e:
+            logger.debug(f"[MULTI_SOURCE_FX] Alert emission failed: {e}")
+        
         # Aggregate and update cache
         self._aggregate_and_update_cache()
     
@@ -1255,6 +1272,18 @@ class MultiSourceFxRateProvider:
         if len(valid_rates) == 0:
             # No valid sources, fallback to HTTP
             logger.debug("[MULTI_SOURCE_FX] No valid sources, skipping aggregation")
+            
+            # D80-8: FX-002 Alert (All sources down)
+            try:
+                from arbitrage.alerting import emit_fx_all_sources_down_alert
+                emit_fx_all_sources_down_alert(
+                    pair="USDT/USD",
+                    down_sources=",".join(list(self._source_rates.keys())),
+                    duration_seconds=int(time.time() - min(self._source_timestamps.values())) if self._source_timestamps else 0,
+                )
+            except Exception as e:
+                logger.debug(f"[MULTI_SOURCE_FX] Alert emission failed: {e}")
+            
             return
         
         # 2. Outlier detection & removal
@@ -1310,10 +1339,32 @@ class MultiSourceFxRateProvider:
             return rates
         
         if len(filtered) < len(rates):
+            outliers_removed = len(rates) - len(filtered)
+            deviation_pct = float(max(
+                abs(r - median) / median for r in rates if r not in filtered
+            )) if len(filtered) > 0 else 0.0
+            
             logger.warning(
                 f"[MULTI_SOURCE_FX] Removed outliers: "
                 f"original={rates}, filtered={filtered}, median={median}"
             )
+            
+            # D80-8: FX-003 Alert (Median deviation)
+            try:
+                from arbitrage.alerting import emit_fx_median_deviation_alert
+                threshold_pct = float(self.OUTLIER_THRESHOLD_PCT) * 100
+                expected_min = float(median * (Decimal("1.0") - self.OUTLIER_THRESHOLD_PCT))
+                expected_max = float(median * (Decimal("1.0") + self.OUTLIER_THRESHOLD_PCT))
+                emit_fx_median_deviation_alert(
+                    pair="USDT/USD",
+                    median_rate=float(median),
+                    expected_min=expected_min,
+                    expected_max=expected_max,
+                    deviation_percent=deviation_pct * 100,
+                    outliers=str(outliers_removed),
+                )
+            except Exception as e:
+                logger.debug(f"[MULTI_SOURCE_FX] Alert emission failed: {e}")
         
         return filtered
     

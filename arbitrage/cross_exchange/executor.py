@@ -705,6 +705,19 @@ class CrossExchangeExecutor:
             )
         else:
             # No exposure (both failed or both canceled)
+            # D80-8: EX-002 Alert (Rollback)
+            try:
+                from arbitrage.alerting import emit_executor_rollback_alert
+                emit_executor_rollback_alert(
+                    symbol=f"{decision.symbol_upbit}/{decision.symbol_binance}",
+                    exchange="cross_exchange",
+                    filled_qty=0.0,
+                    requested_qty=float(sizes.get("upbit_qty", 0)),
+                    status="rolled_back",
+                )
+            except Exception as e:
+                logger.debug(f"[CROSS_EXECUTOR] Alert emission failed: {e}")
+            
             return CrossExecutionResult(
                 decision=decision,
                 upbit=upbit_result,
