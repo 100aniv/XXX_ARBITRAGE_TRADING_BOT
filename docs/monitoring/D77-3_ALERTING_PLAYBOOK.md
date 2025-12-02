@@ -1,9 +1,9 @@
-# D77-3 Alerting Playbook (TopN Arbitrage & Cross-Exchange)
+# D77-3 알림 플레이북 (TopN Arbitrage & Cross-Exchange)
 
-**Version:** 1.0  
-**Last Updated:** 2025-12-02  
-**Audience:** On-call Engineers, SRE, DevOps  
-**Related Documents:**
+**버전:** 1.0  
+**최종 업데이트:** 2025-12-02  
+**대상:** On-call 엔지니어, SRE, DevOps  
+**관련 문서:**
 - [D77-3 Monitoring Runbook](./D77-3_MONITORING_RUNBOOK.md)
 - [D80-7 Alerting System Design](../D80_7_ALERTING_SYSTEM_DESIGN.md)
 - [D76 Alert Rule Engine Design](../D76_ALERT_RULE_ENGINE_DESIGN.md)
@@ -12,9 +12,9 @@
 
 ---
 
-## 1. Alerting Stack Overview
+## 1. Alerting Stack 개요
 
-### 1.1 Alert Pipeline Architecture
+### 1.1 Alert 파이프라인 아키텍처
 
 ```
 [Alert Sources] → [AlertManager] → [Dispatcher] → [Routing] → [Notifiers]
@@ -25,195 +25,195 @@
   HealthMonitor                                               LocalLog
 ```
 
-**Key Components:**
-1. **Alert Sources:** Engine events, RiskGuard triggers, health checks, FX errors
-2. **AlertManager:** Central alert dispatch (D76, D80-7)
-3. **RuleEngine:** Priority/routing decision (P1/P2/P3, env-aware)
-4. **Dispatcher:** Async delivery + retry logic (D80-11~13)
-5. **Notifiers:** Delivery channels (Telegram, Slack, Email, Local Log)
-6. **Fail-safe:** Retry (3x), Fallback (primary → secondary), DLQ (failed alerts)
+**주요 구성 요소:**
+1. **Alert Sources:** 엔진 이벤트, RiskGuard 발동, 상태 점검, FX 에러
+2. **AlertManager:** 중앙 알림 디스패치 (D76, D80-7)
+3. **RuleEngine:** 우선순위/라우팅 결정 (P1/P2/P3, 환경별 분기)
+4. **Dispatcher:** 비동기 전송 + 재시도 로직 (D80-11~13)
+5. **Notifiers:** 전송 채널 (Telegram, Slack, Email, Local Log)
+6. **Fail-safe:** Retry (3회), Fallback (주 → 보조), DLQ (실패 알림)
 
 ---
 
-### 1.2 Alert Flow (Normal Operation)
+### 1.2 Alert 플로우 (정상 운영)
 
 ```
-Alert Triggered
+알림 발생
   ↓
 RuleEngine.evaluate_alert()
-  ├─> Match rule_id (e.g., "FX-001", "RG-005")
-  ├─> Determine priority (P1/P2/P3)
-  ├─> Select notifiers (env-aware: PROD vs DEV)
+  ├─> rule_id 매칭 (예: "FX-001", "RG-005")
+  ├─> 우선순위 결정 (P1/P2/P3)
+  ├─> Notifier 선택 (환경별: PROD vs DEV)
   ↓
 Dispatcher.enqueue()
-  ├─> Add to priority queue (P1 → P2 → P3)
-  ├─> Worker thread dequeues
+  ├─> 우선순위 큐에 추가 (P1 → P2 → P3)
+  ├─> Worker 스레드가 dequeue
   ↓
 Notifier.send()
-  ├─> Attempt delivery (timeout: 3s)
-  ├─> Success → record metrics (alert_sent_total++)
-  ├─> Failure → Retry (up to 3x)
-  │   ├─> Still failing → Fallback (e.g., Telegram → Slack)
-  │   └─> All failed → DLQ (alert_dlq_total++)
+  ├─> 전송 시도 (타임아웃: 3초)
+  ├─> 성공 → 메트릭 기록 (alert_sent_total++)
+  ├─> 실패 → Retry (최대 3회)
+  │   ├─> 여전히 실패 → Fallback (예: Telegram → Slack)
+  │   └─> 모두 실패 → DLQ (alert_dlq_total++)
   ↓
 Metrics + Logs
   ├─> alert_sent_total{rule_id, notifier}
   ├─> alert_failed_total{rule_id, notifier, reason}
   ├─> alert_delivery_latency_seconds{notifier}
-  └─> Local Log (always recorded)
+  └─> Local Log (항상 기록됨)
 ```
 
 ---
 
-### 1.3 Alert Severity & Priority Model
+### 1.3 Alert 심각도 및 우선순위 모델
 
-| Priority | Severity | Use Case | Response Time | Notifier (PROD) | Notifier (DEV) |
+| 우선순위 | 심각도 | 사용 사례 | 대응 시간 | Notifier (PROD) | Notifier (DEV) |
 |----------|----------|----------|---------------|-----------------|----------------|
-| **P1** | Critical | System down, high loss risk, FX down | < 5min | Telegram + PostgreSQL | Telegram + Slack + PostgreSQL |
-| **P2** | High | Degraded performance, Guard spike | < 30min | PostgreSQL (Telegram optional) | Telegram + Slack + PostgreSQL |
-| **P3** | Medium | Info/warning, trend alerts | < 2 hours | PostgreSQL | Email + PostgreSQL |
+| **P1** | Critical | 시스템 다운, 높은 손실 위험, FX 다운 | < 5분 | Telegram + PostgreSQL | Telegram + Slack + PostgreSQL |
+| **P2** | High | 성능 저하, Guard 급증 | < 30분 | PostgreSQL (Telegram 선택) | Telegram + Slack + PostgreSQL |
+| **P3** | Medium | 정보/경고, 트렌드 알림 | < 2시간 | PostgreSQL | Email + PostgreSQL |
 
-**Telegram-first Policy (PROD):**
-- P1/P2: Telegram is REQUIRED (instant notification for on-call)
-- P3: PostgreSQL only (reduces noise)
+**Telegram-first 정책 (PROD):**
+- P1/P2: Telegram 필수 (on-call에게 즉시 알림)
+- P3: PostgreSQL만 (노이즈 감소)
 
 **DEV/TEST:**
-- All priorities: Multiple notifiers for testing
+- 모든 우선순위: 테스트를 위해 다중 notifier
 
 ---
 
-## 2. Scenario Catalog
+## 2. 시나리오 카탈로그
 
-### Overview of Scenarios
+### 시나리오 개요
 
-| Scenario # | Name | Priority | Frequency | Section |
+| 시나리오 # | 이름 | 우선순위 | 빈도 | 섹션 |
 |------------|------|----------|-----------|---------|
-| 3.1 | FX Provider Down / Degraded | P1 | Rare | High-impact |
-| 3.2 | Exchange API Errors / Order Failures | P1 | Occasional | High-impact |
-| 3.3 | Guard Trigger Spike | P2 | Common | Risk-related |
-| 3.4 | Notifier Down | P2 | Rare | Alert-system |
-| 3.5 | DLQ Increase | P2 | Rare | Alert-system |
-| 3.6 | Latency / CPU / Memory Spike | P2 | Occasional | Performance |
-| 3.7 | Chaos/Fail-Safe Test Anomalies | P3 | Test-only | Operational |
+| 3.1 | FX Provider 다운 / 불안정 | P1 | 드물음 | 높은 영향 |
+| 3.2 | Exchange API 에러 / 주문 실패 | P1 | 가끔 | 높은 영향 |
+| 3.3 | Guard Trigger 급증 | P2 | 흔함 | 리스크 관련 |
+| 3.4 | Notifier 다운 | P2 | 드물음 | Alert 시스템 |
+| 3.5 | DLQ 증가 | P2 | 드물음 | Alert 시스템 |
+| 3.6 | 레이턴시 / CPU / 메모리 급증 | P2 | 가끔 | 성능 |
+| 3.7 | Chaos/Fail-Safe 테스트 이상 | P3 | 테스트 전용 | 운영 |
 
 ---
 
-## 3. Detailed Scenario Procedures
+## 3. 상세 시나리오 절차
 
-### 3.1 FX Provider Down / Degraded
+### 3.1 FX Provider 다운 / 불안정
 
-#### Scenario: FX Provider Down / Degraded
+#### 시나리오: FX Provider 다운 / 불안정
 
-**Description:** FX rate provider (e.g., DunanmuAPI, Upbit, Binance) is unavailable or returning stale/invalid rates, blocking CrossExchange arbitrage.
-
----
-
-**Trigger Signals:**
-- **Alert:** `alert_sent_total{rule_id="FX-001", severity="P1"}` increases
-- **Metrics:**
-  - `cross_exchange_fx_rate_stale{provider}` = 1 (stale data)
-  - `cross_exchange_fx_provider_error_total{provider}` increases
-  - `cross_exchange_guard_blocks_total{reason="fx_unavailable"}` spikes
-- **Grafana Panels:**
-  - Core Dashboard: **Guard Triggers** (Panel 9) → filter by `guard_type="cross_exchange"`
-  - (If FX dashboard exists): FX Provider Health panel
+**설명:** FX 환율 제공자 (예: DunanmuAPI, Upbit, Binance)를 사용할 수 없거나 정체/무효한 환율을 반환하여 CrossExchange 아비트라지가 차단됩니다.
 
 ---
 
-**First Checks (0-5 minutes):**
-1. **Confirm FX provider status**
+**발동 신호:**
+- **알림:** `alert_sent_total{rule_id="FX-001", severity="P1"}` 증가
+- **메트릭:**
+  - `cross_exchange_fx_rate_stale{provider}` = 1 (정체 데이터)
+  - `cross_exchange_fx_provider_error_total{provider}` 증가
+  - `cross_exchange_guard_blocks_total{reason="fx_unavailable"}` 급증
+- **Grafana 패널:**
+  - Core Dashboard: **Guard Triggers** (패널 9) → `guard_type="cross_exchange"`로 필터
+  - (FX 대시보드가 있는 경우): FX Provider Health 패널
+
+---
+
+**초기 점검 (0-5분):**
+1. **FX provider 상태 확인**
    ```promql
    cross_exchange_fx_rate_stale{provider="dunamu"} == 1
    ```
-   - If = 1: FX data is stale (> threshold, e.g., 30 seconds)
-   - Check timestamp of last successful FX update
+   - = 1인 경우: FX 데이터가 정체됨 (임계값 초과, 예: 30초)
+   - 마지막 성공적인 FX 업데이트 타임스탬프 확인
 
-2. **Check CrossExchange trading impact**
-   - Is `arb_topn_trades_total{trade_type="entry"}` dropping to zero?
-   - Is `arb_topn_guard_triggers_total{guard_type="cross_exchange"}` spiking?
+2. **CrossExchange 거래 영향 점검**
+   - `arb_topn_trades_total{trade_type="entry"}`가 0으로 떨어지는가?
+   - `arb_topn_guard_triggers_total{guard_type="cross_exchange"}`가 급증하는가?
 
-3. **Verify network connectivity**
-   - Ping FX provider API endpoint (if accessible)
-   - Check system logs for DNS/TLS errors
+3. **네트워크 연결 확인**
+   - FX provider API 엔드포인트 ping (접근 가능한 경우)
+   - DNS/TLS 에러에 대한 시스템 로그 확인
 
-4. **Check other FX providers (if multi-source)**
-   - If using FX aggregator (D80-5), check backup sources
-   - Example: Dunamu down → Fallback to Upbit/Binance rates
+4. **다른 FX provider 확인 (다중 소스인 경우)**
+   - FX aggregator (D80-5) 사용 시, 백업 소스 확인
+   - 예: Dunamu 다운 → Upbit/Binance 환율로 fallback
 
 ---
 
-**Root Cause Narrowing (5-15 minutes):**
-1. **Provider-side issue?**
-   - Check FX provider status page (if available)
-   - Look for announcements (maintenance, API changes)
-   - Test API manually (curl/Postman) with sample request
+**근본 원인 조사 (5-15분):**
+1. **Provider 측 문제?**
+   - FX provider 상태 페이지 확인 (가능한 경우)
+   - 공지사항 확인 (유지보수, API 변경)
+   - 샘플 요청으로 API 수동 테스트 (curl/Postman)
 
-2. **Client-side issue?**
-   - Check application logs for exceptions:
+2. **Client 측 문제?**
+   - 예외에 대한 애플리케이션 로그 확인:
      ```
      grep -i "fx.*error" logs/topn_arbitrage.log | tail -50
      ```
-   - Look for: timeout, connection refused, SSL errors, rate limit (429)
+   - 확인 항목: timeout, connection refused, SSL 에러, rate limit (429)
 
-3. **Configuration issue?**
-   - Verify FX provider API keys/secrets are valid
-   - Check config: `configs/fx_provider.yml` or environment variables
-   - Ensure correct API endpoint URLs
+3. **설정 문제?**
+   - FX provider API keys/secrets가 유효한지 확인
+   - 설정 확인: `configs/fx_provider.yml` 또는 환경 변수
+   - 올바른 API 엔드포인트 URL 확인
 
-4. **Data quality issue?**
-   - If provider is responding but rates are invalid:
-     - Check for zero/negative rates
-     - Check for rates outside expected range (e.g., USD/KRW < 1000 or > 2000)
-     - Review FX validation logic in code
-
----
-
-**Mitigation / Workaround:**
-1. **If FX provider is down:**
-   - **Option A (Recommended):** Switch to backup FX provider (if configured)
-     - Update config: `fx_provider: "upbit"` (from "dunamu")
-     - Restart engine or reload config (if hot-reload supported)
-   - **Option B:** Use static/cached FX rate (TEMPORARY ONLY)
-     - Risk: Stale rate may cause arbitrage mispricing
-     - Acceptable for < 5 minutes in low-volatility periods
-   - **Option C:** Pause CrossExchange trading
-     - Disable CrossExchange strategy (keep single-exchange arbitrage running)
-     - Command: `disable-cross-exchange` (if CLI available)
-
-2. **If FX provider is degraded (slow but working):**
-   - Increase FX fetch timeout (e.g., 3s → 5s)
-   - Reduce FX update frequency (e.g., 10s → 30s) to reduce load
-   - Monitor for recovery
-
-3. **If FX data is invalid:**
-   - Add data validation filter (if not already present)
-   - Example: Reject rates outside [1000, 2000] for USD/KRW
-   - Log invalid rates for investigation
+4. **데이터 품질 문제?**
+   - Provider가 응답하지만 환율이 무효한 경우:
+     - 0/음수 환율 확인
+     - 예상 범위 밖의 환율 확인 (예: USD/KRW < 1000 또는 > 2000)
+     - 코드의 FX 검증 로직 검토
 
 ---
 
-**Escalation Criteria & Channel:**
-- **Escalate to P1 (immediate)** if:
-  - FX provider down for > 5 minutes AND no backup available
-  - Trading completely stopped (0 trades for > 5 minutes)
-- **Escalation Channel:**
-  - Telegram: Notify on-call engineer + team lead
-  - Slack: Post to #alerts-critical channel
-  - Incident ticket: Create high-priority ticket with logs + metrics
+**완화 / 임시 조치:**
+1. **FX provider가 다운된 경우:**
+   - **옵션 A (권장):** 백업 FX provider로 전환 (설정된 경우)
+     - 설정 업데이트: `fx_provider: "upbit"` ("dunamu"에서)
+     - 엔진 재시작 또는 설정 리로드 (hot-reload 지원 시)
+   - **옵션 B:** 정적/캐시된 FX 환율 사용 (임시만)
+     - 위험: 정체된 환율로 인해 아비트라지 가격 오류 발생 가능
+     - 낮은 변동성 기간에 < 5분만 허용
+   - **옵션 C:** CrossExchange 거래 일시 중지
+     - CrossExchange 전략 비활성화 (단일 거래소 아비트라지는 계속)
+     - 명령: `disable-cross-exchange` (CLI 사용 가능 시)
+
+2. **FX provider가 불안정한 경우 (느리지만 작동):**
+   - FX fetch 타임아웃 증가 (예: 3초 → 5초)
+   - FX 업데이트 빈도 감소 (예: 10초 → 30초) 로드 감소
+   - 복구 모니터링
+
+3. **FX 데이터가 무효한 경우:**
+   - 데이터 검증 필터 추가 (아직 없는 경우)
+   - 예: USD/KRW에 대해 [1000, 2000] 범위 밖 환율 거부
+   - 조사를 위해 무효 환율 로깅
 
 ---
 
-**Postmortem Notes:**
-- **Root Cause:** Document actual cause (provider outage, config error, network issue, etc.)
-- **Impact:** Total downtime, missed trades, estimated lost profit
-- **Prevention:**
-  - Implement multi-source FX aggregation (D80-5) if not already done
-  - Add FX provider health check (pre-trade validation)
-  - Set up external monitoring (ping provider API every 1min)
-- **Action Items:**
-  - Review FX provider SLA
-  - Consider redundant providers
-  - Improve FX staleness detection (reduce threshold from 30s → 10s)
+**에스컬레이션 기준 및 채널:**
+- **P1로 즉시 에스컬레이션** 조건:
+  - FX provider가 5분 이상 다운 AND 백업 없음
+  - 거래 완전 중단 (5분 이상 거래 0건)
+- **에스컬레이션 채널:**
+  - Telegram: On-call 엔지니어 + 팀 리더에게 알림
+  - Slack: #alerts-critical 채널에 게시
+  - 인시던트 티켓: 로그 + 메트릭으로 높은 우선순위 티켓 생성
+
+---
+
+**사후 분석 참고사항:**
+- **근본 원인:** 실제 원인 문서화 (provider 장애, 설정 오류, 네트워크 문제 등)
+- **영향:** 총 다운타임, 놓친 거래, 추정 손실 수익
+- **예방:**
+  - 다중 소스 FX aggregation (D80-5) 구현 (아직 안 된 경우)
+  - FX provider 상태 점검 추가 (거래 전 검증)
+  - 외부 모니터링 설정 (매 1분마다 provider API ping)
+- **액션 아이템:**
+  - FX provider SLA 검토
+  - 중복 provider 고려
+  - FX 정체 감지 개선 (임계값 30초 → 10초로 감소)
 
 ---
 

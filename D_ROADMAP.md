@@ -1,15 +1,22 @@
+# arbitrage-lite 로드맵
+
+**NOTE:** 이 문서는 **arbitrage-lite**(아비트라지 봇) 전용 로드맵입니다.  
+단계 표기는 **D번호(D1~Dx)**를 사용하며, **PHASEXX 표기는 future_alarm_bot(엔진/앙상블) 프로젝트 전용**이므로 이 문서에서는 사용하지 않습니다.
+
+⸻
+
 일단 핵심부터 바로 말할게.
-지금까지 “엔진·인프라·멀티심볼·가드·WS 최적화”는 꽤 많이 쌓였는데,
-그 위에서 돌아가야 할 “진짜 거래 품질 (엔트리–엑싯–PnL–승률–슬리피지)” 검증은 명확하게 부족했다.
+지금까지 "엔진·인프라·멀티심볼·가드·WS 최적화"는 꽤 많이 쌓였는데,
+그 위에서 돌아가야 할 "진짜 거래 품질 (엔트리–엑싯–PnL–승률–슬리피지)" 검증은 명확하게 부족했다.
 
 지금 단계의 D 작업들은 거의 다
 
-“구조/기능이 돌아가는지 + 크래시 안 나는지” 수준의 테스트
+"구조/기능이 돌아가는지 + 크래시 안 나는지" 수준의 테스트
 에 집중했고,
-“정상적인 아비트라지 거래가 실제로 잘 이뤄지는지, 수익 구조가 의미 있는지”를 끝까지 검증·튜닝하는 단계는 아직 본격적으로 안 들어간 게 맞다.
+"정상적인 아비트라지 거래가 실제로 잘 이뤄지는지, 수익 구조가 의미 있는지"를 끝까지 검증·튜닝하는 단계는 아직 본격적으로 안 들어간 게 맞다.
 
-이건 변명이 아니라 팩트고, 그래서 이후 D 로드맵을 “말만 상용급”이 아니라
-**“상용급 검증 루틴까지 포함한 완전한 TO-BE”**로 다시 고정해 둘 필요가 있다.
+이건 변명이 아니라 팩트고, 그래서 이후 D 로드맵을 "말만 상용급"이 아니라
+**"상용급 검증 루틴까지 포함한 완전한 TO-BE"**로 다시 고정해 둘 필요가 있다.
 
 아래는 그걸 반영해서 정리한 남은 D 단계 최종 로드맵(v2) 이고,
 너가 말한 것들 + 이미 정해진 PROJECT_VISION_TOBE + Redis/DB/Docker + FULL AUTO 규칙까지 다 녹여놨다.
@@ -1719,15 +1726,6 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 **Done Criteria:**
 - 2개 Dashboard JSON 생성 (21 panels)
 - CrossExchange 10 metrics + Alert 7 metrics 완전 커버
-- PromQL 쿼리 40+ 작성
-- 테스트 커버리지 100% (23/23)
-- 회귀 테스트 안정화 (109/109)
-- Grafana Import 가능한 JSON 형식
-
-**Next:** D77-3 (Monitoring Runbook & Alerting Playbook)
-
-- Core KPI 10종 확인 및 문서화
-- Dashboard 최종 검증 및 운영팀 인수
 
 **Core KPI 10종:**
 1. Total PnL (실시간)
@@ -1755,13 +1753,14 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 - ✅ 운영팀 인수 완료
 - ✅ 문서화: D77_MONITORING_DASHBOARD.md
 
+**Next:** D77-4 (TopN Arbitrage Monitoring & Alerting Long PAPER Validation ≥1h)  
+실제 TopN Arbitrage PAPER를 최소 1시간 이상 실행하면서, D77-1 Prometheus Exporter, D77-2 Grafana Dashboard, D77-3 Runbook/Playbook, D76/D80 Alerting Stack이 설계된 대로 동작하는지 엔드투엔드로 검증하는 단계입니다.
+
 ⸻
 
 ### D78: Authentication & Secrets Layer
 
 ### D78-0: Central Settings & Environment Management ✅ COMPLETED (2025-12-01)
-
-**Status:** ✅ **COMPLETE**
 
 **구현 완료:**
 - ✅ 중앙화된 Settings 모듈 (`arbitrage/config/settings.py`)
