@@ -497,3 +497,72 @@ class CrossExchangeMetrics:
             return "consecutive_loss"
         else:
             return "unknown"
+    
+    # =========================================================================
+    # D80-4: WebSocket FX Metrics
+    # =========================================================================
+    
+    def record_fx_ws_metrics(
+        self,
+        connected: bool,
+        reconnect_count: int,
+        message_count: int,
+        error_count: int,
+        last_message_age: float,
+    ) -> None:
+        """
+        WebSocket FX metrics 기록 (D80-4).
+        
+        Args:
+            connected: WebSocket 연결 상태 (True/False)
+            reconnect_count: 재연결 횟수
+            message_count: 수신 메시지 수
+            error_count: 에러 발생 횟수
+            last_message_age: 마지막 메시지 이후 경과 시간 (초)
+        """
+        if self.backend is None:
+            return
+        
+        labels = {}  # 필요 시 추가 label (예: symbol)
+        
+        # Gauge: WebSocket 연결 상태 (0/1)
+        self.backend.set_gauge(
+            "cross_fx_ws_connected",
+            labels,
+            1.0 if connected else 0.0
+        )
+        
+        # Gauge: 재연결 횟수 (누적)
+        self.backend.set_gauge(
+            "cross_fx_ws_reconnect_total",
+            labels,
+            float(reconnect_count)
+        )
+        
+        # Gauge: 수신 메시지 수 (누적)
+        self.backend.set_gauge(
+            "cross_fx_ws_message_total",
+            labels,
+            float(message_count)
+        )
+        
+        # Gauge: 에러 발생 횟수 (누적)
+        self.backend.set_gauge(
+            "cross_fx_ws_error_total",
+            labels,
+            float(error_count)
+        )
+        
+        # Gauge: 마지막 메시지 이후 경과 시간 (초)
+        self.backend.set_gauge(
+            "cross_fx_ws_last_message_seconds",
+            labels,
+            last_message_age
+        )
+        
+        logger.debug(
+            f"[CROSS_METRICS] FX WebSocket metrics recorded: "
+            f"connected={connected}, reconnect={reconnect_count}, "
+            f"messages={message_count}, errors={error_count}, "
+            f"last_msg_age={last_message_age:.1f}s"
+        )

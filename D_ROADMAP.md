@@ -1982,6 +1982,20 @@ python scripts/validate_env.py --env paper --verbose
     - Tests: 23/23 PASS, 전체 172/172 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20 + D80-3: 23)
     - Files: 5개 신규/수정 (+1,999 lines)
 
+- **D80-4: WebSocket FX Stream**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - **BinanceFxWebSocketClient:** Mark Price Stream, Auto-reconnect (exponential backoff), Thread-based (non-blocking)
+    - **WebSocketFxRateProvider:** Event-driven FxCache 업데이트, HTTP fallback (RealFxRateProvider composition), Graceful degradation
+    - **Architecture:** WebSocket (push) → FxCache → HTTP fallback → Static fallback (3-tier)
+    - **Reconnect Logic:** Max 10회, exponential backoff (1s → 2s → 4s → ... → 60s), 초과 시 HTTP-only 모드
+    - **Metrics:** cross_fx_ws_connected, reconnect_total, message_total, error_total, last_message_seconds (5개)
+    - **Integration:** Executor는 인터페이스(FxRateProvider)만 의존, WebSocket은 옵션으로 주입 가능
+    - **Backward Compatibility:** 100% (RealFxRateProvider/StaticFxRateProvider 모두 동작)
+    - Tests: 15/15 PASS, 전체 187/187 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20 + D80-3: 23 + D80-4: 15)
+    - Files: 4개 신규/수정 (+670 lines)
+    - Note: websocket-client 라이브러리 필요 (pip install websocket-client)
+
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 

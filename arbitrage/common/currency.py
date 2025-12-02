@@ -878,3 +878,215 @@ class RealFxRateProvider:
             f"No fallback rate for {base.value}→{quote.value}. "
             f"Available: {list(self._fallback_rates.keys())}"
         )
+
+
+# =============================================================================
+# WebSocketFxRateProvider (D80-4)
+# =============================================================================
+
+class WebSocketFxRateProvider:
+    """
+    WebSocket 기반 FX Rate Provider (D80-4).
+    
+    Features:
+    - Binance WebSocket Mark Price Stream (USDT→USD)
+    - Event-driven FxCache 업데이트
+    - HTTP fallback (RealFxRateProvider composition)
+    - Auto-reconnect & graceful degradation
+    
+    Architecture:
+        WebSocket (push) → FxCache
+                ↓ (fallback)
+        RealFxRateProvider (HTTP) → FxCache
+                ↓ (fallback)
+        StaticFxRateProvider
+    
+    Example:
+        >>> fx = WebSocketFxRateProvider()
+        >>> fx.start()  # Start WebSocket
+        >>> rate = fx.get_rate(Currency.USDT, Currency.KRW)
+        >>> fx.stop()  # Stop WebSocket
+    """
+    
+    def __init__(
+        self,
+        binance_symbol: str = "btcusdt",
+        cache_ttl_seconds: float = 3.0,
+        http_timeout: float = 2.0,
+        enable_websocket: bool = True,
+    ):
+        """
+        Args:
+            binance_symbol: Binance futures symbol (소문자)
+            cache_ttl_seconds: 캐시 TTL (초)
+            http_timeout: HTTP 타임아웃 (초)
+            enable_websocket: WebSocket 활성화 여부 (False면 HTTP-only)
+        """
+        # HTTP fallback provider
+        self.real_fx_provider = RealFxRateProvider(
+            cache_ttl_seconds=cache_ttl_seconds,
+            http_timeout=http_timeout,
+        )
+        
+        # Shared cache (WS와 HTTP가 동일 캐시 사용)
+        self.cache = self.real_fx_provider.cache
+        
+        # WebSocket client
+        self.enable_websocket = enable_websocket
+        self.ws_client = None
+        
+        if enable_websocket:
+            try:
+                from .fx_ws_client import BinanceFxWebSocketClient
+                self.ws_client = BinanceFxWebSocketClient(
+                    symbol=binance_symbol,
+                    on_rate_update=self._on_ws_rate_update,
+                    on_error=self._on_ws_error,
+                )
+                logger.info(
+                    f"[FX_PROVIDER] WebSocketFxRateProvider initialized "
+                    f"(symbol={binance_symbol}, cache_ttl={cache_ttl_seconds}s)"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[FX_PROVIDER] Failed to initialize WebSocket client: {e}, "
+                    "falling back to HTTP-only mode"
+                )
+                self.enable_websocket = False
+                self.ws_client = None
+        else:
+            logger.info(
+                f"[FX_PROVIDER] WebSocketFxRateProvider initialized in HTTP-only mode "
+                f"(cache_ttl={cache_ttl_seconds}s)"
+            )
+    
+    def start(self) -> None:
+        """Start WebSocket client"""
+        if self.ws_client:
+            self.ws_client.start()
+            logger.info("[FX_PROVIDER] WebSocket FX stream started")
+        else:
+            logger.debug("[FX_PROVIDER] WebSocket disabled, using HTTP-only mode")
+    
+    def stop(self) -> None:
+        """Stop WebSocket client"""
+        if self.ws_client:
+            self.ws_client.stop()
+            logger.info("[FX_PROVIDER] WebSocket FX stream stopped")
+    
+    def get_rate(self, base: Currency, quote: Currency) -> Decimal:
+        """
+        환율 조회 (WebSocket cache 우선, HTTP fallback).
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            환율 (Decimal)
+        
+        Example:
+            >>> fx.get_rate(Currency.USDT, Currency.KRW)
+            Decimal("1420.50")
+        """
+        # 같은 통화
+        if base == quote:
+            return Decimal("1.0")
+        
+        # 1. Cache 조회 (WS 또는 HTTP가 업데이트)
+        cached_rate = self.cache.get(base, quote)
+        if cached_rate is not None:
+            logger.debug(
+                f"[FX_PROVIDER] Cache HIT (WS/HTTP): {base.value}→{quote.value} = {cached_rate}"
+            )
+            return cached_rate
+        
+        # 2. Cache miss → HTTP fallback
+        logger.debug(
+            f"[FX_PROVIDER] Cache MISS, using HTTP fallback: {base.value}→{quote.value}"
+        )
+        return self.real_fx_provider.get_rate(base, quote)
+    
+    def get_updated_at(self, base: Currency, quote: Currency) -> float:
+        """
+        환율 업데이트 시각 조회.
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            업데이트 시각 (Unix timestamp)
+        """
+        return self.real_fx_provider.get_updated_at(base, quote)
+    
+    def is_stale(self, base: Currency, quote: Currency) -> bool:
+        """
+        환율 staleness 확인.
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            stale 여부
+        """
+        return self.real_fx_provider.is_stale(base, quote)
+    
+    def is_websocket_connected(self) -> bool:
+        """
+        WebSocket 연결 상태 확인.
+        
+        Returns:
+            연결 상태 (True: 연결됨, False: 끊김/비활성화)
+        """
+        if not self.ws_client:
+            return False
+        return self.ws_client.is_connected()
+    
+    def get_websocket_stats(self) -> dict:
+        """
+        WebSocket 통계 조회.
+        
+        Returns:
+            dict: {
+                "connected": bool,
+                "reconnect_count": int,
+                "message_count": int,
+                "error_count": int,
+                "last_message_age": float
+            }
+        """
+        if not self.ws_client:
+            return {
+                "connected": False,
+                "reconnect_count": 0,
+                "message_count": 0,
+                "error_count": 0,
+                "last_message_age": 0.0,
+            }
+        return self.ws_client.get_stats()
+    
+    def _on_ws_rate_update(self, rate: Decimal, timestamp: float) -> None:
+        """
+        WebSocket rate update callback.
+        
+        Args:
+            rate: USDT→USD 환율
+            timestamp: 업데이트 시각
+        """
+        # Update cache: USDT→USD
+        self.cache.set(Currency.USDT, Currency.USD, rate, updated_at=timestamp)
+        logger.debug(f"[FX_PROVIDER] WS update: USDT→USD = {rate}")
+        
+        # Chain: USDT→KRW (USDT→USD × USD→KRW)
+        # USD→KRW는 HTTP에서 가져온 값 재사용 (캐시에 있으면)
+        usd_krw = self.cache.get(Currency.USD, Currency.KRW)
+        if usd_krw is not None:
+            usdt_krw = rate * usd_krw
+            self.cache.set(Currency.USDT, Currency.KRW, usdt_krw, updated_at=timestamp)
+            logger.debug(f"[FX_PROVIDER] WS chain: USDT→KRW = {usdt_krw}")
+    
+    def _on_ws_error(self, error: Exception) -> None:
+        """WebSocket error callback"""
+        logger.error(f"[FX_PROVIDER] WebSocket error: {error}")
