@@ -39,7 +39,7 @@ import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_EVEN
 from enum import Enum
-from typing import Dict, Protocol, Tuple, Union
+from typing import Dict, Protocol, Tuple, Union, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -1090,3 +1090,320 @@ class WebSocketFxRateProvider:
     def _on_ws_error(self, error: Exception) -> None:
         """WebSocket error callback"""
         logger.error(f"[FX_PROVIDER] WebSocket error: {error}")
+
+
+# =============================================================================
+# D80-5: Multi-Source FX Rate Provider
+# =============================================================================
+
+# D80-5: FxCache import
+from arbitrage.common.fx_cache import FxCache
+
+class MultiSourceFxRateProvider:
+    """
+    Multi-Source FX Rate Provider (D80-5).
+    
+    Features:
+    - 3소스 WebSocket 집계 (Binance + OKX + Bybit)
+    - Outlier detection & removal (median ±5%)
+    - Median aggregation
+    - HTTP fallback (RealFxRateProvider)
+    - Static fallback
+    
+    Architecture:
+        Binance WS ─┐
+        OKX WS     ─┼→ Outlier Filter → Median → FxCache
+        Bybit WS   ─┘
+                          ↓ (fallback)
+                    RealFxRateProvider (HTTP)
+                          ↓ (fallback)
+                    StaticFxRateProvider
+    """
+    
+    OUTLIER_THRESHOLD_PCT = Decimal("0.05")  # ±5%
+    
+    def __init__(
+        self,
+        binance_symbol: str = "btcusdt",
+        okx_inst_id: str = "BTC-USDT",
+        bybit_symbol: str = "BTCUSDT",
+        cache_ttl_seconds: float = 3.0,
+        enable_websocket: bool = True,
+    ):
+        """
+        Args:
+            binance_symbol: Binance symbol (e.g., "btcusdt")
+            okx_inst_id: OKX instrument ID (e.g., "BTC-USDT")
+            bybit_symbol: Bybit symbol (e.g., "BTCUSDT")
+            cache_ttl_seconds: FxCache TTL (초)
+            enable_websocket: WebSocket 활성화 여부
+        """
+        # Shared cache
+        self.cache = FxCache(ttl_seconds=cache_ttl_seconds)
+        
+        # HTTP fallback provider
+        self.http_provider = RealFxRateProvider(
+            cache_ttl_seconds=cache_ttl_seconds
+        )
+        self.http_provider.cache = self.cache  # Share cache
+        
+        # WebSocket clients
+        self.enable_websocket = enable_websocket
+        self.ws_clients: Dict[str, Any] = {}
+        
+        # Source rates (최신 수신 값)
+        self._source_rates: Dict[str, Optional[Decimal]] = {
+            "binance": None,
+            "okx": None,
+            "bybit": None,
+        }
+        self._source_timestamps: Dict[str, float] = {
+            "binance": 0.0,
+            "okx": 0.0,
+            "bybit": 0.0,
+        }
+        
+        # Stats
+        self._outlier_count_total = 0
+        
+        if enable_websocket:
+            try:
+                from arbitrage.common.fx_ws_client import BinanceFxWebSocketClient
+                from arbitrage.common.fx_ws_client_okx import OkxFxWebSocketClient
+                from arbitrage.common.fx_ws_client_bybit import BybitFxWebSocketClient
+                
+                self.ws_clients["binance"] = BinanceFxWebSocketClient(
+                    symbol=binance_symbol,
+                    on_rate_update=lambda rate, ts: self._on_source_update("binance", rate, ts)
+                )
+                self.ws_clients["okx"] = OkxFxWebSocketClient(
+                    inst_id=okx_inst_id,
+                    on_rate_update=lambda rate, ts: self._on_source_update("okx", rate, ts)
+                )
+                self.ws_clients["bybit"] = BybitFxWebSocketClient(
+                    symbol=bybit_symbol,
+                    on_rate_update=lambda rate, ts: self._on_source_update("bybit", rate, ts)
+                )
+                
+                logger.info(
+                    f"[MULTI_SOURCE_FX] Initialized with {len(self.ws_clients)} WebSocket sources"
+                )
+            except ImportError as e:
+                logger.warning(
+                    f"[MULTI_SOURCE_FX] websocket-client not installed, using HTTP-only mode: {e}"
+                )
+                self.ws_clients = {}
+                self.enable_websocket = False
+    
+    def start(self) -> None:
+        """Start all WebSocket clients."""
+        if not self.enable_websocket:
+            logger.info("[MULTI_SOURCE_FX] WebSocket disabled, skipping start")
+            return
+        
+        for name, client in self.ws_clients.items():
+            try:
+                client.start()
+                logger.info(f"[MULTI_SOURCE_FX] Started WebSocket: {name}")
+            except Exception as e:
+                logger.error(f"[MULTI_SOURCE_FX] Failed to start {name}: {e}")
+    
+    def stop(self) -> None:
+        """Stop all WebSocket clients."""
+        for name, client in self.ws_clients.items():
+            try:
+                client.stop()
+                logger.info(f"[MULTI_SOURCE_FX] Stopped WebSocket: {name}")
+            except Exception as e:
+                logger.error(f"[MULTI_SOURCE_FX] Failed to stop {name}: {e}")
+    
+    def _on_source_update(self, source: str, rate: Decimal, timestamp: float) -> None:
+        """
+        소스별 WebSocket 업데이트 콜백.
+        
+        Args:
+            source: "binance", "okx", "bybit"
+            rate: USDT→USD 환율
+            timestamp: 수신 시각
+        """
+        self._source_rates[source] = rate
+        self._source_timestamps[source] = timestamp
+        
+        logger.debug(
+            f"[MULTI_SOURCE_FX] Source update: {source}={rate}, ts={timestamp}"
+        )
+        
+        # Aggregate and update cache
+        self._aggregate_and_update_cache()
+    
+    def _aggregate_and_update_cache(self) -> None:
+        """
+        멀티소스 집계 및 FxCache 업데이트.
+        
+        Steps:
+        1. 유효한 소스(rate != None) 수집
+        2. Outlier 제거 (median ±5%)
+        3. Median 계산
+        4. FxCache 업데이트 (USDT→USD, USDT→KRW 체인)
+        """
+        # 1. Collect valid rates
+        valid_rates = []
+        for source, rate in self._source_rates.items():
+            if rate is not None:
+                valid_rates.append(rate)
+        
+        if len(valid_rates) == 0:
+            # No valid sources, fallback to HTTP
+            logger.debug("[MULTI_SOURCE_FX] No valid sources, skipping aggregation")
+            return
+        
+        # 2. Outlier detection & removal
+        original_count = len(valid_rates)
+        if len(valid_rates) >= 3:
+            valid_rates = self._remove_outliers(valid_rates)
+            outliers_removed = original_count - len(valid_rates)
+            if outliers_removed > 0:
+                self._outlier_count_total += outliers_removed
+        
+        # 3. Median aggregation
+        median_rate = self._calculate_median(valid_rates)
+        
+        # 4. Update cache
+        timestamp = time.time()
+        self.cache.set(Currency.USDT, Currency.USD, median_rate, updated_at=timestamp)
+        
+        # Chain: USDT→KRW = USDT→USD × USD→KRW
+        usd_krw = self.cache.get(Currency.USD, Currency.KRW)
+        if usd_krw is not None:
+            usdt_krw = median_rate * usd_krw
+            self.cache.set(Currency.USDT, Currency.KRW, usdt_krw, updated_at=timestamp)
+        
+        logger.debug(
+            f"[MULTI_SOURCE_FX] Aggregated rate: {median_rate} "
+            f"(sources={len(valid_rates)}, outliers_removed={original_count - len(valid_rates)})"
+        )
+    
+    def _remove_outliers(self, rates: List[Decimal]) -> List[Decimal]:
+        """
+        Outlier 제거 (median ±5%).
+        
+        Args:
+            rates: 환율 리스트
+        
+        Returns:
+            Outlier 제거 후 환율 리스트
+        """
+        if len(rates) < 3:
+            return rates
+        
+        median = self._calculate_median(rates)
+        threshold_low = median * (Decimal("1.0") - self.OUTLIER_THRESHOLD_PCT)
+        threshold_high = median * (Decimal("1.0") + self.OUTLIER_THRESHOLD_PCT)
+        
+        filtered = [r for r in rates if threshold_low <= r <= threshold_high]
+        
+        if len(filtered) == 0:
+            # All outliers → keep original
+            logger.warning(
+                f"[MULTI_SOURCE_FX] All rates are outliers, keeping original: {rates}"
+            )
+            return rates
+        
+        if len(filtered) < len(rates):
+            logger.warning(
+                f"[MULTI_SOURCE_FX] Removed outliers: "
+                f"original={rates}, filtered={filtered}, median={median}"
+            )
+        
+        return filtered
+    
+    def _calculate_median(self, rates: List[Decimal]) -> Decimal:
+        """
+        Median 계산.
+        
+        Args:
+            rates: 환율 리스트
+        
+        Returns:
+            Median 환율
+        """
+        if len(rates) == 0:
+            return Decimal("1.0")  # Fallback
+        
+        sorted_rates = sorted(rates)
+        n = len(sorted_rates)
+        
+        if n % 2 == 1:
+            # Odd: middle value
+            return sorted_rates[n // 2]
+        else:
+            # Even: average of two middle values
+            mid1 = sorted_rates[n // 2 - 1]
+            mid2 = sorted_rates[n // 2]
+            return (mid1 + mid2) / Decimal("2")
+    
+    def get_rate(self, base: Currency, quote: Currency) -> Decimal:
+        """
+        환율 조회 (FxRateProvider 인터페이스).
+        
+        Args:
+            base: 기준 통화
+            quote: 목표 통화
+        
+        Returns:
+            환율 (base→quote)
+        """
+        if base == quote:
+            return Decimal("1.0")
+        
+        # 1. Cache hit
+        cached_rate = self.cache.get(base, quote)
+        if cached_rate is not None:
+            return cached_rate
+        
+        # 2. HTTP fallback
+        logger.debug(
+            f"[MULTI_SOURCE_FX] Cache miss for {base}→{quote}, using HTTP fallback"
+        )
+        rate = self.http_provider.get_rate(base, quote)
+        return rate
+    
+    def get_updated_at(self, base: Currency, quote: Currency) -> float:
+        """환율 업데이트 시각 조회."""
+        return self.cache.get_updated_at(base, quote)
+    
+    def is_stale(self, base: Currency, quote: Currency) -> bool:
+        """환율 stale 여부 (60초 초과)."""
+        return self.http_provider.is_stale(base, quote)
+    
+    def get_source_stats(self) -> Dict[str, Any]:
+        """
+        소스별 통계 조회.
+        
+        Returns:
+            {
+                "binance": {"connected": True, "rate": 1.000, "age": 0.5},
+                "okx": {"connected": False, "rate": None, "age": 10.0},
+                "bybit": {"connected": True, "rate": 0.999, "age": 1.0},
+            }
+        """
+        stats = {}
+        now = time.time()
+        
+        for source in ["binance", "okx", "bybit"]:
+            client = self.ws_clients.get(source)
+            rate = self._source_rates.get(source)
+            timestamp = self._source_timestamps.get(source, 0.0)
+            age = now - timestamp if timestamp > 0 else float("inf")
+            
+            stats[source] = {
+                "connected": client.is_connected() if client else False,
+                "rate": float(rate) if rate else None,
+                "age": age,
+            }
+        
+        return stats
+    
+    def get_outlier_count_total(self) -> int:
+        """제거된 outlier 누적 개수 조회."""
+        return self._outlier_count_total

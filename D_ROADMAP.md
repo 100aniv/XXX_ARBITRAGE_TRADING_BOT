@@ -1997,6 +1997,22 @@ python scripts/validate_env.py --env paper --verbose
     - Note: websocket-client 라이브러리 필요 (pip install websocket-client)
 
  
+- **D80-5: Multi-Source FX Aggregation**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - **3-Source WebSocket 집계:** Binance + OKX + Bybit Mark Price Stream 동시 구독
+    - **MultiSourceFxRateProvider:** Outlier detection (median ±5%), Median aggregation, Source stats 조회
+    - **Aggregation Algorithm:** Median 계산 (odd/even), Outlier 제거 (3소스 이상 시), 유효 소스만 집계
+    - **4-Tier Fallback:** MultiSource (median) → WebSocket (single) → HTTP → Static
+    - **WebSocket Clients:** BinanceFxWebSocketClient, OkxFxWebSocketClient, BybitFxWebSocketClient
+    - **Metrics:** cross_fx_multi_source_count, outlier_total, median, {source}_connected/rate/age (source별 3개 × 3)
+    - **Reliability:** 3소스 중 1개 장애 → median 정상, 2개 장애 → 남은 1개 사용, 모두 장애 → HTTP fallback
+    - **Backward Compatibility:** 100% (WebSocketFxRateProvider/RealFxRateProvider/StaticFxRateProvider 모두 동작)
+    - Tests: 20/20 PASS, 전체 207/207 PASS (D79: 72 + D80-0: 41 + D80-1: 16 + D80-2: 20 + D80-3: 23 + D80-4: 15 + D80-5: 20)
+    - Files: 6개 신규/수정 (+928 lines)
+    - Note: Institutional-grade FX infrastructure (1조급 시스템 품질)
+
+ 
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 
 

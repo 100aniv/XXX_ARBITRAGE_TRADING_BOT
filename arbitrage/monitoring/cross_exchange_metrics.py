@@ -566,3 +566,81 @@ class CrossExchangeMetrics:
             f"messages={message_count}, errors={error_count}, "
             f"last_msg_age={last_message_age:.1f}s"
         )
+    
+    # =========================================================================
+    # D80-5: Multi-Source FX Metrics
+    # =========================================================================
+    
+    def record_fx_multi_source_metrics(
+        self,
+        source_count: int,
+        outlier_count: int,
+        median_rate: float,
+        source_stats: Dict[str, Any],
+    ) -> None:
+        """
+        Multi-Source FX metrics 기록 (D80-5).
+        
+        Args:
+            source_count: 유효한 소스 개수 (0~3)
+            outlier_count: 제거된 outlier 누적 개수
+            median_rate: Median 환율 (USDT→USD)
+            source_stats: 소스별 상태 {"binance": {...}, "okx": {...}, "bybit": {...}}
+        """
+        if self.backend is None:
+            return
+        
+        labels = {}
+        
+        # Gauge: 유효한 소스 개수 (0~3)
+        self.backend.set_gauge(
+            "cross_fx_multi_source_count",
+            labels,
+            float(source_count)
+        )
+        
+        # Gauge: 제거된 outlier 누적 개수
+        self.backend.set_gauge(
+            "cross_fx_multi_source_outlier_total",
+            labels,
+            float(outlier_count)
+        )
+        
+        # Gauge: Median 환율
+        self.backend.set_gauge(
+            "cross_fx_multi_source_median",
+            labels,
+            median_rate
+        )
+        
+        # Source-specific metrics
+        for source, stats in source_stats.items():
+            source_labels = {"source": source}
+            
+            # Gauge: 소스별 연결 상태 (0/1)
+            self.backend.set_gauge(
+                f"cross_fx_multi_source_{source}_connected",
+                source_labels,
+                1.0 if stats["connected"] else 0.0
+            )
+            
+            # Gauge: 소스별 환율
+            if stats["rate"] is not None:
+                self.backend.set_gauge(
+                    f"cross_fx_multi_source_{source}_rate",
+                    source_labels,
+                    stats["rate"]
+                )
+            
+            # Gauge: 소스별 마지막 메시지 경과 시간 (초)
+            self.backend.set_gauge(
+                f"cross_fx_multi_source_{source}_age",
+                source_labels,
+                stats["age"]
+            )
+        
+        logger.debug(
+            f"[CROSS_METRICS] Multi-Source FX metrics recorded: "
+            f"source_count={source_count}, outlier_count={outlier_count}, "
+            f"median_rate={median_rate:.6f}"
+        )
