@@ -2086,6 +2086,13 @@ python scripts/validate_env.py --env paper --verbose
       - D76 (Infrastructure): AlertManager, Notifier, Storage (범용, 기존)
       - D80-7 (Application): alert_types, throttler, aggregator, queue, config (Cross-Exchange 전용, 신규)
     - **Backward Compatibility:** 100% (D76 AlertManager 그대로 사용, D79/D80 회귀 없음)
+  - **Integration Hooks (D80-7-INT):**
+    - **FX Layer:** FX-004 (staleness) in `CrossExchangeExecutor._estimate_order_cost`
+    - **Executor Layer:** EX-001 (order error) in `CrossExchangeExecutor.execute_decision`
+    - **RiskGuard Layer:** RG-001 (circuit breaker) in `CrossExchangeRiskGuard._check_circuit_breaker`
+    - **Files:** helpers.py (+440 lines), executor.py (+10 lines), risk_guard.py (+18 lines), test_d80_7_int_hooks.py (+296 lines)
+    - **Tests:** 12 신규 (292/296 PASS, 98.6%)
+    - **Total:** 296 tests (기존 284 + D80-7-INT 12)
 
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)

@@ -675,6 +675,19 @@ class CrossExchangeRiskGuard:
                 f"[CROSS_RISK_GUARD] Daily loss limit exceeded: "
                 f"{daily_pnl} < {-self.config.max_daily_loss}"
             )
+            
+            # D80-7-INT: RG-001 Alert (Circuit Breaker)
+            try:
+                from arbitrage.alerting import emit_circuit_breaker_alert
+                emit_circuit_breaker_alert(
+                    reason="Daily loss limit exceeded",
+                    threshold=str(self.config.max_daily_loss),
+                    current_value=str(daily_pnl),
+                    cooldown_seconds=int(self.config.circuit_breaker_cooldown),
+                )
+            except Exception as e:
+                logger.debug(f"[CROSS_RISK_GUARD] Alert emission failed: {e}")
+            
             return CrossRiskDecision(
                 allowed=False,
                 tier="cross_exchange",
@@ -696,6 +709,19 @@ class CrossExchangeRiskGuard:
                 f"[CROSS_RISK_GUARD] Consecutive loss limit: "
                 f"{consecutive_loss} >= {self.config.max_consecutive_loss}"
             )
+            
+            # D80-7-INT: RG-001 Alert (Circuit Breaker)
+            try:
+                from arbitrage.alerting import emit_circuit_breaker_alert
+                emit_circuit_breaker_alert(
+                    reason="Consecutive loss limit exceeded",
+                    threshold=str(self.config.max_consecutive_loss),
+                    current_value=str(consecutive_loss),
+                    cooldown_seconds=int(self.config.consecutive_loss_cooldown),
+                )
+            except Exception as e:
+                logger.debug(f"[CROSS_RISK_GUARD] Alert emission failed: {e}")
+            
             return CrossRiskDecision(
                 allowed=False,
                 tier="cross_exchange",

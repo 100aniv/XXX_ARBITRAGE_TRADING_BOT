@@ -51,6 +51,21 @@ from .config import (
     reload_alert_config,
 )
 
+# D80-7-INT: Alert Integration Helpers
+from .helpers import (
+    emit_rule_based_alert,
+    emit_fx_source_down_alert,
+    emit_fx_all_sources_down_alert,
+    emit_fx_median_deviation_alert,
+    emit_fx_staleness_alert,
+    emit_executor_order_error_alert,
+    emit_executor_rollback_alert,
+    emit_circuit_breaker_alert,
+    emit_risk_limit_alert,
+    emit_ws_staleness_alert,
+    emit_ws_reconnect_failed_alert,
+)
+
 __all__ = [
     # D76
     "AlertSeverity",
@@ -81,4 +96,16 @@ __all__ = [
     "QueueConfig",
     "get_alert_config",
     "reload_alert_config",
+    # D80-7-INT
+    "emit_rule_based_alert",
+    "emit_fx_source_down_alert",
+    "emit_fx_all_sources_down_alert",
+    "emit_fx_median_deviation_alert",
+    "emit_fx_staleness_alert",
+    "emit_executor_order_error_alert",
+    "emit_executor_rollback_alert",
+    "emit_circuit_breaker_alert",
+    "emit_risk_limit_alert",
+    "emit_ws_staleness_alert",
+    "emit_ws_reconnect_failed_alert",
 ]

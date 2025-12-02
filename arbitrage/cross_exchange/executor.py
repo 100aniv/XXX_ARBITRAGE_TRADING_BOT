@@ -286,6 +286,20 @@ class CrossExchangeExecutor:
         except Exception as e:
             self.failed_executions += 1
             logger.error(f"[CROSS_EXECUTOR] Execution error: {e}", exc_info=True)
+            
+            # D80-7-INT: EX-001 Alert
+            try:
+                from arbitrage.alerting import emit_executor_order_error_alert
+                emit_executor_order_error_alert(
+                    exchange="cross_exchange",
+                    symbol=f"{decision.symbol_upbit}/{decision.symbol_binance}",
+                    side=decision.action.value,
+                    error_message=str(e),
+                    action="Execution failed",
+                )
+            except Exception as alert_err:
+                logger.debug(f"[CROSS_EXECUTOR] Alert emission failed: {alert_err}")
+            
             return self._failed_result(
                 decision=decision,
                 reason=f"Execution exception: {str(e)}",
@@ -731,11 +745,24 @@ class CrossExchangeExecutor:
         from arbitrage.common.currency import RealFxRateProvider
         if isinstance(self.fx_provider, RealFxRateProvider):
             if self.fx_provider.is_stale(money.currency, self.base_currency):
+                age_seconds = int(time.time() - self.fx_provider.get_updated_at(money.currency, self.base_currency))
                 logger.warning(
                     f"[CROSS_EXECUTOR] FX rate is STALE: "
                     f"{money.currency.value}→{self.base_currency.value} "
                     f"(age > {RealFxRateProvider.STALE_THRESHOLD_SECONDS}s)"
                 )
+                
+                # D80-7-INT: FX-004 Alert
+                try:
+                    from arbitrage.alerting import emit_fx_staleness_alert
+                    emit_fx_staleness_alert(
+                        source="real_fx_provider",
+                        pair=f"{money.currency.value}/{self.base_currency.value}",
+                        age_seconds=age_seconds,
+                        last_rate=float(self.fx_provider.get_rate(money.currency, self.base_currency)),
+                    )
+                except Exception as e:
+                    logger.debug(f"[CROSS_EXECUTOR] Alert emission failed: {e}")
         
         return money
     
