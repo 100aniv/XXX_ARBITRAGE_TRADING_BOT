@@ -2330,16 +2330,14 @@ python scripts/validate_env.py --env paper --verbose
       - Comprehensive chaos test coverage (17 tests)
       - Operational resilience proof (350/350 tests PASS)
 
--  Distributed Tuning Workers (queue + worker heartbeat, autoscale)
--  Dashboard (experiment progress, best params, heatmap)
+### D94: Distributed Tuning Workers & Dashboard (⏳ TODO)
+- Distributed Tuning Workers (queue + worker heartbeat, autoscale)
+- Dashboard (experiment progress, best params, heatmap)
 - Walk-forward 결과 승률/Sharpe 10% 이상 개선 증빙 + 리포트
 - Stress test PASS (PnL drawdown/latency 한계 내, fail scenario 재현)
-**Goal:** 멀티심볼·멀티타임프레임 백테스트, Spread/Slippage/Exchange latency 시뮬레이션 정교화
 
-**Deliverables:**
--  ✅ 멀티심볼 백테스트 코어 (symbol graph, shared liquidity, cross-exchange routing)
--  ✅ 멀티타임프레임 엔진 (1s/1m/5m 동시 샘플링 + resync)
--  ✅ Spread/Slippage historical simulation 데이터셋/엔진
+### D95~D96: ADVANCED BACKTEST ENGINE (⏳ TODO)
+**Goal:** 멀티심볼·멀티타임프레임 백테스트, Spread/Slippage/Exchange latency 시뮬레이션 정교화
 -  ✅ Exchange-latency/queue 모델링 (orderbook depth, delay distribution, throttling)
 -  ✅ 백테스트 결과 시각화 (PnL, drawdown, latency timeline, heatmap)
 

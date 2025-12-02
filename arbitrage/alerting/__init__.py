@@ -29,6 +29,15 @@ D80-12 Features:
 - 8 chaos scenarios (SC01-SC08)
 - Long-run test harness (24h durability testing)
 - Fault injection hooks in AlertDispatcher (test-only, hidden)
+
+D80-13 Features:
+- Alert routing rules (routing.py)
+- Priority-based routing (P1/P2/P3)
+- Multi-destination support (telegram, slack, email, local_log)
+- Alert aggregation (5-minute time windows)
+- Escalation tracking (repeated failures → escalate channel)
+- YAML-based configuration (configs/alert_routing.yml)
+- Backward compatible (enable_routing=False default)
 """
 
 from .models import AlertSeverity, AlertSource, AlertRecord
@@ -98,6 +107,18 @@ from .metrics_exporter import (
     reset_global_alert_metrics,
 )
 
+# D80-13: Alert Routing
+from .routing import (
+    AlertPriority,
+    DestinationType,
+    RoutingRule,
+    RoutingTable,
+    AlertRouter,
+    AggregatedAlertBatch,
+    get_global_alert_router,
+    reset_global_alert_router,
+)
+
 __all__ = [
     # D76
     "AlertSeverity",
@@ -152,4 +173,13 @@ __all__ = [
     "AlertMetrics",
     "get_global_alert_metrics",
     "reset_global_alert_metrics",
+    # D80-13
+    "AlertPriority",
+    "DestinationType",
+    "RoutingRule",
+    "RoutingTable",
+    "AlertRouter",
+    "AggregatedAlertBatch",
+    "get_global_alert_router",
+    "reset_global_alert_router",
 ]

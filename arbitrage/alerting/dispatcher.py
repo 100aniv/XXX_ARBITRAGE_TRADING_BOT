@@ -1,7 +1,7 @@
 """
-D80-11: Alert Dispatcher
+D80-11: Alert Dispatcher + D80-13: Alert Routing
 
-Handles async alert delivery with queue, retry, DLQ, and failover.
+Handles async alert delivery with queue, retry, DLQ, failover, and routing.
 Decouples alert emission from delivery to prevent blocking business logic.
 """
 
@@ -16,6 +16,7 @@ from .queue_backend import PersistentAlertQueue
 from .failsafe_notifier import FailSafeNotifier, NotifierFallbackChain, LocalLogNotifier, NotifierStatus
 from .metrics_exporter import get_global_alert_metrics
 from .rule_engine import RuleEngine, AlertDispatchPlan
+from .routing import AlertRouter, get_global_alert_router
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,8 @@ class AlertDispatcher:
         worker_poll_interval_seconds: float = 0.1,
         notifier_timeout_seconds: float = 3.0,
         rule_engine: Optional[RuleEngine] = None,
+        enable_routing: bool = False,
+        router: Optional[AlertRouter] = None,
     ):
         """
         Initialize alert dispatcher
@@ -68,6 +71,8 @@ class AlertDispatcher:
             worker_poll_interval_seconds: Worker polling interval
             notifier_timeout_seconds: Notifier send timeout
             rule_engine: Rule engine for channel routing
+            enable_routing: Enable D80-13 routing layer (default: False for backward compatibility)
+            router: AlertRouter instance (default: global router)
         """
         # Queue backend
         self.queue = PersistentAlertQueue(
@@ -78,6 +83,10 @@ class AlertDispatcher:
         
         # Rule engine
         self.rule_engine = rule_engine or RuleEngine()
+        
+        # D80-13: Routing layer (optional, backward compatible)
+        self._enable_routing = enable_routing
+        self._router = router or (get_global_alert_router() if enable_routing else None)
         
         # Notifiers (wrapped in FailSafeNotifier)
         self._notifiers: Dict[str, FailSafeNotifier] = {}
@@ -184,6 +193,8 @@ class AlertDispatcher:
         """
         Enqueue alert for async delivery (non-blocking)
         
+        D80-13: If routing is enabled, applies routing rules before enqueue.
+        
         Args:
             alert: Alert to send
             rule_id: Optional rule ID for routing
@@ -194,12 +205,36 @@ class AlertDispatcher:
         with self._lock:
             self._stats["enqueued"] += 1
             
+            # D80-13: Apply routing if enabled
+            routing_decision = None
+            if self._enable_routing and self._router:
+                routing_decision = self._router.route_alert(alert, rule_id)
+                
+                # Check if should aggregate
+                if routing_decision.get("should_aggregate", False):
+                    # Add to aggregation buffer
+                    flushed_batch = self._router.aggregate_alert(alert, rule_id or "DEFAULT")
+                    
+                    # If batch flushed, enqueue the batch (not individual alert)
+                    if flushed_batch:
+                        logger.debug(f"Aggregated batch flushed for {rule_id}: {len(flushed_batch.alerts)} alerts")
+                        # For now, still enqueue individual alerts
+                        # In production, you might want to send a summary alert
+                    else:
+                        # Alert added to buffer, don't enqueue yet
+                        logger.debug(f"Alert added to aggregation buffer for {rule_id}")
+                        return True  # Non-blocking success
+            
             # Enqueue with metadata
             metadata = {
                 "rule_id": rule_id,
                 "enqueued_at": time.time(),
                 "retry_count": 0,
             }
+            
+            # D80-13: Add routing decision to metadata
+            if routing_decision:
+                metadata["routing"] = routing_decision
             
             success = self.queue.enqueue(alert, metadata)
             

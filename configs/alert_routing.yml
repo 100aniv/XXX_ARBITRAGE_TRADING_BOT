@@ -1,0 +1,69 @@
+# D80-13: Alert Routing Configuration
+#
+# Defines routing rules for alerts:
+# - priority: P1 (Critical), P2 (Warning), P3 (Info)
+# - destinations: telegram, slack, email, local_log
+# - aggregation_window_seconds: time window for batching alerts (default: 300)
+# - escalate_after_failures: number of consecutive failures before escalation
+# - escalation_target: destination to escalate to
+
+# FX Layer Alerts
+FX-001:
+  priority: P1
+  destinations: [telegram]
+  escalate_after_failures: 3
+  escalation_target: email
+
+FX-002:
+  priority: P1
+  destinations: [telegram, slack]
+
+FX-003:
+  priority: P2
+  destinations: [telegram]
+  aggregation_window_seconds: 300
+
+FX-004:
+  priority: P2
+  destinations: [telegram]
+  aggregation_window_seconds: 600
+
+# Executor Layer Alerts
+EX-001:
+  priority: P1
+  destinations: [telegram]
+  escalate_after_failures: 3
+  escalation_target: email
+
+EX-002:
+  priority: P2
+  destinations: [telegram]
+  aggregation_window_seconds: 300
+
+# RiskGuard Layer Alerts
+RG-001:
+  priority: P1
+  destinations: [telegram, slack]
+
+RG-002:
+  priority: P2
+  destinations: [telegram]
+  aggregation_window_seconds: 300
+
+# WebSocket Layer Alerts
+WS-001:
+  priority: P2
+  destinations: [telegram]
+  aggregation_window_seconds: 600
+
+WS-002:
+  priority: P1
+  destinations: [telegram]
+  escalate_after_failures: 5
+  escalation_target: email
+
+# Default rule for unmapped alerts
+DEFAULT:
+  priority: P3
+  destinations: [local_log]
+  aggregation_window_seconds: 900
