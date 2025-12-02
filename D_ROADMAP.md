@@ -1699,33 +1699,34 @@ python -m scripts.run_d77_0_topn_arbitrage_paper \
 
 **Next:** D77-2 (Grafana Dashboard) or D77-0-RM (Real Market)
 
-### D77-2: Grafana Dashboard Creation ✅ COMPLETED (2025-12-01)
+### D77-2: Grafana Dashboards for CrossExchange & Alerting ✅ COMPLETED (2025-12-02)
 
 **Status:** ✅ **COMPLETE**
 
-**구현 완료:**
-- ✅ 3개 Grafana 대시보드 JSON (21 panels 총)
-- ✅ PromQL 쿼리 30+ 작성
-- ✅ Alert rules 3개 포함
-- ✅ 설계 문서 완성
+**Summary:**  
+D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있는 2개의 Grafana Dashboard 템플릿 생성.  
+- **TopN Arbitrage Core Dashboard:** 거래/수익/성능/리스크 모니터링 (11 panels)
+- **Alerting Overview Dashboard:** Alert 파이프라인 모니터링 (10 panels)
+- `tests/test_d77_2_grafana_dashboards.py` (23 tests, ALL PASS, NEW)
 
-**구현 파일:**
-- `monitoring/grafana/dashboards/d77_topn_trading_kpis.json` (7 panels)
-- `monitoring/grafana/dashboards/d77_system_health.json` (7 panels)
-- `monitoring/grafana/dashboards/d77_risk_guard.json` (7 panels)
-- `docs/D77_2_GRAFANA_DASHBOARD_DESIGN.md`
-- `tests/test_d77_2_dashboards.py` (16 tests, ALL PASS)
-          severity: P1
-        annotations:
-          summary: "Error rate exceeded threshold"
-```
+**테스트 결과:**
+- D77-2 Tests: 23/23 PASS (0.13s)
+- D77-1 + D77-2 Integration: 109/109 PASS (7.00s)
+- JSON Validation, Required Fields, Metrics Coverage
+- Template Variables (env, universe, strategy)
+- Unique UIDs, Auto-refresh, Datasource Config
 
-**완료 조건:**
-- Alertmanager 설정 완료
-- 5개 alert rule 정상 동작
-- Grafana → Telegram 알림 검증
+**Done Criteria:**
+- 2개 Dashboard JSON 생성 (21 panels)
+- CrossExchange 10 metrics + Alert 7 metrics 완전 커버
+- PromQL 쿼리 40+ 작성
+- 테스트 커버리지 100% (23/23)
+- 회귀 테스트 안정화 (109/109)
+- Grafana Import 가능한 JSON 형식
 
-### D77-4: D99 Done Criteria 검증 ⭐
+**Next:** D77-3 (Alertmanager Integration) or D79 (Cross-Exchange)
+
+### D77-4: D99 Done Criteria 검증 
 
 **작업:**
 - **D99 Done Criteria 명시적 연결**
