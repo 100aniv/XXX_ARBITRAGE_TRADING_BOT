@@ -2041,6 +2041,40 @@ python scripts/validate_env.py --env paper --verbose
     - Files: 5개 수정 (exchanges/__init__.py, paper_trader.py, 2 test files, 2 data files)
     - Note: Clean Architecture - Single Exchange Namespace
 
+- **D80-7: Alerting System (Telegram/Slack Integration)**
+  - Status: 📋 PLANNED
+  - Summary:
+    - **Motivation:** Institutional-grade alerting for FX, Executor, RiskGuard anomalies
+    - **Alert Channels:** Telegram (primary) + Slack (optional)
+    - **Severity Levels:** P1 (Critical) / P2 (Warning) / P3 (Info)
+    - **Alert Rules:** FX source down, Median deviation, Executor error, RiskGuard trigger, WebSocket staleness
+    - **Features:** Alert throttling (5분 내 1회), Alert aggregation (30초 window), Redis-backed queue
+    - **Architecture:** AlertManager + Notifier (Telegram/Slack) + Throttler + Aggregator + Queue
+    - **Integration Points:** FX Layer, Executor, RiskGuard, WebSocket
+    - **File Structure:** arbitrage/alerting/ (alert.py, alert_manager.py, telegram_notifier.py, slack_notifier.py, throttler.py, aggregator.py, queue.py)
+    - **Test Coverage:** Unit tests (80+ tests), Integration tests (E2E alerting flow)
+    - **Performance Targets:** Alert latency < 3s (P1), Throttling check < 50ms, Queue throughput ≥ 100/sec
+    - **Design Doc:** docs/D80_7_ALERTING_SYSTEM_DESIGN.md (~1,100 lines)
+    - **Estimated Effort:** 2~3 days (26 hours)
+    - **Expected Deliverables:**
+      - AlertManager core module (alert 생성, 전송, 이력 저장)
+      - TelegramNotifier (Telegram Bot API 연동)
+      - SlackNotifier (Slack Webhook 연동)
+      - AlertThrottler (중복 알림 방지)
+      - AlertAggregator (관련 알림 묶기)
+      - AlertQueue (Redis/In-memory)
+      - FX/Executor/RiskGuard integration (10+ alert rules)
+      - Unit tests (80+ tests, 100% PASS)
+      - Integration tests (E2E flow 3개 이상)
+      - Manual test (실제 Telegram 알림 수신 확인)
+    - **Acceptance Criteria:**
+      - Alert latency < 3s (P1), < 10s (P2/P3)
+      - Throttling 정상 동작 (5분 window)
+      - Aggregation 정상 동작 (30초 window)
+      - Telegram/Slack 알림 수신 성공
+      - Test coverage ≥ 80%
+    - Note: Production-ready Alerting (from Anomaly Detection to Telegram)
+
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 
