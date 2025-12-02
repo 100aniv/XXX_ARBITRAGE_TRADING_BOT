@@ -2027,6 +2027,20 @@ python scripts/validate_env.py --env paper --verbose
     - Files: 8개 신규 + 1개 수정 (+1,084 lines)
     - Note: Institutional-grade Monitoring (from WebSocket to Dashboard)
 
+- **D80-NS: Exchange Namespace Cleanup**
+  - Status: ✅ COMPLETE
+  - Summary:
+    - **Namespace Unification:** arbitrage.exchange → arbitrage.exchanges (단일 네임스페이스)
+    - **Legacy Folder Removal:** arbitrage/exchange/ 폴더 완전 제거
+    - **Import Path Migration:** 2개 파일 (data/live_prices.py, arbitrage/live_trader.py) deprecated 경고 추가
+    - **SimulatedExchange Migration:** arbitrage/exchange/simulated.py → arbitrage/exchanges/simulated_exchange.py (optional import)
+    - **Test Migration:** test_d17_*.py, test_d24_*.py 등 import 경로 업데이트
+    - **Backward Compatibility:** try-except 기반 fallback으로 기존 코드 보호
+    - **Test Results:** D79/D80 229/229 PASS (100%)
+    - **Impact:** 최신 코드(D42+)는 arbitrage.exchanges 사용, 구버전(D16~D20)은 deprecated 경고
+    - Files: 5개 수정 (exchanges/__init__.py, paper_trader.py, 2 test files, 2 data files)
+    - Note: Clean Architecture - Single Exchange Namespace
+
  
 ### D90~D94: HYPERPARAMETER TUNING CLUSTER ( TODO)
 **Goal:** Grid/Random/Bayesian , walk-forward + stress 

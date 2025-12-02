@@ -13,7 +13,7 @@ import asyncio
 import yaml
 from pathlib import Path
 from typing import Dict
-from arbitrage.exchange.simulated import SimulatedExchange
+from arbitrage.exchanges.simulated_exchange import SimulatedExchange
 from arbitrage.state_manager import StateManager
 from liveguard.safety import SafetyModule
 from liveguard.risk_limits import RiskLimits

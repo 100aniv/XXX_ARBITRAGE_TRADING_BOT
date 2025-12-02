@@ -20,6 +20,8 @@ D20 LIVE ARM System:
 - ARM 파일 + ARM 토큰 기반의 2단계 무장 시스템
 - Live 모드 진입 시 ARM 조건을 반드시 만족해야 함
 - ARM이 안 되어 있으면 무조건 Shadow Live Mode로 강등
+
+DEPRECATED: D42+ 이후 arbitrage.exchanges 구조 사용 권장
 """
 
 import logging
@@ -35,7 +37,13 @@ from arbitrage.types import (
     OrderSide, ExchangeType
 )
 from arbitrage.state_manager import StateManager
-from arbitrage.exchange import UpbitExchange, BinanceExchange
+# DEPRECATED: D16 구버전 Exchange, D42+ 이후 UpbitSpotExchange, BinanceFuturesExchange 사용
+try:
+    from arbitrage.exchange import UpbitExchange, BinanceExchange
+except ImportError:
+    # Fallback: exchange/ 폴더가 제거된 경우
+    UpbitExchange = None
+    BinanceExchange = None
 from liveguard.safety import SafetyModule
 from liveguard.risk_limits import RiskLimits
 

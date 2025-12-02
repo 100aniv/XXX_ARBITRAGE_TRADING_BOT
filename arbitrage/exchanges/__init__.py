@@ -2,7 +2,7 @@
 """
 D42 Exchange Adapter Layer
 
-거래소 어댑터 (Upbit Spot, Binance Futures, Paper 모드)
+거래소 어댑터 (Upbit Spot, Binance Futures, Paper 모드, Simulated 모드)
 """
 
 from arbitrage.exchanges.base import (
@@ -25,6 +25,14 @@ from arbitrage.exchanges.paper_exchange import PaperExchange
 from arbitrage.exchanges.upbit_spot import UpbitSpotExchange
 from arbitrage.exchanges.binance_futures import BinanceFuturesExchange
 
+# SimulatedExchange: D17 legacy, optional import for backward compatibility
+try:
+    from arbitrage.exchanges.simulated_exchange import SimulatedExchange
+    _SIMULATED_AVAILABLE = True
+except (ImportError, SyntaxError):
+    SimulatedExchange = None  # type: ignore
+    _SIMULATED_AVAILABLE = False
+
 __all__ = [
     "BaseExchange",
     "OrderSide",
@@ -42,3 +50,6 @@ __all__ = [
     "UpbitSpotExchange",
     "BinanceFuturesExchange",
 ]
+
+if _SIMULATED_AVAILABLE:
+    __all__.append("SimulatedExchange")

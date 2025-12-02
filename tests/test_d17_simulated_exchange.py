@@ -9,7 +9,7 @@ SimulatedExchange 단위 테스트.
 
 import pytest
 import asyncio
-from arbitrage.exchange.simulated import SimulatedExchange
+from arbitrage.exchanges.simulated_exchange import SimulatedExchange
 from arbitrage.types import OrderSide, OrderStatus, ExchangeType
 
 

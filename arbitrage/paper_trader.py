@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from arbitrage.exchange.simulated import SimulatedExchange
+from arbitrage.exchanges.simulated_exchange import SimulatedExchange
 from arbitrage.state_manager import StateManager
 from liveguard.safety import SafetyModule
 from liveguard.risk_limits import RiskLimits
