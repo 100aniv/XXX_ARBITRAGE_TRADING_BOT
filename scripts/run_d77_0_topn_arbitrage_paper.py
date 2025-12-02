@@ -97,6 +97,7 @@ class D77PAPERRunner:
         data_source: str = "mock",  # D77-0-RM: "mock" | "real"
         monitoring_enabled: bool = False,
         monitoring_port: int = 9100,
+        kpi_output_path: str = None,  # D77-4: Custom KPI output path
     ):
         """
         Args:
@@ -111,6 +112,7 @@ class D77PAPERRunner:
         self.data_source = data_source
         self.monitoring_enabled = monitoring_enabled
         self.monitoring_port = monitoring_port
+        self.kpi_output_path = kpi_output_path  # D77-4
         
         # TopN Provider
         self.topn_provider = TopNProvider(mode=universe_mode, data_source=data_source)
@@ -386,7 +388,13 @@ class D77PAPERRunner:
     
     def _save_metrics(self) -> None:
         """Metrics를 JSON 파일로 저장"""
-        output_path = Path(f"logs/d77-0/{self.metrics['session_id']}_kpi_summary.json")
+        # D77-4: Custom KPI output path
+        if self.kpi_output_path:
+            output_path = Path(self.kpi_output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            output_path = Path(f"logs/d77-0/{self.metrics['session_id']}_kpi_summary.json")
+        
         with open(output_path, "w") as f:
             json.dump(self.metrics, f, indent=2)
         logger.info(f"[D77-0] Metrics saved to: {output_path}")
@@ -394,7 +402,7 @@ class D77PAPERRunner:
 
 def parse_args() -> argparse.Namespace:
     """CLI 인자 파싱"""
-    parser = argparse.ArgumentParser(description="D77-0 TopN Arbitrage PAPER Baseline")
+    parser = argparse.ArgumentParser(description="D77-0/D77-4 TopN Arbitrage PAPER Runner")
     parser.add_argument(
         "--universe",
         type=str,
@@ -403,10 +411,23 @@ def parse_args() -> argparse.Namespace:
         help="Universe mode (default: top20)",
     )
     parser.add_argument(
+        "--topn-size",
+        type=int,
+        choices=[10, 20, 50, 100],
+        default=None,
+        help="D77-4: TopN size (overrides --universe)",
+    )
+    parser.add_argument(
         "--duration-minutes",
         type=float,
         default=60.0,
         help="Run duration in minutes (default: 60)",
+    )
+    parser.add_argument(
+        "--run-duration-seconds",
+        type=int,
+        default=None,
+        help="D77-4: Run duration in seconds (overrides --duration-minutes)",
     )
     parser.add_argument(
         "--config",
@@ -438,6 +459,12 @@ def parse_args() -> argparse.Namespace:
         default="mock",
         help="Data source: mock (default) | real (D77-0-RM)",
     )
+    parser.add_argument(
+        "--kpi-output-path",
+        type=str,
+        default=None,
+        help="D77-4: Custom KPI output path (e.g., logs/d77-4/d77-4-1h_kpi.json)",
+    )
     return parser.parse_args()
 
 
@@ -445,23 +472,40 @@ async def main():
     """메인 실행"""
     args = parse_args()
     
-    # Universe mode 변환
-    universe_map = {
-        "top10": TopNMode.TOP_10,
-        "top20": TopNMode.TOP_20,
-        "top50": TopNMode.TOP_50,
-        "top100": TopNMode.TOP_100,
-    }
-    universe_mode = universe_map[args.universe]
+    # D77-4: --topn-size 우선, 없으면 --universe 사용
+    if args.topn_size:
+        topn_size_map = {
+            10: TopNMode.TOP_10,
+            20: TopNMode.TOP_20,
+            50: TopNMode.TOP_50,
+            100: TopNMode.TOP_100,
+        }
+        universe_mode = topn_size_map[args.topn_size]
+    else:
+        universe_map = {
+            "top10": TopNMode.TOP_10,
+            "top20": TopNMode.TOP_20,
+            "top50": TopNMode.TOP_50,
+            "top100": TopNMode.TOP_100,
+        }
+        universe_mode = universe_map[args.universe]
+    
+    # D77-4: --run-duration-seconds 우선, 없으면 --duration-minutes 사용
+    if args.run_duration_seconds:
+        duration_minutes = args.run_duration_seconds / 60.0
+        logger.info(f"[D77-4] Using --run-duration-seconds: {args.run_duration_seconds}s ({duration_minutes:.1f}min)")
+    else:
+        duration_minutes = args.duration_minutes
     
     # Runner 생성 및 실행
     runner = D77PAPERRunner(
         universe_mode=universe_mode,
         data_source=args.data_source,  # D77-0-RM
-        duration_minutes=args.duration_minutes,
+        duration_minutes=duration_minutes,  # D77-4: computed from --run-duration-seconds or --duration-minutes
         config_path=args.config,
         monitoring_enabled=args.monitoring_enabled,
         monitoring_port=args.monitoring_port,
+        kpi_output_path=args.kpi_output_path,  # D77-4
     )
     
     try:

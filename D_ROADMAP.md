@@ -1756,6 +1756,65 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 **Next:** D77-4 (TopN Arbitrage Monitoring & Alerting Long PAPER Validation ≥1h)  
 실제 TopN Arbitrage PAPER를 최소 1시간 이상 실행하면서, D77-1 Prometheus Exporter, D77-2 Grafana Dashboard, D77-3 Runbook/Playbook, D76/D80 Alerting Stack이 설계된 대로 동작하는지 엔드투엔드로 검증하는 단계입니다.
 
+### D77-4: TopN Arbitrage Long PAPER Validation (≥1h) 
+**Status:**  (Implementation Phase 완료, Validation Phase 대기)
+
+**목표:**
+TopN Arbitrage 엔진을 실제 시장 데이터(Upbit/Binance Public API) + PAPER 모드에서 **최소 1시간 이상** 연속 실행하면서, D77-1/2/3에서 구축한 **모니터링 & 알림 스택 전체**가 설계된 대로 동작하는지 **엔드투엔드로 검증**.
+
+**핵심 차별점:**
+- D77-0: Mock 5분 → 기술적 구조 검증
+- D77-0-RM: Real 10분 → Real Market 통합 검증
+- **D77-4: Real 1h+** → **장기 안정성 + 모니터링/알림 스택 종합 검증**
+
+**Implementation Phase ( COMPLETE):**
+- [x]  설계 문서 작성 (`docs/D77_4_LONG_PAPER_VALIDATION_DESIGN.md`)
+- [x]  리포트 템플릿 작성 (`docs/D77_4_LONG_PAPER_VALIDATION_REPORT_TEMPLATE.md`)
+- [x]  Runner CLI 옵션 추가 (`scripts/run_d77_0_topn_arbitrage_paper.py`)
+  - `--run-duration-seconds` (초 단위 실행 시간, --duration-minutes 우선 override)
+  - `--topn-size` (TopN 심볼 개수 10/20/50/100, --universe override)
+  - `--kpi-output-path` (Custom KPI 출력 경로)
+- [x]  Unit Tests 11/11 PASS (`tests/test_d77_4_long_paper_harness.py`)
+- [x]  테스트 실행 (10초 샘플) 정상 완료
+
+**Validation Phase (⏳ TODO):**
+- [ ] ⏳ 1h+ 실제 실행 (수동)
+- [ ] ⏳ Acceptance Criteria 체크 (Critical 6종 + High Priority 6종)
+- [ ] ⏳ 리포트 작성 (D77_4_LONG_PAPER_VALIDATION_REPORT.md)
+- [ ] ⏳ 판단: GO / CONDITIONAL GO / NO-GO
+
+**측정 KPI (32종):**
+1. Trading KPI (11개): Trades, Round Trips, Win Rate, PnL, Drawdown 등
+2. Risk KPI (6개): Guard Triggers, False Positives, Emergency Stops 등
+3. Performance KPI (7개): Loop Latency (p95/p99), CPU, Memory, Error Rate 등
+4. Alerting KPI (8개): Alert Sent/Failed/DLQ, Success Rate, Delivery Latency 등
+
+**Acceptance Criteria (초안):**
+- **Critical (C1~C6):** 1h+ 실행, KPI 32종, Crash=0, DLQ=0, Prometheus/Grafana 정상
+- **High Priority (H1~H6):** Latency p99≤80ms, CPU≤70%, Memory 증가≤10%/h, Alert 성공률≥95% 등
+- **PASS 기준:** Critical 6/6 + High Priority 4+ 충족 → CONDITIONAL GO
+
+**실행 명령어 예시:**
+```bash
+# 실제 검증용 (1시간)
+python scripts/run_d77_0_topn_arbitrage_paper.py \
+  --data-source real --topn-size 50 --run-duration-seconds 3600 \
+  --monitoring-enabled --kpi-output-path logs/d77-4/d77-4-1h_kpi.json
+```
+
+**파일 변경:**
+- **New Files:** `D77_4_LONG_PAPER_VALIDATION_DESIGN.md` (~600 lines), `D77_4_LONG_PAPER_VALIDATION_REPORT_TEMPLATE.md` (~400 lines), `test_d77_4_long_paper_harness.py` (~350 lines)
+- **Modified Files:** `run_d77_0_topn_arbitrage_paper.py` (+50 lines), `D_ROADMAP.md` (+40 lines)
+
+**테스트 결과:**
+- Unit Tests: 11/11 PASS in 45.14s
+- Test Cases: CLI 옵션, Runner 초기화, 10초 실행, KPI 파일, 통합 테스트
+
+**Next Steps:**
+1. D77-4 Validation Phase (1h+ 수동 실행)
+2. Acceptance Criteria 체크 및 리포트 작성
+3. D78 (Authentication & Secrets), D79 (Cross-Exchange), D80 (Multi-Currency)
+
 ⸻
 
 ### D78: Authentication & Secrets Layer
@@ -1785,6 +1844,7 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 - [x] ✅ 3 environments (local_dev, paper, live)
 - [x] ✅ .env templates (4 files)
 - [x] ✅ Tests 16/16 PASS
+
 **Centralized Credentials:**
 Upbit, Binance, Telegram, PostgreSQL, Redis, Email, Slack
 
