@@ -36,7 +36,8 @@ class AlertMetrics:
         Args:
             enable_prometheus: If True, use prometheus_client library
         """
-        self.enable_prometheus = enable_prometheus
+        # Store flag
+        self._enable_prometheus = enable_prometheus
         
         # In-memory metrics (always available)
         self._counters: Dict[str, int] = defaultdict(int)
@@ -52,7 +53,7 @@ class AlertMetrics:
         self._lock = threading.RLock()
         
         # Initialize Prometheus metrics
-        if enable_prometheus:
+        if self._enable_prometheus:
             self._init_prometheus_metrics()
     
     def _init_prometheus_metrics(self):
@@ -114,7 +115,7 @@ class AlertMetrics:
         
         except ImportError:
             logger.warning("prometheus_client not installed, Prometheus metrics disabled")
-            self.enable_prometheus = False
+            self._enable_prometheus = False
     
     def record_sent(self, rule_id: str, notifier: str):
         """Record alert sent"""
@@ -122,7 +123,7 @@ class AlertMetrics:
             key = f"sent:{rule_id}:{notifier}"
             self._counters[key] += 1
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_counters["sent"].labels(rule_id=rule_id, notifier=notifier).inc()
     
     def record_failed(self, rule_id: str, notifier: str, reason: str):
@@ -131,7 +132,7 @@ class AlertMetrics:
             key = f"failed:{rule_id}:{notifier}:{reason}"
             self._counters[key] += 1
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_counters["failed"].labels(
                     rule_id=rule_id, notifier=notifier, reason=reason
                 ).inc()
@@ -142,7 +143,7 @@ class AlertMetrics:
             key = f"fallback:{from_notifier}:{to_notifier}"
             self._counters[key] += 1
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_counters["fallback"].labels(
                     from_notifier=from_notifier, to_notifier=to_notifier
                 ).inc()
@@ -153,7 +154,7 @@ class AlertMetrics:
             key = f"retry:{rule_id}"
             self._counters[key] += 1
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_counters["retry"].labels(rule_id=rule_id).inc()
     
     def record_dlq(self, rule_id: str, reason: str):
@@ -162,7 +163,7 @@ class AlertMetrics:
             key = f"dlq:{rule_id}:{reason}"
             self._counters[key] += 1
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_counters["dlq"].labels(rule_id=rule_id, reason=reason).inc()
     
     def record_delivery_latency(self, notifier: str, latency_seconds: float):
@@ -171,7 +172,7 @@ class AlertMetrics:
             key = f"latency:{notifier}"
             self._histograms[key].append(latency_seconds)
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_histograms["delivery_latency"].labels(notifier=notifier).observe(
                     latency_seconds
                 )
@@ -189,7 +190,7 @@ class AlertMetrics:
             key = f"notifier:{notifier}:{status}"
             self._gauges[key] = value
             
-            if self.enable_prometheus:
+            if self._enable_prometheus:
                 self._prom_gauges["notifier_available"].labels(
                     notifier=notifier, status=status
                 ).set(value)
@@ -257,4 +258,26 @@ def get_global_alert_metrics() -> AlertMetrics:
 def reset_global_alert_metrics():
     """Reset global metrics (for testing)"""
     global _global_metrics
+    
+    # Unregister Prometheus metrics if they exist
+    if _global_metrics and _global_metrics._enable_prometheus:
+        try:
+            from prometheus_client import REGISTRY
+            
+            # Unregister all alert metrics
+            collectors_to_remove = []
+            for collector in list(REGISTRY._collector_to_names.keys()):
+                names = REGISTRY._collector_to_names.get(collector, set())
+                # Remove collectors with alert_* prefix
+                if any(name.startswith("alert_") for name in names):
+                    collectors_to_remove.append(collector)
+            
+            for collector in collectors_to_remove:
+                try:
+                    REGISTRY.unregister(collector)
+                except Exception:
+                    pass  # Ignore errors
+        except Exception:
+            pass  # Ignore if prometheus_client not available
+    
     _global_metrics = None

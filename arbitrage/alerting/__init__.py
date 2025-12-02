@@ -1,5 +1,5 @@
 """
-D76: Alerting Infrastructure + D80-7: Cross-Exchange Alert Layer + D80-11: Fail-Safe Architecture
+D76: Alerting Infrastructure + D80-7: Cross-Exchange Alert Layer + D80-11: Fail-Safe Architecture + D80-12: Chaos & Resilience Testing
 
 Alert severity classification:
 - P0 (Critical): Service down, global risk limit breached
@@ -22,6 +22,13 @@ D80-11 Features:
 - Fail-safe notifier wrappers (timeout, circuit breaker, fallback)
 - Async dispatcher (worker thread, retry, DLQ)
 - Prometheus metrics (delivery rate, latency, availability)
+
+D80-12 Features:
+- Chaos engineering test harness (chaos_harness.py - internal use)
+- Resilience validation (Redis disconnect, notifier failures, CPU load, worker crashes)
+- 8 chaos scenarios (SC01-SC08)
+- Long-run test harness (24h durability testing)
+- Fault injection hooks in AlertDispatcher (test-only, hidden)
 """
 
 from .models import AlertSeverity, AlertSource, AlertRecord

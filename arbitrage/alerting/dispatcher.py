@@ -109,6 +109,9 @@ class AlertDispatcher:
         
         # Always have local log fallback
         self._local_log_notifier = LocalLogNotifier()
+        
+        # D80-12: Fault injection hooks (test-only, hidden)
+        self._fault_handlers: Dict[str, Any] = {}
     
     def register_notifier(
         self,
@@ -370,6 +373,43 @@ class AlertDispatcher:
                     value = 0.0
                 
                 self._metrics.set_notifier_status(name, status.value, value)
+    
+    # D80-12: Fault injection methods (test-only, hidden from public API)
+    def _inject_fault(self, fault_type: str, handler: Any = None):
+        """
+        Inject fault for chaos testing
+        
+        INTERNAL USE ONLY - DO NOT USE IN PRODUCTION
+        
+        Args:
+            fault_type: Type of fault ("redis_down", "network_latency", etc.)
+            handler: Optional fault handler callable
+        """
+        with self._lock:
+            self._fault_handlers[fault_type] = handler
+            logger.warning(f"[CHAOS] Fault injected: {fault_type}")
+    
+    def _clear_fault(self, fault_type: str):
+        """Clear injected fault"""
+        with self._lock:
+            if fault_type in self._fault_handlers:
+                del self._fault_handlers[fault_type]
+                logger.info(f"[CHAOS] Fault cleared: {fault_type}")
+    
+    def _trigger_fault(self, fault_type: str) -> bool:
+        """
+        Trigger fault if injected
+        
+        Returns:
+            True if fault was triggered (skip normal operation)
+        """
+        with self._lock:
+            handler = self._fault_handlers.get(fault_type)
+            if handler:
+                if callable(handler):
+                    handler()
+                return True
+            return False
 
 
 # Global dispatcher instance
