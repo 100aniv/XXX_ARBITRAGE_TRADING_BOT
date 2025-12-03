@@ -1777,11 +1777,20 @@ TopN Arbitrage 엔진을 실제 시장 데이터(Upbit/Binance Public API) + PAP
 - [x]  Unit Tests 11/11 PASS (`tests/test_d77_4_long_paper_harness.py`)
 - [x]  테스트 실행 (10초 샘플) 정상 완료
 
-**Validation Phase (⏳ TODO):**
-- [ ] ⏳ 1h+ 실제 실행 (수동)
-- [ ] ⏳ Acceptance Criteria 체크 (Critical 6종 + High Priority 6종)
-- [ ] ⏳ 리포트 작성 (D77_4_LONG_PAPER_VALIDATION_REPORT.md)
-- [ ] ⏳ 판단: GO / CONDITIONAL GO / NO-GO
+**Validation Phase (🤖 AUTOMATION COMPLETE):**
+- [x] ✅ 실행 계획서 작성 (`docs/D77_4_VALIDATION_EXECUTION_PLAN.md` - v2.0 자동화)
+- [x] ✅ 의사결정 트리 작성 (`docs/D77_4_VALIDATION_DECISION_TREE.md`)
+- [x] ✅ 완전 자동화 4대 원칙 정의 및 구현
+- [x] ✅ 자동화 스크립트 세트 구현 완료:
+  - `scripts/d77_4_env_checker.py` (환경 정리)
+  - `scripts/d77_4_monitor.py` (실시간 모니터링)
+  - `scripts/d77_4_analyzer.py` (KPI 분석 & 판단)
+  - `scripts/d77_4_reporter.py` (리포트 생성)
+  - `scripts/d77_4_orchestrator.py` (메인 엔트리)
+- [x] ✅ 자동화 테스트 코드 작성 (`tests/test_d77_4_automation.py`)
+- [ ] ⏳ 60초 스모크 테스트 실행 (오케스트레이터 통해 자동 실행)
+- [ ] ⏳ 1h+ 본 실행 (오케스트레이터 --mode full)
+- [ ] ⏳ 최종 검증 결과 및 GO/NO-GO 판단
 
 **측정 KPI (32종):**
 1. Trading KPI (11개): Trades, Round Trips, Win Rate, PnL, Drawdown 등
