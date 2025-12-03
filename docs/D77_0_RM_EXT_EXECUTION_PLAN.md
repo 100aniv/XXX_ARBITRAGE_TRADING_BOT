@@ -32,6 +32,24 @@ D77-0-RM의 10분 검증을 확장하여, **Upbit/Binance Real Market TopN PAPER
 
 ## 📋 1. 실행 시나리오
 
+### Universe 전략 (TopN)
+
+- **Primary: Top20** (필수)
+  - 목적: 실전 운영에 가장 가까운 조건에서 1시간 장기 안정성 및 성능 검증
+  - 유동성/거래량 상위 심볼 기준, 실전 수익 기여 핵심
+
+- **Extended: Top50** (선택, 환경 여유 시)
+  - 목적: 상위 알트까지 포함한 부하/안정성 Stress Test
+  - Rate Limit 핸들링 강도 검증
+
+- **Top100+ 확장**
+  - 현재 D77 단계에서는 범위 밖
+  - 향후 D80+ Multi-Symbol Performance 단계에서
+    - TopN(20/50/100) 별 Load Test
+    - Rate Limit 튜닝
+    - API 비용/수익 기여도 분석
+    과 함께 재검토 예정
+
 ### 1.1 Primary Scenario (기본)
 ```bash
 # Top20, 1시간, Real Market PAPER

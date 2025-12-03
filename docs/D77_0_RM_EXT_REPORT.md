@@ -1,9 +1,16 @@
-# D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation - FINAL REPORT
+# D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation - REPORT
 
-**Status:** ✅ **COMPLETE (Based on D77-4 1h Top50 Validation)**  
+**Status:** ⚠️ **PARTIAL COMPLETE (D77-4 1h Top50 Reference, D77-0-RM-EXT 1h Primary Pending)**  
 **Date:** 2025-12-03  
 **Run ID:** run_20251203_164441 (D77-4 reference)  
 **Session ID:** d77-0-top_50-20251203164544
+
+**Note:** 이 리포트는:
+- D77-0-RM (10분 Real Market 검증) 결과와
+- D77-4 (1h Top50 Real Market + Monitoring Stack) 결과를 **레퍼런스**로 사용하여
+  엔진/인프라 레벨의 1시간 장기 실행 준비도를 평가합니다.
+- 하지만 **D77-0-RM-EXT 자체의 1시간 Top20 실행은 아직 완주/KPI 수집이 완료되지 않았으며,**
+  현재까지는 Smoke 3분 + 부분 실행(사용자 중단)까지만 진행된 상태입니다.
 
 ---
 
@@ -15,7 +22,8 @@
 - 모니터링/알림 스택 통합 검증
 - 상용급 운영 준비도 평가
 
-를 성공적으로 완료했습니다.
+를 목표로 합니다. 현재 **엔진/인프라 레벨 검증은 D77-4 + D77-5 기반으로 완료**되었으나, 
+**D77-0-RM-EXT 전용 1시간 Top20 실행은 아직 완주되지 않았습니다.**
 
 **✅ 핵심 성과:**
 - **1시간 Top50 실행 성공** (1,656 round trips, $207,000 PnL)
@@ -35,11 +43,12 @@
 
 ### 1.1 Primary Goals
 
-- [x] ✅ Real Market PAPER 1h+ 실행
-- [x] ✅ Core KPI 10종 수집
-- [x] ✅ 장기 안정성 검증 (메모리/CPU)
-- [x] ✅ Rate Limit 핸들링 검증 (429 자동 복구)
-- [x] ✅ 스프레드/라우팅 패턴 분석
+- [x] ✅ Real Market PAPER 1h+ 실행 (D77-4 Top50 기준으로 엔진 레벨 검증)
+- [ ] ⏳ D77-0-RM-EXT 전용 1h Top20 실행 + KPI 수집 (Pending)
+- [x] ✅ Core KPI 10종 수집 (D77-4 기반)
+- [x] ✅ 장기 안정성 검증 (메모리/CPU) (D77-4 기반)
+- [x] ✅ Rate Limit 핸들링 검증 (429 자동 복구) (D77-5)
+- [x] ✅ 스프레드/라우팅 패턴 분석 (D77-4 기반)
 
 ### 1.2 Technical Requirements
 
@@ -252,6 +261,14 @@ arbitrage-postgres     Up 3h (healthy)       5432
 - **성능 일관성:** 10분 vs 1시간에서 Latency/Memory/CPU 동일 수준 유지
 
 ### 7.2 Remaining Gaps
+- [ ] **D77-0-RM-EXT 전용 1시간 Top20 실행 + KPI JSON** ⚠️ **CRITICAL**
+  - 현재 리포트는 D77-4의 1시간 Top50 KPI (run_20251203_164441)를 참조하여
+    엔진/인프라 레벨의 장기 안정성을 평가하고 있습니다.
+  - 그러나 **D77-0-RM-EXT Primary 시나리오에서 1시간 Top20 실행은**
+    **사용자가 Ctrl+C로 중단하여 KPI 파일이 생성되지 않았습니다.**
+  - 따라서 D77-0-RM-EXT의 Done Criteria(C1~C5)는 **부분적으로만 충족**된 상태이며,
+    **전용 1시간 실행 + KPI 수집 이후 GPT의 최종 GO/NO-GO 판단이 필요합니다.**
+
 - [ ] **Real Market 스프레드 분석** (현재 Mock 데이터)
   - D77-0-RM에서 평균 25bps 관찰 (Mock 50bps 대비 절반)
   - 향후 Real Market 1h 실행 시 상세 분석 필요
@@ -294,7 +311,8 @@ arbitrage-postgres     Up 3h (healthy)       5432
 - Critical 4/5 → **⚠️ CONDITIONAL GO** (Gap 명시)
 - Critical < 4/5 → **❌ NO-GO** (재검증 필요)
 
-**판단:** **✅ GO**
+**판단 (시나리오 레벨):** ⚠️ **PARTIAL** - D77-0-RM-EXT 1h Primary 실행 및 KPI 수집 후 최종 GO/NO-GO 판단 예정  
+**판단 (엔진/인프라 레벨):** ✅ **GO** - D77-4 + D77-5 기준으로 상용급 운영 준비도 충족
 
 **근거:**
 - **Critical 5/5 PASS** ✅
@@ -390,16 +408,23 @@ python scripts/run_d77_0_rm_ext.py --scenario extended
 
 ## 12. Conclusion
 
-D77-0-RM-EXT는 Upbit/Binance Real Market TopN PAPER 모드의 **1시간 장기 실행 검증**을 성공적으로 완료했습니다.
+- D77-4 + D77-5를 통해 **엔진/도메인/모니터링/알림 스택** 수준의
+  1시간 Top50 Real Market PAPER 검증은 **GO 수준**으로 확인되었습니다.
+- D77-0-RM (10분)에서는 Real Market TopN 통합이 정상 동작함을 확인했습니다.
+- 그러나 **D77-0-RM-EXT 전용 1시간 Top20 실행 + KPI 수집은 아직 완료되지 않았으므로,**
+  이 리포트에서 D77-0-RM-EXT 시나리오 자체에 대해 최종 **GO**를 선언하지 않습니다.
 
-**핵심 성과:**
+**핵심 성과 (D77-4 + D77-5 기반):**
 - ✅ **Crash 0건, 메모리/CPU 안정적** (증가율 0%, 35% CPU)
 - ✅ **Rate Limit 자동 복구 100%** (D77-5 구현)
 - ✅ **Prometheus 스냅샷 저장 성공** (D77-5 구현)
 - ✅ **초저지연 성능** (p99: 0.11ms, 목표 대비 730배 우수)
 - ✅ **1,656 round trips** (목표 50 대비 33배 초과)
 
-**판단:** ✅ **GO** - 상용급 운영 준비도 검증 완료, 다음 단계(D78 Authentication) 진행 가능
+**판단 (시나리오 레벨):** ⚠️ **PARTIAL** - D77-0-RM-EXT 1h Primary 실행 및 KPI 수집 후 최종 GO/NO-GO 판단 예정  
+**판단 (엔진/인프라 레벨):** ✅ **GO** - D77-4 + D77-5 기준으로 상용급 운영 준비도 충족
+
+**최종 판단은 GPT 외부 검토 후 확정됩니다.**
 
 **중요 노트:**
 - PAPER 모드 PnL 수치($207,000)는 엔진 검증용이며, 실거래 수익을 보장하지 않습니다.

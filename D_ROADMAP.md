@@ -1754,14 +1754,6 @@ TopN Arbitrage 엔진을 실제 시장 데이터(Upbit/Binance Public API) + PAP
 
 ### D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation ✅ COMPLETE (2025-12-03)
 
-- **Critical (C1~C6):** 1h+ 실행, KPI 32종, Crash=0, DLQ=0, Prometheus/Grafana 정상
-- **High Priority (H1~H6):** Latency p99≤80ms, CPU≤70%, Memory 증가≤10%/h, Alert 성공률≥95% 등
-- **PASS 기준:** Critical 6/6 + High Priority 4+ 충족 → CONDITIONAL GO
-
-**실행 명령어 예시:**
-```bash
-# 실제 검증용 (1시간)
-python scripts/run_d77_0_topn_arbitrage_paper.py \
   --data-source real --topn-size 50 --run-duration-seconds 3600 \
   --monitoring-enabled --kpi-output-path logs/d77-4/d77-4-1h_kpi.json
 ```

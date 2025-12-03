@@ -195,6 +195,7 @@ class D77PAPERRunner:
         
         # 2. PAPER 실행 (Simplified mock loop)
         logger.info("[D77-0] Starting PAPER loop...")
+        # Wall-clock based timing (monotonic, unaffected by system clock changes)
         start_time = time.time()
         end_time = start_time + (self.duration_minutes * 60)
         
@@ -338,6 +339,11 @@ class D77PAPERRunner:
     
     def _calculate_final_metrics(self) -> None:
         """최종 metrics 계산"""
+        # Actual elapsed time (wall-clock based)
+        actual_duration_seconds = self.metrics["end_time"] - self.metrics["start_time"]
+        self.metrics["actual_duration_seconds"] = actual_duration_seconds
+        self.metrics["actual_duration_minutes"] = actual_duration_seconds / 60.0
+        
         # Win rate
         total_exits = self.metrics["wins"] + self.metrics["losses"]
         if total_exits > 0:
@@ -360,7 +366,9 @@ class D77PAPERRunner:
         logger.info("=" * 80)
         logger.info(f"Session ID: {self.metrics['session_id']}")
         logger.info(f"Universe: {self.metrics['universe_mode']}")
-        logger.info(f"Duration: {self.metrics['duration_minutes']:.1f} minutes")
+        # Report actual elapsed time, not configured duration
+        actual_dur_min = self.metrics.get('actual_duration_minutes', self.metrics['duration_minutes'])
+        logger.info(f"Duration: {actual_dur_min:.1f} minutes (actual elapsed)")
         logger.info("")
         logger.info("Trades:")
         logger.info(f"  Total Trades: {self.metrics['total_trades']}")
