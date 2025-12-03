@@ -10,6 +10,7 @@ Features:
 - 티커 조회 (ticker)
 - Top symbols 조회 (거래량 기준)
 - No authentication required
+- Rate limit (429) handling with exponential backoff (D77-5)
 """
 
 import logging
@@ -19,6 +20,11 @@ from dataclasses import dataclass
 import requests
 
 logger = logging.getLogger(__name__)
+
+# Rate Limit 관련 상수
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_BACKOFF_BASE = 0.5  # 초기 백오프 시간 (초)
+DEFAULT_BACKOFF_MAX = 4.0  # 최대 백오프 시간 (초)
 
 
 @dataclass
@@ -54,18 +60,97 @@ class UpbitPublicDataClient:
     
     Public endpoints만 사용하여 시세 데이터를 조회한다.
     주문 전송 기능은 없음 (PAPER 모드용).
+    
+    D77-5: Rate limit (429) handling with exponential backoff added.
     """
     
     BASE_URL = "https://api.upbit.com/v1"
     
-    def __init__(self, timeout: int = 10):
+    def __init__(
+        self,
+        timeout: int = 10,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        backoff_base: float = DEFAULT_BACKOFF_BASE,
+        backoff_max: float = DEFAULT_BACKOFF_MAX,
+    ):
         """
         Args:
             timeout: HTTP 요청 타임아웃 (초)
+            max_retries: 429 에러 발생 시 최대 재시도 횟수
+            backoff_base: 초기 백오프 시간 (초)
+            backoff_max: 최대 백오프 시간 (초)
         """
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self.backoff_max = backoff_max
         self.session = requests.Session()
+        self.rate_limit_hits = 0  # Rate limit 히트 횟수 (메트릭용)
         logger.info("[UPBIT_PUBLIC] Client initialized (public endpoints only)")
+    
+    def _request_with_retry(
+        self,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        operation_name: str = "request",
+    ) -> Optional[requests.Response]:
+        """
+        Rate limit (429) 핸들링이 포함된 HTTP GET 요청.
+        
+        Args:
+            url: 요청 URL
+            params: 쿼리 파라미터
+            operation_name: 작업 이름 (로깅용)
+        
+        Returns:
+            requests.Response 또는 None (실패 시)
+        
+        Note:
+            429 에러 발생 시 exponential backoff로 재시도.
+            최대 재시도 횟수 초과 시 None 반환.
+        """
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = self.session.get(url, params=params, timeout=self.timeout)
+                
+                # 429 (Too Many Requests) 체크
+                if resp.status_code == 429:
+                    self.rate_limit_hits += 1
+                    
+                    if attempt < self.max_retries:
+                        # Exponential backoff: 0.5s -> 1s -> 2s (최대 4s)
+                        backoff_time = min(self.backoff_base * (2 ** attempt), self.backoff_max)
+                        logger.warning(
+                            f"[UPBIT_PUBLIC] Rate limit (429) hit for {operation_name}. "
+                            f"Retry {attempt + 1}/{self.max_retries} after {backoff_time:.1f}s"
+                        )
+                        time.sleep(backoff_time)
+                        continue
+                    else:
+                        logger.error(
+                            f"[UPBIT_PUBLIC] Rate limit (429) persists after {self.max_retries} retries for {operation_name}. "
+                            "Giving up."
+                        )
+                        return None
+                
+                # 성공 또는 다른 에러 코드
+                return resp
+            
+            except requests.exceptions.RequestException as e:
+                if attempt < self.max_retries:
+                    backoff_time = min(self.backoff_base * (2 ** attempt), self.backoff_max)
+                    logger.warning(
+                        f"[UPBIT_PUBLIC] Request exception for {operation_name}: {e}. "
+                        f"Retry {attempt + 1}/{self.max_retries} after {backoff_time:.1f}s"
+                    )
+                    time.sleep(backoff_time)
+                else:
+                    logger.error(
+                        f"[UPBIT_PUBLIC] Request failed after {self.max_retries} retries for {operation_name}: {e}"
+                    )
+                    return None
+        
+        return None
     
     def fetch_ticker(self, symbol: str) -> Optional[TickerInfo]:
         """
@@ -76,12 +161,18 @@ class UpbitPublicDataClient:
         
         Returns:
             TickerInfo 또는 None (오류 시)
+        
+        Note:
+            D77-5: Rate limit (429) handling with retry.
         """
+        url = f"{self.BASE_URL}/ticker"
+        params = {"markets": symbol}
+        
+        resp = self._request_with_retry(url, params, operation_name=f"fetch_ticker({symbol})")
+        if not resp:
+            return None
+        
         try:
-            url = f"{self.BASE_URL}/ticker"
-            params = {"markets": symbol}
-            
-            resp = self.session.get(url, params=params, timeout=self.timeout)
             resp.raise_for_status()
             
             data = resp.json()
@@ -99,8 +190,11 @@ class UpbitPublicDataClient:
                 change_rate=item.get("signed_change_rate", 0.0),
             )
         
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[UPBIT_PUBLIC] Failed to fetch ticker for {symbol}: {e}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[UPBIT_PUBLIC] HTTP error for ticker {symbol}: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.error(f"[UPBIT_PUBLIC] Failed to parse ticker data for {symbol}: {e}")
             return None
     
     def fetch_orderbook(self, symbol: str) -> Optional[OrderbookData]:
@@ -112,12 +206,18 @@ class UpbitPublicDataClient:
         
         Returns:
             OrderbookData 또는 None (오류 시)
+        
+        Note:
+            D77-5: Rate limit (429) handling with retry.
         """
+        url = f"{self.BASE_URL}/orderbook"
+        params = {"markets": symbol}
+        
+        resp = self._request_with_retry(url, params, operation_name=f"fetch_orderbook({symbol})")
+        if not resp:
+            return None
+        
         try:
-            url = f"{self.BASE_URL}/orderbook"
-            params = {"markets": symbol}
-            
-            resp = self.session.get(url, params=params, timeout=self.timeout)
             resp.raise_for_status()
             
             data = resp.json()
@@ -149,8 +249,11 @@ class UpbitPublicDataClient:
                 asks=asks,
             )
         
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[UPBIT_PUBLIC] Failed to fetch orderbook for {symbol}: {e}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[UPBIT_PUBLIC] HTTP error for orderbook {symbol}: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.error(f"[UPBIT_PUBLIC] Failed to parse orderbook data for {symbol}: {e}")
             return None
     
     def fetch_top_symbols(
@@ -169,14 +272,20 @@ class UpbitPublicDataClient:
         
         Returns:
             심볼 리스트 (예: ["KRW-BTC", "KRW-ETH", ...])
+        
+        Note:
+            D77-5: Rate limit (429) handling with retry.
         """
+        # 1. Get all market codes
+        url = f"{self.BASE_URL}/market/all"
+        resp = self._request_with_retry(url, params={"isDetails": "false"}, operation_name="fetch_market_all")
+        if not resp:
+            return []
+        
         try:
-            # 1. Get all market codes
-            url = f"{self.BASE_URL}/market/all"
-            resp = self.session.get(url, params={"isDetails": "false"}, timeout=self.timeout)
             resp.raise_for_status()
-            
             markets = resp.json()
+            
             # Filter by market (e.g., "KRW-*")
             symbols = [m["market"] for m in markets if m["market"].startswith(f"{market}-")]
             
@@ -187,9 +296,15 @@ class UpbitPublicDataClient:
             # 2. Get tickers for all symbols
             ticker_url = f"{self.BASE_URL}/ticker"
             ticker_params = {"markets": ",".join(symbols)}
-            ticker_resp = self.session.get(ticker_url, params=ticker_params, timeout=self.timeout)
-            ticker_resp.raise_for_status()
+            ticker_resp = self._request_with_retry(
+                ticker_url,
+                params=ticker_params,
+                operation_name=f"fetch_tickers(market={market})"
+            )
+            if not ticker_resp:
+                return []
             
+            ticker_resp.raise_for_status()
             tickers = ticker_resp.json()
             
             # 3. Sort by specified field
@@ -205,8 +320,11 @@ class UpbitPublicDataClient:
             
             return top_symbols
         
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[UPBIT_PUBLIC] Failed to fetch top symbols: {e}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[UPBIT_PUBLIC] HTTP error for fetch_top_symbols: {e}")
+            return []
+        except (ValueError, KeyError) as e:
+            logger.error(f"[UPBIT_PUBLIC] Failed to parse top symbols data: {e}")
             return []
     
     def close(self):

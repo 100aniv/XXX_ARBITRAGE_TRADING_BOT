@@ -211,10 +211,10 @@ D77-4 완전 자동화 검증이 완료되었습니다.
 - [x] ✅ 자동화 오케스트레이터 구축 (완전 자동화)
 - [x] ✅ Acceptance Criteria 자동 검증
 
-### Remaining Gaps (D77-5)
-- [ ] ❌ Prometheus 메트릭 파일 저장 로직 추가
-- [ ] ⚠️ Upbit Public API Rate Limit 처리
-- [ ] ⚠️ d77_4_monitor.py 실시간 모니터링 활성화
+### Remaining Gaps (D77-5 - In Progress)
+- [x] ✅ Prometheus 메트릭 파일 저장 로직 추가 (prometheus_snapshot.py)
+- [x] ✅ Upbit Public API Rate Limit (429) 처리 (exponential backoff)
+- [ ] ⚠️ d77_4_monitor.py 실시간 모니터링 활성화 (TODO)
 
 ### D78+ Roadmap
 - **D78:** Authentication & Secrets

@@ -1828,6 +1828,49 @@ python scripts/run_d77_0_topn_arbitrage_paper.py \
 
 ⸻
 
+### D77-5: Monitoring Stack Hardening & Prometheus C5 Gap Fix ✅ IMPLEMENTATION COMPLETE (2025-12-03)
+
+**Status:** ✅ **IMPLEMENTATION COMPLETE** (Validation은 다음 단계)
+
+**목표:**
+D77-4에서 식별된 모니터링 갭(C5 Prometheus 미충족, Rate Limit 429)을 해결. **엔진/도메인 구조는 변경 없이** 모니터링 레이어만 보강.
+
+**Implementation Phase (✅ COMPLETE):**
+- [x] ✅ Prometheus 메트릭 스냅샷 저장 (`arbitrage/monitoring/prometheus_snapshot.py`)
+  - `/metrics` 엔드포인트 자동 수집 → 파일 저장
+  - Graceful degradation (실패 시 None 반환)
+- [x] ✅ Upbit Rate Limit (429) 핸들링 (`arbitrage/exchanges/upbit_public_data.py`)
+  - Exponential backoff (0.5s → 1s → 2s, max 4s)
+  - Max retries: 3회 (설정 가능)
+  - Rate limit 히트 카운터 추가
+- [x] ✅ d77_4_analyzer 통합
+  - 분석 시 Prometheus 스냅샷 자동 저장
+  - C5 검증: 스냅샷 파일 존재 확인
+- [x] ✅ 테스트 코드
+  - `test_d77_5_prometheus_snapshot.py` (8 tests)
+  - `test_d77_5_rate_limit.py` (9 tests)
+
+**구현 파일:**
+- **New:** `prometheus_snapshot.py` (~150L), 테스트 2개 (~400L)
+- **Modified:** `upbit_public_data.py` (+100L), `d77_4_analyzer.py` (+50L)
+
+**핵심 개선:**
+1. C5 Gap 해결: 메트릭 파일 저장 → 검증 가능
+2. Rate Limit 안정화: Top50 로딩 시 429 에러 자동 재시도
+3. 기존 인프라 재사용 (새 시스템 생성 안 함)
+
+**중요:**
+- D77-4 결과($207k, 100% win)는 **엔진 검증용**이며 실거래 수익 보장 아님
+- D77-5는 모니터링만 보강, 엔진 로직 변경 없음
+
+**Validation Phase (⏳ TODO):**
+- [ ] 1h run 재실행 (C5 PASS 검증)
+- [ ] Rate limit 실제 동작 확인
+
+**Next:** D78 (Authentication) or D77-5 Validation
+
+⸻
+
 ### D78: Authentication & Secrets Layer
 
 ### D78-0: Central Settings & Environment Management ✅ COMPLETED (2025-12-01)

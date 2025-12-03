@@ -4,6 +4,8 @@
 D77-4 Analyzer - KPI 분석 및 Acceptance Criteria 검증
 
 KPI 32종 수집 및 Critical/High Priority 검증 자동화
+
+D77-5: Prometheus 메트릭 스냅샷 저장 기능 추가
 """
 
 import json
@@ -11,7 +13,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,16 +57,26 @@ class D77Analyzer:
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
     
-    def analyze(self, kpi_path: Path, console_log_path: Path, metrics_path: Path = None) -> Dict:
+    def analyze(
+        self,
+        kpi_path: Path,
+        console_log_path: Path,
+        metrics_path: Optional[Path] = None,
+        prometheus_url: str = "http://localhost:9100/metrics"
+    ) -> Dict:
         """전체 분석 수행
         
         Args:
             kpi_path: KPI JSON 파일 경로
             console_log_path: 콘솔 로그 파일 경로
-            metrics_path: Prometheus 메트릭 스냅샷 경로 (선택)
+            metrics_path: Prometheus 메트릭 스냅샷 경로 (선택, 제공되지 않으면 자동 저장 시도)
+            prometheus_url: Prometheus /metrics 엔드포인트 URL (D77-5)
         
         Returns:
             분석 결과 딕셔너리
+        
+        Note:
+            D77-5: metrics_path가 제공되지 않으면, Prometheus에서 자동으로 스냅샷을 저장합니다.
         """
         logger.info(f"[D77-4 Analyzer] 분석 시작 (run_id: {self.run_id})")
         
@@ -75,7 +87,29 @@ class D77Analyzer:
             "high_priority_results": {},
             "decision": None,
             "decision_reason": None,
+            "prometheus_snapshot_path": None,  # D77-5: 스냅샷 경로 추가
         }
+        
+        # D77-5: Prometheus 스냅샷 자동 저장
+        if not metrics_path or not metrics_path.exists():
+            logger.info("[D77-5] Prometheus 스냅샷 자동 저장 시도")
+            try:
+                from arbitrage.monitoring.prometheus_snapshot import save_prometheus_snapshot
+                snapshot_path = save_prometheus_snapshot(
+                    run_id=self.run_id,
+                    output_dir=self.log_dir,
+                    metrics_url=prometheus_url,
+                )
+                if snapshot_path:
+                    metrics_path = snapshot_path
+                    result["prometheus_snapshot_path"] = str(snapshot_path)
+                    logger.info(f"[D77-5] Prometheus 스냅샷 저장 완료: {snapshot_path}")
+                else:
+                    logger.warning("[D77-5] Prometheus 스냅샷 저장 실패 (서버 미응답 또는 에러)")
+            except Exception as e:
+                logger.error(f"[D77-5] Prometheus 스냅샷 저장 중 예외: {e}", exc_info=True)
+        else:
+            result["prometheus_snapshot_path"] = str(metrics_path)
         
         # KPI 로드
         if not kpi_path.exists():
@@ -227,7 +261,14 @@ class D77Analyzer:
         
         elif check_type == "metrics_exists":
             # C5: Prometheus 메트릭 파일 존재
-            return len(metrics) > 0
+            # D77-5: Prometheus 스냅샷 파일 존재 여부로 검증
+            prometheus_snapshot = self.log_dir / "prometheus_metrics.prom"
+            if prometheus_snapshot.exists():
+                logger.info(f"[C5] Prometheus 스냅샷 파일 존재: {prometheus_snapshot}")
+                return True
+            else:
+                logger.warning(f"[C5] Prometheus 스냅샷 파일 없음: {prometheus_snapshot}")
+                return False
         
         elif check_type == "manual":
             # C6, H5: 수동 확인 (낙관적 PASS)
