@@ -2,18 +2,42 @@
 # -*- coding: utf-8 -*-
 """
 D80-2: Real Market Edge & Spread Reality Check Analyzer
+실제 시장 엣지 및 스프레드 현실성 검증 분석기
 
-D77-0-RM-EXT 1h Top20/Top50 실행 결과를 기반으로,
-Real Market에서의 Edge/PnL 현실성을 정량 분석.
+목적:
+    D77-0-RM-EXT 1시간 Top20/Top50 실행 결과를 기반으로,
+    "엔진/인프라 검증 GO"와 "실제 수익 구조의 현실성"을 명확히 구분하여 평가합니다.
+    
+핵심 기능:
+    1. KPI 파일 로드 및 요약 (Top20/Top50)
+    2. Win Rate 100% 구조적 원인 분석
+        - 진입 조건: spread > fee + safety_margin
+        - PAPER 모드 한계: 부분 체결/슬리피지/호가 변동 미반영
+    3. PnL 구조 분석 (시간당/라운드트립당)
+    4. 수수료/슬리피지 시나리오별 PnL 재계산 (Conservative/Moderate/Pessimistic)
+    5. 스프레드 요구사항 역산 추정
+    6. 한계점 식별 (Data Logging, Fill Model, Market Impact, Inventory Cost)
+    7. Next Steps 제안 (D80-3, D80-4, D81-x, D82-x)
 
-이 스크립트는 기존 D77-4 analyzer를 재사용하고,
-추가로 수수료/슬리피지 시나리오 분석을 수행합니다.
+이 스크립트의 설계 원칙:
+    - 기존 D77-4 analyzer 구조 재사용 (오벌리팩토링 금지)
+    - 엔진/도메인 코드 수정 없음 (분석 계층만 추가)
+    - 정량적 데이터 기반 평가 (추측/가정 최소화)
+    - "1조 프로그램" 관점에서 현실성 평가 (과장 금지)
 
 Usage:
+    # Top20 + Top50 KPI 파일 경로 지정
     python scripts/d80_2_real_market_edge_analyzer.py \
-        --top20-kpi logs/d77-0-rm-ext/run_*/1h_top20_kpi.json \
-        --top50-kpi logs/d77-0-rm-ext/run_*/1h_top50_kpi.json \
+        --top20-kpi logs/d77-0-rm-ext/run_20251204_001336/1h_top20_kpi.json \
+        --top50-kpi logs/d77-0-rm-ext/run_20251204_012509/1h_top50_kpi.json \
         --output-dir logs/d80-2
+
+Output:
+    - 콘솔 요약 출력 (80자 구분선 형식)
+    - JSON 결과: logs/d80-2/d80_2_edge_summary.json
+
+Author: arbitrage-lite project
+Date: 2025-12-04
 """
 
 import argparse
@@ -25,9 +49,30 @@ from typing import Dict, List, Tuple
 
 
 class D80EdgeAnalyzer:
-    """Real Market Edge & Spread 현실성 분석기"""
+    """
+    Real Market Edge & Spread 현실성 분석기
+    
+    D77-0-RM-EXT Top20/Top50 1h 실행 결과를 기반으로,
+    "엔진/인프라 검증 GO"와 "실제 수익 구조 현실성"을 구분하여 분석합니다.
+    
+    주요 분석 항목:
+        1. Win Rate 100% 구조적 원인 (진입 조건, PAPER 모드 한계)
+        2. PnL 구조 (시간당, 라운드트립당)
+        3. 수수료/슬리피지 시나리오별 PnL 재계산
+        4. 스프레드 요구사항 역산
+        5. 한계점 및 Gap 식별
+        6. Next Steps 제안
+    
+    Attributes:
+        FEE_SCENARIOS: 수수료/슬리피지 시나리오 정의 (Conservative/Moderate/Pessimistic)
+        output_dir: 분석 결과 저장 디렉토리
+        analysis_result: 전체 분석 결과를 담는 딕셔너리
+    """
     
     # 수수료/슬리피지 시나리오 정의
+    # Conservative: 낙관적 (fee 10bps, slippage 5bps)
+    # Moderate: 현실적 (fee 20bps, slippage 10bps) - 기본 가정
+    # Pessimistic: 비관적 (fee 30bps, slippage 15bps)
     FEE_SCENARIOS = [
         {"name": "Conservative", "fee_bps": 10, "slippage_bps": 5},
         {"name": "Moderate", "fee_bps": 20, "slippage_bps": 10},
@@ -149,7 +194,27 @@ class D80EdgeAnalyzer:
         return edge_analysis
     
     def _interpret_win_rate(self, top20_kpi: Dict, top50_kpi: Dict) -> Dict:
-        """100% 승률 해석"""
+        """
+        100% 승률 해석 및 구조적 원인 분석
+        
+        핵심 질문: 왜 100% 승률이 나왔는가?
+        
+        답변:
+            1. 진입 조건이 "보장된 승리" 구조: spread > fee + safety_margin
+            2. PAPER 모드 한계:
+                - 부분 체결 미모델링 (주문 전량 즉시 체결 가정)
+                - 슬리피지 미반영 (제출 가격 그대로 체결 가정)
+                - 호가 변동 및 시장 충격 미반영 (호가창 정적 가정)
+            3. 현실적 승률 범위: 30~80% (유동성 및 시장 환경에 따라)
+        
+        Returns:
+            dict: {
+                "top20_win_rate": float,
+                "top50_win_rate": float,
+                "is_realistic": bool,
+                "explanation": str
+            }
+        """
         top20_wr = top20_kpi.get("win_rate_pct", 0)
         top50_wr = top50_kpi.get("win_rate_pct", 0)
         
@@ -178,7 +243,33 @@ class D80EdgeAnalyzer:
         return interpretation
     
     def _analyze_pnl_structure(self, top20_kpi: Dict, top50_kpi: Dict) -> Dict:
-        """PnL 구조 분석"""
+        """
+        PnL 구조 분석 - 시간당 $200k PnL의 의미
+        
+        핵심 질문: 시간당 $200k PnL은 "실제 수익"인가?
+        
+        답변: 아니요. 이는 "엔진 벤치마크"일 뿐입니다.
+        
+        이유:
+            1. 수수료 미반영 (Upbit 0.05~0.1%, Binance 0.04~0.075%)
+            2. 슬리피지 미반영 (평균 0.05~0.15%)
+            3. 호가 잔량 제약 미반영 (대량 거래 시 가격 악화)
+            4. 인벤토리 리밸런싱 비용 미반영
+        
+        현실적 PnL:
+            - Conservative 시나리오: 원래 PnL의 97.6% (2.4% 감소)
+            - Moderate 시나리오: 원래 PnL의 95.2% (4.8% 감소)
+            - Pessimistic 시나리오: 원래 PnL의 92.8% (7.2% 감소)
+        
+        Returns:
+            dict: {
+                "top20_pnl_per_rt": float,
+                "top50_pnl_per_rt": float,
+                "hourly_pnl_top20": float,
+                "hourly_pnl_top50": float,
+                "interpretation": str
+            }
+        """
         top20_pnl = top20_kpi.get("total_pnl_usd", 0)
         top50_pnl = top50_kpi.get("total_pnl_usd", 0)
         top20_rt = top20_kpi.get("round_trips_completed", 1)
