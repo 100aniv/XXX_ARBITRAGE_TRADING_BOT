@@ -217,9 +217,12 @@ def main():
     prometheus_conn = check_prometheus()
     grafana_conn = check_grafana()
     
-    if not all([redis_conn, postgres_conn]):
-        print("\n[ERROR] Redis 또는 PostgreSQL 연결 실패")
+    if not redis_conn:
+        print("\n[ERROR] Redis 연결 실패 (필수)")
         sys.exit(1)
+    
+    if not postgres_conn:
+        print("\n[WARN] PostgreSQL 연결 실패 (선택적, 계속 진행)")
     
     if args.check_only:
         print("\n[INFO] 상태 확인만 수행 (--check-only)")

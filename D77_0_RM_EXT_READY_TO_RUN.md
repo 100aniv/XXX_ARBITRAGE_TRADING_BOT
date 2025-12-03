@@ -1,7 +1,7 @@
 # D77-0-RM-EXT 실행 준비 완료 ✅
 
-**작성일:** 2025-12-03  
-**상태:** 실행 준비 완료 (사용자 수동 실행 필요)
+**작성일:** 2025-12-03 (업데이트: 2025-12-04)  
+**상태:** Full-Auto 하네스로 완전 자동화 실행
 
 ---
 
@@ -34,6 +34,11 @@
   - Acceptance Criteria 자동 체크
   - 최종 판단 (GO/CONDITIONAL GO/NO-GO)
 
+- [x] `scripts/run_d77_0_rm_ext_full_auto.py` (Full-Auto 하네스)
+  - 환경 준비부터 Git commit까지 완전 자동화
+  - Smoke → Top20 1h → Top50 1h 순차 실행
+  - 리포트 & 로드맵 자동 업데이트
+
 ### 3. 실행 환경 ✅
 - [x] 래퍼 스크립트 검증 완료
 - [x] 테스트 파일 존재 확인
@@ -41,7 +46,26 @@
 
 ---
 
-## 🚀 실행 절차 (요약)
+## 🚀 Full-Auto 실행 (단일 명령)
+
+```powershell
+# 전체 자동 실행 (Smoke + Top20 1h + Top50 1h + 분석 + 리포트 + Commit)
+python scripts/run_d77_0_rm_ext_full_auto.py
+```
+
+**하네스가 자동 수행하는 작업:**
+1. 환경 준비 (Docker, Redis, 프로세스 정리)
+2. Smoke Test (3분) 실행 및 검증
+3. Top20 1h Real PAPER 실행 및 검증
+4. Top50 1h Real PAPER 실행 및 검증
+5. 결과 분석 (Acceptance Criteria 체크)
+6. `docs/D77_0_RM_EXT_REPORT.md` 자동 업데이트
+7. `D_ROADMAP.md` 상태 자동 업데이트
+8. Git commit
+
+---
+
+## 📋 내부 단계 상세 (참고용)
 
 ### Step 0: 환경 준비 (15분)
 
