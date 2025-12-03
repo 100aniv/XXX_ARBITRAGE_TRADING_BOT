@@ -71,7 +71,7 @@ class D77Orchestrator:
                 logger.error("스모크 테스트 FAIL → 중단")
                 return 1
             
-            logger.info("✅ 스모크 테스트 PASS")
+            logger.info("[OK] 스모크 테스트 PASS")
             
             if self.mode == "smoke-only":
                 logger.info("smoke-only 모드 → 여기서 종료")
@@ -94,7 +94,7 @@ class D77Orchestrator:
                 logger.error("리포트 생성 실패")
                 return 1
             
-            logger.info("✅ 전체 플로우 완료")
+            logger.info("[OK] 전체 플로우 완료")
             return 0
             
         except KeyboardInterrupt:
@@ -114,7 +114,7 @@ class D77Orchestrator:
             "--run-id", self.run_id
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode == 0:
             logger.info("환경 체크 성공")
@@ -241,7 +241,7 @@ class D77Orchestrator:
             "--console-log-path", str(console_log)
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         analysis_result_path = self.log_dir / "analysis_result.json"
         
@@ -263,7 +263,7 @@ class D77Orchestrator:
             "--analysis-result-path", str(analysis_result_path)
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode == 0:
             logger.info("리포트 생성 완료")
@@ -291,9 +291,9 @@ def main():
     exit_code = orchestrator.run()
     
     print(f"\n{'='*80}")
-    print(f"D77-4 Orchestrator 완료")
+    print(f"D77-4 Orchestrator Complete")
     print(f"Mode: {args.mode}")
-    print(f"Result: {'✅ SUCCESS' if exit_code == 0 else '❌ FAIL'}")
+    print(f"Result: {'SUCCESS' if exit_code == 0 else 'FAIL'}")
     print(f"Run ID: {orchestrator.run_id}")
     print(f"Logs: {orchestrator.log_dir}")
     print(f"{'='*80}\n")

@@ -144,7 +144,7 @@ def main():
     success = reporter.generate_report(analysis_result_path)
     
     print(f"{'='*60}")
-    print(f"D77-4 Reporter: {'✅ SUCCESS' if success else '❌ FAIL'}")
+    print(f"D77-4 Reporter: {'SUCCESS' if success else 'FAIL'}")
     print(f"{'='*60}")
     
     sys.exit(0 if success else 1)

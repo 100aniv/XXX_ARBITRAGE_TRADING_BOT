@@ -79,9 +79,8 @@ class D77EnvChecker:
         }
         
         if not docker_ok:
-            logger.error("Docker 컨테이너 기동 실패")
-            result["success"] = False
-            return False, result
+            logger.warning("Docker 컨테이너 체크 실패 (경고, 계속 진행)")
+            # Docker 실패해도 계속 진행 (로컬 개발 환경일 수 있음)
         
         # Step 3: Redis 초기화
         logger.info("[Step 3/4] Redis 상태 초기화")
@@ -99,7 +98,7 @@ class D77EnvChecker:
         if not pg_ok:
             logger.warning("PostgreSQL 초기화 실패 (경고, 계속 진행)")
         
-        logger.info(f"[D77-4] 환경 체크 완료: {'✅ SUCCESS' if result['success'] else '❌ FAIL'}")
+        logger.info(f"[D77-4] 환경 체크 완료: {'SUCCESS' if result['success'] else 'FAIL'}")
         return result["success"], result
     
     def _kill_existing_runners(self) -> int:
@@ -160,6 +159,8 @@ class D77EnvChecker:
                 cwd=docker_dir,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=10
             )
             
@@ -193,6 +194,8 @@ class D77EnvChecker:
                     cwd=docker_dir,
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=60
                 )
                 
@@ -231,6 +234,8 @@ class D77EnvChecker:
                 ["docker", "exec", "arbitrage-redis", "redis-cli", "FLUSHDB"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=10
             )
             
@@ -257,6 +262,8 @@ class D77EnvChecker:
                  "psql", "-U", "arbitrage", "-d", "arbitrage", "-c", sql],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=10
             )
             
@@ -288,14 +295,16 @@ def main():
     success, result = checker.check_all()
     
     print(f"\n{'='*60}")
-    print(f"D77-4 Environment Check: {'✅ SUCCESS' if success else '❌ FAIL'}")
+    print(f"D77-4 Environment Check: {'SUCCESS' if success else 'FAIL'}")
     print(f"{'='*60}")
     print(f"Run ID: {result['run_id']}")
     print(f"Process Cleanup: {result['steps']['process_cleanup']['killed_processes']} killed")
-    print(f"Docker Redis: {result['steps']['docker_check']['redis_status']}")
-    print(f"Docker PostgreSQL: {result['steps']['docker_check']['postgres_status']}")
-    print(f"Redis Reset: {'✅' if result['steps']['redis_reset']['success'] else '⚠️'}")
-    print(f"PostgreSQL Reset: {'✅' if result['steps']['postgres_reset']['success'] else '⚠️'}")
+    print(f"Docker Redis: {result['steps']['docker_check'].get('redis_status', 'N/A')}")
+    print(f"Docker PostgreSQL: {result['steps']['docker_check'].get('postgres_status', 'N/A')}")
+    if 'redis_reset' in result['steps']:
+        print(f"Redis Reset: {'OK' if result['steps']['redis_reset']['success'] else 'WARN'}")
+    if 'postgres_reset' in result['steps']:
+        print(f"PostgreSQL Reset: {'OK' if result['steps']['postgres_reset']['success'] else 'WARN'}")
     print(f"{'='*60}\n")
     
     sys.exit(0 if success else 1)

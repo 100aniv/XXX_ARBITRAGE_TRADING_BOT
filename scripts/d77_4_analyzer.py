@@ -319,13 +319,13 @@ def main():
     result = analyzer.analyze(kpi_path, console_log_path, metrics_path)
     
     print(f"\n{'='*80}")
-    print(f"D77-4 Validation Phase - 최종 판단")
+    print(f"D77-4 Validation Phase - Final Decision")
     print(f"{'='*80}")
     print(f"Run ID: {result['run_id']}")
-    print(f"✅ Critical: {sum(1 for r in result['critical_results'].values() if r['passed'])}/6 PASS")
-    print(f"⚠️ High Priority: {sum(1 for r in result['high_priority_results'].values() if r['passed'])}/6 PASS")
-    print(f"\n🎯 판단: {result['decision']}")
-    print(f"📋 근거: {result['decision_reason']}")
+    print(f"[OK] Critical: {sum(1 for r in result['critical_results'].values() if r['passed'])}/6 PASS")
+    print(f"[!] High Priority: {sum(1 for r in result['high_priority_results'].values() if r['passed'])}/6 PASS")
+    print(f"\nDecision: {result['decision']}")
+    print(f"Reason: {result['decision_reason']}")
     print(f"{'='*80}\n")
     
     # Exit code: COMPLETE GO/CONDITIONAL GO는 0, NO-GO는 1
