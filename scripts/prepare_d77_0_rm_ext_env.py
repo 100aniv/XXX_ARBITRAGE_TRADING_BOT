@@ -93,7 +93,7 @@ def clean_redis(host="localhost", port=6379):
         return False
 
 
-def check_postgres(host="localhost", port=5432, dbname="arbitrage", user="postgres", password="postgres") -> bool:
+def check_postgres(host="localhost", port=5432, dbname="arbitrage", user="arbitrage", password="arbitrage") -> bool:
     """PostgreSQL 연결 확인"""
     try:
         conn = psycopg2.connect(
@@ -222,7 +222,9 @@ def main():
         sys.exit(1)
     
     if not postgres_conn:
-        print("\n[WARN] PostgreSQL 연결 실패 (선택적, 계속 진행)")
+        print("\n[ERROR] PostgreSQL 연결 실패 (필수)")
+        print("[INFO] docker-compose.yml 설정 확인: user=arbitrage, password=arbitrage")
+        sys.exit(1)
     
     if args.check_only:
         print("\n[INFO] 상태 확인만 수행 (--check-only)")

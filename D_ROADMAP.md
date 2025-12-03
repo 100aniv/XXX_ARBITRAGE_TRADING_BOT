@@ -1687,31 +1687,6 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 **Usage:**
 ```bash
 python -m scripts.run_d77_0_topn_arbitrage_paper \
-  --universe top20 --duration-minutes 60
-```
-
-**Next:** D77-2 (Grafana Dashboard) or D77-0-RM (Real Market)
-
-### D77-2: Grafana Dashboards for CrossExchange & Alerting ✅ COMPLETED (2025-12-02)
-
-**Status:** ✅ **COMPLETE**
-
-**Summary:**  
-D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있는 2개의 Grafana Dashboard 템플릿 생성.  
-- **TopN Arbitrage Core Dashboard:** 거래/수익/성능/리스크 모니터링 (11 panels)
-- **Alerting Overview Dashboard:** Alert 파이프라인 모니터링 (10 panels)
-- `tests/test_d77_2_grafana_dashboards.py` (23 tests, ALL PASS, NEW)
-
-**테스트 결과:**
-- D77-2 Tests: 23/23 PASS (0.13s)
-- D77-1 + D77-2 Integration: 109/109 PASS (7.00s)
-- JSON Validation, Required Fields, Metrics Coverage
-- Template Variables (env, universe, strategy)
-- Unique UIDs, Auto-refresh, Datasource Config
-
-**Done Criteria:**
-- 2개 Dashboard JSON 생성 (21 panels)
-- CrossExchange 10 metrics + Alert 7 metrics 완전 커버
 
 **Core KPI 10종:**
 1. Total PnL (실시간)
@@ -1752,24 +1727,27 @@ TopN Arbitrage 엔진을 실제 시장 데이터(Upbit/Binance Public API) + PAP
 - D77-0-RM: Real 10분 → Real Market 통합 검증
 - **D77-4: Real 1h+** → **장기 안정성 + 모니터링/알림 스택 종합 검증**
 
-### D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation ✅ COMPLETE (2025-12-03)
+### D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation ⚠️ PARTIAL (2025-12-03)
 
-  --data-source real --topn-size 50 --run-duration-seconds 3600 \
-  --monitoring-enabled --kpi-output-path logs/d77-4/d77-4-1h_kpi.json
-```
+**Status:** ⚠️ PARTIAL COMPLETE
 
-**파일 변경:**
-- **New Files:** `D77_4_LONG_PAPER_VALIDATION_DESIGN.md` (~600 lines), `D77_4_LONG_PAPER_VALIDATION_REPORT_TEMPLATE.md` (~400 lines), `test_d77_4_long_paper_harness.py` (~350 lines)
-- **Modified Files:** `run_d77_0_topn_arbitrage_paper.py` (+50 lines), `D_ROADMAP.md` (+40 lines)
+**구현 완료:**
+- ✅ 실행 하네스 (run_d77_0_rm_ext.py, 9/9 tests PASS)
+- ✅ Smoke Test (3분, 82 round trips)
+- ✅ 시간 측정 로직 개선 (wall-clock)
+- ✅ D77-4 기반 엔진/인프라 레벨 검증
 
-**테스트 결과:**
-- Unit Tests: 11/11 PASS in 45.14s
-- Test Cases: CLI 옵션, Runner 초기화, 10초 실행, KPI 파일, 통합 테스트
+**남은 작업:**
+- [ ] 1h Top20 실행 완주
+- [ ] KPI JSON 생성
+- [ ] GPT 외부 검토 후 최종 판단
 
-**Next Steps:**
-1. D77-4 Validation Phase (1h+ 수동 실행)
-2. Acceptance Criteria 체크 및 리포트 작성
-3. D78 (Authentication & Secrets), D79 (Cross-Exchange), D80 (Multi-Currency)
+**Universe 정책:**
+- Primary: Top20 (실전 핵심)
+- Extended: Top50 (부하 테스트)
+- Top100+: D80+ 이후 검토
+
+**Next:** 1h 실행 완주 또는 D78 진행
 
 ⸻
 

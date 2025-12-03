@@ -46,13 +46,17 @@ class FullAutoHarness:
     def log(self, message: str, level: str = "INFO"):
         """로그 출력"""
         prefix = {
-            "INFO": "ℹ️",
-            "OK": "✅",
-            "ERROR": "❌",
-            "WARN": "⚠️",
-            "RUN": "🚀"
-        }.get(level, "•")
-        print(f"[{level:5s}] {prefix} {message}")
+            "INFO": "[i]",
+            "OK": "[OK]",
+            "ERROR": "[ERR]",
+            "WARN": "[WARN]",
+            "RUN": "[RUN]"
+        }.get(level, "[-]")
+        try:
+            print(f"[{level:5s}] {prefix} {message}")
+        except UnicodeEncodeError:
+            # Windows 콘솔 인코딩 문제 대응
+            print(f"[{level:5s}] {prefix} {message}".encode('utf-8', errors='ignore').decode('utf-8', errors='ignore'))
     
     def run_subprocess(self, cmd: list, description: str, timeout: Optional[int] = None) -> Tuple[int, str, str]:
         """subprocess 실행 및 결과 반환"""

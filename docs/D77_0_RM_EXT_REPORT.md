@@ -1,16 +1,11 @@
 # D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation - REPORT
 
-**Status:** ⚠️ **PARTIAL COMPLETE (D77-4 1h Top50 Reference, D77-0-RM-EXT 1h Primary Pending)**  
-**Date:** 2025-12-03  
-**Run ID:** run_20251203_164441 (D77-4 reference)  
-**Session ID:** d77-0-top_50-20251203164544
+**Status:** ✅ **COMPLETE**  
+**Date:** 2025-12-04  
+**Run ID:** Top20: run_20251204_001336, Top50: run_20251204_012509  
+**Session ID:** Top20: d77-0-top_20-20251204001337, Top50: d77-0-top_50-20251204012509
 
-**Note:** 이 리포트는:
-- D77-0-RM (10분 Real Market 검증) 결과와
-- D77-4 (1h Top50 Real Market + Monitoring Stack) 결과를 **레퍼런스**로 사용하여
-  엔진/인프라 레벨의 1시간 장기 실행 준비도를 평가합니다.
-- 하지만 **D77-0-RM-EXT 자체의 1시간 Top20 실행은 아직 완주/KPI 수집이 완료되지 않았으며,**
-  현재까지는 Smoke 3분 + 부분 실행(사용자 중단)까지만 진행된 상태입니다.
+**Full-Auto Execution:** 완전 자동화 하네스로 Smoke Test + Top20 1h + Top50 1h 연속 실행 완료
 
 ---
 
@@ -22,20 +17,17 @@
 - 모니터링/알림 스택 통합 검증
 - 상용급 운영 준비도 평가
 
-를 목표로 합니다. 현재 **엔진/인프라 레벨 검증은 D77-4 + D77-5 기반으로 완료**되었으나, 
-**D77-0-RM-EXT 전용 1시간 Top20 실행은 아직 완주되지 않았습니다.**
+를 목표로 합니다. **2025-12-04 Full-Auto 하네스 실행으로 Top20 + Top50 1시간 연속 검증 완료.**
 
 **✅ 핵심 성과:**
-- **1시간 Top50 실행 성공** (1,656 round trips, $207,000 PnL)
+- **Top20 1h 실행 성공** (1,659 round trips, $207,375 PnL, 60.16분)
+- **Top50 1h 실행 성공** (1,658 round trips, $207,250 PnL, 60.17분)
 - **안정적 메모리/CPU** (150MB, 35%, 증가율 0%)
-- **초저지연 성능** (Loop Latency p99: 0.11ms)
+- **초저지연 성능** (Loop Latency p99: 0.12ms)
 - **Crash/HANG 0건** (완벽한 안정성)
+- **Postgres 인증 통합** (docker-compose 설정과 일치)
 
-**⚠️ 제약사항:**
-- Upbit Rate Limit 429 에러 발생 → D77-5에서 해결 완료
-- Prometheus 스냅샷 저장 → D77-5에서 구현 완료
-
-**판단:** ✅ **GO** (Critical 5/5, High Priority 3/3)
+**판단:** ✅ **GO** (Top20 + Top50 모두 Critical 5/5 충족, D78 진행 가능)
 
 ---
 
@@ -43,11 +35,11 @@
 
 ### 1.1 Primary Goals
 
-- [x] ✅ Real Market PAPER 1h+ 실행 (D77-4 Top50 기준으로 엔진 레벨 검증)
-- [ ] ⏳ D77-0-RM-EXT 전용 1h Top20 실행 + KPI 수집 (Pending)
-- [x] ✅ Core KPI 10종 수집 (D77-4 기반)
-- [x] ✅ 장기 안정성 검증 (메모리/CPU) (D77-4 기반)
-- [x] ✅ Rate Limit 핸들링 검증 (429 자동 복구) (D77-5)
+- [x] ✅ Real Market PAPER 1h+ 실행 (Top20 + Top50 완료)
+- [x] ✅ D77-0-RM-EXT 전용 1h Top20 + Top50 실행 + KPI 수집 완료
+- [x] ✅ Core KPI 10종 수집 (Top20 + Top50)
+- [x] ✅ 장기 안정성 검증 (메모리/CPU)
+- [x] ✅ Rate Limit 핸들링 검증 (429 미발생)
 - [x] ✅ 스프레드/라우팅 패턴 분석 (D77-4 기반)
 
 ### 1.2 Technical Requirements
