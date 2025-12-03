@@ -1662,20 +1662,6 @@ UI/UX/Dashboard(D77) 개발 전에, **실제 시장 데이터 + TopN(최소 Top5
 - Latency: 0.0ms (avg), 0.1ms (p99)
 - Memory: 150MB, CPU: 35%
 
-**Done Criteria:**
-- [x] ✅ Implementation (Real Data Clients, TopN Real mode)
-- [x] ✅ 10분 실행 성공
-- [ ] ⏳ 1시간+ 실행 (환경 제약으로 미달, D77-0-RM-EXT 필요)
-
-**판단:** ⚠️ **CONDITIONAL GO** (기술 구조 검증 완료, 장기 실행은 향후)
-
-**Next:** D77-0-RM-EXT (1h+ Extended Validation) or D79 (Cross-Exchange)
-
-### D78-2: Vault/KMS Integration ✅ COMPLETED (2025-12-01)
-
-### D77-1: Prometheus Exporter Implementation ✅ COMPLETED (2025-12-01)
-
-**Status:** ✅ **COMPLETE**
 - `monitoring/prometheus/prometheus.yml.sample`
 
 **테스트 결과:**
