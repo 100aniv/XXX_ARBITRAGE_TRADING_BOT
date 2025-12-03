@@ -17,7 +17,7 @@ Usage:
     snapshot_path = save_prometheus_snapshot(
         run_id="run_20251203_164441",
         output_dir=Path("logs/d77-4/run_20251203_164441"),
-        metrics_url="http://localhost:9100/metrics"
+        metrics_url="http://localhost:9090/metrics"
     )
     
     if snapshot_path:
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 def save_prometheus_snapshot(
     run_id: str,
     output_dir: Path,
-    metrics_url: str = "http://localhost:9100/metrics",
+    metrics_url: str = "http://localhost:9090/metrics",
     timeout: int = 10,
 ) -> Optional[Path]:
     """

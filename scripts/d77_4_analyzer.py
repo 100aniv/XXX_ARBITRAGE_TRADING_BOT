@@ -62,7 +62,7 @@ class D77Analyzer:
         kpi_path: Path,
         console_log_path: Path,
         metrics_path: Optional[Path] = None,
-        prometheus_url: str = "http://localhost:9100/metrics"
+        prometheus_url: str = "http://localhost:9090/metrics"
     ) -> Dict:
         """전체 분석 수행
         

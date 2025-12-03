@@ -275,3 +275,50 @@ D77-4 검증이 완료되었습니다.
 **Orchestrator Run ID:** run_20251203_164441  
 **Smoke Test:** Top20, 27 round trips, $3,375 PnL  
 **Main Test:** Top50, 1,656 round trips, $207,000 PnL
+
+---
+
+## D77-5 Addendum (2025-12-03 21:55)
+
+### 모니터링 스택 강화 완료 ✅
+
+**D77-5에서 해결한 Gap:**
+1. ✅ **Prometheus 메트릭 스냅샷 저장**
+   - 구현: `arbitrage/monitoring/prometheus_snapshot.py`
+   - 기능: HTTP GET `/metrics` → `.prom` 파일 저장 (78KB)
+   - 검증: C5 Acceptance Criteria PASS
+   - 파일 경로: `logs/d77-4/<run_id>/prometheus_metrics.prom`
+
+2. ✅ **Upbit Rate Limit (429) 핸들링**
+   - 구현: `arbitrage/exchanges/upbit_public_data.py`
+   - 기능: Exponential backoff (0.5s → 1.0s → 2.0s, max 3 retries)
+   - 실제 동작 확인: 5개 심볼에서 429 에러 → 자동 재시도 → 성공
+   - Rate limit 히트 카운터 추가
+
+3. ✅ **테스트 자동화**
+   - `tests/test_d77_5_prometheus_snapshot.py`: 7/7 PASS
+   - `tests/test_d77_5_rate_limit.py`: 7/7 PASS
+   - 전체: 14/14 PASS (11.77s)
+
+**검증 결과 (Smoke Test):**
+```
+Run ID: run_20251203_215249
+Critical: 5/6 PASS (C5 Prometheus ✅, C1은 스모크 테스트이므로 예상된 FAIL)
+High Priority: 6/6 PASS
+Prometheus 스냅샷: 78,213 bytes
+Rate Limit 처리: 실시간 재시도 성공 확인
+```
+
+**기술적 개선:**
+- Graceful degradation: 모니터링 실패가 전체 플로우 중단하지 않음
+- 기존 인프라 재사용: 새 시스템 생성 없이 Gap만 해소
+- 엔진 코어 변경 없음: 모니터링 레이어만 보강
+
+**운영 관점 개선:**
+- D77-4에서 발견된 C5 Prometheus Gap → D77-5에서 완전 해소
+- 동일 조건의 1h Top50 PAPER 실행 시 **COMPLETE GO** 달성 가능
+- 장기 운영 안정성 향상 (429 에러 자동 복구)
+
+**중요 노트:**
+- D77-4 결과($207k PnL, 100% win rate)는 **엔진 검증용 시나리오**
+- 실거래 수익성 보장이 아님을 명확히 함
