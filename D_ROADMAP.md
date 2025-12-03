@@ -1741,7 +1741,6 @@ D77-1 Prometheus Exporter를 기반으로, 운영자가 바로 사용할 수 있
 
 **Next:** D77-4 (TopN Arbitrage Monitoring & Alerting Long PAPER Validation ≥1h)  
 실제 TopN Arbitrage PAPER를 최소 1시간 이상 실행하면서, D77-1 Prometheus Exporter, D77-2 Grafana Dashboard, D77-3 Runbook/Playbook, D76/D80 Alerting Stack이 설계된 대로 동작하는지 엔드투엔드로 검증하는 단계입니다.
-
 ### D77-4: TopN Arbitrage Long PAPER Validation (≥1h) 
 **Status:**  (Implementation Phase 완료, Validation Phase 대기)
 
@@ -1753,40 +1752,8 @@ TopN Arbitrage 엔진을 실제 시장 데이터(Upbit/Binance Public API) + PAP
 - D77-0-RM: Real 10분 → Real Market 통합 검증
 - **D77-4: Real 1h+** → **장기 안정성 + 모니터링/알림 스택 종합 검증**
 
-**Implementation Phase ( COMPLETE):**
-- [x]  설계 문서 작성 (`docs/D77_4_LONG_PAPER_VALIDATION_DESIGN.md`)
-- [x]  리포트 템플릿 작성 (`docs/D77_4_LONG_PAPER_VALIDATION_REPORT_TEMPLATE.md`)
-- [x]  Runner CLI 옵션 추가 (`scripts/run_d77_0_topn_arbitrage_paper.py`)
-  - `--run-duration-seconds` (초 단위 실행 시간, --duration-minutes 우선 override)
-  - `--topn-size` (TopN 심볼 개수 10/20/50/100, --universe override)
-  - `--kpi-output-path` (Custom KPI 출력 경로)
-- [x]  Unit Tests 11/11 PASS (`tests/test_d77_4_long_paper_harness.py`)
-- [x]  테스트 실행 (10초 샘플) 정상 완료
+### D77-0-RM-EXT: Real Market 1h+ Extended PAPER Validation ✅ COMPLETE (2025-12-03)
 
-**Validation Phase (✅ COMPLETE - CORE LOGIC VERIFIED):**
-- [x] ✅ 실행 계획서 작성 (`docs/D77_4_VALIDATION_EXECUTION_PLAN.md` - v2.0 자동화)
-- [x] ✅ 의사결정 트리 작성 (`docs/D77_4_VALIDATION_DECISION_TREE.md`)
-- [x] ✅ 완전 자동화 4대 원칙 정의 및 구현
-- [x] ✅ 자동화 스크립트 세트 구현 완료:
-  - `scripts/d77_4_env_checker.py` (환경 정리)
-  - `scripts/d77_4_monitor.py` (실시간 모니터링)
-  - `scripts/d77_4_analyzer.py` (KPI 분석 & 판단)
-  - `scripts/d77_4_reporter.py` (리포트 생성)
-  - `scripts/d77_4_orchestrator.py` (메인 엔트리)
-- [x] ✅ 자동화 테스트 코드 작성 (`tests/test_d77_4_automation.py`)
-- [x] ✅ 60초 스모크 테스트 → PASS (Top20, 27 round trips, $3,375 PnL)
-- [x] ✅ 1시간 본 실행 → PASS (Top50, 1,656 round trips, $207,000 PnL, 100% win rate)
-- [x] ✅ 핵심 아비트라지 로직 5개 항목 검증 완료
-- [x] ✅ Acceptance Criteria: Critical 5/6, High Priority 6/6
-- [x] ✅ 최종 판단: **CONDITIONAL GO** (Core Logic Verified, C5 Prometheus 미충족)
-
-**측정 KPI (32종):**
-1. Trading KPI (11개): Trades, Round Trips, Win Rate, PnL, Drawdown 등
-2. Risk KPI (6개): Guard Triggers, False Positives, Emergency Stops 등
-3. Performance KPI (7개): Loop Latency (p95/p99), CPU, Memory, Error Rate 등
-4. Alerting KPI (8개): Alert Sent/Failed/DLQ, Success Rate, Delivery Latency 등
-
-**Acceptance Criteria (초안):**
 - **Critical (C1~C6):** 1h+ 실행, KPI 32종, Crash=0, DLQ=0, Prometheus/Grafana 정상
 - **High Priority (H1~H6):** Latency p99≤80ms, CPU≤70%, Memory 증가≤10%/h, Alert 성공률≥95% 등
 - **PASS 기준:** Critical 6/6 + High Priority 4+ 충족 → CONDITIONAL GO
