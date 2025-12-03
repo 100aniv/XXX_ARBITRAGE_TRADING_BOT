@@ -67,7 +67,7 @@ python scripts/run_d77_0_topn_arbitrage_paper.py \
 - Round Trips: 목표 100+ (실제 시장 조건에 따라 변동)
 - Data Source: Real (Upbit/Binance Public API)
 
-### 1.2 Extended Scenario (환경 여유 시)
+### 1.2 Extended Scenario (필수)
 ```bash
 # Top50, 1시간, Real Market PAPER
 python scripts/run_d77_0_topn_arbitrage_paper.py \
@@ -82,6 +82,7 @@ python scripts/run_d77_0_topn_arbitrage_paper.py \
 - Universe: Top50 (더 많은 라우트, 더 복잡한 부하)
 - Rate Limit 핸들링 강도 테스트 (Upbit 429 에러)
 - 스프레드 분포 패턴 분석
+- **D77-0-RM-EXT Done Criteria 충족을 위해 Top20 + Top50 모두 필수 완료**
 
 ### 1.3 Smoke Test (사전 검증)
 ```bash
@@ -352,22 +353,27 @@ python scripts/run_d77_0_topn_arbitrage_paper.py \
 - [ ] ⏳ 최종 리포트 작성
 
 ### Acceptance Criteria
-**Critical (필수):**
+
+**적용 범위:**
+- **Top20 (Primary)** 및 **Top50 (Extended)** 각각 독립 평가
+- 최종 판단: Top20 + Top50 결과를 종합
+
+**Critical (필수) - 각 Universe별로 평가:**
 - C1: 1h 연속 실행 (Crash = 0)
 - C2: Round Trips ≥ 50 (실제 시장 조건)
 - C3: Memory 증가율 ≤ 10%/h
 - C4: CPU ≤ 70% (평균)
 - C5: Prometheus 스냅샷 저장 성공
 
-**High Priority (권장):**
+**High Priority (권장) - 각 Universe별로 평가:**
 - H1: Loop Latency p99 ≤ 80ms
 - H2: Win Rate 30~80% (실시간 시장)
 - H3: Rate Limit 429 자동 복구 100%
 
-**판단:**
-- Critical 5/5 + High Priority 2+ → **GO**
-- Critical 4/5 → **CONDITIONAL GO** (Gap 명시)
-- Critical < 4/5 → **NO-GO** (재검증 필요)
+**최종 판단 기준:**
+- **GO**: Top20 + Top50 모두 Critical 5/5 충족
+- **CONDITIONAL GO**: 둘 중 하나가 Critical 4/5 (어느 Universe에서 어떤 항목 미달인지 명시)
+- **NO-GO**: 어느 Universe든 Critical < 4/5 (재검증 필요)
 
 ---
 
