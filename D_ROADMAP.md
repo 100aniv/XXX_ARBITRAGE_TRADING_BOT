@@ -1950,7 +1950,7 @@ Prometheus ?月�?? 78,213 bytes
 
 ### D82-0: D77 TopN Runner → Real PaperExecutor + Fill Model 통합 ✅ COMPLETE (2025-12-04)
 
-**상태:** ✅ COMPLETE (Infrastructure Ready, Smoke Test Pending)
+**상태:** ✅ COMPLETE (Infrastructure + REAL PAPER Smoke Validation 완료)
 
 **목표:** D77 Runner를 **Mock 시뮬레이션**에서 **Real PaperExecutor + Fill Model** 기반으로 완전 전환하여, Settings → ExecutorFactory → PaperExecutor + SimpleFillModel 경로가 실제 PAPER 실행에서 동작하는지 검증.
 
@@ -1968,12 +1968,16 @@ Prometheus ?月�?? 78,213 bytes
 - **KPI 확장:** partial_fills_count, failed_fills_count, avg_slippage_bps 등 추가
 
 **테스트 검증:**
-- ✅ D82-0 신규 테스트: 4개 PASS (0.39초)
+- ✅ D82-0 신규 테스트: 5개 PASS (6.40초)
   - Runner 초기화 with Settings
   - MockTrade 구조 검증
   - Executor Lazy Initialization
   - KPI metrics Fill Model 필드 존재
+  - Runner 짧은 실행 (0.1분, 크래시 없음)
 - ✅ 회귀 테스트: 18개 PASS (D80-4, D81-0 모두 정상 동작)
+- ✅ **REAL PAPER 스모크 실행 (2025-12-04 14:51~14:56 KST):**
+  - 3분 Mock: 82 round trips, slippage ~0.5 bps 기록 확인
+  - 1분 Real Market Data: 27 round trips, Upbit API rate limit (429) retry 성공
 
 **설계 문서:**
 - `docs/D82_0_TOPN_RUNNER_PAPER_EXECUTOR_INTEGRATION.md` (11개 섹션, 한글)

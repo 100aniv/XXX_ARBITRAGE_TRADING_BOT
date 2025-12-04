@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -32,6 +33,17 @@ try:
     import psutil
 except ImportError:
     psutil = None
+
+# D82-0: Load .env.paper if ARBITRAGE_ENV=paper
+try:
+    from dotenv import load_dotenv
+    if os.getenv("ARBITRAGE_ENV") == "paper":
+        env_file = Path(__file__).parent.parent / ".env.paper"
+        if env_file.exists():
+            load_dotenv(env_file, override=True)
+            logging.info(f"[D82-0] Loaded {env_file}")
+except ImportError:
+    pass  # python-dotenv not installed
 
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -88,6 +100,11 @@ class MockTrade:
     quantity: float
     buy_price: float
     sell_price: float
+    
+    @property
+    def notional_usd(self) -> float:
+        """명목가 계산 (quantity * price)"""
+        return self.quantity * max(self.buy_price, self.sell_price)
 
 # logs/ 디렉토리 생성
 Path("logs/d77-0").mkdir(parents=True, exist_ok=True)
@@ -427,7 +444,7 @@ class D77PAPERRunner:
         # Check Exit for open positions
         for position_id, position in list(self.exit_strategy.get_open_positions().items()):
             # Mock current prices (simulate TP/SL/Time scenarios)
-            time_held = time.time() - position.entry_time
+            time_held = position.time_held()
             
             if iteration % 10 == 0 or time_held > 120.0:  # TP or Time limit
                 mock_exit_price_a = mock_price_a * 1.005  # +0.5% (TP trigger)
