@@ -183,19 +183,24 @@ class D77PAPERRunner:
         )
         logger.info(f"[D82-0] TradeLogger initialized: {self.trade_logger.log_file}")
         
-        # D82-2: TopN Provider with Hybrid Mode
+        # D82-2/D82-3: TopN Provider with Hybrid Mode + Rate Limit
         self.topn_provider = TopNProvider(
             mode=universe_mode,
             selection_data_source=self.settings.topn_selection.selection_data_source,
             entry_exit_data_source=self.settings.topn_selection.entry_exit_data_source,
             cache_ttl_seconds=self.settings.topn_selection.selection_cache_ttl_sec,
             max_symbols=self.settings.topn_selection.selection_max_symbols,
+            # D82-3: Real Selection Rate Limit 옵션
+            selection_rate_limit_enabled=self.settings.topn_selection.selection_rate_limit_enabled,
+            selection_batch_size=self.settings.topn_selection.selection_batch_size,
+            selection_batch_delay_sec=self.settings.topn_selection.selection_batch_delay_sec,
         )
         logger.info(
-            f"[D82-2] TopNProvider Hybrid Mode: "
+            f"[D82-2/D82-3] TopNProvider Hybrid Mode: "
             f"selection={self.settings.topn_selection.selection_data_source}, "
             f"entry_exit={self.settings.topn_selection.entry_exit_data_source}, "
-            f"cache_ttl={self.settings.topn_selection.selection_cache_ttl_sec}s"
+            f"cache_ttl={self.settings.topn_selection.selection_cache_ttl_sec}s, "
+            f"rate_limit={'ON' if self.settings.topn_selection.selection_rate_limit_enabled else 'OFF'}"
         )
         
         # Exit Strategy

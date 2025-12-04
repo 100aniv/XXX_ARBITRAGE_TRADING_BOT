@@ -127,6 +127,10 @@ class TopNProvider:
         min_volume_usd: float = 1_000_000.0,  # $1M
         min_liquidity_usd: float = 50_000.0,  # $50K
         max_spread_bps: float = 50.0,  # 0.5%
+        # D82-3: Real Selection Rate Limit 옵션
+        selection_rate_limit_enabled: bool = True,
+        selection_batch_size: int = 10,
+        selection_batch_delay_sec: float = 1.5,
     ):
         """
         D82-2: Hybrid Mode initialization.
@@ -154,6 +158,11 @@ class TopNProvider:
         self.min_liquidity_usd = min_liquidity_usd
         self.max_spread_bps = max_spread_bps
         
+        # D82-3: Real Selection Rate Limit 옵션
+        self.selection_rate_limit_enabled = selection_rate_limit_enabled
+        self.selection_batch_size = selection_batch_size
+        self.selection_batch_delay_sec = selection_batch_delay_sec
+        
         # D82-2: Selection cache (long TTL, 10+ minutes)
         self._selection_cache: Optional[TopNResult] = None
         self._selection_cache_ts: float = 0.0
@@ -165,10 +174,14 @@ class TopNProvider:
         self._upbit_client = None
         self._binance_client = None
         
+        # D82-3: Rate Limiter (lazy init)
+        self._rate_limiter = None
+        
         logger.info(
-            f"[TOPN_PROVIDER] D82-2 Hybrid Mode: "
+            f"[TOPN_PROVIDER] D82-2/D82-3 Hybrid Mode: "
             f"mode={mode.name}, selection={selection_data_source}, "
-            f"entry_exit={entry_exit_data_source}, cache_ttl={cache_ttl_seconds}s"
+            f"entry_exit={entry_exit_data_source}, cache_ttl={cache_ttl_seconds}s, "
+            f"rate_limit={'ON' if selection_rate_limit_enabled else 'OFF'}, batch_size={selection_batch_size}"
         )
     
     def get_topn_symbols(
@@ -254,7 +267,7 @@ class TopNProvider:
     
     def _fetch_selection_metrics(self) -> Dict[str, SymbolMetrics]:
         """
-        D82-2: Fetch metrics for TopN selection.
+        D82-2/D82-3: Fetch metrics for TopN selection.
         
         Uses `selection_data_source` to determine data source.
         
@@ -265,8 +278,8 @@ class TopNProvider:
             logger.info("[TOPN_PROVIDER] Using MOCK data for TopN selection")
             return self._fetch_mock_metrics()
         elif self.selection_data_source == "real":
-            logger.info("[TOPN_PROVIDER] Using REAL data for TopN selection (Public APIs)")
-            return self._fetch_real_metrics()
+            logger.info("[TOPN_PROVIDER] Using REAL data for TopN selection (Rate-Limited)")
+            return self._fetch_real_metrics_safe()
         else:
             logger.warning(
                 f"[TOPN_PROVIDER] Unknown selection_data_source: {self.selection_data_source}, using mock"
@@ -371,6 +384,147 @@ class TopNProvider:
                 continue
         
         logger.info(f"[TOPN_PROVIDER] Successfully fetched {len(metrics)} symbol metrics")
+        return metrics
+    
+    def _fetch_real_metrics_safe(self) -> Dict[str, SymbolMetrics]:
+        """
+        D82-3: Rate-Limit-Safe Real TopN Selection.
+        
+        Upbit Public API Rate Limits:
+        - public_ticker: 10 req/sec
+        - public_orderbook: 10 req/sec
+        - global: 600 req/min
+        
+        Strategy:
+        - Batch processing: Process N symbols at a time
+        - Delay between batches to avoid rate limits
+        - Use RateLimiter to enforce limits
+        - Fallback to mock if all symbols fail
+        
+        Returns:
+            {symbol: SymbolMetrics}
+        """
+        # Lazy init clients
+        if self._upbit_client is None:
+            from arbitrage.exchanges.upbit_public_data import UpbitPublicDataClient
+            self._upbit_client = UpbitPublicDataClient()
+        
+        # D82-3: Lazy init rate limiter
+        if self._rate_limiter is None and self.selection_rate_limit_enabled:
+            from arbitrage.infrastructure.rate_limiter import UPBIT_PROFILE, RateLimitPolicy
+            self._rate_limiter = UPBIT_PROFILE.get_rest_limiter(
+                "public_ticker",  # Use ticker endpoint (same limit as orderbook: 10 req/sec)
+                policy=RateLimitPolicy.TOKEN_BUCKET,
+            )
+            logger.info("[TOPN_PROVIDER] RateLimiter initialized for Real Selection")
+        
+        # 1) 후보 심볼 리스트 가져오기 (이미 Upbit API 1회 호출)
+        try:
+            candidate_symbols = self._upbit_client.fetch_top_symbols(
+                market="KRW",
+                limit=min(self.max_symbols * 2, 100),  # 충분한 후보 확보
+                sort_by="acc_trade_price_24h",
+            )
+            logger.info(f"[TOPN_PROVIDER] Real Selection: {len(candidate_symbols)} candidate symbols")
+        except Exception as e:
+            logger.error(f"[TOPN_PROVIDER] Failed to fetch candidate symbols: {e}")
+            logger.warning("[TOPN_PROVIDER] Falling back to MOCK selection")
+            return self._fetch_mock_metrics()
+        
+        if not candidate_symbols:
+            logger.warning("[TOPN_PROVIDER] No candidate symbols, falling back to MOCK")
+            return self._fetch_mock_metrics()
+        
+        # 2) 배치 단위로 metrics 수집
+        metrics: Dict[str, SymbolMetrics] = {}
+        batch_size = self.selection_batch_size
+        batch_delay = self.selection_batch_delay_sec
+        
+        for batch_idx in range(0, len(candidate_symbols), batch_size):
+            batch = candidate_symbols[batch_idx:batch_idx + batch_size]
+            batch_num = batch_idx // batch_size + 1
+            total_batches = (len(candidate_symbols) + batch_size - 1) // batch_size
+            
+            logger.info(
+                f"[TOPN_PROVIDER] Real Selection Batch {batch_num}/{total_batches}: "
+                f"Processing {len(batch)} symbols"
+            )
+            
+            # 배치 처리
+            for upbit_symbol in batch:
+                try:
+                    # D82-3: Rate Limiter 체크 (ticker 호출 전)
+                    if self._rate_limiter is not None:
+                        while not self._rate_limiter.consume():
+                            wait_time = self._rate_limiter.wait_time()
+                            if wait_time > 0:
+                                time.sleep(wait_time)
+                    
+                    # Upbit ticker
+                    ticker = self._upbit_client.fetch_ticker(upbit_symbol)
+                    if ticker is None:
+                        continue
+                    
+                    # D82-3: Rate Limiter 체크 (orderbook 호출 전)
+                    if self._rate_limiter is not None:
+                        while not self._rate_limiter.consume():
+                            wait_time = self._rate_limiter.wait_time()
+                            if wait_time > 0:
+                                time.sleep(wait_time)
+                    
+                    # Upbit orderbook
+                    orderbook = self._upbit_client.fetch_orderbook(upbit_symbol)
+                    if orderbook is None or not orderbook.bids or not orderbook.asks:
+                        continue
+                    
+                    # Calculate metrics
+                    volume_krw = ticker.acc_trade_price_24h
+                    volume_usd = volume_krw / 1300.0  # Approx KRW/USD conversion
+                    
+                    # Liquidity: sum of top 5 bid/ask levels
+                    liquidity_krw = sum(b.price * b.size for b in orderbook.bids[:5])
+                    liquidity_krw += sum(a.price * a.size for a in orderbook.asks[:5])
+                    liquidity_usd = liquidity_krw / 1300.0
+                    
+                    # Spread
+                    best_bid = orderbook.bids[0].price if orderbook.bids else 0.0
+                    best_ask = orderbook.asks[0].price if orderbook.asks else 0.0
+                    mid = (best_bid + best_ask) / 2.0 if (best_bid and best_ask) else 0.0
+                    spread_bps = ((best_ask - best_bid) / mid * 10000.0) if mid > 0 else 999.0
+                    
+                    # Convert symbol format: "KRW-BTC" → "BTC/KRW"
+                    parts = upbit_symbol.split("-")
+                    if len(parts) == 2:
+                        symbol_formatted = f"{parts[1]}/{parts[0]}"
+                    else:
+                        symbol_formatted = upbit_symbol
+                    
+                    metrics[symbol_formatted] = SymbolMetrics(
+                        symbol=symbol_formatted,
+                        volume_24h=volume_usd,
+                        liquidity_depth=liquidity_usd,
+                        spread_bps=spread_bps,
+                    )
+                
+                except Exception as e:
+                    logger.warning(f"[TOPN_PROVIDER] Failed to fetch metrics for {upbit_symbol}: {e}")
+                    continue
+            
+            # 3) 배치 간 지연 (마지막 배치가 아닌 경우)
+            if batch_idx + batch_size < len(candidate_symbols):
+                logger.info(f"[TOPN_PROVIDER] Batch delay: {batch_delay}s")
+                time.sleep(batch_delay)
+        
+        # 4) 결과 검증
+        if not metrics:
+            logger.error("[TOPN_PROVIDER] Real Selection failed: no valid metrics")
+            logger.warning("[TOPN_PROVIDER] Falling back to MOCK selection")
+            return self._fetch_mock_metrics()
+        
+        logger.info(
+            f"[TOPN_PROVIDER] Real Selection completed: {len(metrics)} symbols "
+            f"(processed {len(candidate_symbols)} candidates in {total_batches} batches)"
+        )
         return metrics
     
     def _filter_by_thresholds(

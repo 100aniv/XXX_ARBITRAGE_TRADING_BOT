@@ -190,6 +190,130 @@ def test_topn_get_current_spread_mock_mode():
     assert spread.spread_bps > 0
 
 
+def test_topn_real_selection_config():
+    """D82-3: Verify Real Selection Rate Limit config integration"""
+    config = TopNSelectionConfig(
+        selection_data_source="real",
+        selection_cache_ttl_sec=600,
+        selection_max_symbols=50,
+        entry_exit_data_source="real",
+        # D82-3: Rate Limit 옵션
+        selection_rate_limit_enabled=True,
+        selection_batch_size=10,
+        selection_batch_delay_sec=1.5,
+    )
+    
+    provider = TopNProvider(
+        mode=TopNMode.TOP_20,
+        selection_data_source=config.selection_data_source,
+        entry_exit_data_source=config.entry_exit_data_source,
+        cache_ttl_seconds=config.selection_cache_ttl_sec,
+        max_symbols=config.selection_max_symbols,
+        selection_rate_limit_enabled=config.selection_rate_limit_enabled,
+        selection_batch_size=config.selection_batch_size,
+        selection_batch_delay_sec=config.selection_batch_delay_sec,
+    )
+    
+    assert provider.selection_data_source == "real"
+    assert provider.selection_rate_limit_enabled == True
+    assert provider.selection_batch_size == 10
+    assert provider.selection_batch_delay_sec == 1.5
+
+
+def test_topn_real_selection_rate_limited_mocked(monkeypatch):
+    """D82-3: Verify Real Selection uses batching and rate limiting (mocked)"""
+    # Mock 데이터 준비
+    mock_candidate_symbols = [f"KRW-SYM{i:02d}" for i in range(25)]  # 25개 후보
+    mock_metrics = {}
+    
+    fetch_count = {"ticker": 0, "orderbook": 0}
+    
+    def mock_fetch_top_symbols(self, *args, **kwargs):
+        return mock_candidate_symbols
+    
+    def mock_fetch_ticker(self, symbol):
+        fetch_count["ticker"] += 1
+        # Mock ticker 데이터
+        class MockTicker:
+            acc_trade_price_24h = 1_000_000_000  # 1B KRW
+        return MockTicker()
+    
+    def mock_fetch_orderbook(self, symbol):
+        fetch_count["orderbook"] += 1
+        # Mock orderbook 데이터
+        class MockLevel:
+            def __init__(self, price, size):
+                self.price = price
+                self.size = size
+        
+        class MockOrderbook:
+            def __init__(self):
+                self.bids = [MockLevel(100000, 0.1) for _ in range(5)]
+                self.asks = [MockLevel(100100, 0.1) for _ in range(5)]
+        
+        return MockOrderbook()
+    
+    # Provider 생성 (Real Selection, batch_size=10)
+    provider = TopNProvider(
+        mode=TopNMode.TOP_20,
+        selection_data_source="real",
+        selection_rate_limit_enabled=False,  # Rate limiter는 skip (빠른 테스트)
+        selection_batch_size=10,
+        selection_batch_delay_sec=0.0,  # No delay for testing
+    )
+    
+    # Monkeypatch: Upbit client methods
+    monkeypatch.setattr(
+        "arbitrage.exchanges.upbit_public_data.UpbitPublicDataClient.fetch_top_symbols",
+        mock_fetch_top_symbols
+    )
+    monkeypatch.setattr(
+        "arbitrage.exchanges.upbit_public_data.UpbitPublicDataClient.fetch_ticker",
+        mock_fetch_ticker
+    )
+    monkeypatch.setattr(
+        "arbitrage.exchanges.upbit_public_data.UpbitPublicDataClient.fetch_orderbook",
+        mock_fetch_orderbook
+    )
+    
+    # TopN selection 실행
+    result = provider._fetch_real_metrics_safe()
+    
+    # 검증: 25개 심볼에 대해 ticker + orderbook 호출 (각 25회)
+    assert fetch_count["ticker"] == 25
+    assert fetch_count["orderbook"] == 25
+    
+    # 결과 검증
+    assert len(result) == 25
+    
+    # 배치 처리 확인: 25개 심볼 / 10개 배치 = 3 batches (10 + 10 + 5)
+    # (이 테스트에서는 batch_delay=0이므로 시간 체크는 생략)
+
+
+def test_topn_real_selection_fallback_on_error(monkeypatch):
+    """D82-3: Verify Real Selection falls back to mock on complete failure"""
+    def mock_fetch_top_symbols_error(self, *args, **kwargs):
+        raise Exception("API Error")
+    
+    provider = TopNProvider(
+        mode=TopNMode.TOP_10,
+        selection_data_source="real",
+        selection_rate_limit_enabled=False,
+    )
+    
+    # Monkeypatch: fetch_top_symbols가 실패하도록
+    monkeypatch.setattr(
+        "arbitrage.exchanges.upbit_public_data.UpbitPublicDataClient.fetch_top_symbols",
+        mock_fetch_top_symbols_error
+    )
+    
+    # TopN selection 실행 (실패하면 mock으로 fallback)
+    result = provider._fetch_real_metrics_safe()
+    
+    # Mock fallback 확인 (mock은 30개 심볼 반환)
+    assert len(result) > 0  # Mock은 항상 valid metrics 반환
+
+
 if __name__ == "__main__":
     # Run tests
     pytest.main([__file__, "-v"])

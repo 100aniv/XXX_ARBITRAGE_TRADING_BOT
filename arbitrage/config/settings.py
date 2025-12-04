@@ -98,7 +98,7 @@ class FillModelConfig:
 @dataclass
 class TopNSelectionConfig:
     """
-    D82-2: TopN Selection 데이터 소스 설정
+    D82-2/D82-3: TopN Selection 데이터 소스 설정
     
     TopN 심볼 선정과 Entry/Exit 스프레드 조회를 분리.
     
@@ -107,11 +107,19 @@ class TopNSelectionConfig:
     - TOPN_SELECTION_CACHE_TTL_SEC: TopN 캐시 TTL (default: 600s = 10분)
     - TOPN_SELECTION_MAX_SYMBOLS: TopN 최대 심볼 수 (default: 50)
     - TOPN_ENTRY_EXIT_DATA_SOURCE: Entry/Exit 스프레드 데이터 소스 (mock|real, default: real)
+    - TOPN_SELECTION_RATE_LIMIT_ENABLED: Real Selection Rate Limit 활성화 (default: true)
+    - TOPN_SELECTION_BATCH_SIZE: Real Selection 배치 크기 (default: 10)
+    - TOPN_SELECTION_BATCH_DELAY_SEC: Real Selection 배치 간 지연 (default: 1.5s)
     """
     selection_data_source: str = "mock"  # "mock" | "real"
     selection_cache_ttl_sec: int = 600  # 10 minutes
     selection_max_symbols: int = 50
     entry_exit_data_source: str = "real"  # "mock" | "real"
+    
+    # D82-3: Real Selection용 Rate Limit 옵션
+    selection_rate_limit_enabled: bool = True
+    selection_batch_size: int = 10  # 한 번에 처리할 심볼 수
+    selection_batch_delay_sec: float = 1.5  # 배치 간 인터벌 (초)
 
 
 @dataclass
@@ -325,11 +333,16 @@ class Settings:
             max_holding_seconds=topn_max_holding_seconds,
         )
         
-        # D82-2: TopN Selection Config
+        # D82-2/D82-3: TopN Selection Config
         topn_selection_data_source = os.getenv("TOPN_SELECTION_DATA_SOURCE", "mock").lower()
         topn_selection_cache_ttl_sec = int(os.getenv("TOPN_SELECTION_CACHE_TTL_SEC", "600"))
         topn_selection_max_symbols = int(os.getenv("TOPN_SELECTION_MAX_SYMBOLS", "50"))
         topn_entry_exit_data_source = os.getenv("TOPN_ENTRY_EXIT_DATA_SOURCE", "real").lower()
+        
+        # D82-3: Real Selection Rate Limit 옵션
+        topn_selection_rate_limit_enabled = os.getenv("TOPN_SELECTION_RATE_LIMIT_ENABLED", "true").lower() == "true"
+        topn_selection_batch_size = int(os.getenv("TOPN_SELECTION_BATCH_SIZE", "10"))
+        topn_selection_batch_delay_sec = float(os.getenv("TOPN_SELECTION_BATCH_DELAY_SEC", "1.5"))
         
         # Validation
         if topn_selection_data_source not in ("mock", "real"):
@@ -344,11 +357,22 @@ class Settings:
             print(f"Warning: Invalid TOPN_SELECTION_CACHE_TTL_SEC '{topn_selection_cache_ttl_sec}', defaulting to 600")
             topn_selection_cache_ttl_sec = 600
         
+        if topn_selection_batch_size < 1:
+            print(f"Warning: Invalid TOPN_SELECTION_BATCH_SIZE '{topn_selection_batch_size}', defaulting to 10")
+            topn_selection_batch_size = 10
+        
+        if topn_selection_batch_delay_sec < 0:
+            print(f"Warning: Invalid TOPN_SELECTION_BATCH_DELAY_SEC '{topn_selection_batch_delay_sec}', defaulting to 1.5")
+            topn_selection_batch_delay_sec = 1.5
+        
         topn_selection_config = TopNSelectionConfig(
             selection_data_source=topn_selection_data_source,
             selection_cache_ttl_sec=topn_selection_cache_ttl_sec,
             selection_max_symbols=topn_selection_max_symbols,
             entry_exit_data_source=topn_entry_exit_data_source,
+            selection_rate_limit_enabled=topn_selection_rate_limit_enabled,
+            selection_batch_size=topn_selection_batch_size,
+            selection_batch_delay_sec=topn_selection_batch_delay_sec,
         )
         
         settings = cls(
