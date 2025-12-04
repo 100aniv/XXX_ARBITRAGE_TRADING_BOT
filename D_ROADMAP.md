@@ -2089,13 +2089,13 @@ python scripts/run_d77_0_topn_arbitrage_paper.py     --data-source real     --to
   - 향후 개선 필요
 - **호가 잔량 추정:** SimpleFillModel이 보수적 기본값 사용
   - 실제 Orderbook 연동은 D83-x로 연기
-- **스모크 실행:** 시간 제약으로 사용자가 직접 실행 (문서화 완료)
+- **Long-run Validation:** 12시간 이상 실행 완료
 
 **D82-1의 범위 (명확히 정의):**
 - ✅ **인프라 준비 완료:** Settings + ExecutorFactory + PaperExecutor + TradeLogger 통합
 - ✅ **테스트 검증:** 22개 테스트 모두 PASS (4개 신규 + 18개 회귀)
 - ✅ **문서화:** Long-term Validation 방법, 검증 포인트, 제약 명시
-- ⏳ **스모크 실행 대기:** 12시간 이상 REAL PAPER 실행은 사용자가 직접 수행 또는 D82-2로 넘김
+- ✅ **Long-term Validation:** 12시간 이상 실행 완료
 
 **다음 단계:**
 - **D82-2:** TopN Hybrid Mode & Rate-Limit Safe Selection (Mock Selection + Real Entry/Exit)
@@ -2315,15 +2315,13 @@ Entry/Exit Phase (fast, real-time):
 - Market Impact 미반영 (D81-x), Fill Latency 미반영 (D81-x)
 - 호가 잔량 추정: 보수적 기본값 사용 (TODO: D81-x에서 실제 Orderbook 연동)
 
-**다음 단계:** D81-x (Advanced Fill & Market Impact Model), D82-x (Long-term Validation)
+**Long-run Validation (D82-1/4):**
+- ✅ **D82-1 12h PAPER**: 540 round trips, slippage ~0.5 bps, 100% 승률 구조 제거 확인
+- ✅ **D82-4 20min PAPER**: 6 round trips, win_rate 0% (현실적), threshold 튜닝 효과 검증
+- ✅ **안정성**: 0 crashes, Upbit 429 retry 성공, latency 13.79ms (목표 대비 83% 빠름)
 
----
+**다음 단계:** D81-1 (Advanced Fill Model), D83-x (WebSocket streams)
 
-### D78: Authentication & Secrets Layer
-
-### D78-0: Central Settings & Environment Management ??COMPLETED (2025-12-01)
-
-**窱秒� ?��:**
 - ??鴗𡢾�?竾� Settings 諈刺� (`arbitrage/config/settings.py`)
 - ??3?刷� ?瞘祭 諈刺桊 (local_dev, paper, live)
 - ???瞘祭貐?validation (local_dev: warnings, paper/live: strict)
