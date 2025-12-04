@@ -66,6 +66,29 @@ from arbitrage.monitoring.metrics import (
     set_active_positions,
 )
 
+# D82-0: Settings + ExecutorFactory + PaperExecutor + TradeLogger 통합
+from arbitrage.config.settings import Settings
+from arbitrage.execution.executor_factory import ExecutorFactory
+from arbitrage.types import PortfolioState
+from arbitrage.live_runner import RiskGuard, RiskLimits
+from arbitrage.logging.trade_logger import TradeLogger, TradeLogEntry
+from dataclasses import dataclass
+
+# D82-0: PaperExecutor 호환 MockTrade 객체
+@dataclass
+class MockTrade:
+    """
+    D82-0: PaperExecutor.execute_trades()에 전달할 간단한 Mock Trade 객체.
+    
+    PaperExecutor가 기대하는 필드만 포함.
+    """
+    trade_id: str
+    buy_exchange: str
+    sell_exchange: str
+    quantity: float
+    buy_price: float
+    sell_price: float
+
 # logs/ 디렉토리 생성
 Path("logs/d77-0").mkdir(parents=True, exist_ok=True)
 
@@ -114,6 +137,35 @@ class D77PAPERRunner:
         self.monitoring_port = monitoring_port
         self.kpi_output_path = kpi_output_path  # D77-4
         
+        # D82-0: Settings 로드 (ARBITRAGE_ENV=paper)
+        self.settings = Settings.from_env()
+        logger.info(f"[D82-0] Settings loaded: fill_model_enabled={self.settings.fill_model.enable_fill_model}")
+        
+        # D82-0: ExecutorFactory + PaperExecutor 초기화
+        self.executor_factory = ExecutorFactory()
+        self.portfolio_state = PortfolioState(
+            total_balance=10000.0,  # Mock balance
+            available_balance=10000.0,
+        )
+        self.risk_guard = RiskGuard(
+            risk_limits=RiskLimits(
+                max_notional_per_trade=1000.0,
+                max_daily_loss=500.0,
+                max_open_trades=10,
+            )
+        )
+        
+        # Symbol별 Executor 맵 (lazy initialization)
+        self.executors: Dict[str, Any] = {}
+        
+        # D82-0: TradeLogger 초기화
+        self.trade_logger = TradeLogger(
+            base_dir=Path("logs/d82-0/trades"),
+            run_id=f"d82-0-{universe_mode.name.lower()}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            universe_mode=universe_mode.name,
+        )
+        logger.info(f"[D82-0] TradeLogger initialized: {self.trade_logger.log_file}")
+        
         # TopN Provider
         self.topn_provider = TopNProvider(mode=universe_mode, data_source=data_source)
         
@@ -129,7 +181,7 @@ class D77PAPERRunner:
         
         # Metrics
         self.metrics: Dict[str, Any] = {
-            "session_id": f"d77-0-{universe_mode.name.lower()}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "session_id": f"d82-0-{universe_mode.name.lower()}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
             "start_time": time.time(),
             "end_time": 0.0,
             "duration_minutes": duration_minutes,
@@ -154,6 +206,13 @@ class D77PAPERRunner:
                 "time_limit": 0,
                 "spread_reversal": 0,
             },
+            # D82-0: Fill Model KPI
+            "avg_buy_slippage_bps": 0.0,
+            "avg_sell_slippage_bps": 0.0,
+            "avg_buy_fill_ratio": 1.0,
+            "avg_sell_fill_ratio": 1.0,
+            "partial_fills_count": 0,
+            "failed_fills_count": 0,
         }
         
         self.loop_latencies: List[float] = []
@@ -203,8 +262,8 @@ class D77PAPERRunner:
         while time.time() < end_time:
             loop_start = time.time()
             
-            # Mock arbitrage logic
-            await self._mock_arbitrage_iteration(iteration, topn_result.symbols)
+            # D82-0: Real PaperExecutor 기반 arbitrage iteration
+            await self._real_arbitrage_iteration(iteration, topn_result.symbols)
             
             loop_latency_ms = (time.time() - loop_start) * 1000
             loop_latency_seconds = loop_latency_ms / 1000.0
@@ -250,58 +309,134 @@ class D77PAPERRunner:
         
         return self.metrics
     
-    async def _mock_arbitrage_iteration(
+    def _get_or_create_executor(self, symbol: str) -> Any:
+        """
+        D82-0: Symbol별 PaperExecutor 생성/캐싱 (Lazy Initialization)
+        
+        Args:
+            symbol: 거래 심볼
+        
+        Returns:
+            PaperExecutor 인스턴스
+        """
+        if symbol not in self.executors:
+            self.executors[symbol] = self.executor_factory.create_paper_executor(
+                symbol=symbol,
+                portfolio_state=self.portfolio_state,
+                risk_guard=self.risk_guard,
+                fill_model_config=self.settings.fill_model,
+            )
+            logger.info(f"[D82-0] Created PaperExecutor for {symbol}")
+        return self.executors[symbol]
+    
+    async def _real_arbitrage_iteration(
         self,
         iteration: int,
         symbols: List[tuple[str, str]],
     ) -> None:
         """
-        Mock arbitrage iteration (간단한 시뮬레이션).
+        D82-0: Real PaperExecutor 기반 arbitrage iteration.
         
-        실제 엔진 통합 시에는 multi_symbol_engine.py와 연동.
+        Fill Model이 활성화되면, 부분 체결 + 슬리피지가 발생하여
+        100% 승률 구조가 깨집니다.
         
         Args:
             iteration: Iteration 번호
             symbols: Symbol 리스트
         """
         # Simplified: 매 20번째 iteration마다 Entry 발생
-        mock_price_a = 50000.0  # Entry price A
-        mock_price_b = 50100.0  # Entry price B (positive spread)
-        mock_spread_bps = 200.0  # +200 bps
-        mock_size = 1.0  # 1 unit
+        # (실제로는 Real Market Data로 Spread 계산 후 Entry 결정)
+        mock_price_a = 50000.0 + (iteration * 0.5)  # 조금씩 변동
+        mock_price_b = 50100.0 + (iteration * 0.3)
+        mock_spread_bps = ((mock_price_b - mock_price_a) / mock_price_a) * 10000.0
+        mock_size = 0.1  # 0.1 BTC
         
-        if iteration % 20 == 0 and iteration > 0:
-            # Mock Entry
+        if iteration % 20 == 0 and iteration > 0 and len(symbols) > 0:
+            # Entry Trade
             position_id = self.metrics["entry_trades"]
-            symbol_a, symbol_b = symbols[0]
-            self.exit_strategy.register_position(
-                position_id=position_id,
-                symbol_a=symbol_a,
-                symbol_b=symbol_b,
-                entry_price_a=mock_price_a,
-                entry_price_b=mock_price_b,
-                entry_spread_bps=mock_spread_bps,
-                size=mock_size,
-            )
-            self.metrics["entry_trades"] += 1
-            self.metrics["total_trades"] += 1
+            symbol_a, symbol_b = symbols[0]  # 간단히 첫 번째 symbol pair 사용
             
-            # D77-1: Record entry trade
-            if self.monitoring_enabled:
-                record_trade("entry")
+            # MockTrade 생성 (PaperExecutor 호환)
+            trade = MockTrade(
+                trade_id=f"ENTRY_{position_id}",
+                buy_exchange="binance",
+                sell_exchange="upbit",
+                buy_price=mock_price_a,
+                sell_price=mock_price_b,
+                quantity=mock_size,
+            )
+            
+            # D82-0: Real PaperExecutor 사용 (Fill Model 포함)
+            executor = self._get_or_create_executor(symbol_a)
+            results = executor.execute_trades([trade])
+            
+            if results and len(results) > 0:
+                result = results[0]
+                
+                # D82-0: TradeLogger에 기록
+                trade_entry = TradeLogEntry(
+                    timestamp=datetime.utcnow().isoformat(),
+                    session_id=self.metrics["session_id"],
+                    trade_id=result.trade_id,
+                    universe_mode=self.universe_mode.name,
+                    symbol=result.symbol,
+                    route_type="cross_exchange",
+                    entry_timestamp=datetime.utcnow().isoformat(),
+                    entry_bid_upbit=mock_price_a,
+                    entry_ask_binance=mock_price_b,
+                    entry_spread_bps=mock_spread_bps,
+                    order_quantity=trade.quantity,
+                    filled_quantity=result.quantity,
+                    fill_price_upbit=result.buy_price,
+                    fill_price_binance=result.sell_price,
+                    # D82-0: Fill Model 필드
+                    buy_slippage_bps=result.buy_slippage_bps,
+                    sell_slippage_bps=result.sell_slippage_bps,
+                    buy_fill_ratio=result.buy_fill_ratio,
+                    sell_fill_ratio=result.sell_fill_ratio,
+                    gross_pnl_usd=result.pnl,
+                    net_pnl_usd=result.pnl,  # 수수료 미반영 (mock)
+                    trade_result="win" if result.pnl > 0 else "loss",
+                )
+                self.trade_logger.log_trade(trade_entry)
+                
+                # Exit Strategy 등록
+                if result.status == "success" or result.status == "partial":
+                    self.exit_strategy.register_position(
+                        position_id=position_id,
+                        symbol_a=symbol_a,
+                        symbol_b=symbol_b,
+                        entry_price_a=mock_price_a,
+                        entry_price_b=mock_price_b,
+                        entry_spread_bps=mock_spread_bps,
+                        size=result.quantity,
+                    )
+                    self.metrics["entry_trades"] += 1
+                    self.metrics["total_trades"] += 1
+                    
+                    # D82-0: Fill Model KPI 집계
+                    if result.buy_fill_ratio < 1.0 or result.sell_fill_ratio < 1.0:
+                        self.metrics["partial_fills_count"] += 1
+                    
+                    # D77-1: Record entry trade
+                    if self.monitoring_enabled:
+                        record_trade("entry")
+                elif result.status == "failed":
+                    self.metrics["failed_fills_count"] += 1
         
         # Check Exit for open positions
         for position_id, position in list(self.exit_strategy.get_open_positions().items()):
-            # Mock current prices (simulate TP scenario)
-            # Gradually increase price to trigger TP
-            if iteration % 10 == 0:
-                mock_exit_price_a = 50125.0  # +0.25% (TP trigger)
-                mock_exit_price_b = 50100.0  # Keep B same
-                mock_exit_spread_bps = -50.0  # Spread reversal
+            # Mock current prices (simulate TP/SL/Time scenarios)
+            time_held = time.time() - position.entry_time
+            
+            if iteration % 10 == 0 or time_held > 120.0:  # TP or Time limit
+                mock_exit_price_a = mock_price_a * 1.005  # +0.5% (TP trigger)
+                mock_exit_price_b = mock_price_b
+                mock_exit_spread_bps = ((mock_exit_price_b - mock_exit_price_a) / mock_exit_price_a) * 10000.0
             else:
-                mock_exit_price_a = 50050.0  # Small movement
-                mock_exit_price_b = 50100.0
-                mock_exit_spread_bps = 100.0  # Still positive
+                mock_exit_price_a = mock_price_a
+                mock_exit_price_b = mock_price_b
+                mock_exit_spread_bps = mock_spread_bps
             
             exit_signal = self.exit_strategy.check_exit(
                 position_id=position_id,
@@ -311,31 +446,48 @@ class D77PAPERRunner:
             )
             
             if exit_signal.should_exit:
-                # Mock Exit
-                self.exit_strategy.unregister_position(position_id)
-                self.metrics["exit_trades"] += 1
-                self.metrics["round_trips_completed"] += 1
-                self.metrics["total_trades"] += 1
+                # Exit MockTrade
+                exit_trade = MockTrade(
+                    trade_id=f"EXIT_{position_id}",
+                    buy_exchange="upbit",  # 반대 방향
+                    sell_exchange="binance",
+                    buy_price=mock_exit_price_b,
+                    sell_price=mock_exit_price_a,
+                    quantity=position.size,
+                )
                 
-                # Update exit reason count
-                reason_key = exit_signal.reason.name.lower()
-                self.metrics["exit_reasons"][reason_key] += 1
+                # D82-0: Real PaperExecutor 사용
+                executor = self._get_or_create_executor(position.symbol_a)
+                exit_results = executor.execute_trades([exit_trade])
                 
-                # PnL calculation (mock)
-                pnl = mock_exit_price_a - mock_price_a
-                self.metrics["total_pnl_usd"] += pnl
-                
-                if pnl > 0:
-                    self.metrics["wins"] += 1
-                else:
-                    self.metrics["losses"] += 1
-                
-                # D77-1: Record exit trade, round trip, PnL, exit reason
-                if self.monitoring_enabled:
-                    record_trade("exit")
-                    record_round_trip()
-                    record_pnl(self.metrics["total_pnl_usd"])
-                    record_exit_reason(reason_key)
+                if exit_results and len(exit_results) > 0:
+                    exit_result = exit_results[0]
+                    
+                    # Exit Strategy 제거
+                    self.exit_strategy.unregister_position(position_id)
+                    self.metrics["exit_trades"] += 1
+                    self.metrics["round_trips_completed"] += 1
+                    self.metrics["total_trades"] += 1
+                    
+                    # Update exit reason count
+                    reason_key = exit_signal.reason.name.lower()
+                    self.metrics["exit_reasons"][reason_key] += 1
+                    
+                    # PnL calculation
+                    pnl = exit_result.pnl
+                    self.metrics["total_pnl_usd"] += pnl
+                    
+                    if pnl > 0:
+                        self.metrics["wins"] += 1
+                    else:
+                        self.metrics["losses"] += 1
+                    
+                    # D77-1: Record exit trade, round trip, PnL, exit reason
+                    if self.monitoring_enabled:
+                        record_trade("exit")
+                        record_round_trip()
+                        record_pnl(self.metrics["total_pnl_usd"])
+                        record_exit_reason(reason_key)
     
     def _calculate_final_metrics(self) -> None:
         """최종 metrics 계산"""
@@ -357,6 +509,10 @@ class D77PAPERRunner:
         # Memory/CPU (mock)
         self.metrics["memory_usage_mb"] = 150.0  # Mock
         self.metrics["cpu_usage_pct"] = 35.0  # Mock
+        
+        # D82-0: Fill Model KPI 평균값 계산 (TradeLogger에서 집계 가능하지만, 여기서는 간단히 표시만)
+        # 실제로는 TradeLogger.get_trades()로 로그 읽어서 평균 계산하는 것이 정확함
+        # TODO(D82-1): TradeLogger 기반 KPI 집계 로직 추가
     
     def _log_final_summary(self) -> None:
         """최종 요약 로그"""
@@ -391,8 +547,19 @@ class D77PAPERRunner:
         logger.info(f"  Loop Latency (p99): {self.metrics['loop_latency_p99_ms']:.1f}ms")
         logger.info(f"  Memory Usage: {self.metrics['memory_usage_mb']:.1f}MB")
         logger.info(f"  CPU Usage: {self.metrics['cpu_usage_pct']:.1f}%")
+        logger.info("")
+        # D82-0: Fill Model KPI
+        logger.info("Fill Model (D82-0):")
+        logger.info(f"  Partial Fills: {self.metrics['partial_fills_count']}")
+        logger.info(f"  Failed Fills: {self.metrics['failed_fills_count']}")
+        logger.info(f"  Avg Buy Slippage: {self.metrics['avg_buy_slippage_bps']:.2f} bps")
+        logger.info(f"  Avg Sell Slippage: {self.metrics['avg_sell_slippage_bps']:.2f} bps")
+        logger.info(f"  Avg Buy Fill Ratio: {self.metrics['avg_buy_fill_ratio']:.2%}")
+        logger.info(f"  Avg Sell Fill Ratio: {self.metrics['avg_sell_fill_ratio']:.2%}")
         logger.info("=" * 80)
         logger.info("")
+        logger.info(f"[D82-0] TradeLogger file: {self.trade_logger.log_file}")
+        logger.info("[D82-0] Check trade_log.jsonl for detailed slippage/fill_ratio data")
     
     def _save_metrics(self) -> None:
         """Metrics를 JSON 파일로 저장"""
