@@ -310,8 +310,8 @@ class D77PAPERRunner:
                     except Exception as e:
                         logger.debug(f"[D77-1] Failed to update periodic metrics: {e}")
             
-            # Respect loop interval
-            await asyncio.sleep(0.1)  # 100ms
+            # D82-1: Respect loop interval (increased for rate limit safety)
+            await asyncio.sleep(1.0)  # 1s to avoid 429 errors
             iteration += 1
         
         # 3. 종료 및 최종 metrics 계산
@@ -361,137 +361,135 @@ class D77PAPERRunner:
             iteration: Iteration 번호
             symbols: Symbol 리스트 (TopN Universe)
         """
-        # D82-1: Real Market Data 기반 Entry 로직
-        # TopN 심볼별로 현재 스프레드를 계산하여 Entry 조건 판단
         entry_config = self.settings.topn_entry_exit
-        open_positions_count = len(self.exit_strategy.get_open_positions())
+        open_positions = self.exit_strategy.get_open_positions()
+        open_positions_count = len(open_positions)
         
-        # TODO(D82-1): TopNProvider를 통해 실제 스프레드 조회
-        # 현재는 Mock 가격 사용 (호환성 유지)
-        mock_price_a = 50000.0 + (iteration * 0.5)  # 조금씩 변동
-        mock_price_b = 50100.0 + (iteration * 0.3)
-        mock_spread_bps = ((mock_price_b - mock_price_a) / mock_price_a) * 10000.0
-        mock_size = 0.1  # 0.1 BTC
+        # D82-1: 이미 열린 포지션이 있는 심볼 리스트 (중복 Entry 방지)
+        open_symbols = set()
+        for pos in open_positions.values():
+            open_symbols.add(pos.symbol_a)
+            open_symbols.add(pos.symbol_b)
         
-        # Entry: 최대 포지션 수를 초과하지 않는 범위에서, 스프레드 조건 만족 시 Entry
-        if (open_positions_count < entry_config.entry_max_concurrent_positions 
-            and len(symbols) > 0
-            and mock_spread_bps >= entry_config.entry_min_spread_bps):  # D82-1: Real Entry 조건
-            # Entry Trade
-            position_id = self.metrics["entry_trades"]
-            symbol_a, symbol_b = symbols[0]  # 간단히 첫 번째 symbol pair 사용
-            
-            # MockTrade 생성 (PaperExecutor 호환)
-            trade = MockTrade(
-                trade_id=f"ENTRY_{position_id}",
-                buy_exchange="binance",
-                sell_exchange="upbit",
-                buy_price=mock_price_a,
-                sell_price=mock_price_b,
-                quantity=mock_size,
-            )
-            
-            # D82-0: Real PaperExecutor 사용 (Fill Model 포함)
-            executor = self._get_or_create_executor(symbol_a)
-            results = executor.execute_trades([trade])
-            
-            if results and len(results) > 0:
-                result = results[0]
+        # D82-1: Entry 로직 - Real Market Data 기반
+        # Rate Limit 안전성: 최대 1개 심볼만 Entry check (Upbit 10 req/sec 고려)
+        if open_positions_count < entry_config.entry_max_concurrent_positions and len(symbols) > 0:
+            max_entry_checks = 1  # D82-1: Rate limit safety - only check 1 symbol per loop
+            for idx, (symbol_a, symbol_b) in enumerate(symbols[:max_entry_checks]):
+                # 이미 열린 포지션이 있는 심볼은 스킵
+                if symbol_a in open_symbols or symbol_b in open_symbols:
+                    continue
                 
-                # D82-0: TradeLogger에 기록
-                trade_entry = TradeLogEntry(
-                    timestamp=datetime.utcnow().isoformat(),
-                    session_id=self.metrics["session_id"],
-                    trade_id=result.trade_id,
-                    universe_mode=self.universe_mode.name,
-                    symbol=result.symbol,
-                    route_type="cross_exchange",
-                    entry_timestamp=datetime.utcnow().isoformat(),
-                    entry_bid_upbit=mock_price_a,
-                    entry_ask_binance=mock_price_b,
-                    entry_spread_bps=mock_spread_bps,
-                    order_quantity=trade.quantity,
-                    filled_quantity=result.quantity,
-                    fill_price_upbit=result.buy_price,
-                    fill_price_binance=result.sell_price,
-                    # D82-0: Fill Model 필드
-                    buy_slippage_bps=result.buy_slippage_bps,
-                    sell_slippage_bps=result.sell_slippage_bps,
-                    buy_fill_ratio=result.buy_fill_ratio,
-                    sell_fill_ratio=result.sell_fill_ratio,
-                    gross_pnl_usd=result.pnl,
-                    net_pnl_usd=result.pnl,  # 수수료 미반영 (mock)
-                    trade_result="win" if result.pnl > 0 else "loss",
+                # D82-1: TopNProvider를 통해 실제 스프레드 조회
+                spread_snapshot = self.topn_provider.get_current_spread(symbol_a, cross_exchange=False)
+                if spread_snapshot is None:
+                    logger.warning(f"[D82-1] No spread data for {symbol_a}, skipping entry check")
+                    continue
+                
+                # Entry 조건 체크
+                if spread_snapshot.spread_bps < entry_config.entry_min_spread_bps:
+                    continue
+                
+                # Entry Trade
+                position_id = self.metrics["entry_trades"]
+                mock_size = 0.1  # Fixed size for PAPER mode
+                
+                # MockTrade 생성 (PaperExecutor 호환)
+                trade = MockTrade(
+                    trade_id=f"ENTRY_{position_id}",
+                    buy_exchange="upbit",
+                    sell_exchange="upbit",
+                    buy_price=spread_snapshot.upbit_bid,
+                    sell_price=spread_snapshot.upbit_ask,
+                    quantity=mock_size,
                 )
-                self.trade_logger.log_trade(trade_entry)
                 
-                # Exit Strategy 등록
-                if result.status == "success" or result.status == "partial":
-                    self.exit_strategy.register_position(
-                        position_id=position_id,
-                        symbol_a=symbol_a,
-                        symbol_b=symbol_b,
-                        entry_price_a=mock_price_a,
-                        entry_price_b=mock_price_b,
-                        entry_spread_bps=mock_spread_bps,
-                        size=result.quantity,
+                # D82-0: Real PaperExecutor 사용 (Fill Model 포함)
+                executor = self._get_or_create_executor(symbol_a)
+                results = executor.execute_trades([trade])
+                
+                if results and len(results) > 0:
+                    result = results[0]
+                    
+                    # D82-0: TradeLogger에 기록
+                    trade_entry = TradeLogEntry(
+                        timestamp=datetime.utcnow().isoformat(),
+                        session_id=self.metrics["session_id"],
+                        trade_id=result.trade_id,
+                        universe_mode=self.universe_mode.name,
+                        symbol=result.symbol,
+                        route_type="single_exchange",  # D82-1: Upbit only
+                        entry_timestamp=datetime.utcnow().isoformat(),
+                        entry_bid_upbit=spread_snapshot.upbit_bid,
+                        entry_ask_binance=spread_snapshot.upbit_ask,
+                        entry_spread_bps=spread_snapshot.spread_bps,
+                        order_quantity=trade.quantity,
+                        filled_quantity=result.quantity,
+                        fill_price_upbit=result.buy_price,
+                        fill_price_binance=result.sell_price,
+                        # D82-0: Fill Model 필드
+                        buy_slippage_bps=result.buy_slippage_bps,
+                        sell_slippage_bps=result.sell_slippage_bps,
+                        buy_fill_ratio=result.buy_fill_ratio,
+                        sell_fill_ratio=result.sell_fill_ratio,
+                        gross_pnl_usd=result.pnl,
+                        net_pnl_usd=result.pnl,  # 수수료 미반영 (mock)
+                        trade_result="win" if result.pnl > 0 else "loss",
                     )
-                    self.metrics["entry_trades"] += 1
-                    self.metrics["total_trades"] += 1
+                    self.trade_logger.log_trade(trade_entry)
                     
-                    # D82-0: Fill Model KPI 집계
-                    if result.buy_fill_ratio < 1.0 or result.sell_fill_ratio < 1.0:
-                        self.metrics["partial_fills_count"] += 1
-                    
-                    # D77-1: Record entry trade
-                    if self.monitoring_enabled:
-                        record_trade("entry")
-                elif result.status == "failed":
-                    self.metrics["failed_fills_count"] += 1
+                    # Exit Strategy 등록
+                    if result.status == "success" or result.status == "partial":
+                        self.exit_strategy.register_position(
+                            position_id=position_id,
+                            symbol_a=symbol_a,
+                            symbol_b=symbol_b,
+                            entry_price_a=spread_snapshot.upbit_bid,
+                            entry_price_b=spread_snapshot.upbit_ask,
+                            entry_spread_bps=spread_snapshot.spread_bps,
+                            size=result.quantity,
+                        )
+                        self.metrics["entry_trades"] += 1
+                        self.metrics["total_trades"] += 1
+                        
+                        # D82-0: Fill Model KPI 집계
+                        if result.buy_fill_ratio < 1.0 or result.sell_fill_ratio < 1.0:
+                            self.metrics["partial_fills_count"] += 1
+                        
+                        # D77-1: Record entry trade
+                        if self.monitoring_enabled:
+                            record_trade("entry")
+                        
+                        logger.info(f"[D82-1] Entry: {symbol_a} @ spread={spread_snapshot.spread_bps:.2f} bps")
+                        break  # 1개만 Entry 하고 나오기
+                    elif result.status == "failed":
+                        self.metrics["failed_fills_count"] += 1
         
-        # Check Exit for open positions
+        # D82-1: Exit 로직 - Real Market Data 기반
+        exit_config = self.settings.topn_entry_exit
         for position_id, position in list(self.exit_strategy.get_open_positions().items()):
-            # D82-1: Real Market Data 기반 Exit 로직
-            # TODO(D82-1): TopNProvider를 통해 실제 현재 스프레드 조회
-            time_held = position.time_held()
+            # D82-1: TopNProvider를 통해 실제 현재 스프레드 조회
+            spread_snapshot = self.topn_provider.get_current_spread(position.symbol_a, cross_exchange=False)
+            if spread_snapshot is None:
+                logger.warning(f"[D82-1] No spread data for {position.symbol_a}, skipping exit check")
+                continue
             
-            # 현재는 Mock 가격 사용 (호환성 유지)
-            # TP: 스프레드가 줄어들면 (정상화)
-            # SL: 스프레드가 더 벌어지면 (악화)
-            # Time: max_holding_seconds 초과
-            exit_config = self.settings.topn_entry_exit
-            
-            if time_held >= exit_config.max_holding_seconds:
-                # Time-based Exit
-                mock_exit_price_a = mock_price_a
-                mock_exit_price_b = mock_price_b
-                mock_exit_spread_bps = mock_spread_bps
-            elif mock_spread_bps <= exit_config.exit_tp_spread_bps:
-                # TP: 스프레드 정상화
-                mock_exit_price_a = mock_price_a * 1.005  # +0.5% (TP trigger)
-                mock_exit_price_b = mock_price_b
-                mock_exit_spread_bps = ((mock_exit_price_b - mock_exit_price_a) / mock_exit_price_a) * 10000.0
-            else:
-                # 아직 Exit 조건 미충족, 현재 가격 유지
-                mock_exit_price_a = mock_price_a
-                mock_exit_price_b = mock_price_b
-                mock_exit_spread_bps = mock_spread_bps
-            
+            # Exit 조건 체크
             exit_signal = self.exit_strategy.check_exit(
                 position_id=position_id,
-                current_price_a=mock_exit_price_a,
-                current_price_b=mock_exit_price_b,
-                current_spread_bps=mock_exit_spread_bps,
+                current_price_a=spread_snapshot.upbit_bid,
+                current_price_b=spread_snapshot.upbit_ask,
+                current_spread_bps=spread_snapshot.spread_bps,
             )
             
             if exit_signal.should_exit:
-                # Exit MockTrade
+                # D82-1: Exit MockTrade (Real price 사용)
                 exit_trade = MockTrade(
                     trade_id=f"EXIT_{position_id}",
-                    buy_exchange="upbit",  # 반대 방향
-                    sell_exchange="binance",
-                    buy_price=mock_exit_price_b,
-                    sell_price=mock_exit_price_a,
+                    buy_exchange="upbit",
+                    sell_exchange="upbit",
+                    buy_price=spread_snapshot.upbit_ask,
+                    sell_price=spread_snapshot.upbit_bid,
                     quantity=position.size,
                 )
                 
@@ -527,6 +525,8 @@ class D77PAPERRunner:
                         record_round_trip()
                         record_pnl(self.metrics["total_pnl_usd"])
                         record_exit_reason(reason_key)
+                    
+                    logger.info(f"[D82-1] Exit: {position.symbol_a} @ spread={spread_snapshot.spread_bps:.2f} bps, reason={exit_signal.reason.name}")
     
     def _calculate_final_metrics(self) -> None:
         """최종 metrics 계산"""

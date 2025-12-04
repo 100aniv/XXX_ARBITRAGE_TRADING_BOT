@@ -76,6 +76,36 @@ class TopNResult:
     churn_rate: float = 0.0  # 이전 대비 변경 비율
 
 
+@dataclass
+class SpreadSnapshot:
+    """D82-1: 실시간 스프레드 스냅샷"""
+    symbol: str  # "BTC/KRW" format
+    upbit_symbol: str  # "KRW-BTC" format
+    binance_symbol: Optional[str]  # "BTCUSDT" format (optional for cross-exchange)
+    upbit_bid: float
+    upbit_ask: float
+    binance_bid: Optional[float] = None
+    binance_ask: Optional[float] = None
+    spread_bps: float = 0.0  # Upbit 내부 스프레드 또는 cross-exchange 스프레드
+    timestamp: float = 0.0
+    
+    def calculate_spread_bps(self) -> float:
+        """스프레드(bps) 계산"""
+        if self.binance_bid and self.binance_ask:
+            # Cross-exchange: Upbit sell, Binance buy
+            # Spread = (Upbit_bid - Binance_ask) / mid
+            mid = (self.upbit_bid + self.binance_ask) / 2.0
+            if mid > 0:
+                self.spread_bps = ((self.upbit_bid - self.binance_ask) / mid) * 10000.0
+        else:
+            # Single exchange (Upbit)
+            mid = (self.upbit_bid + self.upbit_ask) / 2.0
+            if mid > 0:
+                self.spread_bps = ((self.upbit_ask - self.upbit_bid) / mid) * 10000.0
+        
+        return self.spread_bps
+
+
 class TopNProvider:
     """
     TopN Universe Provider.
@@ -438,3 +468,98 @@ class TopNProvider:
         # GET /api/v3/ticker/24hr
         # GET /api/v3/depth
         raise NotImplementedError("LIVE mode not implemented yet")
+    
+    def get_current_spread(
+        self,
+        symbol: str,
+        cross_exchange: bool = False,
+    ) -> Optional[SpreadSnapshot]:
+        """
+        D82-1: 특정 심볼의 실시간 스프레드 조회.
+        
+        Args:
+            symbol: Symbol in "BTC/KRW" format
+            cross_exchange: True = cross-exchange arbitrage (Upbit-Binance)
+                           False = single exchange spread (Upbit only)
+        
+        Returns:
+            SpreadSnapshot 또는 None (data unavailable)
+        
+        Note:
+            - data_source="real"일 때만 실제 API 호출
+            - data_source="mock"일 때는 mock 데이터 반환
+        """
+        if self.data_source == "mock":
+            return self._get_mock_spread(symbol)
+        
+        # Lazy init clients
+        if self._upbit_client is None:
+            from arbitrage.exchanges.upbit_public_data import UpbitPublicDataClient
+            self._upbit_client = UpbitPublicDataClient()
+        
+        # Convert "BTC/KRW" → "KRW-BTC"
+        parts = symbol.split("/")
+        if len(parts) != 2:
+            logger.error(f"[TOPN_PROVIDER] Invalid symbol format: {symbol}")
+            return None
+        
+        base, quote = parts[0], parts[1]
+        upbit_symbol = f"{quote}-{base}"  # "KRW-BTC"
+        
+        try:
+            # Fetch Upbit orderbook
+            upbit_ob = self._upbit_client.fetch_orderbook(upbit_symbol)
+            if upbit_ob is None or not upbit_ob.bids or not upbit_ob.asks:
+                logger.warning(f"[TOPN_PROVIDER] No Upbit orderbook for {upbit_symbol}")
+                return None
+            
+            upbit_bid = upbit_ob.bids[0].price
+            upbit_ask = upbit_ob.asks[0].price
+            
+            snapshot = SpreadSnapshot(
+                symbol=symbol,
+                upbit_symbol=upbit_symbol,
+                binance_symbol=None,
+                upbit_bid=upbit_bid,
+                upbit_ask=upbit_ask,
+                timestamp=time.time(),
+            )
+            
+            # Cross-exchange: fetch Binance data
+            if cross_exchange:
+                if self._binance_client is None:
+                    from arbitrage.exchanges.binance_public_data import BinancePublicDataClient
+                    self._binance_client = BinancePublicDataClient()
+                
+                # Convert to Binance format: "BTC/KRW" → "BTCUSDT" (assume USD pair)
+                # TODO: Better symbol mapping (KRW pairs are not on Binance)
+                binance_symbol = f"{base}USDT"
+                binance_ob = self._binance_client.fetch_orderbook(binance_symbol, limit=20)
+                
+                if binance_ob and binance_ob.bids and binance_ob.asks:
+                    snapshot.binance_symbol = binance_symbol
+                    snapshot.binance_bid = binance_ob.bids[0].price
+                    snapshot.binance_ask = binance_ob.asks[0].price
+            
+            snapshot.calculate_spread_bps()
+            return snapshot
+        
+        except Exception as e:
+            logger.error(f"[TOPN_PROVIDER] Failed to get current spread for {symbol}: {e}")
+            return None
+    
+    def _get_mock_spread(self, symbol: str) -> SpreadSnapshot:
+        """D82-1: Mock spread data (for testing)"""
+        # Mock prices based on symbol name hash
+        base_price = 50000.0 + (hash(symbol) % 10000)
+        spread_pct = 0.001  # 0.1%
+        
+        return SpreadSnapshot(
+            symbol=symbol,
+            upbit_symbol=f"KRW-{symbol.split('/')[0]}",
+            binance_symbol=None,
+            upbit_bid=base_price * (1 - spread_pct / 2),
+            upbit_ask=base_price * (1 + spread_pct / 2),
+            spread_bps=spread_pct * 10000.0,
+            timestamp=time.time(),
+        )
