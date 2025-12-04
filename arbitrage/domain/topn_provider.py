@@ -110,14 +110,18 @@ class TopNProvider:
     """
     TopN Universe Provider.
     
-    실제 거래량/유동성/스프레드 기반으로 TopN 심볼 선정.
+    D82-2: Hybrid Mode
+    - Selection: uses selection_data_source (mock or real, cached with long TTL)
+    - Entry/Exit: uses entry_exit_data_source (real-time spread checks)
     """
     
     def __init__(
         self,
         mode: TopNMode = TopNMode.TOP_20,
-        data_source: str = "mock",  # D77-0-RM: "mock" | "real"
-        cache_ttl_seconds: int = 3600,  # 1h
+        selection_data_source: str = "mock",  # D82-2: "mock" | "real" for TopN selection
+        entry_exit_data_source: str = "real",  # D82-2: "mock" | "real" for Entry/Exit
+        cache_ttl_seconds: int = 600,  # D82-2: Reduced to 10 minutes (from 1h)
+        max_symbols: int = 50,  # D82-2: Max symbols for selection
         upbit_api_base: str = "https://api.upbit.com/v1",
         binance_api_base: str = "https://api.binance.com/api/v3",
         min_volume_usd: float = 1_000_000.0,  # $1M
@@ -125,28 +129,34 @@ class TopNProvider:
         max_spread_bps: float = 50.0,  # 0.5%
     ):
         """
+        D82-2: Hybrid Mode initialization.
+        
         Args:
-            mode: TopN 모드
-            data_source: "mock" | "real" (D77-0-RM)
-            cache_ttl_seconds: 캐시 TTL (초)
+            mode: TopN mode
+            selection_data_source: "mock" | "real" for TopN selection
+            entry_exit_data_source: "mock" | "real" for Entry/Exit spread checks
+            cache_ttl_seconds: Cache TTL (seconds)
+            max_symbols: Maximum symbols to select
             upbit_api_base: Upbit API base URL
             binance_api_base: Binance API base URL
-            min_volume_usd: 최소 거래량 (USD)
-            min_liquidity_usd: 최소 유동성 (USD)
-            max_spread_bps: 최대 스프레드 (bps)
+            min_volume_usd: Minimum volume (USD)
+            min_liquidity_usd: Minimum liquidity (USD)
+            max_spread_bps: Maximum spread (bps)
         """
         self.mode = mode
-        self.data_source = data_source
+        self.selection_data_source = selection_data_source
+        self.entry_exit_data_source = entry_exit_data_source
         self.cache_ttl_seconds = cache_ttl_seconds
+        self.max_symbols = max_symbols
         self.upbit_api_base = upbit_api_base
         self.binance_api_base = binance_api_base
         self.min_volume_usd = min_volume_usd
         self.min_liquidity_usd = min_liquidity_usd
         self.max_spread_bps = max_spread_bps
         
-        # Cache
-        self._cache: Optional[TopNResult] = None
-        self._cache_timestamp: float = 0.0
+        # D82-2: Selection cache (long TTL, 10+ minutes)
+        self._selection_cache: Optional[TopNResult] = None
+        self._selection_cache_ts: float = 0.0
         
         # Previous result (for churn calculation)
         self._previous_symbols: List[Tuple[str, str]] = []
@@ -155,29 +165,41 @@ class TopNProvider:
         self._upbit_client = None
         self._binance_client = None
         
-        logger.info(f"[TOPN_PROVIDER] Initialized: mode={mode.name}, data_source={data_source}")
+        logger.info(
+            f"[TOPN_PROVIDER] D82-2 Hybrid Mode: "
+            f"mode={mode.name}, selection={selection_data_source}, "
+            f"entry_exit={entry_exit_data_source}, cache_ttl={cache_ttl_seconds}s"
+        )
     
     def get_topn_symbols(
         self,
         force_refresh: bool = False,
     ) -> TopNResult:
         """
-        TopN 심볼 선정.
+        D82-2: TopN selection with hybrid mode and cache.
+        
+        Uses `selection_data_source` for selecting symbols.
+        Cache is checked first (10-minute TTL by default).
         
         Args:
-            force_refresh: 캐시 무시하고 강제 refresh
+            force_refresh: Ignore cache and force refresh
         
         Returns:
             TopNResult
         """
-        # Cache hit
+        # D82-2: Check selection cache first
         now = time.time()
-        if not force_refresh and self._cache is not None:
-            if now - self._cache_timestamp < self.cache_ttl_seconds:
-                return self._cache
+        if not force_refresh and self._selection_cache is not None:
+            cache_age = now - self._selection_cache_ts
+            if cache_age < self.cache_ttl_seconds:
+                logger.info(
+                    f"[TOPN_PROVIDER] Using cached TopN selection (age: {cache_age:.1f}s / {self.cache_ttl_seconds}s)"
+                )
+                return self._selection_cache
         
-        # Fetch metrics from exchanges
-        metrics = self._fetch_all_metrics()
+        # D82-2: Fetch new selection (uses selection_data_source)
+        logger.info(f"[TOPN_PROVIDER] Refreshing TopN selection (source: {self.selection_data_source})")
+        metrics = self._fetch_selection_metrics()
         
         # Filter by thresholds
         filtered = self._filter_by_thresholds(metrics)
@@ -218,30 +240,37 @@ class TopNProvider:
             churn_rate=churn_rate,
         )
         
-        # Update cache
-        self._cache = result
-        self._cache_timestamp = now
+        # D82-2: Update selection cache
+        self._selection_cache = result
+        self._selection_cache_ts = now
         self._previous_symbols = symbols
+        
+        logger.info(
+            f"[TOPN_PROVIDER] TopN selection refreshed: {len(symbols)} symbols, "
+            f"churn_rate={churn_rate:.2%}, source={self.selection_data_source}"
+        )
         
         return result
     
-    def _fetch_all_metrics(self) -> Dict[str, SymbolMetrics]:
+    def _fetch_selection_metrics(self) -> Dict[str, SymbolMetrics]:
         """
-        모든 심볼의 metrics 수집.
+        D82-2: Fetch metrics for TopN selection.
         
-        D77-0-RM: data_source에 따라 mock 또는 real 사용
+        Uses `selection_data_source` to determine data source.
         
         Returns:
             {symbol: SymbolMetrics}
         """
-        if self.data_source == "mock":
-            logger.info("[TOPN_PROVIDER] Using MOCK data source")
+        if self.selection_data_source == "mock":
+            logger.info("[TOPN_PROVIDER] Using MOCK data for TopN selection")
             return self._fetch_mock_metrics()
-        elif self.data_source == "real":
-            logger.info("[TOPN_PROVIDER] Using REAL data source (Public APIs)")
+        elif self.selection_data_source == "real":
+            logger.info("[TOPN_PROVIDER] Using REAL data for TopN selection (Public APIs)")
             return self._fetch_real_metrics()
         else:
-            logger.warning(f"[TOPN_PROVIDER] Unknown data_source: {self.data_source}, using mock")
+            logger.warning(
+                f"[TOPN_PROVIDER] Unknown selection_data_source: {self.selection_data_source}, using mock"
+            )
             return self._fetch_mock_metrics()
     
     def _fetch_mock_metrics(self) -> Dict[str, SymbolMetrics]:
@@ -261,10 +290,11 @@ class TopNProvider:
             # Mock metrics (realistic values)
             volume_multiplier = 1.0 / (i + 1)  # Higher rank = higher volume
             
+            # D82-2: Increased base liquidity to pass relaxed mock threshold (10K)
             metrics[f"{symbol}/KRW"] = SymbolMetrics(
                 symbol=f"{symbol}/KRW",
                 volume_24h=10_000_000 * volume_multiplier,  # $10M ~ $333K
-                liquidity_depth=100_000 * volume_multiplier,  # $100K ~ $3.3K
+                liquidity_depth=300_000 * volume_multiplier,  # $300K ~ $10K (all pass 10K threshold)
                 spread_bps=10.0 + (i * 1.0),  # 10 bps ~ 40 bps
             )
         
@@ -350,20 +380,32 @@ class TopNProvider:
         """
         Threshold 필터링.
         
+        D82-2: Mock mode uses relaxed thresholds
+        
         Args:
             metrics: {symbol: SymbolMetrics}
         
         Returns:
             Filtered metrics
         """
+        # D82-2: Relax thresholds for mock mode (to allow testing with full symbol list)
+        if self.selection_data_source == "mock":
+            min_volume = 100_000.0  # $100K (relaxed from $1M)
+            min_liquidity = 10_000.0  # $10K (relaxed from $50K)
+            max_spread = 100.0  # 100 bps (relaxed from 50 bps)
+        else:
+            min_volume = self.min_volume_usd
+            min_liquidity = self.min_liquidity_usd
+            max_spread = self.max_spread_bps
+        
         filtered: Dict[str, SymbolMetrics] = {}
         
         for symbol, m in metrics.items():
-            if m.volume_24h < self.min_volume_usd:
+            if m.volume_24h < min_volume:
                 continue
-            if m.liquidity_depth < self.min_liquidity_usd:
+            if m.liquidity_depth < min_liquidity:
                 continue
-            if m.spread_bps > self.max_spread_bps:
+            if m.spread_bps > max_spread:
                 continue
             
             filtered[symbol] = m
@@ -475,7 +517,9 @@ class TopNProvider:
         cross_exchange: bool = False,
     ) -> Optional[SpreadSnapshot]:
         """
-        D82-1: 특정 심볼의 실시간 스프레드 조회.
+        D82-2: Real-time spread for Entry/Exit decisions.
+        
+        Uses `entry_exit_data_source` (NOT selection_data_source).
         
         Args:
             symbol: Symbol in "BTC/KRW" format
@@ -483,13 +527,13 @@ class TopNProvider:
                            False = single exchange spread (Upbit only)
         
         Returns:
-            SpreadSnapshot 또는 None (data unavailable)
+            SpreadSnapshot or None (data unavailable)
         
         Note:
-            - data_source="real"일 때만 실제 API 호출
-            - data_source="mock"일 때는 mock 데이터 반환
+            - D82-2: Uses entry_exit_data_source for real-time spread checks
+            - This is independent of TopN selection data source
         """
-        if self.data_source == "mock":
+        if self.entry_exit_data_source == "mock":
             return self._get_mock_spread(symbol)
         
         # Lazy init clients
@@ -548,8 +592,16 @@ class TopNProvider:
             logger.error(f"[TOPN_PROVIDER] Failed to get current spread for {symbol}: {e}")
             return None
     
+    def _is_selection_cache_valid(self) -> bool:
+        """D82-2: Check if selection cache is still valid"""
+        if self._selection_cache is None:
+            return False
+        
+        cache_age = time.time() - self._selection_cache_ts
+        return cache_age < self.cache_ttl_seconds
+    
     def _get_mock_spread(self, symbol: str) -> SpreadSnapshot:
-        """D82-1: Mock spread data (for testing)"""
+        """D82-2: Mock spread data (for testing)"""
         # Mock prices based on symbol name hash
         base_price = 50000.0 + (hash(symbol) % 10000)
         spread_pct = 0.001  # 0.1%

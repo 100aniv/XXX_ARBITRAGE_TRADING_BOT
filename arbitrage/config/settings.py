@@ -96,6 +96,25 @@ class FillModelConfig:
 
 
 @dataclass
+class TopNSelectionConfig:
+    """
+    D82-2: TopN Selection 데이터 소스 설정
+    
+    TopN 심볼 선정과 Entry/Exit 스프레드 조회를 분리.
+    
+    Environment Variables:
+    - TOPN_SELECTION_DATA_SOURCE: TopN 선정 데이터 소스 (mock|real, default: mock)
+    - TOPN_SELECTION_CACHE_TTL_SEC: TopN 캐시 TTL (default: 600s = 10분)
+    - TOPN_SELECTION_MAX_SYMBOLS: TopN 최대 심볼 수 (default: 50)
+    - TOPN_ENTRY_EXIT_DATA_SOURCE: Entry/Exit 스프레드 데이터 소스 (mock|real, default: real)
+    """
+    selection_data_source: str = "mock"  # "mock" | "real"
+    selection_cache_ttl_sec: int = 600  # 10 minutes
+    selection_max_symbols: int = 50
+    entry_exit_data_source: str = "real"  # "mock" | "real"
+
+
+@dataclass
 class TopNEntryExitConfig:
     """
     D82-1: TopN Real Market Entry/Exit 설정
@@ -187,6 +206,9 @@ class Settings:
     
     # D82-1: TopN Entry/Exit Config
     topn_entry_exit: TopNEntryExitConfig = field(default_factory=TopNEntryExitConfig)
+    
+    # D82-2: TopN Selection Config
+    topn_selection: TopNSelectionConfig = field(default_factory=TopNSelectionConfig)
     
     @classmethod
     def from_env(
@@ -303,6 +325,32 @@ class Settings:
             max_holding_seconds=topn_max_holding_seconds,
         )
         
+        # D82-2: TopN Selection Config
+        topn_selection_data_source = os.getenv("TOPN_SELECTION_DATA_SOURCE", "mock").lower()
+        topn_selection_cache_ttl_sec = int(os.getenv("TOPN_SELECTION_CACHE_TTL_SEC", "600"))
+        topn_selection_max_symbols = int(os.getenv("TOPN_SELECTION_MAX_SYMBOLS", "50"))
+        topn_entry_exit_data_source = os.getenv("TOPN_ENTRY_EXIT_DATA_SOURCE", "real").lower()
+        
+        # Validation
+        if topn_selection_data_source not in ("mock", "real"):
+            print(f"Warning: Invalid TOPN_SELECTION_DATA_SOURCE '{topn_selection_data_source}', defaulting to 'mock'")
+            topn_selection_data_source = "mock"
+        
+        if topn_entry_exit_data_source not in ("mock", "real"):
+            print(f"Warning: Invalid TOPN_ENTRY_EXIT_DATA_SOURCE '{topn_entry_exit_data_source}', defaulting to 'real'")
+            topn_entry_exit_data_source = "real"
+        
+        if topn_selection_cache_ttl_sec < 0:
+            print(f"Warning: Invalid TOPN_SELECTION_CACHE_TTL_SEC '{topn_selection_cache_ttl_sec}', defaulting to 600")
+            topn_selection_cache_ttl_sec = 600
+        
+        topn_selection_config = TopNSelectionConfig(
+            selection_data_source=topn_selection_data_source,
+            selection_cache_ttl_sec=topn_selection_cache_ttl_sec,
+            selection_max_symbols=topn_selection_max_symbols,
+            entry_exit_data_source=topn_entry_exit_data_source,
+        )
+        
         settings = cls(
             env=env,
             upbit_access_key=upbit_access_key,
@@ -334,6 +382,7 @@ class Settings:
             secrets_provider=secrets_provider,  # D78-2
             fill_model=fill_model_config,  # D81-0
             topn_entry_exit=topn_entry_exit_config,  # D82-1
+            topn_selection=topn_selection_config,  # D82-2
         )
         
         # Apply overrides (for testing)

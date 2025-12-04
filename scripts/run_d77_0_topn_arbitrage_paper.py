@@ -183,8 +183,20 @@ class D77PAPERRunner:
         )
         logger.info(f"[D82-0] TradeLogger initialized: {self.trade_logger.log_file}")
         
-        # TopN Provider
-        self.topn_provider = TopNProvider(mode=universe_mode, data_source=data_source)
+        # D82-2: TopN Provider with Hybrid Mode
+        self.topn_provider = TopNProvider(
+            mode=universe_mode,
+            selection_data_source=self.settings.topn_selection.selection_data_source,
+            entry_exit_data_source=self.settings.topn_selection.entry_exit_data_source,
+            cache_ttl_seconds=self.settings.topn_selection.selection_cache_ttl_sec,
+            max_symbols=self.settings.topn_selection.selection_max_symbols,
+        )
+        logger.info(
+            f"[D82-2] TopNProvider Hybrid Mode: "
+            f"selection={self.settings.topn_selection.selection_data_source}, "
+            f"entry_exit={self.settings.topn_selection.entry_exit_data_source}, "
+            f"cache_ttl={self.settings.topn_selection.selection_cache_ttl_sec}s"
+        )
         
         # Exit Strategy
         self.exit_strategy = ExitStrategy(
@@ -310,8 +322,10 @@ class D77PAPERRunner:
                     except Exception as e:
                         logger.debug(f"[D77-1] Failed to update periodic metrics: {e}")
             
-            # D82-1: Respect loop interval (increased for rate limit safety)
-            await asyncio.sleep(1.0)  # 1s to avoid 429 errors
+            # D82-2: Respect loop interval (increased for rate limit safety)
+            # 1.5s loop → ~4 req/sec (6 calls per loop: 1 entry + 5 exit)
+            # Provides 60% margin under Upbit 10 req/sec limit
+            await asyncio.sleep(1.5)  # 1.5s to ensure rate limit safety
             iteration += 1
         
         # 3. 종료 및 최종 metrics 계산
