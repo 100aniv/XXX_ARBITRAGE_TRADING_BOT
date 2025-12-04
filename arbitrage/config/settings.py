@@ -73,6 +73,29 @@ class RuntimeEnv(str, Enum):
 
 
 @dataclass
+class FillModelConfig:
+    """
+    D80-4 / D81-0: Fill Model 설정
+    
+    부분 체결(Partial Fill) 및 슬리피지(Slippage) 모델링 설정.
+    
+    Environment Variables:
+    - FILL_MODEL_ENABLE: Fill Model 활성화 여부 (default: true for paper, false for local_dev)
+    - FILL_MODEL_PARTIAL_ENABLE: 부분 체결 모델링 활성화
+    - FILL_MODEL_SLIPPAGE_ENABLE: 슬리피지 모델링 활성화
+    - FILL_MODEL_SLIPPAGE_ALPHA: 슬리피지 계수 (default: 0.0001)
+    - FILL_MODEL_TYPE: Fill Model 종류 (simple|advanced, default: simple)
+    - FILL_MODEL_AVAILABLE_VOLUME_FACTOR: 호가 잔량 추정 계수 (default: 2.0)
+    """
+    enable_fill_model: bool = True
+    enable_partial_fill: bool = True
+    enable_slippage: bool = True
+    slippage_alpha: float = 0.0001  # 0.01% per unit impact
+    fill_model_type: str = "simple"  # "simple", "advanced" (D81-1+)
+    available_volume_factor: float = 2.0  # Conservative default
+
+
+@dataclass
 class Settings:
     """
     Central settings & secrets configuration
@@ -137,6 +160,9 @@ class Settings:
     
     # D78-2: Secrets Provider (optional)
     secrets_provider: Optional["SecretsProviderBase"] = field(default=None, repr=False)
+    
+    # D81-0: Fill Model Config
+    fill_model: FillModelConfig = field(default_factory=FillModelConfig)
     
     @classmethod
     def from_env(
@@ -221,6 +247,23 @@ class Settings:
         # Backward compatibility
         app_env = os.getenv("APP_ENV") or os.getenv("ENV")
         
+        # D81-0: Fill Model Config
+        fill_model_enable = os.getenv("FILL_MODEL_ENABLE", "true" if env == RuntimeEnv.PAPER else "false").lower() == "true"
+        fill_model_partial_enable = os.getenv("FILL_MODEL_PARTIAL_ENABLE", "true").lower() == "true"
+        fill_model_slippage_enable = os.getenv("FILL_MODEL_SLIPPAGE_ENABLE", "true").lower() == "true"
+        fill_model_slippage_alpha = float(os.getenv("FILL_MODEL_SLIPPAGE_ALPHA", "0.0001"))
+        fill_model_type = os.getenv("FILL_MODEL_TYPE", "simple")
+        fill_model_available_volume_factor = float(os.getenv("FILL_MODEL_AVAILABLE_VOLUME_FACTOR", "2.0"))
+        
+        fill_model_config = FillModelConfig(
+            enable_fill_model=fill_model_enable,
+            enable_partial_fill=fill_model_partial_enable,
+            enable_slippage=fill_model_slippage_enable,
+            slippage_alpha=fill_model_slippage_alpha,
+            fill_model_type=fill_model_type,
+            available_volume_factor=fill_model_available_volume_factor,
+        )
+        
         settings = cls(
             env=env,
             upbit_access_key=upbit_access_key,
@@ -250,6 +293,7 @@ class Settings:
             grafana_enabled=grafana_enabled,
             app_env=app_env,
             secrets_provider=secrets_provider,  # D78-2
+            fill_model=fill_model_config,  # D81-0
         )
         
         # Apply overrides (for testing)

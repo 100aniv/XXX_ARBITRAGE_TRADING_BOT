@@ -11,8 +11,9 @@ from typing import Dict, Optional
 
 from arbitrage.types import PortfolioState
 from arbitrage.live_runner import RiskGuard
+from arbitrage.config.settings import FillModelConfig
 from .executor import BaseExecutor, PaperExecutor, LiveExecutor
-from .fill_model import BaseFillModel
+from .fill_model import BaseFillModel, SimpleFillModel
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +37,18 @@ class ExecutorFactory:
         symbol: str,
         portfolio_state: PortfolioState,
         risk_guard: RiskGuard,
-        enable_fill_model: bool = False,
-        fill_model: Optional[BaseFillModel] = None,
-        default_available_volume_factor: float = 2.0,
+        fill_model_config: Optional[FillModelConfig] = None,
     ) -> PaperExecutor:
         """
         D61: Paper Executor 생성
         D80-4: Fill Model 지원
+        D81-0: Settings 기반 Fill Model 주입
         
         Args:
             symbol: 거래 심볼
             portfolio_state: 포트폴리오 상태
             risk_guard: 리스크 가드
-            enable_fill_model: Fill Model 활성화 여부
-            fill_model: 사용할 Fill Model 인스턴스
-            default_available_volume_factor: 호가 잔량 추정 계수
+            fill_model_config: Fill Model 설정 (None이면 기본값 사용)
         
         Returns:
             PaperExecutor 인스턴스
@@ -59,19 +57,56 @@ class ExecutorFactory:
             logger.warning(f"[D61_EXECUTOR_FACTORY] Executor already exists for {symbol}")
             return self.executors[symbol]
         
+        # D81-0: FillModelConfig 기반으로 Fill Model 인스턴스 생성
+        if fill_model_config is None:
+            fill_model_config = FillModelConfig()  # 기본값 사용
+        
+        fill_model_instance = None
+        if fill_model_config.enable_fill_model:
+            # Fill Model 타입에 따라 인스턴스 생성
+            if fill_model_config.fill_model_type == "simple":
+                fill_model_instance = SimpleFillModel(
+                    enable_partial_fill=fill_model_config.enable_partial_fill,
+                    enable_slippage=fill_model_config.enable_slippage,
+                    default_slippage_alpha=fill_model_config.slippage_alpha,
+                )
+                logger.info(
+                    f"[D81-0_EXECUTOR_FACTORY] Created SimpleFillModel for {symbol} "
+                    f"(partial={fill_model_config.enable_partial_fill}, "
+                    f"slippage={fill_model_config.enable_slippage}, "
+                    f"alpha={fill_model_config.slippage_alpha})"
+                )
+            elif fill_model_config.fill_model_type == "advanced":
+                # TODO(D81-1): AdvancedFillModel 구현 후 추가
+                logger.warning(
+                    f"[D81-0_EXECUTOR_FACTORY] AdvancedFillModel not implemented yet, "
+                    f"falling back to SimpleFillModel for {symbol}"
+                )
+                fill_model_instance = SimpleFillModel(
+                    enable_partial_fill=fill_model_config.enable_partial_fill,
+                    enable_slippage=fill_model_config.enable_slippage,
+                    default_slippage_alpha=fill_model_config.slippage_alpha,
+                )
+            else:
+                logger.error(
+                    f"[D81-0_EXECUTOR_FACTORY] Unknown fill_model_type: {fill_model_config.fill_model_type}, "
+                    f"using SimpleFillModel for {symbol}"
+                )
+                fill_model_instance = SimpleFillModel()
+        
         executor = PaperExecutor(
             symbol=symbol,
             portfolio_state=portfolio_state,
             risk_guard=risk_guard,
-            enable_fill_model=enable_fill_model,
-            fill_model=fill_model,
-            default_available_volume_factor=default_available_volume_factor,
+            enable_fill_model=fill_model_config.enable_fill_model,
+            fill_model=fill_model_instance,
+            default_available_volume_factor=fill_model_config.available_volume_factor,
         )
         
         self.executors[symbol] = executor
         logger.info(
             f"[D61_EXECUTOR_FACTORY] Created PaperExecutor for {symbol} "
-            f"(fill_model={enable_fill_model})"
+            f"(fill_model={fill_model_config.enable_fill_model})"
         )
         
         return executor

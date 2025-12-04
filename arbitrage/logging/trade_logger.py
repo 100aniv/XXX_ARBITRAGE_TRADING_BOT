@@ -73,6 +73,12 @@ class TradeLogEntry:
         fee_binance_bps: Binance 수수료 (bps, 추정치)
         estimated_slippage_bps: 추정 슬리피지 (현재는 0, D80-4에서 모델링)
         
+        # D81-0: Fill Model 정보
+        buy_slippage_bps: 매수 슬리피지 (D80-4+)
+        sell_slippage_bps: 매도 슬리피지 (D80-4+)
+        buy_fill_ratio: 매수 체결 비율 (0.0~1.0, D80-4+)
+        sell_fill_ratio: 매도 체결 비율 (0.0~1.0, D80-4+)
+        
         # PnL 정보
         gross_pnl_usd: 총 PnL (수수료 전)
         net_pnl_usd: 순 PnL (수수료 후)
@@ -124,6 +130,12 @@ class TradeLogEntry:
     fee_upbit_bps: float = 5.0  # 기본값: 5bps
     fee_binance_bps: float = 4.0  # 기본값: 4bps
     estimated_slippage_bps: float = 0.0  # D80-4에서 모델링 예정
+    
+    # D81-0: Fill Model 정보
+    buy_slippage_bps: float = 0.0
+    sell_slippage_bps: float = 0.0
+    buy_fill_ratio: float = 1.0  # 기본값: 100% 체결
+    sell_fill_ratio: float = 1.0  # 기본값: 100% 체결
     
     # PnL 정보
     gross_pnl_usd: float = 0.0

@@ -269,15 +269,20 @@ class TestExecutorFillModelIntegration:
         테스트 5: ExecutorFactory가 Fill Model 파라미터를 정상 전달하는지 확인
         """
         from arbitrage.execution.executor_factory import ExecutorFactory
+        from arbitrage.config.settings import FillModelConfig
         
         factory = ExecutorFactory()
+        
+        fill_model_config = FillModelConfig(
+            enable_fill_model=True,
+            available_volume_factor=1.5,
+        )
         
         executor = factory.create_paper_executor(
             symbol="BTC/USDT",
             portfolio_state=portfolio_state,
             risk_guard=risk_guard,
-            enable_fill_model=True,
-            default_available_volume_factor=1.5,
+            fill_model_config=fill_model_config,
         )
         
         assert executor.enable_fill_model is True
