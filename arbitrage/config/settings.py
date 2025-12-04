@@ -75,7 +75,7 @@ class RuntimeEnv(str, Enum):
 @dataclass
 class FillModelConfig:
     """
-    D80-4 / D81-0: Fill Model 설정
+    D80-4 / D81-0 / D81-1: Fill Model 설정
     
     부분 체결(Partial Fill) 및 슬리피지(Slippage) 모델링 설정.
     
@@ -86,13 +86,28 @@ class FillModelConfig:
     - FILL_MODEL_SLIPPAGE_ALPHA: 슬리피지 계수 (default: 0.0001)
     - FILL_MODEL_TYPE: Fill Model 종류 (simple|advanced, default: simple)
     - FILL_MODEL_AVAILABLE_VOLUME_FACTOR: 호가 잔량 추정 계수 (default: 2.0)
+    
+    D81-1 AdvancedFillModel 전용 파라미터:
+    - FILL_MODEL_ADVANCED_NUM_LEVELS: 가상 L2 레벨 수 (default: 5)
+    - FILL_MODEL_ADVANCED_LEVEL_SPACING_BPS: 레벨 간 가격 간격 (default: 1.0 bps)
+    - FILL_MODEL_ADVANCED_DECAY_RATE: 레벨별 유동성 감소 속도 (default: 0.3)
+    - FILL_MODEL_ADVANCED_SLIPPAGE_EXPONENT: 슬리피지 비선형 지수 (default: 1.2)
+    - FILL_MODEL_ADVANCED_BASE_VOLUME_MULTIPLIER: 기본 유동성 배율 (default: 0.8)
     """
+    # 기존 필드 (D80-4 / D81-0)
     enable_fill_model: bool = True
     enable_partial_fill: bool = True
     enable_slippage: bool = True
     slippage_alpha: float = 0.0001  # 0.01% per unit impact
     fill_model_type: str = "simple"  # "simple", "advanced" (D81-1+)
     available_volume_factor: float = 2.0  # Conservative default
+    
+    # D81-1 AdvancedFillModel 전용 필드
+    advanced_num_levels: int = 5
+    advanced_level_spacing_bps: float = 1.0
+    advanced_decay_rate: float = 0.3
+    advanced_slippage_exponent: float = 1.2
+    advanced_base_volume_multiplier: float = 0.8
 
 
 @dataclass
@@ -301,13 +316,20 @@ class Settings:
         # Backward compatibility
         app_env = os.getenv("APP_ENV") or os.getenv("ENV")
         
-        # D81-0: Fill Model Config
+        # D81-0 / D81-1: Fill Model Config
         fill_model_enable = os.getenv("FILL_MODEL_ENABLE", "true" if env == RuntimeEnv.PAPER else "false").lower() == "true"
         fill_model_partial_enable = os.getenv("FILL_MODEL_PARTIAL_ENABLE", "true").lower() == "true"
         fill_model_slippage_enable = os.getenv("FILL_MODEL_SLIPPAGE_ENABLE", "true").lower() == "true"
         fill_model_slippage_alpha = float(os.getenv("FILL_MODEL_SLIPPAGE_ALPHA", "0.0001"))
         fill_model_type = os.getenv("FILL_MODEL_TYPE", "simple")
         fill_model_available_volume_factor = float(os.getenv("FILL_MODEL_AVAILABLE_VOLUME_FACTOR", "2.0"))
+        
+        # D81-1: AdvancedFillModel 파라미터
+        advanced_num_levels = int(os.getenv("FILL_MODEL_ADVANCED_NUM_LEVELS", "5"))
+        advanced_level_spacing_bps = float(os.getenv("FILL_MODEL_ADVANCED_LEVEL_SPACING_BPS", "1.0"))
+        advanced_decay_rate = float(os.getenv("FILL_MODEL_ADVANCED_DECAY_RATE", "0.3"))
+        advanced_slippage_exponent = float(os.getenv("FILL_MODEL_ADVANCED_SLIPPAGE_EXPONENT", "1.2"))
+        advanced_base_volume_multiplier = float(os.getenv("FILL_MODEL_ADVANCED_BASE_VOLUME_MULTIPLIER", "0.8"))
         
         fill_model_config = FillModelConfig(
             enable_fill_model=fill_model_enable,
@@ -316,6 +338,11 @@ class Settings:
             slippage_alpha=fill_model_slippage_alpha,
             fill_model_type=fill_model_type,
             available_volume_factor=fill_model_available_volume_factor,
+            advanced_num_levels=advanced_num_levels,
+            advanced_level_spacing_bps=advanced_level_spacing_bps,
+            advanced_decay_rate=advanced_decay_rate,
+            advanced_slippage_exponent=advanced_slippage_exponent,
+            advanced_base_volume_multiplier=advanced_base_volume_multiplier,
         )
         
         # D82-1: TopN Entry/Exit Config

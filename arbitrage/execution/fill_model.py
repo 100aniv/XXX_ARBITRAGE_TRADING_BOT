@@ -332,6 +332,266 @@ class SimpleFillModel(BaseFillModel):
         return effective_price, slippage_bps
 
 
+class AdvancedFillModel(BaseFillModel):
+    """
+    Advanced Fill Model (D81-1)
+    
+    Multi-level orderbook simulation + Non-linear market impact.
+    
+    메커니즘:
+        1. 가상 L2 레벨 생성: Best bid/ask 기준으로 k개 레벨 생성
+        2. 레벨별 유동성 분배: 지수 감소 함수로 각 레벨의 available_volume 설정
+        3. 주문 분할: 주문을 레벨별로 나누어 체결
+        4. 비선형 Impact: 레벨이 깊어질수록 slippage 증가
+        5. Partial Fill 자연 발생: 큰 주문 시 모든 레벨을 소진하면 fill_ratio < 1.0
+    
+    Args:
+        enable_partial_fill: 부분 체결 활성화 여부 (기본: True)
+        enable_slippage: 슬리피지 활성화 여부 (기본: True)
+        default_slippage_alpha: 기본 슬리피지 계수 (기본: 0.0002, SimpleFillModel의 2배)
+        num_levels: 가상 L2 레벨 수 (기본: 5)
+        level_spacing_bps: 레벨 간 가격 간격 in bps (기본: 1.0 bps)
+        decay_rate: 레벨별 유동성 감소 속도 (기본: 0.3)
+        slippage_exponent: 슬리피지 비선형 지수 (기본: 1.2)
+        base_volume_multiplier: 기본 유동성 배율 (기본: 0.8)
+    """
+    
+    def __init__(
+        self,
+        enable_partial_fill: bool = True,
+        enable_slippage: bool = True,
+        default_slippage_alpha: float = 0.0002,
+        num_levels: int = 5,
+        level_spacing_bps: float = 1.0,
+        decay_rate: float = 0.3,
+        slippage_exponent: float = 1.2,
+        base_volume_multiplier: float = 0.8,
+    ):
+        """
+        AdvancedFillModel 초기화
+        
+        Args:
+            enable_partial_fill: 부분 체결 활성화
+            enable_slippage: 슬리피지 활성화
+            default_slippage_alpha: 기본 슬리피지 계수
+            num_levels: 가상 L2 레벨 수
+            level_spacing_bps: 레벨 간 가격 간격
+            decay_rate: 레벨별 유동성 감소 속도
+            slippage_exponent: 슬리피지 비선형 지수
+            base_volume_multiplier: 기본 유동성 배율
+        """
+        self.enable_partial_fill = enable_partial_fill
+        self.enable_slippage = enable_slippage
+        self.default_slippage_alpha = default_slippage_alpha
+        self.num_levels = max(1, num_levels)  # 최소 1 레벨
+        self.level_spacing_bps = level_spacing_bps
+        self.decay_rate = decay_rate
+        self.slippage_exponent = slippage_exponent
+        self.base_volume_multiplier = base_volume_multiplier
+        
+        logger.info(
+            f"[D81-1_ADVANCED_FILL] AdvancedFillModel 초기화: "
+            f"부분체결={enable_partial_fill}, "
+            f"슬리피지={enable_slippage}, "
+            f"alpha={default_slippage_alpha}, "
+            f"레벨={num_levels}, "
+            f"간격={level_spacing_bps}bps, "
+            f"감소율={decay_rate}, "
+            f"지수={slippage_exponent}, "
+            f"유동성배율={base_volume_multiplier}"
+        )
+    
+    def execute(self, context: FillContext) -> FillResult:
+        """
+        Fill Model 실행
+        
+        1. 입력 검증
+        2. 가상 L2 레벨 생성
+        3. 레벨별 주문 분할 & 체결
+        4. FillResult 생성
+        
+        Args:
+            context: 주문 및 시장 정보
+        
+        Returns:
+            체결 결과
+        """
+        # 입력 검증
+        if context.order_quantity <= 0:
+            logger.warning(
+                f"[D81-1_ADVANCED_FILL] {context.symbol}: "
+                f"주문 수량이 0 이하입니다 (qty={context.order_quantity})"
+            )
+            return FillResult(
+                filled_quantity=0.0,
+                unfilled_quantity=context.order_quantity,
+                effective_price=context.target_price,
+                slippage_bps=0.0,
+                fill_ratio=0.0,
+                status="unfilled",
+            )
+        
+        if context.target_price <= 0:
+            logger.warning(
+                f"[D81-1_ADVANCED_FILL] {context.symbol}: "
+                f"목표 가격이 0 이하입니다 (price={context.target_price})"
+            )
+            return FillResult(
+                filled_quantity=0.0,
+                unfilled_quantity=context.order_quantity,
+                effective_price=context.target_price,
+                slippage_bps=0.0,
+                fill_ratio=0.0,
+                status="unfilled",
+            )
+        
+        # 1. 가상 L2 레벨 생성
+        levels = self._generate_virtual_levels(context)
+        
+        if not levels:
+            logger.warning(
+                f"[D81-1_ADVANCED_FILL] {context.symbol}: "
+                f"가상 L2 레벨 생성 실패"
+            )
+            return FillResult(
+                filled_quantity=0.0,
+                unfilled_quantity=context.order_quantity,
+                effective_price=context.target_price,
+                slippage_bps=0.0,
+                fill_ratio=0.0,
+                status="unfilled",
+            )
+        
+        # 2. 레벨별 주문 분할 & 체결
+        filled_qty, total_cost = self._execute_across_levels(context, levels)
+        
+        # 3. FillResult 생성
+        unfilled_qty = context.order_quantity - filled_qty
+        fill_ratio = filled_qty / context.order_quantity if context.order_quantity > 0 else 0.0
+        
+        if filled_qty > 0:
+            effective_price = total_cost / filled_qty
+            slippage_bps = abs((effective_price - context.target_price) / context.target_price * 10000.0) if context.target_price > 0 else 0.0
+        else:
+            effective_price = context.target_price
+            slippage_bps = 0.0
+        
+        # Status 결정
+        if filled_qty == 0:
+            status = "unfilled"
+        elif filled_qty < context.order_quantity:
+            status = "partially_filled"
+        else:
+            status = "filled"
+        
+        logger.debug(
+            f"[D81-1_ADVANCED_FILL] {context.symbol} {context.side.value}: "
+            f"주문={context.order_quantity:.4f}, 체결={filled_qty:.4f}, "
+            f"가격={context.target_price:.2f}→{effective_price:.2f}, "
+            f"슬리피지={slippage_bps:.2f}bps, 상태={status}, "
+            f"레벨={len(levels)}, fill_ratio={fill_ratio:.2%}"
+        )
+        
+        return FillResult(
+            filled_quantity=filled_qty,
+            unfilled_quantity=unfilled_qty,
+            effective_price=effective_price,
+            slippage_bps=slippage_bps,
+            fill_ratio=fill_ratio,
+            status=status,
+        )
+    
+    def _generate_virtual_levels(
+        self, context: FillContext
+    ) -> list:
+        """
+        가상 L2 레벨 생성
+        
+        각 레벨은 (price, available_volume) 튜플.
+        
+        Args:
+            context: 주문 정보
+        
+        Returns:
+            List of (level_price, level_volume)
+        """
+        import math
+        
+        levels = []
+        base_volume = context.available_volume * self.base_volume_multiplier
+        
+        if base_volume <= 0:
+            return []
+        
+        for i in range(self.num_levels):
+            # 레벨 가격 계산
+            if context.side == OrderSide.BUY:
+                # 매수: ask 가격이 증가
+                level_price = context.target_price * (1.0 + self.level_spacing_bps * i / 10000.0)
+            else:
+                # 매도: bid 가격이 감소
+                level_price = context.target_price * (1.0 - self.level_spacing_bps * i / 10000.0)
+            
+            # 레벨별 유동성: 지수 감소
+            level_volume = base_volume * math.exp(-self.decay_rate * i)
+            
+            levels.append((level_price, level_volume))
+        
+        return levels
+    
+    def _execute_across_levels(
+        self, context: FillContext, levels: list
+    ) -> Tuple[float, float]:
+        """
+        레벨별로 주문 분할 체결
+        
+        Args:
+            context: 주문 정보
+            levels: 가상 L2 레벨 리스트
+        
+        Returns:
+            (total_filled_qty, total_cost)
+        """
+        remaining_qty = context.order_quantity
+        total_cost = 0.0
+        total_filled_qty = 0.0
+        slippage_alpha = context.slippage_alpha or self.default_slippage_alpha
+        
+        for level_price, level_volume in levels:
+            if remaining_qty <= 0:
+                break
+            
+            if not self.enable_partial_fill:
+                # Partial Fill 비활성화: 전량 체결 가정
+                fill_at_level = remaining_qty
+            else:
+                # 이 레벨에서 체결 가능한 수량
+                fill_at_level = min(remaining_qty, level_volume)
+            
+            if fill_at_level <= 0:
+                continue
+            
+            # 이 레벨의 slippage 계산 (비선형)
+            if self.enable_slippage and level_volume > 0:
+                level_impact_factor = min(fill_at_level / level_volume, 1.0)
+                # 비선형 지수 적용
+                level_slippage_ratio = slippage_alpha * (level_impact_factor ** self.slippage_exponent)
+                
+                if context.side == OrderSide.BUY:
+                    level_effective_price = level_price * (1.0 + level_slippage_ratio)
+                else:
+                    level_effective_price = level_price * (1.0 - level_slippage_ratio)
+            else:
+                level_effective_price = level_price
+            
+            # 이 레벨에서의 비용
+            total_cost += fill_at_level * level_effective_price
+            total_filled_qty += fill_at_level
+            remaining_qty -= fill_at_level
+        
+        return total_filled_qty, total_cost
+
+
 # 편의 함수: 기본 Fill Model 인스턴스 생성
 def create_default_fill_model(
     enable_partial_fill: bool = True,

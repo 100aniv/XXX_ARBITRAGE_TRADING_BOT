@@ -13,7 +13,7 @@ from arbitrage.types import PortfolioState
 from arbitrage.live_runner import RiskGuard
 from arbitrage.config.settings import FillModelConfig
 from .executor import BaseExecutor, PaperExecutor, LiveExecutor
-from .fill_model import BaseFillModel, SimpleFillModel
+from .fill_model import BaseFillModel, SimpleFillModel, AdvancedFillModel
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +77,23 @@ class ExecutorFactory:
                     f"alpha={fill_model_config.slippage_alpha})"
                 )
             elif fill_model_config.fill_model_type == "advanced":
-                # TODO(D81-1): AdvancedFillModel 구현 후 추가
-                logger.warning(
-                    f"[D81-0_EXECUTOR_FACTORY] AdvancedFillModel not implemented yet, "
-                    f"falling back to SimpleFillModel for {symbol}"
-                )
-                fill_model_instance = SimpleFillModel(
+                # D81-1: AdvancedFillModel
+                fill_model_instance = AdvancedFillModel(
                     enable_partial_fill=fill_model_config.enable_partial_fill,
                     enable_slippage=fill_model_config.enable_slippage,
                     default_slippage_alpha=fill_model_config.slippage_alpha,
+                    num_levels=fill_model_config.advanced_num_levels,
+                    level_spacing_bps=fill_model_config.advanced_level_spacing_bps,
+                    decay_rate=fill_model_config.advanced_decay_rate,
+                    slippage_exponent=fill_model_config.advanced_slippage_exponent,
+                    base_volume_multiplier=fill_model_config.advanced_base_volume_multiplier,
+                )
+                logger.info(
+                    f"[D81-1_EXECUTOR_FACTORY] Created AdvancedFillModel for {symbol} "
+                    f"(levels={fill_model_config.advanced_num_levels}, "
+                    f"spacing={fill_model_config.advanced_level_spacing_bps}bps, "
+                    f"decay={fill_model_config.advanced_decay_rate}, "
+                    f"exponent={fill_model_config.advanced_slippage_exponent})"
                 )
             else:
                 logger.error(
