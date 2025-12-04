@@ -96,6 +96,27 @@ class FillModelConfig:
 
 
 @dataclass
+class TopNEntryExitConfig:
+    """
+    D82-1: TopN Real Market Entry/Exit 설정
+    
+    실제 스프레드 기반 Entry/Exit 조건 파라미터.
+    
+    Environment Variables:
+    - TOPN_ENTRY_MIN_SPREAD_BPS: 최소 Entry 스프레드 (default: 20 bps = 0.2%)
+    - TOPN_ENTRY_MAX_CONCURRENT_POSITIONS: 최대 동시 포지션 수 (default: 10)
+    - TOPN_EXIT_TP_SPREAD_BPS: Take Profit 스프레드 (default: 5 bps)
+    - TOPN_EXIT_SL_SPREAD_BPS: Stop Loss 스프레드 (default: 50 bps)
+    - TOPN_MAX_HOLDING_SECONDS: 최대 보유 시간 (default: 300s = 5분)
+    """
+    entry_min_spread_bps: float = 20.0  # 0.2%
+    entry_max_concurrent_positions: int = 10
+    exit_tp_spread_bps: float = 5.0  # 0.05%
+    exit_sl_spread_bps: float = 50.0  # 0.5%
+    max_holding_seconds: float = 300.0  # 5 minutes
+
+
+@dataclass
 class Settings:
     """
     Central settings & secrets configuration
@@ -163,6 +184,9 @@ class Settings:
     
     # D81-0: Fill Model Config
     fill_model: FillModelConfig = field(default_factory=FillModelConfig)
+    
+    # D82-1: TopN Entry/Exit Config
+    topn_entry_exit: TopNEntryExitConfig = field(default_factory=TopNEntryExitConfig)
     
     @classmethod
     def from_env(
@@ -264,6 +288,21 @@ class Settings:
             available_volume_factor=fill_model_available_volume_factor,
         )
         
+        # D82-1: TopN Entry/Exit Config
+        topn_entry_min_spread_bps = float(os.getenv("TOPN_ENTRY_MIN_SPREAD_BPS", "20.0"))
+        topn_entry_max_concurrent_positions = int(os.getenv("TOPN_ENTRY_MAX_CONCURRENT_POSITIONS", "10"))
+        topn_exit_tp_spread_bps = float(os.getenv("TOPN_EXIT_TP_SPREAD_BPS", "5.0"))
+        topn_exit_sl_spread_bps = float(os.getenv("TOPN_EXIT_SL_SPREAD_BPS", "50.0"))
+        topn_max_holding_seconds = float(os.getenv("TOPN_MAX_HOLDING_SECONDS", "300.0"))
+        
+        topn_entry_exit_config = TopNEntryExitConfig(
+            entry_min_spread_bps=topn_entry_min_spread_bps,
+            entry_max_concurrent_positions=topn_entry_max_concurrent_positions,
+            exit_tp_spread_bps=topn_exit_tp_spread_bps,
+            exit_sl_spread_bps=topn_exit_sl_spread_bps,
+            max_holding_seconds=topn_max_holding_seconds,
+        )
+        
         settings = cls(
             env=env,
             upbit_access_key=upbit_access_key,
@@ -294,6 +333,7 @@ class Settings:
             app_env=app_env,
             secrets_provider=secrets_provider,  # D78-2
             fill_model=fill_model_config,  # D81-0
+            topn_entry_exit=topn_entry_exit_config,  # D82-1
         )
         
         # Apply overrides (for testing)

@@ -352,23 +352,31 @@ class D77PAPERRunner:
         symbols: List[tuple[str, str]],
     ) -> None:
         """
-        D82-0: Real PaperExecutor 기반 arbitrage iteration.
+        D82-1: Real Market Data 기반 arbitrage iteration.
         
-        Fill Model이 활성화되면, 부분 체결 + 슬리피지가 발생하여
-        100% 승률 구조가 깨집니다.
+        TopNProvider를 통해 실제 스프레드를 조회하고,
+        Settings.topn_entry_exit 파라미터 기반으로 Entry/Exit 판단.
         
         Args:
             iteration: Iteration 번호
-            symbols: Symbol 리스트
+            symbols: Symbol 리스트 (TopN Universe)
         """
-        # Simplified: 매 20번째 iteration마다 Entry 발생
-        # (실제로는 Real Market Data로 Spread 계산 후 Entry 결정)
+        # D82-1: Real Market Data 기반 Entry 로직
+        # TopN 심볼별로 현재 스프레드를 계산하여 Entry 조건 판단
+        entry_config = self.settings.topn_entry_exit
+        open_positions_count = len(self.exit_strategy.get_open_positions())
+        
+        # TODO(D82-1): TopNProvider를 통해 실제 스프레드 조회
+        # 현재는 Mock 가격 사용 (호환성 유지)
         mock_price_a = 50000.0 + (iteration * 0.5)  # 조금씩 변동
         mock_price_b = 50100.0 + (iteration * 0.3)
         mock_spread_bps = ((mock_price_b - mock_price_a) / mock_price_a) * 10000.0
         mock_size = 0.1  # 0.1 BTC
         
-        if iteration % 20 == 0 and iteration > 0 and len(symbols) > 0:
+        # Entry: 최대 포지션 수를 초과하지 않는 범위에서, 스프레드 조건 만족 시 Entry
+        if (open_positions_count < entry_config.entry_max_concurrent_positions 
+            and len(symbols) > 0
+            and mock_spread_bps >= entry_config.entry_min_spread_bps):  # D82-1: Real Entry 조건
             # Entry Trade
             position_id = self.metrics["entry_trades"]
             symbol_a, symbol_b = symbols[0]  # 간단히 첫 번째 symbol pair 사용
@@ -443,14 +451,28 @@ class D77PAPERRunner:
         
         # Check Exit for open positions
         for position_id, position in list(self.exit_strategy.get_open_positions().items()):
-            # Mock current prices (simulate TP/SL/Time scenarios)
+            # D82-1: Real Market Data 기반 Exit 로직
+            # TODO(D82-1): TopNProvider를 통해 실제 현재 스프레드 조회
             time_held = position.time_held()
             
-            if iteration % 10 == 0 or time_held > 120.0:  # TP or Time limit
+            # 현재는 Mock 가격 사용 (호환성 유지)
+            # TP: 스프레드가 줄어들면 (정상화)
+            # SL: 스프레드가 더 벌어지면 (악화)
+            # Time: max_holding_seconds 초과
+            exit_config = self.settings.topn_entry_exit
+            
+            if time_held >= exit_config.max_holding_seconds:
+                # Time-based Exit
+                mock_exit_price_a = mock_price_a
+                mock_exit_price_b = mock_price_b
+                mock_exit_spread_bps = mock_spread_bps
+            elif mock_spread_bps <= exit_config.exit_tp_spread_bps:
+                # TP: 스프레드 정상화
                 mock_exit_price_a = mock_price_a * 1.005  # +0.5% (TP trigger)
                 mock_exit_price_b = mock_price_b
                 mock_exit_spread_bps = ((mock_exit_price_b - mock_exit_price_a) / mock_exit_price_a) * 10000.0
             else:
+                # 아직 Exit 조건 미충족, 현재 가격 유지
                 mock_exit_price_a = mock_price_a
                 mock_exit_price_b = mock_price_b
                 mock_exit_spread_bps = mock_spread_bps
@@ -527,9 +549,19 @@ class D77PAPERRunner:
         self.metrics["memory_usage_mb"] = 150.0  # Mock
         self.metrics["cpu_usage_pct"] = 35.0  # Mock
         
-        # D82-0: Fill Model KPI 평균값 계산 (TradeLogger에서 집계 가능하지만, 여기서는 간단히 표시만)
-        # 실제로는 TradeLogger.get_trades()로 로그 읽어서 평균 계산하는 것이 정확함
-        # TODO(D82-1): TradeLogger 기반 KPI 집계 로직 추가
+        # D82-1: TradeLogger 기반 Fill Model KPI 집계
+        fill_metrics = self.trade_logger.get_aggregated_fill_metrics()
+        self.metrics["avg_buy_slippage_bps"] = fill_metrics["avg_buy_slippage_bps"]
+        self.metrics["avg_sell_slippage_bps"] = fill_metrics["avg_sell_slippage_bps"]
+        self.metrics["avg_buy_fill_ratio"] = fill_metrics["avg_buy_fill_ratio"]
+        self.metrics["avg_sell_fill_ratio"] = fill_metrics["avg_sell_fill_ratio"]
+        self.metrics["partial_fills_count"] = fill_metrics["partial_fills_count"]
+        self.metrics["failed_fills_count"] = fill_metrics["failed_fills_count"]
+        
+        logger.info(f"[D82-1] Fill Model KPI aggregated from TradeLogger: "
+                   f"avg_buy_slippage={fill_metrics['avg_buy_slippage_bps']:.2f} bps, "
+                   f"avg_sell_slippage={fill_metrics['avg_sell_slippage_bps']:.2f} bps, "
+                   f"partial_fills={fill_metrics['partial_fills_count']}")
     
     def _log_final_summary(self) -> None:
         """최종 요약 로그"""

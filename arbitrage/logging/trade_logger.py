@@ -289,6 +289,77 @@ class TradeLogger:
         """
         return self.trade_count
     
+    def get_aggregated_fill_metrics(self) -> dict:
+        """
+        D82-1: 로그된 트레이드에서 Fill Model 관련 KPI 집계.
+        
+        Returns:
+            dict with keys:
+            - avg_buy_slippage_bps
+            - avg_sell_slippage_bps
+            - avg_buy_fill_ratio
+            - avg_sell_fill_ratio
+            - partial_fills_count
+            - failed_fills_count (항상 0, ExecutionResult에서 필터링됨)
+        """
+        if not self.log_file.exists():
+            return {
+                "avg_buy_slippage_bps": 0.0,
+                "avg_sell_slippage_bps": 0.0,
+                "avg_buy_fill_ratio": 1.0,
+                "avg_sell_fill_ratio": 1.0,
+                "partial_fills_count": 0,
+                "failed_fills_count": 0,
+            }
+        
+        buy_slippages = []
+        sell_slippages = []
+        buy_fill_ratios = []
+        sell_fill_ratios = []
+        partial_fills_count = 0
+        
+        try:
+            with open(self.log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    
+                    try:
+                        entry = json.loads(line)
+                        
+                        # Collect slippages
+                        if "buy_slippage_bps" in entry and entry["buy_slippage_bps"] is not None:
+                            buy_slippages.append(float(entry["buy_slippage_bps"]))
+                        if "sell_slippage_bps" in entry and entry["sell_slippage_bps"] is not None:
+                            sell_slippages.append(float(entry["sell_slippage_bps"]))
+                        
+                        # Collect fill ratios
+                        if "buy_fill_ratio" in entry and entry["buy_fill_ratio"] is not None:
+                            buy_fill_ratios.append(float(entry["buy_fill_ratio"]))
+                        if "sell_fill_ratio" in entry and entry["sell_fill_ratio"] is not None:
+                            sell_fill_ratios.append(float(entry["sell_fill_ratio"]))
+                        
+                        # Count partial fills
+                        buy_ratio = float(entry.get("buy_fill_ratio", 1.0))
+                        sell_ratio = float(entry.get("sell_fill_ratio", 1.0))
+                        if buy_ratio < 1.0 or sell_ratio < 1.0:
+                            partial_fills_count += 1
+                    
+                    except json.JSONDecodeError:
+                        continue
+        
+        except Exception as e:
+            logger.error(f"[D82-1] Failed to aggregate fill metrics: {e}")
+        
+        return {
+            "avg_buy_slippage_bps": sum(buy_slippages) / len(buy_slippages) if buy_slippages else 0.0,
+            "avg_sell_slippage_bps": sum(sell_slippages) / len(sell_slippages) if sell_slippages else 0.0,
+            "avg_buy_fill_ratio": sum(buy_fill_ratios) / len(buy_fill_ratios) if buy_fill_ratios else 1.0,
+            "avg_sell_fill_ratio": sum(sell_fill_ratios) / len(sell_fill_ratios) if sell_fill_ratios else 1.0,
+            "partial_fills_count": partial_fills_count,
+            "failed_fills_count": 0,  # PaperExecutor doesn't generate failed fills
+        }
+    
     def close(self) -> None:
         """
         TradeLogger 종료 (현재는 no-op, 향후 버퍼 플러시 등 추가 가능)
