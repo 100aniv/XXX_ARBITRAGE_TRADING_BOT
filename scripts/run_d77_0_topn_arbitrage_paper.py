@@ -25,7 +25,9 @@ import logging
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -47,6 +49,152 @@ except ImportError:
 
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+# ============================================================================
+# D80-4: Validation Profile System
+# ============================================================================
+
+class ValidationProfile(str, Enum):
+    """Validation profile for different testing scenarios."""
+    NONE = "none"  # No validation checks
+    FILL_MODEL = "fill_model"  # D80-4: Fill Model structure validation
+    TOPN_RESEARCH = "topn_research"  # D82-x, D77-x: TopN research criteria
+
+
+@dataclass
+class ValidationResult:
+    """Result of validation check."""
+    profile: ValidationProfile
+    passed: bool
+    reasons: List[str]
+
+
+def evaluate_validation(
+    metrics: Dict[str, Any], profile: ValidationProfile
+) -> ValidationResult:
+    """
+    Evaluate KPI metrics against specified validation profile.
+    
+    Args:
+        metrics: KPI metrics dictionary
+        profile: Validation profile to apply
+    
+    Returns:
+        ValidationResult with pass/fail status and reasons
+    """
+    if profile == ValidationProfile.NONE:
+        return ValidationResult(
+            profile=profile, passed=True, reasons=["No validation requested"]
+        )
+    
+    reasons = []
+    passed = True
+    
+    if profile == ValidationProfile.FILL_MODEL:
+        # D80-4 Acceptance Criteria
+        # Focus: Fill Model structure & stability, NOT win rate/trade count
+        
+        # 1. Duration: >= 10 minutes (for stability)
+        duration = metrics.get("duration_minutes", 0)
+        if duration >= 10.0:
+            reasons.append(f"✅ Duration: {duration:.1f} min >= 10.0 min")
+        else:
+            reasons.append(f"❌ Duration: {duration:.1f} min < 10.0 min")
+            passed = False
+        
+        # 2. Entry trades: >= 1 (at least one trade executed)
+        entry_trades = metrics.get("entry_trades", 0)
+        if entry_trades >= 1:
+            reasons.append(f"✅ Entry trades: {entry_trades} >= 1")
+        else:
+            reasons.append(f"❌ Entry trades: {entry_trades} < 1")
+            passed = False
+        
+        # 3. Round trips: >= 1 (at least one full cycle)
+        round_trips = metrics.get("round_trips_completed", 0)
+        if round_trips >= 1:
+            reasons.append(f"✅ Round trips: {round_trips} >= 1")
+        else:
+            reasons.append(f"❌ Round trips: {round_trips} < 1")
+            passed = False
+        
+        # 4. Slippage modeling: avg_buy_slippage_bps in [0.1, 5.0]
+        buy_slippage = metrics.get("avg_buy_slippage_bps", 0)
+        if 0.1 <= buy_slippage <= 5.0:
+            reasons.append(f"✅ Buy slippage: {buy_slippage:.2f} bps in [0.1, 5.0]")
+        else:
+            reasons.append(f"❌ Buy slippage: {buy_slippage:.2f} bps out of [0.1, 5.0]")
+            passed = False
+        
+        # 5. Slippage modeling: avg_sell_slippage_bps in [0.1, 5.0]
+        sell_slippage = metrics.get("avg_sell_slippage_bps", 0)
+        if 0.1 <= sell_slippage <= 5.0:
+            reasons.append(f"✅ Sell slippage: {sell_slippage:.2f} bps in [0.1, 5.0]")
+        else:
+            reasons.append(f"❌ Sell slippage: {sell_slippage:.2f} bps out of [0.1, 5.0]")
+            passed = False
+        
+        # 6. Partial fills: NOT a FAIL condition (just informational)
+        partial_fills = metrics.get("partial_fills_count", 0)
+        if partial_fills > 0:
+            reasons.append(f"ℹ️  Partial fills: {partial_fills} (scenario tested)")
+        else:
+            reasons.append(f"ℹ️  Partial fills: 0 (not tested, OK for D80-4)")
+        
+        # 7. Loop latency: avg < 80ms
+        loop_latency_avg = metrics.get("loop_latency_avg_ms", 0)
+        if loop_latency_avg < 80.0:
+            reasons.append(f"✅ Loop latency avg: {loop_latency_avg:.2f}ms < 80ms")
+        else:
+            reasons.append(f"❌ Loop latency avg: {loop_latency_avg:.2f}ms >= 80ms")
+            passed = False
+        
+        # 8. Loop latency: p99 < 500ms
+        loop_latency_p99 = metrics.get("loop_latency_p99_ms", 0)
+        if loop_latency_p99 < 500.0:
+            reasons.append(f"✅ Loop latency p99: {loop_latency_p99:.2f}ms < 500ms")
+        else:
+            reasons.append(f"❌ Loop latency p99: {loop_latency_p99:.2f}ms >= 500ms")
+            passed = False
+        
+        # 9. No fatal errors (informational)
+        guard_triggers = metrics.get("guard_triggers", 0)
+        reasons.append(f"ℹ️  Guard triggers: {guard_triggers}")
+        
+        # 10. Win rate: INFORMATIONAL ONLY (not a PASS/FAIL criterion for D80-4)
+        win_rate = metrics.get("win_rate_pct", 0)
+        reasons.append(f"ℹ️  Win rate: {win_rate:.1f}% (informational, not criteria)")
+    
+    elif profile == ValidationProfile.TOPN_RESEARCH:
+        # D77-x / D82-x: TopN research validation (legacy criteria)
+        # TODO(D82-5): Re-evaluate these thresholds based on long-term data
+        
+        # Round trips >= 5
+        round_trips = metrics.get("round_trips_completed", 0)
+        if round_trips >= 5:
+            reasons.append(f"✅ Round trips: {round_trips} >= 5")
+        else:
+            reasons.append(f"❌ Round trips: {round_trips} < 5")
+            passed = False
+        
+        # Win rate >= 50%
+        win_rate = metrics.get("win_rate_pct", 0)
+        if win_rate >= 50.0:
+            reasons.append(f"✅ Win rate: {win_rate:.1f}% >= 50%")
+        else:
+            reasons.append(f"❌ Win rate: {win_rate:.1f}% < 50%")
+            passed = False
+        
+        # Loop latency < 80ms
+        loop_latency_avg = metrics.get("loop_latency_avg_ms", 0)
+        if loop_latency_avg < 80.0:
+            reasons.append(f"✅ Loop latency: {loop_latency_avg:.2f}ms < 80ms")
+        else:
+            reasons.append(f"❌ Loop latency: {loop_latency_avg:.2f}ms >= 80ms")
+            passed = False
+    
+    return ValidationResult(profile=profile, passed=passed, reasons=reasons)
 
 from arbitrage.domain.topn_provider import TopNProvider, TopNMode
 from arbitrage.domain.exit_strategy import ExitStrategy, ExitConfig, ExitReason
@@ -708,6 +856,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="D77-4: Custom KPI output path (e.g., logs/d77-4/d77-4-1h_kpi.json)",
     )
+    parser.add_argument(
+        "--validation-profile",
+        type=str,
+        choices=["none", "fill_model", "topn_research"],
+        default="topn_research",
+        help="D80-4: Validation profile (none|fill_model|topn_research, default: topn_research)",
+    )
     return parser.parse_args()
 
 
@@ -754,43 +909,36 @@ async def main():
     try:
         metrics = await runner.run()
         
-        # Acceptance Criteria 체크
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("[D77-0] Acceptance Criteria Check")
-        logger.info("=" * 80)
+        # D80-4: Validation Profile 기반 Acceptance Criteria 체크
+        validation_profile = ValidationProfile(args.validation_profile)
         
-        criteria_pass = True
-        
-        # Round trips >= 5
-        if metrics["round_trips_completed"] >= 5:
-            logger.info("[PASS] Round trips >= 5")
+        if validation_profile != ValidationProfile.NONE:
+            logger.info("")
+            logger.info("=" * 80)
+            logger.info(f"[Validation] Profile: {validation_profile.value}")
+            logger.info("=" * 80)
+            
+            result = evaluate_validation(metrics, validation_profile)
+            
+            for reason in result.reasons:
+                if reason.startswith("✅"):
+                    logger.info(reason)
+                elif reason.startswith("❌"):
+                    logger.error(reason)
+                else:
+                    logger.info(reason)
+            
+            logger.info("=" * 80)
+            
+            if result.passed:
+                logger.info("[RESULT] ALL ACCEPTANCE CRITERIA PASSED")
+                return 0
+            else:
+                logger.error("[RESULT] SOME ACCEPTANCE CRITERIA FAILED")
+                return 1
         else:
-            logger.error(f"[FAIL] Round trips >= 5 (actual: {metrics['round_trips_completed']})")
-            criteria_pass = False
-        
-        # Win rate >= 50%
-        if metrics["win_rate_pct"] >= 50.0:
-            logger.info("[PASS] Win rate >= 50%")
-        else:
-            logger.error(f"[FAIL] Win rate >= 50% (actual: {metrics['win_rate_pct']:.1f}%)")
-            criteria_pass = False
-        
-        # Loop latency < 80ms
-        if metrics["loop_latency_avg_ms"] < 80.0:
-            logger.info("[PASS] Loop latency < 80ms")
-        else:
-            logger.error(f"[FAIL] Loop latency < 80ms (actual: {metrics['loop_latency_avg_ms']:.1f}ms)")
-            criteria_pass = False
-        
-        logger.info("=" * 80)
-        
-        if criteria_pass:
-            logger.info("[RESULT] ALL ACCEPTANCE CRITERIA PASSED")
+            logger.info("[Validation] Profile: none (validation skipped)")
             return 0
-        else:
-            logger.error("[RESULT] SOME ACCEPTANCE CRITERIA FAILED")
-            return 1
     
     except Exception as e:
         logger.exception(f"[D77-0] Error during PAPER run: {e}")

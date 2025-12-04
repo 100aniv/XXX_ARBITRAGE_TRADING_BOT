@@ -325,6 +325,36 @@ python scripts/run_d77_0_topn_arbitrage_paper.py \
 
 ---
 
+## 역할 구분: D80-4 vs D82-4
+
+### D80-4: Realistic Fill Model 구조 검증
+- **목적**: Fill Model이 100% 승률 구조를 깨고 현실적인 slippage를 모델링하는지 검증
+- **Validation Profile**: `fill_model`
+- **핵심 기준**:
+  - Duration ≥ 10 min (안정성)
+  - Entry ≥ 1, Round Trips ≥ 1 (기본 동작)
+  - Slippage [0.1, 5.0] bps (현실적 모델링)
+  - Loop latency < 80ms (성능)
+- **Win Rate**: PASS/FAIL 기준이 **아님** (informational only)
+- **Partial Fill**: 미등장해도 PASS (D81-1로 이관)
+
+### D82-4: TopN Long-Run Validation
+- **목적**: TopN Universe에서 Entry threshold 튜닝 효과 및 장기 안정성 검증
+- **Validation Profile**: `topn_research`
+- **핵심 기준**:
+  - Duration ≥ 20 min (장기 실행)
+  - Round Trips ≥ 5 (충분한 샘플)
+  - Win Rate ≥ 50% (전략 edge 존재성)
+  - Entry threshold 효과 검증 (1.0→0.5 bps)
+
+### 요약
+- **D80-4**: Fill Model **구조** 검증 (승률 무관)
+- **D82-4**: TopN **전략** 검증 (승률 중요)
+
+이 구분은 `run_d77_0_topn_arbitrage_paper.py`의 `--validation-profile` 옵션으로 구현되어 있습니다.
+
+---
+
 **Author**: Cascade AI (Advanced Reasoning Mode)  
 **구현 일자**: 2025-12-04  
 **검증 완료**: 2025-12-04 23:05~23:25 KST (20분 Real PAPER)  

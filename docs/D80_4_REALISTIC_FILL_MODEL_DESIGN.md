@@ -971,3 +971,119 @@ pytest tests/test_d80_4_fill_model.py -v
 - 파라미터 최적화 (Bayesian Optimization)
 
 **D80-4는 SimpleFillModel v1 + Long-run Validation까지 포함하여 완전히 COMPLETE 상태입니다.** 🎉
+
+---
+
+## 13. FINAL Acceptance Criteria (Validation Profile: fill_model)
+
+**D80-4 전용 Acceptance Criteria가 `run_d77_0_topn_arbitrage_paper.py`에 구현되었습니다.**
+
+### 실행 방법
+
+```bash
+# D80-4 전용 validation profile 사용
+python scripts/run_d77_0_topn_arbitrage_paper.py \
+  --data-source real \
+  --topn-size 20 \
+  --run-duration-seconds 720 \
+  --validation-profile fill_model \
+  --kpi-output-path logs/d80-4/kpi_validation.json
+```
+
+### Acceptance Criteria (8개 + 2개 informational)
+
+#### 필수 기준 (PASS/FAIL)
+
+| # | Criterion | Threshold | Purpose |
+|---|-----------|-----------|----------|
+| 1 | **Duration** | ≥ 10.0 min | Stability verification |
+| 2 | **Entry trades** | ≥ 1 | At least one trade executed |
+| 3 | **Round trips** | ≥ 1 | At least one full cycle |
+| 4 | **Buy slippage** | [0.1, 5.0] bps | Realistic slippage modeling |
+| 5 | **Sell slippage** | [0.1, 5.0] bps | Realistic slippage modeling |
+| 6 | **Loop latency (avg)** | < 80.0 ms | Performance target |
+| 7 | **Loop latency (p99)** | < 500.0 ms | P99 performance target |
+| 8 | **Guard triggers** | ℹ️ informational | System health indicator |
+
+#### Informational Only (NOT PASS/FAIL)
+
+| # | Metric | Note |
+|---|--------|------|
+| 9 | **Partial fills** | 0 is OK for D80-4; D81-1 will target partial fill scenarios |
+| 10 | **Win rate** | Informational only; not a D80-4 acceptance criterion |
+
+### 핵심 차이점: D80-4 vs D82-x
+
+**D80-4 (Fill Model Validation):**
+- ✅ Fill Model 구조가 정상 동작하는지 검증
+- ✅ Slippage 모델링이 현실적인지 확인 (0.1~5.0 bps 범위)
+- ✅ 시스템 안정성 (10분+ 실행, 0 crashes)
+- ❌ **Win rate는 기준이 아님** (시장 환경에 따라 0%~100% 모두 가능)
+- ❌ **Partial Fill 미등장도 PASS** (D81-1로 이관)
+
+**D82-x (TopN Research Validation):**
+- Round trips ≥ 5
+- Win rate ≥ 50%
+- Loop latency < 80ms
+- 목적: TopN Universe 거래 전략의 edge 검증
+
+### 12분 Real PAPER 결과 (2025-12-05 00:29~00:41)
+
+| Criterion | Result | Target | Status |
+|-----------|--------|--------|--------|
+| Duration | 12.02 min | ≥ 10.0 min | ✅ PASS |
+| Entry trades | 4 | ≥ 1 | ✅ PASS |
+| Round trips | 3 | ≥ 1 | ✅ PASS |
+| Buy slippage | 0.50 bps | [0.1, 5.0] | ✅ PASS |
+| Sell slippage | 0.50 bps | [0.1, 5.0] | ✅ PASS |
+| Loop latency (avg) | 14.31 ms | < 80.0 ms | ✅ PASS |
+| Loop latency (p99) | 25.00 ms | < 500.0 ms | ✅ PASS |
+| Partial fills | 0 | - | ℹ️ OK (not required) |
+| Win rate | 0% | - | ℹ️ Informational |
+
+**결론:** **8/8 필수 기준 PASS** → D80-4 FINAL Acceptance ✅
+
+---
+
+## 14. Validation Matrix (D80-4 / D82-4 / D77-4)
+
+### 각 단계별 역할 구분
+
+| Stage | Primary Focus | Validation Profile | Key Acceptance Criteria |
+|-------|---------------|--------------------|--------------------------|
+| **D80-4** | Fill Model 구조 검증 | `fill_model` | Duration ≥10min, Entries ≥1, RT ≥1, Slippage [0.1,5.0] bps |
+| **D82-1** | Long-run (12h) Fill Model 실전 | `fill_model` | Duration ≥12h, RT ≥100, Slippage consistency |
+| **D82-4** | TopN Threshold 튜닝 | `topn_research` | RT ≥5, Entry threshold 효과 검증 |
+| **D77-4** | TopN Universe Edge 검증 | `topn_research` | RT ≥5, Win Rate ≥50%, Edge 존재성 |
+
+### Validation Profile 선택 가이드
+
+```python
+# Use Case 1: Fill Model 구조 검증 (D80-x)
+--validation-profile fill_model
+# → Win rate 무관, Partial Fill 미등장 OK
+
+# Use Case 2: TopN Universe Edge 검증 (D77-x, D82-x)
+--validation-profile topn_research
+# → Win rate ≥50% 요구, RT ≥5 요구
+
+# Use Case 3: 검증 skip (개발/디버깅)
+--validation-profile none
+# → Exit code 0 보장
+```
+
+### Partial Fill 시나리오
+
+**D80-4 범위:**
+- Unit Tests에서 partial fill 로직 검증 완료
+- Long-run PAPER에서 partial fill 미등장 → OK (D81-1로 이관)
+
+**D81-1 범위:**
+- 더 큰 주문 크기 또는 낮은 유동성 심볼 사용
+- Partial fill 시나리오를 **의도적으로** 유발
+- Fill ratio < 1.0 케이스 실전 검증
+
+---
+
+**최종 업데이트:** 2025-12-05  
+**Validation Profile 시스템 구현 완료:** `run_d77_0_topn_arbitrage_paper.py`

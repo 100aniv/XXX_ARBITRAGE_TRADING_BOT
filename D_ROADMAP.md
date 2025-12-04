@@ -2319,8 +2319,14 @@ Entry/Exit Phase (fast, real-time):
 - ✅ **D82-1 12h PAPER**: 540 round trips, slippage ~0.5 bps, 100% 승률 구조 제거 확인
 - ✅ **D82-4 20min PAPER**: 6 round trips, win_rate 0% (현실적), threshold 튜닝 효과 검증
 - ✅ **안정성**: 0 crashes, Upbit 429 retry 성공, latency 13.79ms (목표 대비 83% 빠름)
+- ✅ **FINAL Acceptance**: `run_d77_0_topn_arbitrage_paper.py --validation-profile fill_model` 구현 완료
 
-**다음 단계:** D81-1 (Advanced Fill Model), D83-x (WebSocket streams)
+**Validation Profile System (2025-12-05):**
+- `fill_model`: D80-4 전용 (Duration ≥10min, Entries ≥1, RT ≥1, Slippage [0.1,5.0] bps, Win rate 무관)
+- `topn_research`: D82-x/D77-x 용 (RT ≥5, Win rate ≥50%, Edge 검증)
+- `none`: 검증 skip (개발/디버깅)
+
+**다음 단계:** D81-1 (Advanced Fill Model, Partial Fill 실전 검증), D83-x (WebSocket streams)
 
 - ??鴗𡢾�?竾� Settings 諈刺� (`arbitrage/config/settings.py`)
 - ??3?刷� ?瞘祭 諈刺桊 (local_dev, paper, live)
