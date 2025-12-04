@@ -1831,6 +1831,41 @@ Prometheus ?月�?? 78,213 bytes
 
 **다음 단계:** D80-3 (Trade-level Logging), D80-4 (Realistic Fill Model), D81-x (Market Impact/Inventory Cost)
 
+---
+
+### D80-3: Trade-level Spread & Liquidity Logging ✅ COMPLETE (2025-12-04)
+
+**상태:** ✅ COMPLETE
+
+**목표:** 각 round trip의 스프레드/유동성/체결 정보를 로깅하여 Win Rate 100% 및 $200k/h PnL의 현실성을 데이터 레벨에서 검증
+
+**핵심 구현:**
+- **Trade Logger 모듈:** `arbitrage/logging/trade_logger.py` (신규, 350줄)
+  - `TradeLogEntry` dataclass (30+ 필드: 스프레드, 호가, 체결, PnL)
+  - `TradeLogger` 클래스 (JSONL 파일 기반 로깅)
+  - Universe별 로그 분리 (`top20_trade_log.jsonl`, `top50_trade_log.jsonl`)
+- **로그 스키마:** 진입/퇴출 호가, 스프레드(bps), 호가 잔량, 체결 가격, 수수료, PnL
+- **저장 구조:** `logs/d80-3/trades/{run_id}/{universe}_trade_log.jsonl` (JSONL 형식)
+
+**테스트 검증:**
+- ✅ Unit tests: 8개 모두 PASS (0.10초)
+  - TradeLogger 초기화, 단일/다중 트레이드 로깅
+  - Universe별 분리, JSON 직렬화, 메타데이터 저장
+- ✅ 엔진 연동: 최소 침습 방식 (기존 코드 수정 최소화)
+- ✅ 성능 영향: 파일 I/O 오버헤드 최소 (버퍼링)
+
+**설계 문서:**
+- `docs/D80_3_TRADE_LEVEL_LOGGING_DESIGN.md` (11개 섹션, 한글)
+  - AS-IS/TO-BE 아키텍처, 로그 스키마, 저장 구조
+  - 엔진 연동 전략, 테스트 계획, 향후 확장 포인트
+
+**향후 활용:**
+- D80-4: Fill/Slippage Model 입력 데이터
+- D81-x: Market Impact & Liquidity Analysis
+- D82-x: Long-term Edge 지속성 검증
+
+**다음 단계:** D80-4 (Realistic Fill Model), D81-x (Market Impact/Inventory Cost)
+
 
 ### D78: Authentication & Secrets Layer
 
