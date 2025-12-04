@@ -12,6 +12,7 @@ from typing import Dict, Optional
 from arbitrage.types import PortfolioState
 from arbitrage.live_runner import RiskGuard
 from .executor import BaseExecutor, PaperExecutor, LiveExecutor
+from .fill_model import BaseFillModel
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +36,21 @@ class ExecutorFactory:
         symbol: str,
         portfolio_state: PortfolioState,
         risk_guard: RiskGuard,
+        enable_fill_model: bool = False,
+        fill_model: Optional[BaseFillModel] = None,
+        default_available_volume_factor: float = 2.0,
     ) -> PaperExecutor:
         """
         D61: Paper Executor 생성
+        D80-4: Fill Model 지원
         
         Args:
             symbol: 거래 심볼
             portfolio_state: 포트폴리오 상태
             risk_guard: 리스크 가드
+            enable_fill_model: Fill Model 활성화 여부
+            fill_model: 사용할 Fill Model 인스턴스
+            default_available_volume_factor: 호가 잔량 추정 계수
         
         Returns:
             PaperExecutor 인스턴스
@@ -55,10 +63,16 @@ class ExecutorFactory:
             symbol=symbol,
             portfolio_state=portfolio_state,
             risk_guard=risk_guard,
+            enable_fill_model=enable_fill_model,
+            fill_model=fill_model,
+            default_available_volume_factor=default_available_volume_factor,
         )
         
         self.executors[symbol] = executor
-        logger.info(f"[D61_EXECUTOR_FACTORY] Created PaperExecutor for {symbol}")
+        logger.info(
+            f"[D61_EXECUTOR_FACTORY] Created PaperExecutor for {symbol} "
+            f"(fill_model={enable_fill_model})"
+        )
         
         return executor
     

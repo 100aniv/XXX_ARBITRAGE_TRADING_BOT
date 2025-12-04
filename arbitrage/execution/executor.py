@@ -19,6 +19,12 @@ from arbitrage.types import (
     PortfolioState,
 )
 from arbitrage.live_runner import RiskGuard
+from arbitrage.execution.fill_model import (
+    FillContext,
+    FillResult,
+    BaseFillModel,
+    create_default_fill_model,
+)
 
 if TYPE_CHECKING:
     from arbitrage.arbitrage_core import ArbitrageTrade
@@ -39,6 +45,12 @@ class ExecutionResult:
     quantity: float = 0.0
     pnl: float = 0.0
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    
+    # D80-4: Fill Model 정보 (선택적)
+    buy_slippage_bps: float = 0.0
+    sell_slippage_bps: float = 0.0
+    buy_fill_ratio: float = 1.0
+    sell_fill_ratio: float = 1.0
 
 
 class BaseExecutor(ABC):
@@ -130,19 +142,36 @@ class PaperExecutor(BaseExecutor):
         symbol: str,
         portfolio_state: PortfolioState,
         risk_guard: RiskGuard,
+        enable_fill_model: bool = False,
+        fill_model: Optional[BaseFillModel] = None,
+        default_available_volume_factor: float = 2.0,
     ):
         """
         Args:
             symbol: 거래 심볼
             portfolio_state: 포트폴리오 상태
             risk_guard: 리스크 가드
+            enable_fill_model: Fill Model 활성화 여부 (D80-4)
+            fill_model: 사용할 Fill Model 인스턴스 (None이면 기본 생성)
+            default_available_volume_factor: 호가 잔량 추정 계수 (order_qty * factor)
         """
         super().__init__(symbol, portfolio_state, risk_guard)
         self.positions: Dict[str, Position] = {}
         self.orders: Dict[str, Order] = {}
         self.pnl_history: List[Tuple[datetime, float]] = []
         
-        logger.info(f"[D61_PAPER_EXECUTOR] Initialized for {symbol}")
+        # D80-4: Fill Model
+        self.enable_fill_model = enable_fill_model
+        self.default_available_volume_factor = default_available_volume_factor
+        if enable_fill_model and fill_model is None:
+            self.fill_model = create_default_fill_model()
+        else:
+            self.fill_model = fill_model
+        
+        logger.info(
+            f"[D61_PAPER_EXECUTOR] Initialized for {symbol} "
+            f"(fill_model={enable_fill_model})"
+        )
     
     def execute_trades(self, trades: List) -> List[ExecutionResult]:
         """
@@ -213,6 +242,10 @@ class PaperExecutor(BaseExecutor):
         """
         단일 거래 실행
         
+        D80-4: Fill Model 통합
+        - enable_fill_model=False: 기존 동작 (100% 전량 체결, 슬리피지 0)
+        - enable_fill_model=True: Partial Fill + Slippage 반영
+        
         Args:
             trade: 거래 정보 (ArbitrageTrade)
         
@@ -220,68 +253,11 @@ class PaperExecutor(BaseExecutor):
             실행 결과
         """
         try:
-            # 1. 매수 주문 생성
-            buy_order_id = f"BUY_{self.symbol}_{self.execution_count}"
-            buy_order = Order(
-                order_id=buy_order_id,
-                exchange=trade.buy_exchange,
-                symbol=self.symbol,
-                side=OrderSide.BUY,
-                quantity=trade.quantity,
-                price=trade.buy_price,
-                status=OrderStatus.FILLED,
-                filled_quantity=trade.quantity,
-            )
-            self.orders[buy_order_id] = buy_order
-            
-            # 2. 매도 주문 생성
-            sell_order_id = f"SELL_{self.symbol}_{self.execution_count}"
-            sell_order = Order(
-                order_id=sell_order_id,
-                exchange=trade.sell_exchange,
-                symbol=self.symbol,
-                side=OrderSide.SELL,
-                quantity=trade.quantity,
-                price=trade.sell_price,
-                status=OrderStatus.FILLED,
-                filled_quantity=trade.quantity,
-            )
-            self.orders[sell_order_id] = sell_order
-            
-            # 3. 포지션 생성
-            position_id = f"POS_{self.symbol}_{self.execution_count}"
-            position = Position(
-                symbol=self.symbol,
-                quantity=trade.quantity,
-                entry_price=trade.buy_price,
-                current_price=trade.sell_price,
-                side=OrderSide.BUY,
-                timestamp=datetime.utcnow(),
-            )
-            self.positions[position_id] = position
-            
-            # 4. PnL 계산
-            pnl = (trade.sell_price - trade.buy_price) * trade.quantity
-            
-            # 5. 결과 반환
-            result = ExecutionResult(
-                symbol=self.symbol,
-                trade_id=trade.trade_id,
-                status="success",
-                buy_order_id=buy_order_id,
-                sell_order_id=sell_order_id,
-                buy_price=trade.buy_price,
-                sell_price=trade.sell_price,
-                quantity=trade.quantity,
-                pnl=pnl,
-            )
-            
-            logger.info(
-                f"[D61_PAPER_EXECUTOR] Trade executed for {self.symbol}: "
-                f"qty={trade.quantity}, buy={trade.buy_price}, sell={trade.sell_price}, pnl={pnl:.2f}"
-            )
-            
-            return result
+            # D80-4: Fill Model 경로 분기
+            if self.enable_fill_model and self.fill_model:
+                return self._execute_single_trade_with_fill_model(trade)
+            else:
+                return self._execute_single_trade_legacy(trade)
         
         except Exception as e:
             logger.error(f"[D61_PAPER_EXECUTOR] Trade execution failed: {e}")
@@ -290,6 +266,207 @@ class PaperExecutor(BaseExecutor):
                 trade_id=trade.trade_id,
                 status="failed",
             )
+    
+    def _execute_single_trade_legacy(self, trade) -> ExecutionResult:
+        """
+        기존 거래 실행 로직 (Fill Model 없음)
+        
+        D80-4 이전 동작 유지: 100% 전량 체결, 슬리피지 0
+        """
+        # 1. 매수 주문 생성
+        buy_order_id = f"BUY_{self.symbol}_{self.execution_count}"
+        buy_order = Order(
+            order_id=buy_order_id,
+            exchange=trade.buy_exchange,
+            symbol=self.symbol,
+            side=OrderSide.BUY,
+            quantity=trade.quantity,
+            price=trade.buy_price,
+            status=OrderStatus.FILLED,
+            filled_quantity=trade.quantity,
+        )
+        self.orders[buy_order_id] = buy_order
+        
+        # 2. 매도 주문 생성
+        sell_order_id = f"SELL_{self.symbol}_{self.execution_count}"
+        sell_order = Order(
+            order_id=sell_order_id,
+            exchange=trade.sell_exchange,
+            symbol=self.symbol,
+            side=OrderSide.SELL,
+            quantity=trade.quantity,
+            price=trade.sell_price,
+            status=OrderStatus.FILLED,
+            filled_quantity=trade.quantity,
+        )
+        self.orders[sell_order_id] = sell_order
+        
+        # 3. 포지션 생성
+        position_id = f"POS_{self.symbol}_{self.execution_count}"
+        position = Position(
+            symbol=self.symbol,
+            quantity=trade.quantity,
+            entry_price=trade.buy_price,
+            current_price=trade.sell_price,
+            side=OrderSide.BUY,
+            timestamp=datetime.utcnow(),
+        )
+        self.positions[position_id] = position
+        
+        # 4. PnL 계산
+        pnl = (trade.sell_price - trade.buy_price) * trade.quantity
+        
+        # 5. 결과 반환
+        result = ExecutionResult(
+            symbol=self.symbol,
+            trade_id=trade.trade_id,
+            status="success",
+            buy_order_id=buy_order_id,
+            sell_order_id=sell_order_id,
+            buy_price=trade.buy_price,
+            sell_price=trade.sell_price,
+            quantity=trade.quantity,
+            pnl=pnl,
+        )
+        
+        logger.info(
+            f"[D61_PAPER_EXECUTOR] Trade executed for {self.symbol}: "
+            f"qty={trade.quantity}, buy={trade.buy_price}, sell={trade.sell_price}, pnl={pnl:.2f}"
+        )
+        
+        return result
+    
+    def _execute_single_trade_with_fill_model(self, trade) -> ExecutionResult:
+        """
+        D80-4: Fill Model 적용 거래 실행
+        
+        Partial Fill + Slippage 반영
+        
+        Args:
+            trade: 거래 정보
+        
+        Returns:
+            Fill Model 결과가 반영된 ExecutionResult
+        """
+        # TODO(D81-x): 실제 호가 잔량을 orderbook에서 가져오기
+        # 현재는 보수적 기본값 사용
+        buy_available_volume = trade.quantity * self.default_available_volume_factor
+        sell_available_volume = trade.quantity * self.default_available_volume_factor
+        
+        # 1. 매수 Fill Model 실행
+        buy_context = FillContext(
+            symbol=self.symbol,
+            side=OrderSide.BUY,
+            order_quantity=trade.quantity,
+            target_price=trade.buy_price,
+            available_volume=buy_available_volume,
+        )
+        buy_fill_result = self.fill_model.execute(buy_context)
+        
+        # 2. 매도 Fill Model 실행 (매수 체결량만큼만)
+        sell_context = FillContext(
+            symbol=self.symbol,
+            side=OrderSide.SELL,
+            order_quantity=buy_fill_result.filled_quantity,
+            target_price=trade.sell_price,
+            available_volume=sell_available_volume,
+        )
+        sell_fill_result = self.fill_model.execute(sell_context)
+        
+        # 3. 실제 체결 수량 (매수/매도 중 작은 값)
+        final_filled_qty = min(
+            buy_fill_result.filled_quantity,
+            sell_fill_result.filled_quantity,
+        )
+        
+        # 4. 매수 주문 생성
+        buy_order_id = f"BUY_{self.symbol}_{self.execution_count}"
+        buy_order = Order(
+            order_id=buy_order_id,
+            exchange=trade.buy_exchange,
+            symbol=self.symbol,
+            side=OrderSide.BUY,
+            quantity=trade.quantity,
+            price=buy_fill_result.effective_price,
+            status=(
+                OrderStatus.FILLED if buy_fill_result.status == "filled"
+                else OrderStatus.PARTIALLY_FILLED
+            ),
+            filled_quantity=buy_fill_result.filled_quantity,
+        )
+        self.orders[buy_order_id] = buy_order
+        
+        # 5. 매도 주문 생성
+        sell_order_id = f"SELL_{self.symbol}_{self.execution_count}"
+        sell_order = Order(
+            order_id=sell_order_id,
+            exchange=trade.sell_exchange,
+            symbol=self.symbol,
+            side=OrderSide.SELL,
+            quantity=buy_fill_result.filled_quantity,
+            price=sell_fill_result.effective_price,
+            status=(
+                OrderStatus.FILLED if sell_fill_result.status == "filled"
+                else OrderStatus.PARTIALLY_FILLED
+            ),
+            filled_quantity=sell_fill_result.filled_quantity,
+        )
+        self.orders[sell_order_id] = sell_order
+        
+        # 6. 포지션 생성 (체결된 수량만)
+        if final_filled_qty > 0:
+            position_id = f"POS_{self.symbol}_{self.execution_count}"
+            position = Position(
+                symbol=self.symbol,
+                quantity=final_filled_qty,
+                entry_price=buy_fill_result.effective_price,
+                current_price=sell_fill_result.effective_price,
+                side=OrderSide.BUY,
+                timestamp=datetime.utcnow(),
+            )
+            self.positions[position_id] = position
+        
+        # 7. PnL 계산 (Fill Model 기준)
+        pnl = (
+            sell_fill_result.effective_price - buy_fill_result.effective_price
+        ) * final_filled_qty
+        
+        # 8. 상태 결정
+        if final_filled_qty == 0:
+            exec_status = "failed"
+        elif final_filled_qty < trade.quantity:
+            exec_status = "partial"
+        else:
+            exec_status = "success"
+        
+        # 9. 결과 반환
+        result = ExecutionResult(
+            symbol=self.symbol,
+            trade_id=trade.trade_id,
+            status=exec_status,
+            buy_order_id=buy_order_id,
+            sell_order_id=sell_order_id,
+            buy_price=buy_fill_result.effective_price,
+            sell_price=sell_fill_result.effective_price,
+            quantity=final_filled_qty,
+            pnl=pnl,
+            buy_slippage_bps=buy_fill_result.slippage_bps,
+            sell_slippage_bps=sell_fill_result.slippage_bps,
+            buy_fill_ratio=buy_fill_result.fill_ratio,
+            sell_fill_ratio=sell_fill_result.fill_ratio,
+        )
+        
+        logger.info(
+            f"[D80-4_FILL_MODEL] Trade executed for {self.symbol}: "
+            f"order_qty={trade.quantity:.4f}, filled_qty={final_filled_qty:.4f}, "
+            f"buy_price={trade.buy_price:.2f}→{buy_fill_result.effective_price:.2f} "
+            f"(slippage={buy_fill_result.slippage_bps:.2f}bps), "
+            f"sell_price={trade.sell_price:.2f}→{sell_fill_result.effective_price:.2f} "
+            f"(slippage={sell_fill_result.slippage_bps:.2f}bps), "
+            f"pnl={pnl:.2f}, status={exec_status}"
+        )
+        
+        return result
     
     def get_positions(self) -> Dict[str, Position]:
         """
