@@ -2822,10 +2822,8 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 **Next:** D82-11 (10min/20min/1h smoke test with recalibrated candidates)
 
 ---
-- ??篣域● 穈?貐渥● 諻?諻桿�
-- ???瞘祭貐??�� ?�� 窶�鴞?
-- ???䁯𡠺?月剳???木� 窶赭� (live 諈刺� localhost ??
 
+### D82-11: TP/Entry PAPER Validation Pipeline (10m/20m/60m) ✅ COMPLETE (2025-12-05)
 **窱秒� ?嵸𦉘:**
 - `scripts/setup_env.py` (~450 lines)
 - `scripts/validate_env.py` (~250 lines)
