@@ -1,7 +1,7 @@
 # D82-9: TP 13-15 bps Fine-tuning & Real PAPER Validation
 
-**Last Updated:** 2025-12-05 19:00 KST  
-**Status:** ✅ INFRASTRUCTURE COMPLETE (Runner & Tests ready, PAPER execution pending)
+**Last Updated:** 2025-12-05 20:25 KST  
+**Status:** ✅ PAPER EXECUTION COMPLETE (5 runs completed, results analyzed)
 
 ---
 
@@ -36,7 +36,7 @@ D82-8 결과 분석 기반으로 TP Threshold를 13-15 bps로 하향 조정하�
 | **Unit Tests** | ✅ 10/10 PASS | 후보 분석 + Runner |
 | **Regression Tests** | ✅ 32/32 PASS | D82-5/7/8 회귀 없음 |
 | **Total Tests** | ✅ **42/42 PASS** | 모든 테스트 통과 |
-| **Real PAPER 실행** | ⏳ 대기 중 | 5조합 × 20분 or 1h |
+| **Real PAPER 실행** | ✅ 완료 | 5조합 × 10분 = 50분 |
 
 ---
 
@@ -183,62 +183,85 @@ python scripts/run_d82_9_paper_candidates_longrun.py --run-duration-seconds 3600
 
 ## 📊 실행 결과
 
-**(Real PAPER 실행 후 업데이트 예정)**
-
 ### 실행 정보
 
-- **시작 시각:** TBD
-- **종료 시각:** TBD
-- **소요 시간:** TBD
-- **실행 상태:** ⏳ **PENDING** (인프라 준비 완료)
+- **시작 시각:** 2025-12-05 19:32 KST
+- **종료 시각:** 2025-12-05 20:24 KST
+- **소요 시간:** 52분 (환경 정리 포함)
+- **실행 상태:** ✅ **COMPLETE** (5개 조합 모두 정상 완료)
+- **Duration per run:** 10분 (600초)
 
 ### Result Summary Table
 
-| # | Entry (bps) | TP (bps) | Entries | RT | Win Rate | PnL (USD) | Avg Slip (bps) | Latency (ms) | Status |
-|---|-------------|----------|---------|-----|----------|-----------|----------------|--------------|--------|
-| 1 | 10.0 | 13.0 | TBD | TBD | TBD | TBD | TBD | TBD | ⏳ |
-| 2 | 10.0 | 14.0 | TBD | TBD | TBD | TBD | TBD | TBD | ⏳ |
-| 3 | 12.0 | 13.0 | TBD | TBD | TBD | TBD | TBD | TBD | ⏳ |
-| 4 | 12.0 | 14.0 | TBD | TBD | TBD | TBD | TBD | TBD | ⏳ |
-| 5 | 10.0 | 15.0 | TBD | TBD | TBD | TBD | TBD | TBD | ⏳ |
+| # | Entry (bps) | TP (bps) | Entries | RT | Win Rate | PnL (USD) | Avg Slip (bps) | Latency (ms) | Score | Status |
+|---|-------------|----------|---------|-----|----------|-----------|----------------|--------------|-------|--------|
+| **1** | **10.0** | **14.0** | 2 | 2 | **0.0%** | **-$823.59** | 2.14 | 14.29 | -82357 | ❌ FAIL |
+| 2 | 12.0 | 13.0 | 3 | 2 | 0.0% | -$850.11 | 2.14 | 14.71 | -85010 | ❌ |
+| 3 | 10.0 | 13.0 | 3 | 2 | 0.0% | -$925.91 | 2.14 | 16.50 | -92590 | ❌ |
+| 4 | 10.0 | 15.0 | 3 | 2 | 0.0% | -$1036.68 | 2.14 | 15.19 | -103667 | ❌ |
+| 5 | 12.0 | 14.0 | 4 | **3** | 0.0% | -$2720.05 | 2.14 | 14.48 | -272002 | ❌ |
 
-**예상 결과:**
-- TP 13-15는 D82-8 (15-20) 대비 낮아 TP 도달 가능성 증가
-- Win Rate > 0% 달성 기대
-- PnL 개선 (최소 0 이상) 기대
+**실제 결과:**
+- ❌ 모든 조합 Win Rate 0% (time_limit 청산)
+- ❌ 모든 조합 PnL 마이너스 (-$824 ~ -$2,720)
+- ✅ Round Trips 2-3 (거래는 발생)
+- ✅ 인프라 안정 (Latency 14-16ms, CPU 35%, Memory 150MB)
+- **Best candidate:** Entry 10.0, TP 14.0 (Composite Score: -82357)
 
 ---
 
 ## 🔍 분석 & 해석
 
-**(실행 완료 후 업데이트)**
-
 ### D82-6 / D82-7 / D82-8 / D82-9 비교
 
-| 지표 | D82-6 | D82-7 | D82-8 | D82-9 (예상) |
-|------|-------|-------|-------|--------------|
-| **Entry Range** | 0.3-0.7 | 14-18 | 10-14 | **10-14** |
+| 지표 | D82-6 | D82-7 | D82-8 | **D82-9 (실제)** |
+|------|-------|-------|-------|--------------------|
+| **Entry Range** | 0.3-0.7 | 14-18 | 10-14 | **10-12** |
 | **TP Range** | 1.0-2.0 | 19-25 | 15-20 | **13-15** |
 | **Effective Edge** | -1.14 bps | +16.48 bps | 미검증 | **+0.36~+1.86** |
-| **평균 Entries** | 2.0 | 1.0 | 6.7 | **6~8 (예상)** |
-| **평균 RT** | 1.0 | 0.0 | 6.0 | **10+ (목표)** |
-| **Win Rate** | 0% | 0% | 0% | **> 0% (목표)** |
-| **평균 PnL** | -$750 | $0 | -$3,500 | **≥ $0 (목표)** |
-| **Duration** | 6분 | 3분 | 20분 | **20분 or 1h** |
+| **평균 Entries** | 2.0 | 1.0 | 6.7 | **3.0** |
+| **평균 RT** | 1.0 | 0.0 | 6.0 | **2.2** |
+| **Win Rate** | 0% | 0% | 0% | **0%** ❌ |
+| **평균 PnL** | -$750 | $0 | -$3,500 | **-$1,271** |
+| **Duration** | 6분 | 3분 | 20분 | **10분** |
 
 ### 가설 검증
 
 **가설 1:** TP 13-15는 TP 15-20보다 도달 가능성이 높다.
 - **검증 방법:** Win Rate > 0%, exit_reason에 'take_profit' 포함
-- **결과:** TBD
+- **결과:** ❌ **REJECTED** - 여전히 Win Rate 0% (모두 time_limit 청산)
+- **원인 분석:** 10분 Duration이 짧았거나, TP 13-15도 여전히 높음
 
 **가설 2:** TP 도달 시 PnL이 개선된다.
 - **검증 방법:** PnL ≥ 0
-- **결과:** TBD
+- **결과:** ❌ **REJECTED** - 모든 조합 PnL 마이너스 (-$824 ~ -$2,720)
+- **원인 분석:** TP 미도달 + Buy Slippage 2.14 bps 누적
 
 **가설 3:** Effective Edge +0.36~+1.86는 운영 가능하다.
 - **검증 방법:** RT ≥ 10, PnL > 0, 인프라 안정
-- **결과:** TBD
+- **결과:** ⚠️ **PARTIAL** - 인프라는 안정 (Latency 14-16ms), 단 RT 2-3으로 부족
+- **원인 분석:** 10분 Duration으로는 충분한 RT 확보 불가
+
+### 핵심 발견
+
+**1. TP 13-15도 여전히 도달 불가**
+- D82-8 (TP 15-20): Win Rate 0%
+- D82-9 (TP 13-15): Win Rate 0% (동일)
+- **결론:** TP 하향만으로는 문제 해결 안 됨
+
+**2. Duration 10분은 불충분**
+- 평균 RT 2.2 (D82-8의 6.0 대비 63% 감소)
+- 통계적 유의성 부족
+
+**3. PnL 개선 (D82-8 대비 64% 감소)**
+- D82-8: 평균 -$3,500
+- D82-9: 평균 -$1,271 (36% 수준)
+- 손실 규모는 줄었으나 여전히 마이너스
+
+**4. 인프라는 안정**
+- Latency 14-16ms (목표 < 25ms 충족)
+- CPU 35%, Memory 150MB (안정적)
+- Edge Monitor 정상 작동
 
 ---
 
@@ -246,50 +269,62 @@ python scripts/run_d82_9_paper_candidates_longrun.py --run-duration-seconds 3600
 
 | Criteria | Target | 결과 | 비고 |
 |----------|--------|------|------|
-| **최소 1개 조합 RT ≥ 10** | 10+ RT | TBD | 거래량 충분성 검증 |
-| **최소 1개 조합 Win Rate > 0%** | > 0% | TBD | TP 도달 가능성 검증 |
-| **최소 1개 조합 PnL ≥ 0** | ≥ $0 | TBD | 실제 수익성 검증 |
-| **Loop Latency < 25ms** | < 25ms avg | TBD | 인프라 안정성 |
-| **CPU < 50%** | < 50% avg | TBD | 리소스 효율성 |
+| **최소 1개 조합 RT ≥ 10** | 10+ RT | ❌ 2-3 RT | Duration 10분 부족 |
+| **최소 1개 조합 Win Rate > 0%** | > 0% | ❌ 0% | TP 여전히 도달 불가 |
+| **최소 1개 조합 PnL ≥ 0** | ≥ $0 | ❌ -$824 ~ -$2,720 | Slippage 누적 손실 |
+| **Loop Latency < 25ms** | < 25ms avg | ✅ 14-16ms | 인프라 안정 |
+| **CPU < 50%** | < 50% avg | ✅ 35% | 리소스 효율적 |
 | **Edge Monitor 정상 작동** | Snapshot 생성 | ✅ | JSONL 파일 생성 확인 |
 | **Unit Tests PASS** | 100% PASS | ✅ 10/10 | 후보 분석 + Runner |
 | **Regression Tests PASS** | 100% PASS | ✅ 32/32 | D82-5/7/8 회귀 없음 |
 | **Total Tests** | 100% PASS | ✅ **42/42** | 모든 테스트 통과 |
 
-**종합 판단:** ⏳ **INFRASTRUCTURE READY**
-- ✅ 후보 분석 완료 (5개 선정)
-- ✅ Runner 구현 완료
-- ✅ 테스트 42/42 PASS
-- ⏳ Real PAPER 실행 대기
+**종합 판단:** ❌ **NO-GO** (TP 하향 전략 실패)
+- ✅ 인프라 안정성 확인 (Latency, CPU, Memory)
+- ❌ Win Rate 0% (가설 1 기각)
+- ❌ PnL 마이너스 (가설 2 기각)
+- ❌ RT 2-3 (Duration 부족)
 
 ---
 
 ## 💡 최종 추천
 
-**(실행 완료 후 업데이트)**
+### 시나리오 B 발생: 모든 조합 Criteria 미충족 ❌
 
-### 시나리오 A: 1개 이상 조합이 Criteria 충족 ✅
+**원인 분석:**
+1. **TP 13-15도 여전히 높음** - 현재 시장 변동성 대비 도달 불가
+2. **Duration 10분 부족** - RT 2-3으로 통계적 유의성 부족
+3. **Buy Slippage 누적** - 2.14 bps × 3 entries = -6.4 bps 누적
+4. **Partial Fill 비율 높음** - Fill Ratio 26% (1/4만 체결)
 
-**조치:**
-- 해당 조합을 `.env.paper`에 반영
-- 3h/6h Long-run 추가 검증
-- D83-x (WebSocket L2 Orderbook) 진행 준비
+**제안 조치 (우선순위):**
 
-### 시나리오 B: 모든 조합이 Criteria 미충족 ❌
+**Option 1: WebSocket L2 Orderbook 우선 도입 (권장)** ⭐
+- D82-6/7/8/9 모두 Mock Fill Model 기반 (슬리피지 과대 추정 가능)
+- L2 Orderbook으로 실제 슬리피지 추정 시 TP 범위 재평가
+- 예상: TP 10-12 bps도 가능해질 수 있음
 
-**조치:**
-- TP를 추가 하향 (11-12 bps) 또는
-- Entry를 상향 (14-16 bps) 고려
-- D82-7 Edge 분석 결과 (min_tp=19) 재검토
+**Option 2: 20분+ Long-run 재실행**
+- Duration 20분 or 1시간으로 재실행
+- RT 10+ 확보하여 통계적 유의성 확보
+- 단, Win Rate 0% 문제는 미해결 가능성
+
+**Option 3: Entry 상향 조정**
+- Entry 14-18 bps로 상향 (D82-7 스타일)
+- 거래 기회는 줄지만 TP 도달 가능성 증가
+- 단, D82-7에서도 거래 미발생 문제 있었음
+
+**권장 경로:** Option 1 → D83-x WebSocket L2 Orderbook 도입
 
 ---
 
 ## 🚀 향후 작업
 
 ### 단기 (D82-9 완료 후)
-1. **Real PAPER 실행** (5조합 × 20분 or 1h)
-2. **결과 분석 및 문서 업데이트**
-3. **최종 Threshold 확정 및 `.env.paper` 업데이트**
+1. ✅ **Real PAPER 실행 완료** (5조합 × 10분)
+2. ✅ **결과 분석 및 문서 업데이트** (현재 문서)
+3. ❌ **Threshold 확정 불가** - 모든 조합 Criteria 미충족
+4. **Next:** D83-x WebSocket L2 Orderbook 도입 (필수)
 
 ### 중기 (D83-x)
 1. **WebSocket L2 Orderbook 통합**
@@ -334,9 +369,9 @@ python scripts/run_d82_9_paper_candidates_longrun.py --run-duration-seconds 3600
 | 파일 | 설명 | 상태 |
 |------|------|------|
 | `logs/d82-9/selected_candidates.json` | 선정된 5개 후보 | ✅ 생성 완료 |
-| `logs/d82-9/runs/<run_id>_kpi.json` | 조합별 KPI (5개) | ⏳ 실행 후 |
-| `logs/d82-9/edge_monitor/<run_id>_edge.jsonl` | Edge Monitor Snapshot (5개) | ⏳ 실행 후 |
-| `logs/d82-9/paper_summary.json` | Sweep 요약 | ⏳ 실행 후 |
+| `logs/d82-9/runs/<run_id>_kpi.json` | 조합별 KPI (5개) | ✅ 생성 완료 |
+| `logs/d82-9/edge_monitor/<run_id>_edge.jsonl` | Edge Monitor Snapshot (5개) | ✅ 생성 완료 |
+| `logs/d82-9/paper_summary.json` | Sweep 요약 | ✅ 생성 완료 |
 
 ---
 
@@ -370,11 +405,11 @@ D82-9부터 공식 표준:
 
 ---
 
-**Last Updated:** 2025-12-05 19:00 KST  
-**Status:** ✅ INFRASTRUCTURE COMPLETE  
+**Last Updated:** 2025-12-05 20:25 KST  
+**Status:** ❌ NO-GO (TP 하향 전략 실패, WebSocket L2 필요)  
 **Next Steps:**
-1. Real PAPER 실행 (5조합 × 20분 or 1h)
-2. 결과 분석 및 문서 업데이트
-3. 최종 Threshold 확정
+1. D83-x: WebSocket L2 Orderbook 도입 (슬리피지 재평가)
+2. L2 기반으로 TP 10-12 bps 재검토
+3. D_ROADMAP.md 업데이트 (D82-9 NO-GO 반영)
 
 ---

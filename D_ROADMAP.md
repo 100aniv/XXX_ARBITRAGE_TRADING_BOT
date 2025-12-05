@@ -2738,7 +2738,7 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 
 ---
 
-### D82-9: TP 13-15 bps Fine-tuning & Real PAPER Validation ⏳ IN PROGRESS (2025-12-05)
+### D82-9: TP 13-15 bps Fine-tuning & Real PAPER Validation ❌ NO-GO (2025-12-05)
 - ??Backward compatibility (APP_ENV 鴔�??
 - ??篣域● 儠竾� 謔秒玌?𧙖� (Telegram, AlertManager)
 

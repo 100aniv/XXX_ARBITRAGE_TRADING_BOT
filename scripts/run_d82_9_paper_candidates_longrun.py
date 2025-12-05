@@ -200,7 +200,7 @@ def build_command(
         "--data-source", "real",
         "--topn-size", str(args.topn_size),
         "--run-duration-seconds", str(args.run_duration_seconds),
-        "--validation-profile", "relaxed",
+        "--validation-profile", "topn_research",
         "--kpi-output-path", str(kpi_path),
     ]
     
