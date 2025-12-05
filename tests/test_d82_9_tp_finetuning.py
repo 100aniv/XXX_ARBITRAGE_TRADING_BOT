@@ -282,6 +282,160 @@ def test_analyze_and_select_candidates_integration():
 
 
 # =============================================================================
+# Test: Runner Stability & KPI File Generation (D82-9B)
+# =============================================================================
+
+def test_runner_build_command():
+    """Runner command 빌드 테스트."""
+    import argparse
+    
+    # Mock args
+    args = argparse.Namespace(
+        topn_size=20,
+        run_duration_seconds=60,
+        enable_edge_monitor=True,
+        output_dir="logs/d82-9",
+    )
+    
+    entry_bps = 10.0
+    tp_bps = 13.0
+    run_id = "d82-9-E10p0_TP13p0-test"
+    kpi_path = Path("logs/d82-9/runs/test_kpi.json")
+    
+    cmd, env_vars = runner_script.build_command(entry_bps, tp_bps, run_id, args, kpi_path)
+    
+    # Verify command structure
+    assert "python" in cmd[0].lower(), "Python not in command"
+    assert "run_d77_0_topn_arbitrage_paper.py" in cmd[1], "Runner script not found"
+    assert "--data-source" in cmd, "--data-source missing"
+    assert "real" in cmd, "data-source should be 'real'"
+    assert "--topn-size" in cmd, "--topn-size missing"
+    assert "--validation-profile" in cmd, "--validation-profile missing"
+    assert "topn_research" in cmd, "validation-profile should be 'topn_research'"
+    
+    # Verify environment variables
+    assert env_vars["ARBITRAGE_ENV"] == "paper", "ARBITRAGE_ENV incorrect"
+    assert env_vars["TOPN_ENTRY_MIN_SPREAD_BPS"] == "10.0", "Entry threshold incorrect"
+    assert env_vars["TOPN_EXIT_TP_SPREAD_BPS"] == "13.0", "TP threshold incorrect"
+    assert env_vars["ENABLE_RUNTIME_EDGE_MONITOR"] == "1", "Edge monitor not enabled"
+
+
+@patch('subprocess.run')
+def test_runner_kpi_file_verification(mock_run):
+    """Runner KPI 파일 검증 테스트."""
+    import argparse
+    import tempfile
+    
+    # Create temporary directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Track KPI path from build_command
+        kpi_path_ref = [None]
+        
+        # Mock subprocess.run to create KPI file
+        def create_kpi_file(cmd, *args, **kwargs):
+            # Extract KPI path from command line
+            try:
+                kpi_idx = cmd.index("--kpi-output-path")
+                kpi_path = Path(cmd[kpi_idx + 1])
+            except (ValueError, IndexError):
+                # Fallback: create in runs/
+                runs_dir = Path(tmpdir) / "runs"
+                runs_dir.mkdir(parents=True, exist_ok=True)
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                kpi_path = runs_dir / f"d82-9-E10p0_TP13p0-{timestamp}_kpi.json"
+            
+            # Create KPI file
+            kpi_path.parent.mkdir(parents=True, exist_ok=True)
+            kpi_data = {
+                "session_id": "test",
+                "round_trips_completed": 5,
+                "win_rate_pct": 50.0,
+            }
+            with open(kpi_path, "w") as f:
+                json.dump(kpi_data, f)
+            
+            kpi_path_ref[0] = kpi_path
+            
+            # Return success
+            return_value = MagicMock()
+            return_value.returncode = 0
+            return_value.stderr = ""
+            return return_value
+        
+        mock_run.side_effect = create_kpi_file
+        
+        # Mock args
+        args = argparse.Namespace(
+            topn_size=20,
+            run_duration_seconds=60,
+            enable_edge_monitor=False,
+            output_dir=tmpdir,
+            dry_run=False,
+        )
+        
+        # Mock candidate
+        candidate = {
+            "entry_bps": 10.0,
+            "tp_bps": 13.0,
+            "rationale": "Test candidate",
+        }
+        
+        # Execute single run
+        result = runner_script.execute_single_run(candidate, 1, 1, args)
+        
+        # Verify result
+        assert result["status"] == "success", f"Expected success, got {result['status']}"
+        assert result["kpi_exists"] is True, "KPI file should exist"
+        assert result["kpi_size_bytes"] > 0, "KPI file should not be empty"
+
+
+@patch('subprocess.run')
+def test_runner_timeout_handling(mock_run):
+    """Runner timeout 처리 테스트."""
+    import argparse
+    import subprocess
+    
+    # Mock subprocess.run to raise TimeoutExpired
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=60)
+    
+    # Mock args
+    args = argparse.Namespace(
+        topn_size=20,
+        run_duration_seconds=60,
+        enable_edge_monitor=False,
+        output_dir="logs/d82-9",
+        dry_run=False,
+    )
+    
+    # Mock candidate
+    candidate = {
+        "entry_bps": 10.0,
+        "tp_bps": 13.0,
+        "rationale": "Test candidate",
+    }
+    
+    # Execute single run
+    result = runner_script.execute_single_run(candidate, 1, 1, args)
+    
+    # Verify timeout handling
+    assert result["status"] == "timeout", f"Expected timeout, got {result['status']}"
+    assert "error" in result, "Error message should be present"
+
+
+def test_runner_generate_run_id():
+    """Runner run_id 생성 테스트."""
+    timestamp = "20251205193220"
+    
+    # Test various combinations
+    run_id_1 = runner_script.generate_run_id(10.0, 13.0, timestamp)
+    assert run_id_1 == "d82-9-E10p0_TP13p0-20251205193220", f"Unexpected run_id: {run_id_1}"
+    
+    run_id_2 = runner_script.generate_run_id(12.5, 14.5, timestamp)
+    assert run_id_2 == "d82-9-E12p5_TP14p5-20251205193220", f"Unexpected run_id: {run_id_2}"
+
+
+# =============================================================================
 # Run Tests
 # =============================================================================
 

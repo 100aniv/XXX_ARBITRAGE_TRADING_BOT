@@ -284,32 +284,73 @@ def execute_single_run(
     # Execute
     try:
         logger.info(f"[Run {run_id}] Executing...")
+        
+        # Calculate timeout: duration + 60s buffer
+        timeout_sec = args.run_duration_seconds + 60
+        
         result = subprocess.run(
             cmd,
             env=env_vars,
-            capture_output=False,
+            capture_output=True,  # Capture stdout/stderr for logging
             text=True,
             check=False,
+            timeout=timeout_sec,  # Kill if exceeds expected duration
         )
         
+        # Log stderr if present (warnings/errors)
+        if result.stderr:
+            logger.warning(f"[Run {run_id}] Stderr output:\n{result.stderr[:500]}...")
+        
+        # Check KPI file existence
+        kpi_exists = kpi_path.exists()
+        
         if result.returncode == 0:
-            logger.info(f"[Run {run_id}] Execution completed successfully")
-            status = "success"
+            if kpi_exists:
+                logger.info(f"[Run {run_id}] Execution completed successfully")
+                logger.info(f"[Run {run_id}] KPI file verified: {kpi_path}")
+                status = "success"
+            else:
+                logger.error(f"[Run {run_id}] Execution succeeded but KPI file not found: {kpi_path}")
+                logger.error(f"[Run {run_id}] This may indicate the runner exited early")
+                status = "failed_no_kpi"
         else:
             logger.error(f"[Run {run_id}] Execution failed with exit code: {result.returncode}")
+            if kpi_exists:
+                logger.warning(f"[Run {run_id}] KPI file exists despite failure")
             status = "failed"
         
         logger.info(f"[Run {run_index}/{total_runs}] Completed: {status}")
         
-        return {
+        # Final file verification
+        result_dict = {
             "entry_bps": entry_bps,
             "tp_bps": tp_bps,
             "run_id": run_id,
             "rationale": rationale,
             "duration_sec": args.run_duration_seconds,
             "kpi_path": str(kpi_path),
+            "kpi_exists": kpi_path.exists(),
+            "kpi_size_bytes": kpi_path.stat().st_size if kpi_path.exists() else 0,
             "edge_monitor_path": str(edge_monitor_path) if args.enable_edge_monitor else None,
             "status": status,
+        }
+        
+        # Log file verification
+        if result_dict["kpi_exists"]:
+            logger.info(f"[Run {run_id}] KPI file size: {result_dict['kpi_size_bytes']} bytes")
+        
+        return result_dict
+    
+    except subprocess.TimeoutExpired:
+        logger.error(f"[Run {run_id}] Execution timed out after {timeout_sec}s")
+        logger.error(f"[Run {run_id}] Expected duration: {args.run_duration_seconds}s")
+        return {
+            "entry_bps": entry_bps,
+            "tp_bps": tp_bps,
+            "run_id": run_id,
+            "rationale": rationale,
+            "status": "timeout",
+            "error": f"Timeout after {timeout_sec}s",
         }
     
     except Exception as e:
