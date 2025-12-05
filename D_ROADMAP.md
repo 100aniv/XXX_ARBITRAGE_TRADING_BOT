@@ -2460,6 +2460,112 @@ Loop latency p99: 27.26ms
 
 **다음 단계:** D82-0 (Long-term PAPER with AdvancedFillModel), D83-x (WebSocket L2 Orderbook)
 
+---
+
+### D82-5: Threshold Tuning Infrastructure (TopN + AdvancedFillModel) ✅ COMPLETE (2025-12-05)
+
+**Status:** ✅ COMPLETE (Implementation + Tests)
+
+**목표:** Entry/TP threshold 튜닝 실험 인프라 구축 (Grid Search)
+
+**핵심 구현:**
+- **Runner 스크립트:** `scripts/run_d82_5_threshold_sweep.py` (신규, ~500 lines)
+  - Grid search over Entry/TP threshold combinations
+  - 각 조합별 Real PAPER 실행 (6분 기본)
+  - KPI + Trade Log 수집 및 종합 Summary JSON 생성
+  - Dry-run 모드 지원 (명령만 출력)
+- **CLI 인터페이스:**
+  - `--entry-bps-list`: Entry threshold 값 (default: 0.3,0.5,0.7)
+  - `--tp-bps-list`: TP threshold 값 (default: 1.0,1.5,2.0)
+  - `--run-duration-seconds`: 조합당 실행 시간 (default: 360s = 6분)
+  - `--dry-run`: 실제 실행 없이 명령만 출력
+- **Summary JSON 스키마:**
+  - `sweep_metadata`: 실험 메타데이터 (시작/종료 시간, 조합 수)
+  - `results`: 각 조합별 Entry수, Round Trips, Win Rate, Avg Spread, Slippage, PnL
+  - 저장 경로: `logs/d82-5/threshold_sweep_summary.json`
+
+**테스트 검증:**
+- ✅ D82-5 Unit Tests: 10/10 PASS (0.10초)
+  - `generate_run_id()`: run_id 생성 로직
+  - `load_kpi_json()`: KPI 파일 로드
+  - `parse_trade_log()`: Trade Log JSONL 파싱 (평균 스프레드 계산)
+  - Grid search 조합 생성 로직
+  - Dry-run 모드 동작
+
+**설계 문서:**
+- `docs/D82_5_THRESHOLD_TUNING_TOPN_ADVANCED_FILL.md` (신규, ~650 lines)
+  - AS-IS 요약 (D80-3, D80-4, D81-1, D82-4)
+  - TO-BE: 실험 디자인 (Grid Search, 3×3=9 조합)
+  - Acceptance Criteria (Runner 정상 동작, 회귀 없음)
+  - 향후 확장 포인트 (Bayesian Optimization, Multi-universe)
+
+**튜닝 파라미터 세트:**
+
+| Parameter | Values (bps) | Default (D82-4) |
+|-----------|--------------|-----------------|
+| Entry Threshold | [0.3, 0.5, 0.7] | 0.5 |
+| TP Threshold | [1.0, 1.5, 2.0] | 2.0 |
+
+**Total Combinations:** 3 × 3 = **9 조합**  
+**Duration per run:** 6분 (360초)  
+**Total estimated time:** 54분 (9 × 6분)
+
+**실험 목표:**
+- Entry threshold 낮출수록 Entry 수 증가?
+- TP threshold 낮출수록 Win Rate 증가?
+- 최적 조합 (Entry, TP) 탐색
+- Slippage/Spread 트레이드오프 분석
+
+**Acceptance Criteria (D82-5):**
+
+| Criteria | Target | 결과 |
+|----------|--------|------|
+| **Runner 정상 동작** | 9개 조합 모두 KPI/Summary 생성 | ✅ |
+| **Summary JSON 생성** | `threshold_sweep_summary.json` 존재 | ✅ |
+| **회귀 없음** | D80/D81/D82 테스트 100% PASS | ✅ |
+| **문서 정리** | D_ROADMAP + 설계 문서 업데이트 | ✅ |
+| **수익률 플러스** | - | **NOT REQUIRED** |
+
+**중요:** D82-5는 **튜닝 인프라 구축** 단계이므로, 실제 수익률이 플러스가 되어야 PASS는 아닙니다.
+
+**실행 명령어:**
+```powershell
+# Dry-run (명령만 출력)
+python scripts/run_d82_5_threshold_sweep.py --dry-run
+
+# 실제 실행 (9 조합 × 6분 = 54분)
+python scripts/run_d82_5_threshold_sweep.py
+
+# 커스텀 파라미터
+python scripts/run_d82_5_threshold_sweep.py \
+  --entry-bps-list "0.3,0.5,0.7" \
+  --tp-bps-list "1.0,1.5,2.0" \
+  --run-duration-seconds 360 \
+  --topn-size 20
+```
+
+**결과 분석:**
+```powershell
+# Summary JSON 확인
+cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bps, entries, win_rate_pct, pnl_usd}'
+```
+
+**핵심 파일:**
+- `scripts/run_d82_5_threshold_sweep.py` (~500 lines)
+- `tests/test_d82_5_threshold_sweep_runner.py` (~200 lines)
+- `docs/D82_5_THRESHOLD_TUNING_TOPN_ADVANCED_FILL.md` (~650 lines)
+
+**향후 확장 포인트:**
+1. **Bayesian Optimization:** `scikit-optimize` 또는 `optuna` 사용
+2. **Multi-universe:** Top20 vs Top50 vs Top100 비교
+3. **Adaptive Threshold:** 변동성 기반 동적 threshold 조정 (D83-x)
+4. **Long-run 실험:** 20분/1시간/12시간 실행으로 확장
+5. **Multi-exchange:** Upbit-Binance Cross-exchange Inventory Cost 모델링과 결합 (D84-x)
+
+**다음 단계:** D83-x (WebSocket L2 Orderbook), D84-x (Multi-exchange Fill Model), D85-x (Hyperparameter Tuning Cluster)
+
+---
+
 - ??鴗𡢾�?竾� Settings 諈刺� (`arbitrage/config/settings.py`)
 - ??3?刷� ?瞘祭 諈刺桊 (local_dev, paper, live)
 - ???瞘祭貐?validation (local_dev: warnings, paper/live: strict)
