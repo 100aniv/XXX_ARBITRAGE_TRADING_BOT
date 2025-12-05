@@ -37,20 +37,45 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 def kill_existing_processes():
-    """기존 PAPER 관련 프로세스 모두 종료"""
+    """기존 PAPER 관련 프로세스 모두 종료 (validation_pipeline 제외)"""
     logger.info("Killing existing PAPER processes...")
     
     try:
-        # Windows: taskkill
-        result = subprocess.run(
-            ["taskkill", "/F", "/IM", "python.exe"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            logger.info(f"Killed processes: {result.stdout.strip()}")
+        import psutil
+        current_pid = os.getpid()
+        killed_count = 0
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                # Skip self
+                if proc.info['pid'] == current_pid:
+                    continue
+                
+                # Check if it's a python process
+                if proc.info['name'] and 'python' in proc.info['name'].lower():
+                    cmdline = proc.info.get('cmdline', [])
+                    if not cmdline:
+                        continue
+                    
+                    cmdline_str = ' '.join(str(arg) for arg in cmdline)
+                    
+                    # Skip validation_pipeline scripts
+                    if 'validation_pipeline' in cmdline_str:
+                        continue
+                    
+                    # Only kill smoke_test or paper test scripts
+                    if 'smoke_test' in cmdline_str or 'run_d82' in cmdline_str or 'paper_test' in cmdline_str:
+                        logger.info(f"Killing process {proc.info['pid']}: {' '.join(cmdline[:3])}")
+                        proc.kill()
+                        killed_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        if killed_count > 0:
+            logger.info(f"Killed {killed_count} PAPER-related processes")
         else:
-            logger.warning(f"No processes to kill or error: {result.stderr.strip()}")
+            logger.info("No PAPER-related processes to kill")
+            
     except Exception as e:
         logger.warning(f"Failed to kill processes: {e}")
 
@@ -65,6 +90,8 @@ def check_docker_services():
             capture_output=True,
             text=True,
             check=False,
+            encoding='utf-8',
+            errors='replace',
         )
         
         if result.returncode != 0:
@@ -73,10 +100,15 @@ def check_docker_services():
         
         # Check required services
         required_services = ["redis", "postgres", "prometheus"]
-        output = result.stdout.lower()
+        output = result.stdout
+        if output is None:
+            logger.error("Docker ps returned None")
+            return False
+            
+        output_lower = output.lower()
         
         for service in required_services:
-            if service not in output:
+            if service not in output_lower:
                 logger.error(f"Required service not running: {service}")
                 return False
         
