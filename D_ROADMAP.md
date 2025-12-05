@@ -2821,10 +2821,7 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 
 **Next:** D82-11 (10min/20min/1h smoke test with recalibrated candidates)
 
-**窱秒� ?��:**
-- ???�?籝� ?瞘祭 ?木� 諤��??(`scripts/setup_env.py`)
-- ???瞘祭 窶�鴞祢萼 (`scripts/validate_env.py`)
-- ??赬�? 穈?諤�擪??諻?貐渣猹
+---
 - ??篣域● 穈?貐渥● 諻?諻桿�
 - ???瞘祭貐??�� ?�� 窶�鴞?
 - ???䁯𡠺?月剳???木� 窶赭� (live 諈刺� localhost ??
