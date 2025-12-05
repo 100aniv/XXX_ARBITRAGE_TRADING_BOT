@@ -2701,6 +2701,43 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 
 ---
 
+### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
+
+**Status:** ✅ **COMPLETE**
+
+**목표:** D82-6 (구조적 마이너스) ~ D82-7 (거래 미발생) 사이 Gap을 메우는 Intermediate Threshold Zone (Entry 10-14, TP 12-20 bps)에서 Long-run Real PAPER 실행하여 운영 가능한 Threshold 후보 선정.
+
+**핵심 구현:**
+1. Runtime Edge Monitor (arbitrage/logging/trade_logger.py, +220 lines): Rolling Window (50 trades) 기준 실시간 Edge 통계, Effective Edge = Spread - Slippage - Fee, PnL 통계 (USD/bps), Win Rate 추적, JSONL Snapshot 로깅
+2. Intermediate Threshold Long-run Runner (scripts/run_d82_8_intermediate_threshold_longrun.py, ~450 lines): 3개 전략적 조합 (Entry [10,12,14] × TP [15,18,20]), 조합당 20분 실행 (총 60분), Edge Monitor 통합
+3. Comprehensive Testing (32/32 PASS): Unit Tests 12/12 PASS, Regression Tests 20/20 PASS (D82-5/7)
+
+**실행 결과 (17:36-18:36, 60분):**
+- Entry 10.0, TP 15.0: 7 entries, 6 RT, 0% Win Rate, -$3,498 PnL, 2.14 bps slip, 13.5ms latency
+- Entry 12.0, TP 18.0: 6 entries, 6 RT, 0% Win Rate, -$2,950 PnL, 2.14 bps slip, 14.4ms latency
+- Entry 14.0, TP 20.0: 7 entries, 6 RT, 0% Win Rate, -$4,050 PnL, 2.14 bps slip, 14.4ms latency
+
+**핵심 발견:**
+- ✅ 거래 발생 확인: 모든 조합 6 RT (D82-7 대비 무한대 개선)
+- ✅ Entry Threshold 적절: 10-14 bps는 거래 발생 확인
+- ❌ TP Threshold 과도하게 높음: 15-20 bps는 현재 시장 변동성 대비 달성 불가
+- ❌ Win Rate 0%: 모든 조합에서 TP 미도달 (exit_reason: time_limit)
+- ❌ PnL 악화: 평균 -$3,500 (D82-6 대비 4.7배 손실 증가)
+- ✅ 인프라 안정: Latency 13-14ms, CPU 35%, Memory 150MB (모두 목표 달성)
+
+**종합 판단:** ⚠️ CONDITIONAL GO - 인프라 준비 완료, TP Threshold 10-12 bps로 하향 조정 후 D82-9 재테스트 필요
+
+**산출물:**
+- arbitrage/logging/trade_logger.py (+220 lines)
+- scripts/run_d82_8_intermediate_threshold_longrun.py (~450 lines)
+- tests/test_d82_8_edge_monitor.py (~340 lines, 12/12 PASS)
+- docs/D82_8_INTERMEDIATE_THRESHOLD_LONGRUN_PAPER.md (~600 lines)
+- logs/d82-8/intermediate_threshold_longrun_summary.json + KPI/Edge Monitor logs
+
+**다음 단계:** D82-9 (TP 10-12 bps 재테스트), D83-x (WebSocket L2 Orderbook), D85-x (Bayesian Optimization with Runtime Edge Monitor)
+
+---
+
 - ??鴗𡢾�?竾� Settings 諈刺� (`arbitrage/config/settings.py`)
 - ??3?刷� ?瞘祭 諈刺桊 (local_dev, paper, live)
 - ???瞘祭貐?validation (local_dev: warnings, paper/live: strict)
