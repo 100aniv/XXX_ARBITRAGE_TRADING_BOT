@@ -18,10 +18,11 @@ Date: 2025-12-04
 
 import json
 import logging
+import statistics
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -428,3 +429,215 @@ def create_mock_trade_entry(
         risk_check_passed=True,
         notes="Mock trade entry for testing"
     )
+
+
+# =============================================================================
+# D82-8: Runtime Edge Monitor
+# =============================================================================
+
+@dataclass
+class EdgeSnapshot:
+    """
+    Runtime Edge 스냅샷
+    
+    특정 시점의 Rolling Window Edge 통계를 기록.
+    D85-x Tuning Cluster, Adaptive Threshold에서 재사용 가능.
+    """
+    timestamp: str
+    window_size: int  # 최근 N개 트레이드
+    
+    # Edge 통계
+    avg_spread_bps: float
+    avg_slippage_bps: float
+    avg_fee_bps: float
+    effective_edge_bps: float  # spread - slippage - fee
+    
+    # PnL 통계
+    avg_pnl_bps: float
+    total_pnl_usd: float
+    
+    # 거래 통계
+    total_trades: int
+    win_count: int
+    loss_count: int
+    win_rate: float
+
+
+class RuntimeEdgeMonitor:
+    """
+    Runtime Edge Monitor
+    
+    목적:
+        Real PAPER 실행 중에 Rolling Window 기준으로
+        Effective Edge, Slippage, PnL 통계를 실시간 계산/로깅.
+    
+    설계:
+        - Trade Logger가 남기는 TradeLogEntry 스트림을 구독
+        - 최근 N개 트레이드 기준 Rolling Window 계산
+        - Snapshot을 JSONL 형태로 로깅
+        - Settings를 통해 on/off 가능
+    
+    Usage:
+        monitor = RuntimeEdgeMonitor(window_size=50, output_path="logs/edge_monitor.jsonl")
+        monitor.record_trade(trade_entry)
+        snapshot = monitor.get_current_snapshot()
+    """
+    
+    def __init__(
+        self,
+        window_size: int = 50,
+        output_path: Optional[Path] = None,
+        enabled: bool = True,
+        fee_bps: float = 9.0  # Upbit 5bps + Binance 4bps
+    ):
+        """
+        Args:
+            window_size: Rolling window 크기 (최근 N개 트레이드)
+            output_path: Snapshot 로그 파일 경로 (JSONL)
+            enabled: 모니터 활성화 여부
+            fee_bps: 고정 수수료 (bps)
+        """
+        self.window_size = window_size
+        self.output_path = Path(output_path) if output_path else None
+        self.enabled = enabled
+        self.fee_bps = fee_bps
+        
+        # Rolling window buffer
+        self.trade_buffer: List[TradeLogEntry] = []
+        
+        # 로그 파일 초기화
+        if self.enabled and self.output_path:
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"[EdgeMonitor] Initialized: window={window_size}, output={output_path}")
+    
+    def record_trade(self, trade: TradeLogEntry) -> None:
+        """
+        트레이드를 기록하고 Rolling Window 업데이트.
+        
+        Args:
+            trade: TradeLogEntry 객체
+        """
+        if not self.enabled:
+            return
+        
+        # Buffer에 추가
+        self.trade_buffer.append(trade)
+        
+        # Window 크기 초과 시 오래된 트레이드 제거
+        if len(self.trade_buffer) > self.window_size:
+            self.trade_buffer.pop(0)
+        
+        # Snapshot 생성 & 로깅
+        if len(self.trade_buffer) >= min(10, self.window_size):  # 최소 10개 이상부터
+            snapshot = self.get_current_snapshot()
+            if snapshot and self.output_path:
+                self._log_snapshot(snapshot)
+    
+    def get_current_snapshot(self) -> Optional[EdgeSnapshot]:
+        """
+        현재 Rolling Window 기준 Edge Snapshot 생성.
+        
+        Returns:
+            EdgeSnapshot 또는 None (트레이드가 부족한 경우)
+        """
+        if not self.enabled or len(self.trade_buffer) == 0:
+            return None
+        
+        # Spread 계산 (Entry + Exit 평균)
+        spreads = []
+        for trade in self.trade_buffer:
+            # Entry/Exit spread 평균
+            if trade.entry_spread_bps and trade.exit_spread_bps:
+                avg_spread = (trade.entry_spread_bps + trade.exit_spread_bps) / 2.0
+                spreads.append(avg_spread)
+        
+        # Slippage 계산
+        slippages = []
+        for trade in self.trade_buffer:
+            if trade.buy_slippage_bps and trade.sell_slippage_bps:
+                avg_slip = (trade.buy_slippage_bps + trade.sell_slippage_bps) / 2.0
+                slippages.append(avg_slip)
+        
+        # PnL 계산
+        pnls_usd = []
+        pnls_bps = []
+        for trade in self.trade_buffer:
+            if trade.net_pnl_usd is not None:
+                pnls_usd.append(trade.net_pnl_usd)
+                # PnL (bps) 추정: notional ≈ order_quantity * fill_price
+                if trade.order_quantity and trade.fill_price_binance:
+                    notional = trade.order_quantity * trade.fill_price_binance
+                    if notional > 0:
+                        pnl_bps = (trade.net_pnl_usd / notional) * 10000.0
+                        pnls_bps.append(pnl_bps)
+        
+        # Win/Loss 카운트
+        win_count = sum(1 for trade in self.trade_buffer if trade.trade_result == "win")
+        loss_count = sum(1 for trade in self.trade_buffer if trade.trade_result == "loss")
+        
+        # 통계 계산
+        avg_spread = statistics.mean(spreads) if spreads else 0.0
+        avg_slip = statistics.mean(slippages) if slippages else 0.0
+        avg_pnl_bps = statistics.mean(pnls_bps) if pnls_bps else 0.0
+        total_pnl_usd = sum(pnls_usd) if pnls_usd else 0.0
+        win_rate = win_count / len(self.trade_buffer) if len(self.trade_buffer) > 0 else 0.0
+        
+        # Effective Edge = Spread - Slippage - Fee
+        effective_edge = avg_spread - avg_slip - self.fee_bps
+        
+        return EdgeSnapshot(
+            timestamp=datetime.utcnow().isoformat(),
+            window_size=len(self.trade_buffer),
+            avg_spread_bps=avg_spread,
+            avg_slippage_bps=avg_slip,
+            avg_fee_bps=self.fee_bps,
+            effective_edge_bps=effective_edge,
+            avg_pnl_bps=avg_pnl_bps,
+            total_pnl_usd=total_pnl_usd,
+            total_trades=len(self.trade_buffer),
+            win_count=win_count,
+            loss_count=loss_count,
+            win_rate=win_rate
+        )
+    
+    def _log_snapshot(self, snapshot: EdgeSnapshot) -> None:
+        """
+        Snapshot을 JSONL 형태로 로깅.
+        
+        Args:
+            snapshot: EdgeSnapshot 객체
+        """
+        if not self.output_path:
+            return
+        
+        try:
+            with open(self.output_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(asdict(snapshot), ensure_ascii=False) + '\n')
+        except Exception as e:
+            logger.warning(f"[EdgeMonitor] Failed to log snapshot: {e}")
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """
+        현재 상태 요약.
+        
+        Returns:
+            요약 딕셔너리
+        """
+        snapshot = self.get_current_snapshot()
+        if not snapshot:
+            return {
+                "enabled": self.enabled,
+                "window_size": self.window_size,
+                "current_trades": len(self.trade_buffer),
+                "status": "insufficient_data"
+            }
+        
+        return {
+            "enabled": self.enabled,
+            "window_size": self.window_size,
+            "current_trades": len(self.trade_buffer),
+            "effective_edge_bps": snapshot.effective_edge_bps,
+            "avg_pnl_bps": snapshot.avg_pnl_bps,
+            "win_rate": snapshot.win_rate,
+            "status": "active"
+        }
