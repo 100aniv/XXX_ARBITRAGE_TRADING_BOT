@@ -2821,35 +2821,6 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 
 **Next:** D82-11 (10min/20min/1h smoke test with recalibrated candidates)
 
----
-- ??Backward compatibility (APP_ENV 鴔�??
-- ??篣域● 儠竾� 謔秒玌?𧙖� (Telegram, AlertManager)
-
-**窱秒� ?嵸𦉘:**
-- `arbitrage/config/settings.py` (420 lines)
-- `.env.example`, `.env.local_dev.example`, `.env.paper.example`, `.env.live.example`
-- `tests/test_d78_settings.py` (16 tests, ALL PASS)
-- `docs/D78_SECRETS_AND_ENVIRONMENT_DESIGN.md`
-
-**?嵸擪??窶國頃:**
-- ??Tests: 16/16 PASS in 0.10s
-- ??Environment validation, DSN generation, Singleton behavior, Backward compatibility
-
-**Done Criteria:**
-- [x] ??鴗𡢾� Settings 諈刺� 窱秒�
-- [x] ??3 environments (local_dev, paper, live)
-- [x] ??.env templates (4 files)
-- [x] ??Tests 16/16 PASS
-
-**Centralized Credentials:**
-Upbit, Binance, Telegram, PostgreSQL, Redis, Email, Slack
-
-**Next:** ??D78-1 (Env Setup Wizard) or D77-0-RM (Real Market)
-
-### D78-1: Env Setup Wizard & Validator ??COMPLETED (2025-12-01)
-
-**Status:** ??**COMPLETE**
-
 **窱秒� ?��:**
 - ???�?籝� ?瞘祭 ?木� 諤��??(`scripts/setup_env.py`)
 - ???瞘祭 窶�鴞祢萼 (`scripts/validate_env.py`)
