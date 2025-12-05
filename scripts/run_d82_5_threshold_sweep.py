@@ -121,9 +121,9 @@ def build_command(
     run_id: str,
     args: argparse.Namespace,
     kpi_path: Path,
-) -> List[str]:
+) -> tuple[List[str], Dict[str, str]]:
     """
-    Build PowerShell command for a single threshold combination.
+    Build Python command for a single threshold combination.
     
     Args:
         entry_bps: Entry threshold (bps)
@@ -133,28 +133,29 @@ def build_command(
         kpi_path: Path to KPI output file
     
     Returns:
-        Command as list of strings (for subprocess.run)
+        Tuple of (command as list, environment variables dict)
     """
     project_root = Path(__file__).parent.parent
     runner_script = project_root / "scripts" / "run_d77_0_topn_arbitrage_paper.py"
     
-    # PowerShell 환경변수 설정 + Python 실행
+    # Python 직접 실행 (PowerShell 회피)
     cmd = [
-        "powershell",
-        "-Command",
-        f"$env:ARBITRAGE_ENV='paper'; "
-        f"$env:TOPN_ENTRY_MIN_SPREAD_BPS='{entry_bps}'; "
-        f"$env:TOPN_EXIT_TP_SPREAD_BPS='{tp_bps}'; "
-        f"python {runner_script} "
-        f"--data-source real "
-        f"--topn-size {args.topn_size} "
-        f"--run-duration-seconds {args.run_duration_seconds} "
-        f"--validation-profile {args.validation_profile} "
-        f"--kpi-output-path {kpi_path} "
-        f"--session-id {run_id}"
+        "python",
+        str(runner_script),
+        "--data-source", "real",
+        "--topn-size", str(args.topn_size),
+        "--run-duration-seconds", str(args.run_duration_seconds),
+        "--validation-profile", args.validation_profile,
+        "--kpi-output-path", str(kpi_path),
     ]
     
-    return cmd
+    # 환경 변수 dict (subprocess.run에 env로 전달)
+    env_vars = os.environ.copy()
+    env_vars["ARBITRAGE_ENV"] = "paper"
+    env_vars["TOPN_ENTRY_MIN_SPREAD_BPS"] = str(entry_bps)
+    env_vars["TOPN_EXIT_TP_SPREAD_BPS"] = str(tp_bps)
+    
+    return cmd, env_vars
 
 
 def load_kpi_json(kpi_path: Path) -> Optional[Dict[str, Any]]:
@@ -252,12 +253,13 @@ def execute_single_run(
     trade_log_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Build command
-    cmd = build_command(entry_bps, tp_bps, run_id, args, kpi_path)
+    cmd, env_vars = build_command(entry_bps, tp_bps, run_id, args, kpi_path)
     
     logger.info(f"[Run {run_id}] Entry={entry_bps} bps, TP={tp_bps} bps")
     
     if args.dry_run:
         logger.info(f"[DRY-RUN] Would execute: {' '.join(cmd)}")
+        logger.info(f"[DRY-RUN] Environment: TOPN_ENTRY_MIN_SPREAD_BPS={entry_bps}, TOPN_EXIT_TP_SPREAD_BPS={tp_bps}")
         # Dry-run: return dummy result
         return {
             "entry_bps": entry_bps,
@@ -277,23 +279,22 @@ def execute_single_run(
             "status": "dry_run",
         }
     
-    # Execute
+    # Execute (don't fail on exit code, check KPI instead)
+    exit_code = 0
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env_vars, check=True, capture_output=True, text=True)
         logger.info(f"[Run {run_id}] Execution completed successfully")
     except subprocess.CalledProcessError as e:
-        logger.error(f"[Run {run_id}] Execution failed: {e}")
-        logger.error(f"STDOUT: {e.stdout}")
-        logger.error(f"STDERR: {e.stderr}")
-        return {
-            "entry_bps": entry_bps,
-            "tp_bps": tp_bps,
-            "run_id": run_id,
-            "status": "failed",
-            "error": str(e),
-        }
+        exit_code = e.returncode
+        logger.warning(f"[Run {run_id}] Execution returned exit code {exit_code}")
+        if "SOME ACCEPTANCE CRITERIA FAILED" in e.stderr:
+            logger.info(f"[Run {run_id}] Validation failed, but KPI may still be available")
+        else:
+            logger.error(f"[Run {run_id}] Unexpected error: {e}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
     
-    # Load KPI
+    # Load KPI (even if validation failed)
     kpi = load_kpi_json(kpi_path)
     if not kpi:
         return {
@@ -301,6 +302,7 @@ def execute_single_run(
             "tp_bps": tp_bps,
             "run_id": run_id,
             "status": "kpi_missing",
+            "exit_code": exit_code,
         }
     
     # Parse Trade Log
