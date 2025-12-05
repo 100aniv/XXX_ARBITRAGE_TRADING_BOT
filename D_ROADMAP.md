@@ -2734,15 +2734,11 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 - docs/D82_8_INTERMEDIATE_THRESHOLD_LONGRUN_PAPER.md (~600 lines)
 - logs/d82-8/intermediate_threshold_longrun_summary.json + KPI/Edge Monitor logs
 
-**다음 단계:** D82-9 (TP 10-12 bps 재테스트), D83-x (WebSocket L2 Orderbook), D85-x (Bayesian Optimization with Runtime Edge Monitor)
+**다음 단계:** D82-9 (TP 13-15 bps 재테스트), D83-x (WebSocket L2 Orderbook), D85-x (Bayesian Optimization with Runtime Edge Monitor)
 
 ---
 
-- ??鴗𡢾�?竾� Settings 諈刺� (`arbitrage/config/settings.py`)
-- ??3?刷� ?瞘祭 諈刺桊 (local_dev, paper, live)
-- ???瞘祭貐?validation (local_dev: warnings, paper/live: strict)
-- ???.env ?𨂃�謔?4鮈?(example, local_dev, paper, live)
-- ??.env ?𨂃�謔?4鮈?(example, local_dev, paper, live)
+### D82-9: TP 13-15 bps Fine-tuning & Real PAPER Validation ⏳ IN PROGRESS (2025-12-05)
 - ??Backward compatibility (APP_ENV 鴔�??
 - ??篣域● 儠竾� 謔秒玌?𧙖� (Telegram, AlertManager)
 
