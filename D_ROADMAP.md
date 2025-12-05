@@ -2739,6 +2739,89 @@ cat logs/d82-5/threshold_sweep_summary.json | jq '.results[] | {entry_bps, tp_bp
 ---
 
 ### D82-9: TP 13-15 bps Fine-tuning & Real PAPER Validation ❌ NO-GO (2025-12-05)
+
+**Status:** ❌ **NO-GO** (Threshold overcorrection, Edge < 0)
+
+**Result:**
+- 5 candidates (Entry [10, 12] × TP [13, 14, 15]): ALL FAILED
+- Win Rate: 0% (11/11 exits = time_limit, 0 TP exits)
+- Total PnL: -$1,271 (average), negative for all
+- Buy Fill Ratio: 26.15% (extremely low, Mock Fill Model issue)
+- Round Trips: 2.2 average (99.9% degradation vs D77-4)
+
+**Root Causes:**
+1. Entry/TP thresholds 2-3x higher than D77-4 baseline (~5-10 bps)
+2. Minimum cost 13.28 bps (Slippage 2.14*2 + Fee 9.0) exceeds all D82-9 spreads
+3. All D82-9 combinations have Edge < 0 (structurally losing)
+4. Mock Fill Model pessimism (26% buy fill vs D77-4 likely 100%)
+
+**Key Files:**
+- `docs/D82/D82-9_ANALYSIS.md` (250+ lines, comprehensive analysis)
+- `docs/D82_9_TP_FINE_TUNING_PAPER.md` (updated with results)
+- `scripts/analyze_d82_9_kpi_deepdive.py` (KPI parser & CSV export)
+- `scripts/run_d82_9_paper_candidates_longrun.py` (enhanced runner with timeout & KPI verification)
+- `tests/test_d82_9_tp_finetuning.py` (14/14 tests PASS, includes runner tests)
+- `logs/d82-9/runs/*.json` (5 KPI files)
+
+**Lessons:**
+- TP 13-15 bps is fundamentally unreachable in current market regime
+- Edge model recalibration required with D82-9 measured costs
+- L2 Orderbook integration (D83-x) is HIGH PRIORITY
+
+**Next:** D82-10 (Edge model recalibration) → D82-11 (Smoke test with recalibrated candidates)
+
+---
+
+### D82-10: Recalibrated Edge Model & TP/Entry Re-selection ✅ COMPLETE (2025-12-05)
+
+**Status:** ✅ **COMPLETE**
+
+**Objective:**
+- Use D82-9 measured costs to recalibrate D82-7 theoretical Edge model
+- Generate Optimistic/Realistic/Conservative scenarios
+- Select viable candidates (Edge >= 0) for D82-11 PAPER validation
+
+**Key Findings:**
+1. **D82-9 Cost Structure (measured):**
+   - Slippage: 2.14 bps (per trade, consistent across all)
+   - Fee: 9.0 bps (Upbit 5 + Binance 4)
+   - Total Roundtrip Cost: 13.28 bps (2.14*2 + 9.0)
+   - Buy Fill Ratio: 26.15% (Mock Model pessimism)
+
+2. **D82-9 Combinations Edge Analysis:**
+   - Entry 10, TP 13: Edge -1.77 bps (FAIL)
+   - Entry 10, TP 14: Edge -1.27 bps (FAIL)
+   - Entry 10, TP 15: Edge -0.77 bps (FAIL)
+   - Entry 12, TP 13: Edge -0.77 bps (FAIL)
+   - Entry 12, TP 14: Edge -0.27 bps (FAIL)
+   - **All D82-9 combinations: Edge < 0**
+
+3. **Recalibrated Candidates (Edge >= 0):**
+   - Total: 8 candidates selected
+   - All have Edge >= +0.72 bps (Conservative scenario)
+   - Top 5 recommended (Edge >= +0.5 bps)
+
+**Top 5 Recommended Candidates:**
+1. **Entry 16, TP 18**: Edge +3.73 bps (highest, conservative)
+2. **Entry 14, TP 18**: Edge +2.73 bps (high edge, balanced entry)
+3. **Entry 16, TP 16**: Edge +2.73 bps (balanced, conservative)
+4. **Entry 12, TP 18**: Edge +1.73 bps (lower entry, high TP)
+5. **Entry 14, TP 16**: Edge +1.73 bps (balanced)
+
+**Key Files:**
+- `docs/D82/D82-10_RECALIBRATED_EDGE_MODEL.md` (comprehensive report, 400+ lines)
+- `scripts/compute_d82_9_cost_profile.py` (KPI → cost profile)
+- `scripts/recalibrate_d82_edge_model.py` (Edge recalibration, scenario analysis)
+- `tests/test_d82_10_edge_recalibration.py` (8/8 tests PASS)
+- `logs/d82-10/d82_9_cost_profile.json` (measured costs)
+- `logs/d82-10/recalibrated_tp_entry_candidates.json` (8 candidates)
+- `logs/d82-10/edge_recalibration_report.json` (detailed report)
+
+**Tests:** 8/8 PASS (100%)
+
+**Next:** D82-11 (10min/20min/1h smoke test with recalibrated candidates)
+
+---
 - ??Backward compatibility (APP_ENV 鴔�??
 - ??篣域● 儠竾� 謔秒玌?𧙖� (Telegram, AlertManager)
 
