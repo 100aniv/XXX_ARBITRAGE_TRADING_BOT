@@ -2929,6 +2929,38 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D83-0: L2 Orderbook Integration – Real Fill Input Baseline ✅ COMPLETE (2025-12-06)
+
+**Status:** ✅ **COMPLETE** (Root Cause Resolved)
+
+**목표:** Fill Model 26.15% 고정 문제의 근본 원인(`available_volume` 하드코딩) 해결
+
+**핵심 성과:**
+- Root Cause 해결: `available_volume` 하드코딩 → L2 기반 실제 값
+- PaperExecutor L2 연동 (market_data_provider 파라미터)
+- 51/51 Tests PASS (100%)
+- Backwards Compatible
+
+**구현:** PaperExecutor + `_get_available_volume_from_orderbook()` (+65 lines)
+
+**테스트:** 10/10 새 테스트 + 41/41 기존 테스트 = 51/51 PASS
+
+**Before vs After:**
+- `available_volume`: 0.001 (고정) → 0.05, 0.03, 0.08... (실시간 변동)
+- Fill Ratio: 0.2615 (고정) → 분산 발생
+
+**산출물:**
+- `arbitrage/execution/executor.py` (+65 lines)
+- `tests/test_d83_0_l2_available_volume.py` (10 tests)
+- `docs/D83/D83-0_L2_ORDERBOOK_DESIGN.md`
+- `docs/D83/D83-0_L2_ORDERBOOK_REPORT.md`
+
+**Final Decision:** ✅ ROOT CAUSE RESOLVED
+
+**Next Steps:** D83-0.5 PAPER 스모크, D84-2 장기 PAPER, D83-1+ Multi-level
+
+---
+
 ### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
 
 **Status:** ✅ **COMPLETE**

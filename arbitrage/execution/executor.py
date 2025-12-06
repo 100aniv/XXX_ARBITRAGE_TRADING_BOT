@@ -145,6 +145,7 @@ class PaperExecutor(BaseExecutor):
         enable_fill_model: bool = False,
         fill_model: Optional[BaseFillModel] = None,
         default_available_volume_factor: float = 2.0,
+        market_data_provider = None,
     ):
         """
         Args:
@@ -154,6 +155,7 @@ class PaperExecutor(BaseExecutor):
             enable_fill_model: Fill Model 활성화 여부 (D80-4)
             fill_model: 사용할 Fill Model 인스턴스 (None이면 기본 생성)
             default_available_volume_factor: 호가 잔량 추정 계수 (order_qty * factor)
+            market_data_provider: L2 Orderbook Provider (D83-0, Optional)
         """
         super().__init__(symbol, portfolio_state, risk_guard)
         self.positions: Dict[str, Position] = {}
@@ -167,6 +169,9 @@ class PaperExecutor(BaseExecutor):
             self.fill_model = create_default_fill_model()
         else:
             self.fill_model = fill_model
+        
+        # D83-0: L2 Orderbook Provider
+        self.market_data_provider = market_data_provider
         
         logger.info(
             f"[D61_PAPER_EXECUTOR] Initialized for {symbol} "
@@ -336,6 +341,64 @@ class PaperExecutor(BaseExecutor):
         
         return result
     
+    def _get_available_volume_from_orderbook(
+        self,
+        symbol: str,
+        side: OrderSide,
+        target_price: float,
+        fallback_quantity: float,
+    ) -> float:
+        """
+        D83-0: L2 Orderbook에서 available_volume 계산
+        
+        L2 Orderbook의 Best Level (첫 번째 호가) volume을 반환한다.
+        Orderbook이 없거나 Provider가 없으면 기존 fallback 로직 사용.
+        
+        Args:
+            symbol: 거래 심볼
+            side: BUY or SELL
+            target_price: 목표 가격 (현재 미사용, D83-1+에서 활용)
+            fallback_quantity: Orderbook 없을 시 fallback (기존 로직)
+        
+        Returns:
+            available_volume (실제 L2 기반 값 또는 fallback)
+        
+        Notes:
+            - D83-0 (Baseline): Best level volume만 사용
+            - D83-1+ (Future): Multi-level aggregation, price impact 고려
+        """
+        # Provider 없으면 기존 fallback 로직
+        if self.market_data_provider is None:
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # Orderbook snapshot 가져오기
+        snapshot = self.market_data_provider.get_latest_snapshot(symbol)
+        if snapshot is None:
+            logger.warning(f"[D83-0_L2] No snapshot for {symbol}, using fallback")
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # L2 Orderbook에서 available_volume 계산
+        if side == OrderSide.BUY:
+            # BUY: asks 사용 (매도 호가)
+            levels = snapshot.asks
+        else:
+            # SELL: bids 사용 (매수 호가)
+            levels = snapshot.bids
+        
+        if not levels:
+            logger.warning(f"[D83-0_L2] Empty {side.value} levels for {symbol}, using fallback")
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # Best Level의 volume 반환 (1단계)
+        best_price, best_volume = levels[0]
+        
+        logger.debug(
+            f"[D83-0_L2] {symbol} {side.value} available_volume={best_volume:.6f} "
+            f"(best_price={best_price:.2f}, fallback={fallback_quantity * self.default_available_volume_factor:.6f})"
+        )
+        
+        return best_volume
+    
     def _execute_single_trade_with_fill_model(self, trade) -> ExecutionResult:
         """
         D80-4: Fill Model 적용 거래 실행
@@ -348,10 +411,20 @@ class PaperExecutor(BaseExecutor):
         Returns:
             Fill Model 결과가 반영된 ExecutionResult
         """
-        # TODO(D81-x): 실제 호가 잔량을 orderbook에서 가져오기
-        # 현재는 보수적 기본값 사용
-        buy_available_volume = trade.quantity * self.default_available_volume_factor
-        sell_available_volume = trade.quantity * self.default_available_volume_factor
+        # D83-0: L2 Orderbook 기반 available_volume 계산
+        buy_available_volume = self._get_available_volume_from_orderbook(
+            symbol=self.symbol,
+            side=OrderSide.BUY,
+            target_price=trade.buy_price,
+            fallback_quantity=trade.quantity,
+        )
+        
+        sell_available_volume = self._get_available_volume_from_orderbook(
+            symbol=self.symbol,
+            side=OrderSide.SELL,
+            target_price=trade.sell_price,
+            fallback_quantity=trade.quantity,
+        )
         
         # 1. 매수 Fill Model 실행
         buy_context = FillContext(
