@@ -653,7 +653,21 @@ class CalibrationTable:
             매칭된 Zone (없으면 None)
         """
         for zone_data in self.zones:
-            zone = CalibrationZone(**zone_data) if isinstance(zone_data, dict) else zone_data
+            if isinstance(zone_data, dict):
+                # CalibrationZone에 필요한 필드만 추출
+                zone = CalibrationZone(
+                    zone_id=zone_data["zone_id"],
+                    entry_min=zone_data["entry_min"],
+                    entry_max=zone_data["entry_max"],
+                    tp_min=zone_data["tp_min"],
+                    tp_max=zone_data["tp_max"],
+                    buy_fill_ratio=zone_data["buy_fill_ratio"],
+                    sell_fill_ratio=zone_data["sell_fill_ratio"],
+                    samples=zone_data["samples"],
+                )
+            else:
+                zone = zone_data
+            
             if (zone.entry_min <= entry_bps <= zone.entry_max and
                 zone.tp_min <= tp_bps <= zone.tp_max):
                 return zone

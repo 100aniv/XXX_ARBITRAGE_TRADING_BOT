@@ -2915,17 +2915,18 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 - L2 Orderbook 부재 (D83-x 필수)
 
 **산출물:**
-- 코드: 3개 컴포넌트 (CalibratedFillModel, FillEventCollector, FillModelCalibrator) + 20개 테스트
-- 데이터: `logs/d84/d84_1_calibration.json`
-- 문서: `docs/D84/D84-1_FILL_MODEL_REPORT.md`
-- 스크립트: `scripts/generate_d84_1_calibration.py`
+- 코드: Runner + 분석 스크립트 + 5개 테스트
+- 데이터: `logs/d84-2/fill_events_20251206_041315.jsonl` (60 events)
+- 데이터: `logs/d84-2/kpi_20251206_041315.json`
+- 문서: `docs/D84/D84-2_FILL_MODEL_DESIGN.md` (설계 문서)
+- 문서: `docs/D84/D84-2_FILL_MODEL_VALIDATION_REPORT.md` (검증 리포트)
 
-**Final Decision:** ✅ **INFRASTRUCTURE COMPLETE**
+**Final Decision:** ✅ **VALIDATION COMPLETE** (Infrastructure 정상 작동 확인)
 
 **Next Steps:**
-1. **D83-x:** L2 Orderbook 통합 (HIGH Priority, 근본적 해결책)
-2. **D84-2:** 장기 PAPER 검증 (50+ RTs 수집, 선택적)
-3. **D85-x:** Multi-Symbol Fill Model (Symbol별 Fill Ratio 차이)
+1. **D83-1:** Real L2 WebSocket 통합 + CalibratedFillModel 재검증 (HIGH Priority)
+2. **D85-x:** 더 다양한 Entry/TP 조합으로 장기 데이터 수집 (Zone별 차이 관측)
+3. **D82-13:** D77-4 조건 재현 (선택적)
 
 ---
 
