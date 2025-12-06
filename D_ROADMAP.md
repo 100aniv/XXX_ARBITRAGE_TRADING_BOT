@@ -2870,6 +2870,64 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D84-1: Fill Model v1 – Full Implementation & Infrastructure Complete ✅ COMPLETE (2025-12-06)
+
+**Status:** ✅ **COMPLETE** (Full Infrastructure Implementation)
+
+**목표:** D84-0 설계를 기반으로 CalibratedFillModel + FillEventCollector + FillModelCalibrator를 **완전히 구현**하고, 20개 유닛 테스트로 검증. Fill Model v1 Infrastructure 100% 완성.
+
+**핵심 성과:**
+- CalibratedFillModel 구현 (Zone별 Fill Ratio 보정, Composition 패턴)
+- FillEventCollector 구현 (실시간 Fill Event JSONL 수집, Thread-safe)
+- FillModelCalibrator 구현 (Zone별 통계 계산, Calibration JSON 생성)
+- 20개 유닛 테스트 작성 및 통과 (20/20 PASS)
+- Calibration JSON 생성 (d84_1_calibration.json)
+- 기존 테스트 99+ 유지 (DO-NOT-TOUCH 원칙)
+
+**구현 완료:**
+1. **CalibratedFillModel** (`arbitrage/execution/fill_model.py` +215 lines)
+   - BaseFillModel 상속, Composition으로 SimpleFillModel 재사용
+   - Zone matching 로직 (CalibrationTable.select_zone)
+   - Fill Ratio 보정 (calibrated_fill_ratio 적용)
+   - Fallback to default (Zone 미매칭 시)
+2. **FillEventCollector** (`arbitrage/metrics/fill_stats.py` 새 파일, 200 lines)
+   - 실시간 Fill Event 수집 (symbol, side, entry/tp, fill_ratio, slippage)
+   - JSONL 형식 저장 (스트리밍 append)
+   - Thread-safe (Lock), 선택적 활성화 (enabled flag)
+3. **FillModelCalibrator** (`arbitrage/analysis/fill_calibrator.py` 새 파일, 280 lines)
+   - JSONL 로드, Zone별 통계 계산 (평균, 중앙값, 샘플 수)
+   - Calibration JSON 생성 (zones, default fill ratios)
+
+**테스트 결과:**
+- 20개 유닛 테스트 (20/20 PASS)
+  - `test_d84_1_calibrated_fill_model.py` (10 tests): Zone matching, Calibration Ratio 적용, Fallback, Slippage 유지
+  - `test_d84_1_fill_event_collector.py` (5 tests): 이벤트 기록, JSONL 형식, Disabled 상태
+  - `test_d84_1_fill_calibrator.py` (5 tests): JSONL 로드, Zone별 통계, Calibration JSON 생성
+
+**Calibration 결과 (D82 데이터 기반):**
+- Total Events: 30 (D82-11/12)
+- Zone별 Fill Ratio: Z1=0.2615 (12 samples), Z2=0.2615 (6 samples), Z3=0.0 (0 samples), Z4=0.2615 (12 samples)
+- **핵심 발견:** 모든 Zone 26.15% 동일 → D82 데이터 한계 재확인
+
+**한계점:**
+- D82 데이터만으로는 Zone별 차이 관측 불가
+- 장기 PAPER 미실행 (D84-2로 연기)
+- L2 Orderbook 부재 (D83-x 필수)
+
+**산출물:**
+- 코드: 3개 컴포넌트 (CalibratedFillModel, FillEventCollector, FillModelCalibrator) + 20개 테스트
+- 데이터: `logs/d84/d84_1_calibration.json`
+- 문서: `docs/D84/D84-1_FILL_MODEL_REPORT.md`
+- 스크립트: `scripts/generate_d84_1_calibration.py`
+
+**Final Decision:** ✅ **INFRASTRUCTURE COMPLETE**
+
+**Next Steps:**
+1. **D83-x:** L2 Orderbook 통합 (HIGH Priority, 근본적 해결책)
+2. **D84-2:** 장기 PAPER 검증 (50+ RTs 수집, 선택적)
+3. **D85-x:** Multi-Symbol Fill Model (Symbol별 Fill Ratio 차이)
+
+---
 
 ### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
 

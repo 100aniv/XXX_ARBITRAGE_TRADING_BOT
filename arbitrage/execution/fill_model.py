@@ -592,6 +592,209 @@ class AdvancedFillModel(BaseFillModel):
         return total_filled_qty, total_cost
 
 
+@dataclass
+class CalibrationZone:
+    """
+    D84-1: Calibration Zone 정의
+    
+    Entry/TP Threshold 구간별 Fill Ratio 보정 정보.
+    
+    Attributes:
+        zone_id: Zone 식별자 (예: "Z1", "Z2")
+        entry_min: Entry Threshold 하한 (bps)
+        entry_max: Entry Threshold 상한 (bps)
+        tp_min: TP Threshold 하한 (bps)
+        tp_max: TP Threshold 상한 (bps)
+        buy_fill_ratio: BUY 체결률 (0.0 ~ 1.0)
+        sell_fill_ratio: SELL 체결률 (0.0 ~ 1.0)
+        samples: 샘플 수 (통계적 신뢰도)
+    """
+    zone_id: str
+    entry_min: float
+    entry_max: float
+    tp_min: float
+    tp_max: float
+    buy_fill_ratio: float
+    sell_fill_ratio: float
+    samples: int
+
+
+@dataclass
+class CalibrationTable:
+    """
+    D84-1: Calibration Table
+    
+    Zone별 Fill Ratio 보정 데이터를 담는 테이블.
+    
+    Attributes:
+        version: Calibration 버전 (예: "d84_1")
+        zones: Zone 리스트
+        default_buy_fill_ratio: Zone 미매칭 시 기본 BUY Fill Ratio
+        default_sell_fill_ratio: Zone 미매칭 시 기본 SELL Fill Ratio
+        created_at: 생성 시각
+        source: 데이터 출처
+    """
+    version: str
+    zones: list
+    default_buy_fill_ratio: float
+    default_sell_fill_ratio: float
+    created_at: str
+    source: str
+    
+    def select_zone(self, entry_bps: float, tp_bps: float) -> CalibrationZone:
+        """
+        Entry/TP에 해당하는 Zone 선택
+        
+        Args:
+            entry_bps: Entry Threshold (bps)
+            tp_bps: TP Threshold (bps)
+        
+        Returns:
+            매칭된 Zone (없으면 None)
+        """
+        for zone_data in self.zones:
+            zone = CalibrationZone(**zone_data) if isinstance(zone_data, dict) else zone_data
+            if (zone.entry_min <= entry_bps <= zone.entry_max and
+                zone.tp_min <= tp_bps <= zone.tp_max):
+                return zone
+        return None
+    
+    def get_fill_ratio(self, zone: CalibrationZone, side: OrderSide) -> float:
+        """
+        Zone/side별 Fill Ratio 반환
+        
+        Args:
+            zone: Calibration Zone (None이면 기본값)
+            side: OrderSide (BUY/SELL)
+        
+        Returns:
+            Fill Ratio (0.0 ~ 1.0)
+        """
+        if zone is None:
+            return self.default_buy_fill_ratio if side == OrderSide.BUY else self.default_sell_fill_ratio
+        
+        return zone.buy_fill_ratio if side == OrderSide.BUY else zone.sell_fill_ratio
+
+
+class CalibratedFillModel(BaseFillModel):
+    """
+    D84-1: Calibrated Fill Model v1
+    
+    실측 데이터 기반 Zone별 Fill Ratio 보정.
+    
+    메커니즘:
+        1. 기존 SimpleFillModel로 baseline Fill 계산
+        2. Entry/TP Zone 판단
+        3. Zone별 Calibration Ratio 적용
+        4. 최종 Fill Ratio = baseline * calibration_ratio
+    
+    특징:
+        - DO-NOT-TOUCH: SimpleFillModel 로직 그대로 사용
+        - 상속 대신 Composition으로 기존 모델 재사용
+        - Zone 미매칭 시 기본 모델 동작 유지
+    
+    Args:
+        base_model: 기존 Fill Model (SimpleFillModel 또는 AdvancedFillModel)
+        calibration: Calibration Table
+        entry_bps: Entry Threshold (Zone matching용)
+        tp_bps: TP Threshold (Zone matching용)
+    """
+    
+    def __init__(
+        self,
+        base_model: BaseFillModel,
+        calibration: CalibrationTable,
+        entry_bps: float = 0.0,
+        tp_bps: float = 0.0,
+    ):
+        """
+        CalibratedFillModel 초기화
+        
+        Args:
+            base_model: 기존 Fill Model
+            calibration: Calibration Table
+            entry_bps: Entry Threshold
+            tp_bps: TP Threshold
+        """
+        self.base_model = base_model
+        self.calibration = calibration
+        self.entry_bps = entry_bps
+        self.tp_bps = tp_bps
+        
+        # Zone 선택
+        self.zone = calibration.select_zone(entry_bps, tp_bps)
+        zone_id = self.zone.zone_id if self.zone else "DEFAULT"
+        
+        logger.info(
+            f"[D84-1_CALIBRATED_FILL_MODEL] 초기화: "
+            f"Entry={entry_bps:.1f}bps, TP={tp_bps:.1f}bps, "
+            f"Zone={zone_id}, "
+            f"Calibration={calibration.version}"
+        )
+    
+    def execute(self, context: FillContext) -> FillResult:
+        """
+        Calibrated Fill Model 실행
+        
+        1. 기존 모델로 baseline Fill 계산
+        2. Zone/side별 Calibration Ratio 적용
+        3. Fill Ratio 보정
+        
+        Args:
+            context: 주문 및 시장 정보
+        
+        Returns:
+            Calibration이 적용된 체결 결과
+        """
+        # 1. 기존 모델로 baseline 계산
+        base_result = self.base_model.execute(context)
+        
+        # 2. Calibration Ratio 가져오기
+        calibrated_fill_ratio = self.calibration.get_fill_ratio(self.zone, context.side)
+        
+        # 3. Fill Ratio 보정 (baseline 대비 calibrated 비율 적용)
+        # 예: baseline=0.5, calibrated=0.3 → 최종=0.3 (calibrated 값을 직접 사용)
+        if calibrated_fill_ratio > 0:
+            adjustment_factor = calibrated_fill_ratio / max(base_result.fill_ratio, 0.01)
+            adjusted_filled_qty = base_result.filled_quantity * adjustment_factor
+            adjusted_fill_ratio = calibrated_fill_ratio
+        else:
+            adjusted_filled_qty = base_result.filled_quantity
+            adjusted_fill_ratio = base_result.fill_ratio
+        
+        # Clamp to valid range
+        adjusted_filled_qty = min(adjusted_filled_qty, context.order_quantity)
+        adjusted_filled_qty = max(adjusted_filled_qty, 0.0)
+        adjusted_fill_ratio = adjusted_filled_qty / context.order_quantity if context.order_quantity > 0 else 0.0
+        
+        # Status 재결정
+        if adjusted_filled_qty == 0:
+            status = "unfilled"
+        elif adjusted_filled_qty < context.order_quantity:
+            status = "partially_filled"
+        else:
+            status = "filled"
+        
+        # Effective Price는 baseline 사용 (Slippage 로직은 기존 모델 그대로)
+        effective_price = base_result.effective_price
+        slippage_bps = base_result.slippage_bps
+        
+        logger.debug(
+            f"[D84-1_CALIBRATED_FILL_MODEL] {context.symbol} {context.side.value}: "
+            f"Baseline={base_result.fill_ratio:.4f} → Calibrated={adjusted_fill_ratio:.4f}, "
+            f"Zone={self.zone.zone_id if self.zone else 'DEFAULT'}"
+        )
+        
+        return FillResult(
+            filled_quantity=adjusted_filled_qty,
+            unfilled_quantity=context.order_quantity - adjusted_filled_qty,
+            effective_price=effective_price,
+            slippage_bps=slippage_bps,
+            fill_ratio=adjusted_fill_ratio,
+            status=status,
+        )
+
+
 # 편의 함수: 기본 Fill Model 인스턴스 생성
 def create_default_fill_model(
     enable_partial_fill: bool = True,
