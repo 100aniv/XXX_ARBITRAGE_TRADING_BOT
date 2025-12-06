@@ -38,17 +38,23 @@ class ExecutorFactory:
         portfolio_state: PortfolioState,
         risk_guard: RiskGuard,
         fill_model_config: Optional[FillModelConfig] = None,
+        market_data_provider = None,
+        fill_event_collector = None,
     ) -> PaperExecutor:
         """
         D61: Paper Executor 생성
         D80-4: Fill Model 지원
         D81-0: Settings 기반 Fill Model 주입
+        D83-0: L2 Orderbook Provider 지원
+        D83-0.5: FillEventCollector 지원
         
         Args:
             symbol: 거래 심볼
             portfolio_state: 포트폴리오 상태
             risk_guard: 리스크 가드
             fill_model_config: Fill Model 설정 (None이면 기본값 사용)
+            market_data_provider: L2 Orderbook Provider (D83-0, Optional)
+            fill_event_collector: Fill Event Collector (D83-0.5, Optional)
         
         Returns:
             PaperExecutor 인스턴스
@@ -102,6 +108,7 @@ class ExecutorFactory:
                 )
                 fill_model_instance = SimpleFillModel()
         
+        # D83-0.5: market_data_provider + fill_event_collector 전달
         executor = PaperExecutor(
             symbol=symbol,
             portfolio_state=portfolio_state,
@@ -109,12 +116,16 @@ class ExecutorFactory:
             enable_fill_model=fill_model_config.enable_fill_model,
             fill_model=fill_model_instance,
             default_available_volume_factor=fill_model_config.available_volume_factor,
+            market_data_provider=market_data_provider,
+            fill_event_collector=fill_event_collector,
         )
         
         self.executors[symbol] = executor
         logger.info(
             f"[D61_EXECUTOR_FACTORY] Created PaperExecutor for {symbol} "
-            f"(fill_model={fill_model_config.enable_fill_model})"
+            f"(fill_model={fill_model_config.enable_fill_model}, "
+            f"l2_provider={market_data_provider is not None}, "
+            f"event_collector={fill_event_collector is not None})"
         )
         
         return executor

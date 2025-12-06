@@ -146,6 +146,7 @@ class PaperExecutor(BaseExecutor):
         fill_model: Optional[BaseFillModel] = None,
         default_available_volume_factor: float = 2.0,
         market_data_provider = None,
+        fill_event_collector = None,
     ):
         """
         Args:
@@ -156,6 +157,7 @@ class PaperExecutor(BaseExecutor):
             fill_model: 사용할 Fill Model 인스턴스 (None이면 기본 생성)
             default_available_volume_factor: 호가 잔량 추정 계수 (order_qty * factor)
             market_data_provider: L2 Orderbook Provider (D83-0, Optional)
+            fill_event_collector: Fill Event Collector (D83-0.5, Optional)
         """
         super().__init__(symbol, portfolio_state, risk_guard)
         self.positions: Dict[str, Position] = {}
@@ -173,9 +175,13 @@ class PaperExecutor(BaseExecutor):
         # D83-0: L2 Orderbook Provider
         self.market_data_provider = market_data_provider
         
+        # D83-0.5: Fill Event Collector
+        self.fill_event_collector = fill_event_collector
+        
         logger.info(
             f"[D61_PAPER_EXECUTOR] Initialized for {symbol} "
-            f"(fill_model={enable_fill_model})"
+            f"(fill_model={enable_fill_model}, l2_provider={market_data_provider is not None}, "
+            f"event_collector={fill_event_collector is not None})"
         )
     
     def execute_trades(self, trades: List) -> List[ExecutionResult]:
@@ -538,6 +544,39 @@ class PaperExecutor(BaseExecutor):
             f"(slippage={sell_fill_result.slippage_bps:.2f}bps), "
             f"pnl={pnl:.2f}, status={exec_status}"
         )
+        
+        # D83-0.5: Fill Event 기록 (BUY + SELL)
+        if self.fill_event_collector is not None:
+            # BUY Event
+            self.fill_event_collector.record_fill_event(
+                symbol=self.symbol,
+                side=OrderSide.BUY,
+                entry_bps=0.0,  # TODO: 실제 Entry/TP 값 전달
+                tp_bps=0.0,
+                order_quantity=trade.quantity,
+                filled_quantity=buy_fill_result.filled_quantity,
+                fill_ratio=buy_fill_result.fill_ratio,
+                slippage_bps=buy_fill_result.slippage_bps,
+                available_volume=buy_available_volume,
+                spread_bps=0.0,  # TODO: 실제 Spread 계산
+                exit_reason="unknown",
+                latency_ms=None,
+            )
+            # SELL Event
+            self.fill_event_collector.record_fill_event(
+                symbol=self.symbol,
+                side=OrderSide.SELL,
+                entry_bps=0.0,
+                tp_bps=0.0,
+                order_quantity=buy_fill_result.filled_quantity,
+                filled_quantity=sell_fill_result.filled_quantity,
+                fill_ratio=sell_fill_result.fill_ratio,
+                slippage_bps=sell_fill_result.slippage_bps,
+                available_volume=sell_available_volume,
+                spread_bps=0.0,
+                exit_reason="unknown",
+                latency_ms=None,
+            )
         
         return result
     

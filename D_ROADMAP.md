@@ -2961,6 +2961,47 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D83-0.5: L2 Fill Model PAPER Smoke Validation ✅ COMPLETE (2025-12-06)
+
+**Status:** ✅ **ACCEPTED**
+
+**목표:** D83-0 + D84-1 통합 검증 (L2 Orderbook + FillEventCollector)
+
+**핵심 성과:**
+- ✅ **L2 available_volume 분산 확인:** BUY/SELL 모두 std > 10% of mean (27.5%, 23.3%)
+- ✅ **FillEventCollector 동작 확인:** 24 events logged (JSONL 형식)
+- ✅ **ExecutorFactory 확장:** `market_data_provider` + `fill_event_collector` 파라미터 추가
+- ✅ **PaperExecutor 통합:** L2 + FillEventCollector end-to-end 연동
+- ✅ **100% Test Pass:** D83-0 (10/10) + D84-1 (15/15) = 25/25 PASS
+
+**구현:**
+- `ExecutorFactory.create_paper_executor()`: 2개 파라미터 추가 (+10 lines)
+- `PaperExecutor.__init__()`: `fill_event_collector` 저장 (+3 lines)
+- `PaperExecutor._execute_single_trade_with_fill_model()`: Fill Event 기록 (+42 lines)
+- `scripts/run_d83_0_5_l2_fill_paper_minimal.py`: Minimal PAPER runner (+300 lines)
+- `scripts/analyze_d83_0_5_fill_events.py`: Fill event 분석 도구 (+250 lines)
+
+**실행 결과 (120초 PAPER):**
+- Entry Trades: 12
+- Fill Events: 24 (12 BUY + 12 SELL)
+- BUY available_volume: 0.063~0.149 (mean=0.104, std=0.028)
+- SELL available_volume: 0.064~0.145 (mean=0.115, std=0.027)
+- fill_ratio: 100% (SimpleFillModel 기본 동작)
+
+**산출물:**
+- `arbitrage/execution/executor_factory.py` (modified)
+- `arbitrage/execution/executor.py` (modified)
+- `scripts/run_d83_0_5_l2_fill_paper_minimal.py` (new)
+- `scripts/analyze_d83_0_5_fill_events.py` (new)
+- `docs/D83/D83-0_5_L2_FILL_MODEL_PAPER_SMOKE_REPORT.md` (new)
+- `logs/d83-0.5/fill_events_20251206_030347.jsonl` (24 events)
+
+**Final Decision:** ✅ ACCEPTED — L2 + FillEventCollector integration confirmed in PAPER environment.
+
+**Next Steps:** D84-2 CalibratedFillModel PAPER, D83-1 Real WebSocket L2
+
+---
+
 ### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
 
 **Status:** ✅ **COMPLETE**
