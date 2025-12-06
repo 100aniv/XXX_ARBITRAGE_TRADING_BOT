@@ -2826,6 +2826,50 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D84-0: Fill Model v1 – Data Collection & Infrastructure Setup ✅ COMPLETE (2025-12-06)
+
+**Status:** ✅ **COMPLETE** (Infrastructure Phase)
+
+**목표:** D82-12 NO-GO 이후, Threshold 튜닝 접근법을 중단하고 **Fill Model Infrastructure 개선**으로 방향 전환. 실제 PAPER 데이터 수집 및 Fill Model v1 보정 준비.
+
+**핵심 성과:**
+- AS-IS 분석 완료: 현재 Fill Model 인프라 현황 파악 (D80-4, D81-1)
+- 설계 문서 완료: Fill Model v1 Zone별 보정 방향 정의
+- Fill Event 데이터 수집: D82-11/12에서 30 events 추출
+- Root Cause 재확인: **고정값 26.15%는 `available_volume` 하드코딩 문제**
+
+**수집된 데이터:**
+- **D82-11/12 Fill Events:** 30 events (15 RTs)
+- **Zone별 Fill Ratio:** 모든 Zone 26.15% (동일) → 추가 데이터 필요
+- **Slippage:** 2.14 bps (일정)
+
+**핵심 발견:**
+1. **Fill Model 로직은 정상** (D80-4/D81-1)
+2. **문제는 Input 데이터** (`available_volume` 고정값 3824.42)
+3. **L1 orderbook → Fill Model 연결 누락**
+4. **D82 데이터만으로는 Zone별 차이 관측 불가**
+
+**산출물:**
+- `docs/D84/D84-0_FILL_MODEL_ASIS.md` (AS-IS 분석)
+- `docs/D84/D84-0_FILL_MODEL_DESIGN.md` (설계 문서)
+- `docs/D84/D84-0_FILL_MODEL_REPORT.md` (최종 보고서)
+- `scripts/extract_d82_fill_events.py` (Fill Event 추출 스크립트)
+- `logs/d84/d84_0_fill_events_d82.jsonl` (30 Fill Events)
+
+**한계점:**
+- 샘플 사이즈 부족 (15 RTs)
+- Zone별 차이 관측 불가 (모두 26.15%)
+- L2 Orderbook 부재
+
+**Final Decision:** ✅ **PHASE COMPLETE** (Infrastructure Phase)
+
+**Next Steps:**
+1. **D84-1:** Fill Model v1 완전 구현 + 장기 PAPER (50+ RTs 수집)
+2. **D83-x:** L2 Orderbook 통합 (병행 진행, HIGH Priority)
+3. **D82-13:** D77-4 조건 재현 (선택적)
+
+---
+
 
 ### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
 
