@@ -2,28 +2,33 @@
 # -*- coding: utf-8 -*-
 """
 D84-2: CalibratedFillModel 장기 PAPER 검증 Runner
+D83-1: Real L2 WebSocket Provider 통합
 
 목적:
 - D84-1에서 구현한 CalibratedFillModel을 실제 PAPER 환경에서 20분 이상 실행
 - D83-0 L2 Orderbook + D84-1 FillEventCollector 통합
+- D83-1 Real L2 WebSocket Provider 검증
 - Zone별 Fill Ratio 보정이 실제로 작동하는지 검증
 - 50개 이상의 Fill Event 수집 및 분석
 
 실행 조건:
 - 단일 심볼 (BTC)
 - CalibratedFillModel (d84_1_calibration.json 사용)
-- L2 Orderbook Provider (Mock, available_volume 변동)
+- L2 Orderbook Provider (Mock or Real WebSocket)
 - FillEventCollector 활성화
 
 Usage:
-    # 5분 스모크 테스트
+    # 5분 스모크 테스트 (Mock L2)
     python scripts/run_d84_2_calibrated_fill_paper.py --smoke
     
-    # 20분 본 실행
-    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 1200
+    # 5분 스모크 테스트 (Real L2)
+    python scripts/run_d84_2_calibrated_fill_paper.py --smoke --l2-source real
+    
+    # 20분 본 실행 (Real L2)
+    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 1200 --l2-source real
     
     # 사용자 지정 시간
-    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 600
+    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 600 --l2-source mock
 """
 
 import argparse
@@ -48,6 +53,9 @@ from arbitrage.execution.fill_model import SimpleFillModel, CalibratedFillModel,
 from arbitrage.metrics.fill_stats import FillEventCollector
 from arbitrage.exchanges.base import OrderBookSnapshot
 from arbitrage.exchanges.market_data_provider import MarketDataProvider
+
+# D83-1: Real L2 WebSocket Provider Import
+from arbitrage.exchanges.upbit_l2_ws_provider import UpbitL2WebSocketProvider
 
 logging.basicConfig(
     level=logging.INFO,
@@ -152,6 +160,7 @@ def load_calibration(calibration_path: Path) -> CalibrationTable:
 def run_calibrated_fill_paper(
     duration_seconds: int,
     calibration_path: Path,
+    l2_source: str = "mock",
 ) -> Dict[str, Any]:
     """
     CalibratedFillModel 장기 PAPER 실행
@@ -173,22 +182,54 @@ def run_calibrated_fill_paper(
     kpi_path = output_dir / f"kpi_{session_id}.json"
     
     logger.info(f"[D84-2] Session ID: {session_id}")
-    logger.info(f"[D84-2] Duration: {duration_seconds}초 ({duration_seconds/60:.1f}분)")
+    logger.info(f"[D84-2] Duration: {duration_seconds}초")
+    logger.info(f"[D84-2] L2 Source: {l2_source}")
+    logger.info(f"[D84-2] Fill Events 경로: {fill_events_path}")
+    logger.info(f"[D84-2] KPI 경로: {kpi_path}")
     logger.info("")
     
     # 1. Calibration 로드
     calibration = load_calibration(calibration_path)
     
-    # 2. FillEventCollector 초기화
+    # 2. MarketDataProvider 생성 (L2 Source에 따라 분기)
+    if l2_source == "real":
+        # D83-1: Real L2 WebSocket Provider
+        symbol_upbit = "KRW-BTC"  # Upbit 심볼 포맷
+        market_data_provider = UpbitL2WebSocketProvider(
+            symbols=[symbol_upbit],
+            heartbeat_interval=30.0,
+            timeout=10.0,
+            max_reconnect_attempts=5,
+            reconnect_backoff=2.0,
+        )
+        market_data_provider.start()
+        logger.info(f"[D83-1] Real L2 WebSocket Provider started for {symbol_upbit}")
+        
+        # WebSocket 연결 대기 (최대 10초)
+        logger.info("[D83-1] Waiting for WebSocket connection...")
+        for i in range(10):
+            time.sleep(1)
+            snapshot = market_data_provider.get_latest_snapshot(symbol_upbit)
+            if snapshot:
+                logger.info(f"[D83-1] First snapshot received: {len(snapshot.bids)} bids, {len(snapshot.asks)} asks")
+                break
+        else:
+            logger.warning("[D83-1] No snapshot received after 10s, continuing anyway...")
+    else:
+        # D84-2: Mock L2 Provider (기존 로직)
+        market_data_provider = MockMarketDataProvider()
+        market_data_provider.start()
+        logger.info("[D84-2] MockMarketDataProvider started")
+    
+    logger.info("")
+    
+    # 3. FillEventCollector 초기화
     fill_event_collector = FillEventCollector(
         output_path=fill_events_path,
         enabled=True,
         session_id=session_id,
     )
     
-    # 3. MockMarketDataProvider 초기화
-    market_data_provider = MockMarketDataProvider()
-    market_data_provider.start()
     
     # 4. Settings, RiskGuard, ExecutorFactory 초기화
     settings = Settings.from_env()
@@ -327,7 +368,7 @@ def run_calibrated_fill_paper(
 def main():
     """메인 함수"""
     parser = argparse.ArgumentParser(
-        description="D84-2: CalibratedFillModel 장기 PAPER 검증"
+        description="D84-2/D83-1: CalibratedFillModel + Real L2 WebSocket PAPER 검증"
     )
     parser.add_argument(
         "--duration-seconds",
@@ -346,6 +387,13 @@ def main():
         default="logs/d84/d84_1_calibration.json",
         help="Calibration JSON 파일 경로 (기본값: logs/d84/d84_1_calibration.json)"
     )
+    parser.add_argument(
+        "--l2-source",
+        type=str,
+        choices=["mock", "real"],
+        default="mock",
+        help="L2 Orderbook 소스: mock (Mock Provider) or real (Real WebSocket) (기본값: mock)"
+    )
     
     args = parser.parse_args()
     
@@ -361,14 +409,15 @@ def main():
         sys.exit(1)
     
     logger.info("=" * 100)
-    logger.info("[D84-2] CalibratedFillModel 장기 PAPER 검증 시작")
+    logger.info(f"[D84-2/D83-1] CalibratedFillModel + {args.l2_source.upper()} L2 PAPER 검증 시작")
     logger.info("=" * 100)
     logger.info(f"Duration: {duration_seconds}초 ({duration_seconds/60:.1f}분)")
     logger.info(f"Calibration: {calibration_path}")
+    logger.info(f"L2 Source: {args.l2_source}")
     logger.info("")
     
     # 실행
-    metrics = run_calibrated_fill_paper(duration_seconds, calibration_path)
+    metrics = run_calibrated_fill_paper(duration_seconds, calibration_path, l2_source=args.l2_source)
     
     # 요약 출력
     logger.info("")
