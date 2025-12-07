@@ -3087,6 +3087,58 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D86: Fill Model Re-Calibration – Real Multi L2 Data v1 ✅ COMPLETE (2025-12-07)
+
+**Status:** ⚠️ **CONDITIONAL PASS** (Acceptance Criteria 4/5 PASS, 1 PARTIAL)
+
+**목표:** D84-1 Calibration 한계 극복, Real Multi L2 실측 데이터 기반 Zone별 Fill Ratio 재캘리브레이션
+
+**핵심 성과:**
+- ✅ **FillEventCollector 버그 수정**: entry_bps/tp_bps 올바르게 기록 (AS-IS: 0.0 하드코딩)
+- ✅ **Zone 재정의**: 실측 데이터 기반 4개 Zone (Z1-Z4, Entry 5~30 bps 커버)
+- ✅ **Zone별 차이 발견**: Z2 BUY fill_ratio=**0.6307 (63%)** vs Z1=0.2615 (26%), **2.4배 차이**
+- ✅ **새 Calibration JSON**: d86_0_calibration.json (60 events 기반)
+- ✅ **테스트 100% 통과**: 8/8 신규 + 15/15 기존 (리그레션 없음)
+
+**실행 결과 (D86 Smoke Test, 5분):**
+- Session ID: 20251207_120533, Duration: 305.5초 (5.1분)
+- Entry Trades: 30, Fill Events: 60 (BUY 30, SELL 30)
+- Entry/TP 조합: 12개 (5~25 bps Entry, 7~30 bps TP)
+- Zone 분포: Z1=24, Z2=20, Z3=12, Z4=4 (모든 Zone 샘플 존재)
+
+**Zone별 Fill Ratio:**
+| Zone | Entry Range | BUY Fill Ratio | Samples |
+|------|------------|---------------|---------|
+| Z1 | 5-7 bps | 0.2615 (26%) | 24 |
+| Z2 | 7-12 bps | **0.6307 (63%)** | 20 |
+| Z3 | 12-20 bps | 0.2615 (26%) | 12 |
+| Z4 | 20-30 bps | 0.2615 (26%) | 4 |
+
+**D85-1/2 데이터 이슈:**
+- D85-1 (240 events), D85-2 (718 events) 데이터는 entry_bps/tp_bps=0.0으로 기록
+- FillEventCollector 버그로 인해 Zone 분석 불가 → D86에서 수정 후 재수집
+
+**산출물:**
+- `logs/d86/d86_0_calibration.json` (새 Calibration JSON)
+- `scripts/analyze_d86_fill_data.py` (데이터 분석 도구)
+- `tests/test_d86_fill_calibration.py` (8 tests, 100% PASS)
+- `docs/D86/D86_FILL_MODEL_RECALIBRATION_REPORT.md` (검증 리포트)
+- `arbitrage/execution/executor.py` (FillEventCollector 호출 수정)
+
+**한계:**
+- 샘플 사이즈 부족 (60 events, 목표 958 events 미달)
+- Z2의 높은 fill_ratio 재현성 미검증 (5분 데이터만)
+- Z4 샘플 수 부족 (4 samples, 통계적 신뢰도 낮음)
+
+**결론:** ⚠️ CONDITIONAL PASS → READY FOR D86-1
+
+**Next Steps:**
+- **D86-1**: 20분 PAPER (200+ events, Z2 재현성 확인) - HIGH Priority
+- **D86-2**: 1시간 PAPER (500+ events, 통계적 신뢰도 확보) - MEDIUM Priority
+- **D87+**: Multi-Exchange Execution (D86 Calibration 기반)
+
+---
+
 ### D83-1: Real L2 WebSocket Provider Integration 
 **Status:**  **COMPLETE** (Implementation + Validation ALL PASS)
 

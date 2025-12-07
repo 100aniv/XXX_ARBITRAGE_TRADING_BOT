@@ -644,12 +644,16 @@ class PaperExecutor(BaseExecutor):
         
         # D83-0.5: Fill Event 기록 (BUY + SELL)
         if self.fill_event_collector is not None:
+            # D86: CalibratedFillModel에서 entry_bps/tp_bps 가져오기
+            entry_bps = getattr(self.fill_model, 'entry_bps', 0.0)
+            tp_bps = getattr(self.fill_model, 'tp_bps', 0.0)
+            
             # BUY Event
             self.fill_event_collector.record_fill_event(
                 symbol=self.symbol,
                 side=OrderSide.BUY,
-                entry_bps=0.0,  # TODO: 실제 Entry/TP 값 전달
-                tp_bps=0.0,
+                entry_bps=entry_bps,
+                tp_bps=tp_bps,
                 order_quantity=trade.quantity,
                 filled_quantity=buy_fill_result.filled_quantity,
                 fill_ratio=buy_fill_result.fill_ratio,
@@ -663,8 +667,8 @@ class PaperExecutor(BaseExecutor):
             self.fill_event_collector.record_fill_event(
                 symbol=self.symbol,
                 side=OrderSide.SELL,
-                entry_bps=0.0,
-                tp_bps=0.0,
+                entry_bps=entry_bps,
+                tp_bps=tp_bps,
                 order_quantity=buy_fill_result.filled_quantity,
                 filled_quantity=sell_fill_result.filled_quantity,
                 fill_ratio=sell_fill_result.fill_ratio,
