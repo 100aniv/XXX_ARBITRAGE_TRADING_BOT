@@ -1,13 +1,13 @@
 # D84-2: CalibratedFillModel 장기 PAPER 검증 리포트
 
-**작성일:** 2025-12-07 14:18:56
+**작성일:** 2025-12-07 15:00:18
 **상태:** ✅ **COMPLETE**
 
 ---
 
 ## 📋 실행 개요
 
-- **Events 파일**: `logs\d84-2\fill_events_20251207_051343.jsonl`
+- **Events 파일**: `logs\d84-2\fill_events_20251207_055500.jsonl`
 - **Calibration 파일**: `logs\d84\d84_1_calibration.json`
 - **총 이벤트 수**: 60
 - **BUY 이벤트**: 30
@@ -18,22 +18,22 @@
 ### BUY available_volume
 
 - Count: 30
-- Min: 0.000190
-- Max: 1.158767
-- Mean: 0.211946
-- Median: 0.032821
-- Std: 0.400762
-- **✅ DISPERSED** (std=189.1% of mean)
+- Min: 0.157710
+- Max: 7.284180
+- Mean: 2.295135
+- Median: 1.349280
+- Std: 2.162417
+- **✅ DISPERSED** (std=94.2% of mean)
 
 ### SELL available_volume
 
 - Count: 30
-- Min: 0.000034
-- Max: 0.138703
-- Mean: 0.035973
-- Median: 0.002400
-- Std: 0.044776
-- **✅ DISPERSED** (std=124.5% of mean)
+- Min: 0.025110
+- Max: 4.611890
+- Mean: 2.135312
+- Median: 2.234195
+- Std: 1.093267
+- **✅ DISPERSED** (std=51.2% of mean)
 
 ## 📊 fill_ratio 분석
 
@@ -71,13 +71,13 @@
 
 ## 📊 Slippage (bps)
 
-- **BUY**: mean=0.08 bps, std=0.19 bps
-- **SELL**: mean=0.29 bps, std=0.39 bps
+- **BUY**: mean=0.00 bps, std=0.00 bps
+- **SELL**: mean=0.00 bps, std=0.00 bps
 
 ## 🏁 결론
 
 - ✅ Fill Events 수 충족: 60개 (≥ 50)
-- ✅ available_volume 분산 확인: BUY 189.1%, SELL 124.5%
+- ✅ available_volume 분산 확인: BUY 94.2%, SELL 51.2%
 - ✅ BUY Fill Ratio Calibration 적용 확인 (차이 0.0000)
 
 ---

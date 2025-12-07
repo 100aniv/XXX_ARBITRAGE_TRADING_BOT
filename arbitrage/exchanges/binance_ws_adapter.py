@@ -21,6 +21,7 @@ D59: Multi-Symbol WebSocket Support
 """
 
 import logging
+import time
 from typing import List, Optional, Callable, Dict, Any
 
 from arbitrage.exchanges.base import OrderBookSnapshot
@@ -58,8 +59,9 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
             heartbeat_interval: heartbeat 간격 (초)
             timeout: 연결 타임아웃 (초)
         """
+        # D83-2: Binance Spot WebSocket (Upbit과 일관성)
         super().__init__(
-            url="wss://fstream.binance.com/stream",
+            url="wss://stream.binance.com:9443/stream",
             heartbeat_interval=heartbeat_interval,
             timeout=timeout,
         )
@@ -84,9 +86,13 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
         }
         self._request_id += 1
         
+        # D83-2 DEBUG: 구독 메시지 로깅
+        logger.debug(f"[D83-2_BINANCE_DEBUG] Subscription message: {message}")
+        
         try:
             await self.send_message(message)
             logger.info(f"[D49.5_BINANCE] Subscribed to: {channels}")
+            logger.debug(f"[D83-2_BINANCE_DEBUG] Subscription successful, waiting for depth messages...")
         except Exception as e:
             logger.error(f"[D49.5_BINANCE] Subscribe error: {e}")
             raise
@@ -99,13 +105,26 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
             message: 수신한 메시지 (JSON 파싱됨)
         """
         try:
-            # depth 메시지 확인
+            # D83-2 DEBUG: 메시지 타입 로깅
+            msg_stream = message.get("stream")
             data = message.get("data", {})
-            if "b" in data and "a" in data:
+            
+            # D83-2 FIX: Binance depth stream 메시지 구조
+            # - Combined stream: {"stream": "...", "data": {...}}
+            # - Data 내부: "lastUpdateId", "bids", "asks" (NOT "b", "a")
+            logger.debug(f"[D83-2_BINANCE_DEBUG] on_message called: stream={msg_stream}, data_keys={list(data.keys())}")
+            
+            # depth 메시지 확인 (bids/asks 또는 b/a)
+            has_bids_asks = ("bids" in data and "asks" in data) or ("b" in data and "a" in data)
+            
+            if has_bids_asks:
                 snapshot = self._parse_message(message)
                 if snapshot:
+                    logger.debug(f"[D83-2_BINANCE_DEBUG] Snapshot parsed successfully: {snapshot.symbol}")
                     self._last_snapshots[snapshot.symbol] = snapshot
                     self.callback(snapshot)
+            else:
+                logger.debug(f"[D83-2_BINANCE_DEBUG] Ignoring non-depth message: stream={msg_stream}, data_keys={list(data.keys())}")
         except Exception as e:
             logger.error(f"[D49.5_BINANCE] Message handling error: {e}")
             self.on_error(e)
@@ -132,9 +151,15 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
             # 예: "btcusdt@depth20@100ms" → "BTCUSDT"
             symbol = stream.split("@")[0].upper()
             
-            timestamp = data.get("E", 0)
-            bids_raw = data.get("b", [])
-            asks_raw = data.get("a", [])
+            # D83-2 FIX: Binance depth stream 필드명
+            # - "bids" / "asks" (partial book depth)
+            # - "b" / "a" (diff depth, depthUpdate)
+            # - Timestamp: depth snapshot에는 "E" 없음, 현재 시각 사용
+            timestamp_ms = data.get("E", data.get("e"))
+            timestamp = timestamp_ms / 1000.0 if timestamp_ms else time.time()
+            
+            bids_raw = data.get("bids", data.get("b", []))
+            asks_raw = data.get("asks", data.get("a", []))
             
             if not bids_raw or not asks_raw:
                 logger.warning("[D49.5_BINANCE] Missing bids or asks")
@@ -177,6 +202,13 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
                 f"[D49.5_BINANCE] Parsed snapshot: {symbol}, "
                 f"bids={len(bids)}, asks={len(asks)}, ts={timestamp_s}"
             )
+            
+            # D83-2 DEBUG: Top bid/ask 로깅
+            if bids and asks:
+                logger.debug(
+                    f"[D83-2_BINANCE_DEBUG] Top bid: {bids[0][0]:.2f} x {bids[0][1]:.4f}, "
+                    f"Top ask: {asks[0][0]:.2f} x {asks[0][1]:.4f}"
+                )
             
             return snapshot
         

@@ -54,8 +54,11 @@ from arbitrage.metrics.fill_stats import FillEventCollector
 from arbitrage.exchanges.base import OrderBookSnapshot
 from arbitrage.exchanges.market_data_provider import MarketDataProvider
 
-# D83-1: Real L2 WebSocket Provider Import
+# D83-1: Real L2 WebSocket Provider Import (Upbit)
 from arbitrage.exchanges.upbit_l2_ws_provider import UpbitL2WebSocketProvider
+
+# D83-2: Real L2 WebSocket Provider Import (Binance)
+from arbitrage.exchanges.binance_l2_ws_provider import BinanceL2WebSocketProvider
 
 logging.basicConfig(
     level=logging.INFO,
@@ -192,8 +195,13 @@ def run_calibrated_fill_paper(
     calibration = load_calibration(calibration_path)
     
     # 2. MarketDataProvider 생성 (L2 Source에 따라 분기)
+    # D83-2: 하위 호환성 (real → upbit)
     if l2_source == "real":
-        # D83-1: Real L2 WebSocket Provider
+        l2_source = "upbit"
+        logger.info("[D83-2] l2_source 'real' → 'upbit' (backward compatibility)")
+    
+    if l2_source == "upbit":
+        # D83-1: Upbit Real L2 WebSocket Provider
         symbol_upbit = "KRW-BTC"  # Upbit 심볼 포맷
         market_data_provider = UpbitL2WebSocketProvider(
             symbols=[symbol_upbit],
@@ -203,7 +211,7 @@ def run_calibrated_fill_paper(
             reconnect_backoff=2.0,
         )
         market_data_provider.start()
-        logger.info(f"[D83-1] Real L2 WebSocket Provider started for {symbol_upbit}")
+        logger.info(f"[D83-1] Upbit L2 WebSocket Provider started for {symbol_upbit}")
         
         # WebSocket 연결 대기 (최대 10초)
         logger.info("[D83-1] Waiting for WebSocket connection...")
@@ -215,8 +223,35 @@ def run_calibrated_fill_paper(
                 break
         else:
             logger.warning("[D83-1] No snapshot received after 10s, continuing anyway...")
+    
+    elif l2_source == "binance":
+        # D83-2: Binance Real L2 WebSocket Provider
+        symbol_binance = "BTCUSDT"  # Binance 심볼 포맷
+        market_data_provider = BinanceL2WebSocketProvider(
+            symbols=[symbol_binance],
+            depth="20",
+            interval="100ms",
+            heartbeat_interval=30.0,
+            timeout=10.0,
+            max_reconnect_attempts=5,
+            reconnect_backoff=2.0,
+        )
+        market_data_provider.start()
+        logger.info(f"[D83-2] Binance L2 WebSocket Provider started for {symbol_binance}")
+        
+        # WebSocket 연결 대기 (최대 10초)
+        logger.info("[D83-2] Waiting for WebSocket connection...")
+        for i in range(10):
+            time.sleep(1)
+            snapshot = market_data_provider.get_latest_snapshot(symbol_binance)
+            if snapshot:
+                logger.info(f"[D83-2] First snapshot received: {len(snapshot.bids)} bids, {len(snapshot.asks)} asks")
+                break
+        else:
+            logger.warning("[D83-2] No snapshot received after 10s, continuing anyway...")
+    
     else:
-        # D84-2: Mock L2 Provider (기존 로직)
+        # D84-2: Mock L2 Provider (기본값)
         market_data_provider = MockMarketDataProvider()
         market_data_provider.start()
         logger.info("[D84-2] MockMarketDataProvider started")
@@ -390,9 +425,9 @@ def main():
     parser.add_argument(
         "--l2-source",
         type=str,
-        choices=["mock", "real"],
+        choices=["mock", "real", "upbit", "binance"],
         default="mock",
-        help="L2 Orderbook 소스: mock (Mock Provider) or real (Real WebSocket) (기본값: mock)"
+        help="L2 Orderbook 소스: mock, real (=upbit), upbit, binance (기본값: mock)"
     )
     
     args = parser.parse_args()

@@ -1,0 +1,297 @@
+"""
+D83-2: Real L2 WebSocket Provider (Binance)
+
+Binance Public WebSocket을 통해 실시간 L2 Orderbook을 제공하는 MarketDataProvider 구현.
+
+특징:
+- MarketDataProvider 인터페이스 완전 준수
+- BinanceWebSocketAdapter 재사용
+- 별도 스레드 + asyncio event loop (Executor 동기 호출 지원)
+- 자동 재연결 (exponential backoff)
+- 테스트 가능 설계 (adapter 주입)
+- D83-1 Upbit Provider와 동일한 아키텍처
+
+Usage:
+    provider = BinanceL2WebSocketProvider(symbols=["BTCUSDT"])
+    provider.start()
+    
+    # ... Executor에서 사용
+    snapshot = provider.get_latest_snapshot("BTC")  # 표준 심볼
+    
+    provider.stop()
+"""
+
+import asyncio
+import logging
+import threading
+import time
+from typing import Dict, List, Optional
+
+from arbitrage.exchanges.base import OrderBookSnapshot
+from arbitrage.exchanges.market_data_provider import MarketDataProvider
+from arbitrage.exchanges.binance_ws_adapter import BinanceWebSocketAdapter
+
+logger = logging.getLogger(__name__)
+
+
+class BinanceL2WebSocketProvider(MarketDataProvider):
+    """
+    D83-2: Real L2 WebSocket Provider (Binance)
+    
+    Binance Public WebSocket을 통해 실시간 L2 Orderbook을 제공.
+    
+    책임:
+    - MarketDataProvider 인터페이스 구현
+    - WebSocket 연결 관리 (재연결 포함)
+    - 최신 스냅샷 버퍼링
+    - 스레드 안전성 보장
+    - 심볼 매핑 (BTCUSDT ↔ BTC)
+    """
+    
+    def __init__(
+        self,
+        symbols: List[str],
+        ws_adapter: Optional[BinanceWebSocketAdapter] = None,
+        depth: str = "20",
+        interval: str = "100ms",
+        heartbeat_interval: float = 30.0,
+        timeout: float = 10.0,
+        max_reconnect_attempts: int = 5,
+        reconnect_backoff: float = 2.0,
+    ):
+        """
+        Args:
+            symbols: 구독할 심볼 목록 (예: ["BTCUSDT", "ETHUSDT"])
+            ws_adapter: WebSocket Adapter (테스트용 주입, None이면 자동 생성)
+            depth: 호가 깊이 (기본값: "20")
+            interval: 업데이트 간격 (기본값: "100ms")
+            heartbeat_interval: heartbeat 간격 (초)
+            timeout: 연결 타임아웃 (초)
+            max_reconnect_attempts: 최대 재연결 시도 횟수
+            reconnect_backoff: 재연결 backoff 배수
+        """
+        self.symbols = symbols
+        self.depth = depth
+        self.interval = interval
+        self.heartbeat_interval = heartbeat_interval
+        self.timeout = timeout
+        self.max_reconnect_attempts = max_reconnect_attempts
+        self.reconnect_backoff = reconnect_backoff
+        
+        # 최신 스냅샷 버퍼 (심볼별)
+        self.latest_snapshots: Dict[str, OrderBookSnapshot] = {}
+        
+        # 상태 관리
+        self._is_running = False
+        self._reconnect_count = 0
+        self._thread: Optional[threading.Thread] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        
+        # WebSocket Adapter (주입 or 생성)
+        if ws_adapter:
+            self.ws_adapter = ws_adapter
+        else:
+            self.ws_adapter = BinanceWebSocketAdapter(
+                symbols=symbols,
+                callback=self._on_snapshot,
+                depth=depth,
+                interval=interval,
+                heartbeat_interval=heartbeat_interval,
+                timeout=timeout,
+            )
+        
+        logger.info(
+            f"[D83-2_L2] BinanceL2WebSocketProvider initialized for {symbols}"
+        )
+    
+    def start(self) -> None:
+        """
+        WebSocket 연결 및 백그라운드 루프 시작
+        
+        별도 스레드에서 asyncio event loop를 실행하여 WebSocket 연결을 유지한다.
+        """
+        if self._is_running:
+            logger.warning("[D83-2_L2] Provider already running")
+            return
+        
+        self._is_running = True
+        self._reconnect_count = 0
+        
+        # 별도 스레드에서 asyncio loop 실행
+        self._thread = threading.Thread(
+            target=self._run_event_loop,
+            daemon=True,
+            name="BinanceL2WebSocketProvider"
+        )
+        self._thread.start()
+        
+        logger.info(f"[D83-2_L2] WebSocket provider started for {self.symbols}")
+    
+    def stop(self) -> None:
+        """
+        WebSocket 연결 종료
+        """
+        if not self._is_running:
+            return
+        
+        logger.info("[D83-2_L2] Stopping WebSocket provider...")
+        self._is_running = False
+        
+        # Event loop 종료 신호
+        if self._loop and not self._loop.is_closed():
+            # Disconnect 태스크 스케줄링
+            future = asyncio.run_coroutine_threadsafe(
+                self._stop_websocket(),
+                self._loop
+            )
+            try:
+                future.result(timeout=5.0)
+            except Exception as e:
+                logger.warning(f"[D83-2_L2] Stop error: {e}")
+        
+        # 스레드 종료 대기 (타임아웃)
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("[D83-2_L2] Thread did not stop gracefully")
+        
+        logger.info("[D83-2_L2] WebSocket provider stopped")
+    
+    def get_latest_snapshot(self, symbol: str) -> Optional[OrderBookSnapshot]:
+        """
+        최신 호가 스냅샷 반환
+        
+        Args:
+            symbol: 거래 쌍 (예: "BTCUSDT" 또는 "BTC")
+        
+        Returns:
+            OrderBookSnapshot 또는 None (데이터 없음)
+        """
+        snapshot = self.latest_snapshots.get(symbol)
+        
+        if snapshot:
+            # 스냅샷 age 체크 (5초 이상 오래된 데이터는 경고)
+            age_ms = (time.time() - snapshot.timestamp) * 1000
+            if age_ms > 5000:
+                logger.warning(
+                    f"[D83-2_L2] Stale snapshot for {symbol}: {age_ms:.0f}ms old"
+                )
+        
+        return snapshot
+    
+    def _on_snapshot(self, snapshot: OrderBookSnapshot) -> None:
+        """
+        WebSocket Adapter 콜백: 스냅샷 업데이트
+        
+        Args:
+            snapshot: Binance 호가 스냅샷
+        """
+        # Binance 형식 저장 (BTCUSDT)
+        self.latest_snapshots[snapshot.symbol] = snapshot
+        
+        # 표준 심볼 변환 저장 (BTCUSDT → BTC)
+        # Executor가 표준 심볼로 요청할 수 있도록 양쪽 매핑 지원
+        if snapshot.symbol.endswith("USDT"):
+            standard_symbol = snapshot.symbol.replace("USDT", "")
+            self.latest_snapshots[standard_symbol] = snapshot
+        elif snapshot.symbol.endswith("BUSD"):
+            standard_symbol = snapshot.symbol.replace("BUSD", "")
+            self.latest_snapshots[standard_symbol] = snapshot
+        
+        logger.debug(
+            f"[D83-2_L2] Updated snapshot: {snapshot.symbol}, "
+            f"bids={len(snapshot.bids)}, asks={len(snapshot.asks)}, "
+            f"timestamp={snapshot.timestamp:.3f}"
+        )
+    
+    def _run_event_loop(self) -> None:
+        """
+        별도 스레드에서 asyncio event loop 실행
+        
+        WebSocket 연결 및 재연결 로직을 포함한 메인 루프.
+        """
+        # 새 event loop 생성
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        
+        try:
+            logger.info("[D83-2_L2] Starting event loop...")
+            self._loop.run_until_complete(self._connect_and_subscribe())
+        except Exception as e:
+            logger.error(f"[D83-2_L2] Event loop error: {e}", exc_info=True)
+        finally:
+            try:
+                self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                self._loop.close()
+            except Exception as e:
+                logger.warning(f"[D83-2_L2] Loop cleanup error: {e}")
+            
+            logger.info("[D83-2_L2] Event loop stopped")
+    
+    async def _connect_and_subscribe(self) -> None:
+        """
+        WebSocket 연결 및 구독 (재연결 로직 포함)
+        
+        최대 `max_reconnect_attempts`까지 재연결을 시도하며,
+        exponential backoff를 사용한다.
+        """
+        while self._is_running and self._reconnect_count < self.max_reconnect_attempts:
+            try:
+                logger.info(
+                    f"[D83-2_L2] Connecting... (attempt {self._reconnect_count + 1})"
+                )
+                
+                # WebSocket 연결
+                await self.ws_adapter.connect()
+                
+                # 채널 구독 (Binance 포맷: "btcusdt@depth20@100ms")
+                channels = [
+                    f"{symbol.lower()}@depth{self.depth}@{self.interval}"
+                    for symbol in self.symbols
+                ]
+                await self.ws_adapter.subscribe(channels)
+                
+                logger.info(f"[D83-2_L2] Connected and subscribed to {channels}")
+                
+                # 재연결 카운터 리셋 (연결 성공)
+                self._reconnect_count = 0
+                
+                # receive_loop 실행하여 메시지 수신
+                await self.ws_adapter.receive_loop()
+                
+                # receive_loop가 종료되면 연결이 끊어진 것
+                logger.warning("[D83-2_L2] receive_loop ended, connection lost")
+                
+            except Exception as e:
+                logger.error(
+                    f"[D83-2_L2] Connection error (attempt {self._reconnect_count + 1}): {e}"
+                )
+                self._reconnect_count += 1
+                
+                if self._reconnect_count < self.max_reconnect_attempts:
+                    # Exponential backoff
+                    backoff_time = min(
+                        self.reconnect_backoff ** self._reconnect_count,
+                        30.0,
+                    )
+                    logger.info(
+                        f"[D83-2_L2] Reconnecting in {backoff_time:.1f}s... "
+                        f"({self._reconnect_count}/{self.max_reconnect_attempts})"
+                    )
+                    await asyncio.sleep(backoff_time)
+                else:
+                    logger.error(
+                        f"[D83-2_L2] Max reconnect attempts ({self.max_reconnect_attempts}) reached"
+                    )
+                    self._is_running = False
+                    break
+    
+    async def _stop_websocket(self) -> None:
+        """
+        WebSocket 연결 종료 (asyncio 태스크)
+        """
+        try:
+            await self.ws_adapter.disconnect()
+            logger.info("[D83-2_L2] WebSocket disconnected")
+        except Exception as e:
+            logger.warning(f"[D83-2_L2] Disconnect error: {e}")

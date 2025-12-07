@@ -20,6 +20,10 @@ from arbitrage.live_runner import RiskGuard, RiskLimits
 from arbitrage.execution.executor_factory import ExecutorFactory
 from arbitrage.config.settings import Settings
 
+# D83-2: Binance L2 Provider Import 테스트
+from arbitrage.exchanges.upbit_l2_ws_provider import UpbitL2WebSocketProvider
+from arbitrage.exchanges.binance_l2_ws_provider import BinanceL2WebSocketProvider
+
 
 def test_calibration_loading():
     """Calibration JSON 로딩 테스트"""
@@ -184,3 +188,31 @@ def test_runner_components_compatibility():
     
     assert executor.fill_model == fill_model
     assert executor.fill_event_collector == collector
+
+
+def test_l2_provider_upbit_creation():
+    """D83-1: Upbit L2 Provider 생성 테스트"""
+    provider = UpbitL2WebSocketProvider(
+        symbols=["KRW-BTC"],
+        heartbeat_interval=30.0,
+        timeout=10.0,
+    )
+    
+    assert provider is not None
+    assert provider.symbols == ["KRW-BTC"]
+    assert len(provider.latest_snapshots) == 0
+
+
+def test_l2_provider_binance_creation():
+    """D83-2: Binance L2 Provider 생성 테스트"""
+    provider = BinanceL2WebSocketProvider(
+        symbols=["BTCUSDT"],
+        depth="20",
+        interval="100ms",
+        heartbeat_interval=30.0,
+        timeout=10.0,
+    )
+    
+    assert provider is not None
+    assert provider.symbols == ["BTCUSDT"]
+    assert len(provider.latest_snapshots) == 0
