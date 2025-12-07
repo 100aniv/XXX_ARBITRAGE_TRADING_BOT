@@ -7,13 +7,19 @@ Exchange A ↔ Exchange B 간 라우팅 로직:
 - Health/Fee/Inventory penalty 반영
 """
 
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from arbitrage.arbitrage_core import OrderBookSnapshot
 from arbitrage.domain.fee_model import FeeModel
+
+if TYPE_CHECKING:
+    from arbitrage.execution.fill_model_integration import FillModelIntegration
 from arbitrage.domain.market_spec import MarketSpec
 from arbitrage.infrastructure.exchange_health import HealthMonitor, ExchangeHealthStatus
 
@@ -82,6 +88,7 @@ class ArbRoute:
         health_monitor_b: Optional[HealthMonitor] = None,
         min_spread_bps: float = 30.0,
         slippage_bps: float = 5.0,
+        fill_model_integration: Optional["FillModelIntegration"] = None,
     ):
         self.symbol_a = symbol_a
         self.symbol_b = symbol_b
@@ -91,6 +98,7 @@ class ArbRoute:
         self.health_monitor_b = health_monitor_b
         self.min_spread_bps = min_spread_bps
         self.slippage_bps = slippage_bps
+        self.fill_model_integration = fill_model_integration
     
     def evaluate(
         self,
@@ -137,11 +145,19 @@ class ArbRoute:
         
         total_score = route_score.total_score()
         
-        # D87-0: Fill Model Advice 반영 (D87-1에서 구현 예정)
-        # TODO(D87-1): fill_model_advice가 있으면 total_score 보정
-        # if fill_model_advice:
-        #     adjustment = self._compute_fill_probability_adjustment(fill_model_advice)
-        #     total_score += adjustment
+        # D87-1: Fill Model Advice 반영 (Advisory Mode)
+        if fill_model_advice and self.fill_model_integration:
+            # FillModelIntegration을 통해 score 보정
+            adjusted_score = self.fill_model_integration.adjust_route_score(
+                base_score=total_score,
+                advice=fill_model_advice
+            )
+            logger.debug(
+                f"[ARB_ROUTE] Fill Model Score 보정: "
+                f"base={total_score:.1f} → adjusted={adjusted_score:.1f}, "
+                f"zone={fill_model_advice.zone_id}"
+            )
+            total_score = adjusted_score
         
         # 4. Score 기반 최종 결정
         if total_score < 50.0:

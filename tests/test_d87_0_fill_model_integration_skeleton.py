@@ -171,36 +171,19 @@ def test_fill_model_integration_init():
     assert integration.config.mode == "none"
 
 
-def test_fill_model_integration_compute_advice_not_implemented():
-    """compute_advice() NotImplementedError 검증"""
+def test_fill_model_integration_compute_advice_implemented():
+    """compute_advice() D87-1 구현 완료 검증"""
     config = FillModelConfig(enabled=False)
     integration = FillModelIntegration(config)
     
-    with pytest.raises(NotImplementedError, match="D87-1에서 구현 예정"):
-        integration.compute_advice(entry_bps=10.0, tp_bps=15.0)
+    # D87-1: enabled=False이면 None 반환
+    result = integration.compute_advice(entry_bps=10.0, tp_bps=15.0)
+    assert result is None
 
 
-def test_fill_model_integration_adjust_route_score_not_implemented():
-    """adjust_route_score() NotImplementedError 검증"""
-    config = FillModelConfig(enabled=False)
-    integration = FillModelIntegration(config)
-    
-    advice = FillModelAdvice(
-        entry_bps=10.0,
-        tp_bps=15.0,
-        zone_id="Z2",
-        expected_fill_probability=0.6307,
-        expected_slippage_bps=2.5,
-        confidence_level=0.8,
-    )
-    
-    with pytest.raises(NotImplementedError, match="D87-1에서 구현 예정"):
-        integration.adjust_route_score(base_score=60.0, advice=advice)
-
-
-def test_fill_model_integration_adjust_order_params_not_implemented():
-    """adjust_order_params() NotImplementedError 검증"""
-    config = FillModelConfig(enabled=False)
+def test_fill_model_integration_adjust_route_score_implemented():
+    """adjust_route_score() D87-1 구현 완료 검증"""
+    config = FillModelConfig(enabled=False, mode="none")
     integration = FillModelIntegration(config)
     
     advice = FillModelAdvice(
@@ -212,21 +195,39 @@ def test_fill_model_integration_adjust_order_params_not_implemented():
         confidence_level=0.8,
     )
     
-    with pytest.raises(NotImplementedError, match="D87-2에서 구현 예정"):
-        integration.adjust_order_params(
-            base_quantity=0.01,
-            base_price_offset=1.0,
-            advice=advice
-        )
+    # D87-1: mode='none'이면 base_score 그대로 반환
+    result = integration.adjust_route_score(base_score=60.0, advice=advice)
+    assert result == 60.0
 
 
-def test_fill_model_integration_check_health_not_implemented():
-    """check_health() NotImplementedError 검증"""
+def test_fill_model_integration_adjust_order_size_implemented():
+    """adjust_order_size() D87-1 구현 완료 검증 (adjust_order_params는 adjust_order_size로 변경)"""
+    config = FillModelConfig(enabled=False, mode="none")
+    integration = FillModelIntegration(config)
+    
+    advice = FillModelAdvice(
+        entry_bps=10.0,
+        tp_bps=15.0,
+        zone_id="Z2",
+        expected_fill_probability=0.6307,
+        expected_slippage_bps=2.5,
+        confidence_level=0.8,
+    )
+    
+    # D87-1: adjust_order_size 구현 완료 (mode='none'이면 base_size 그대로 반환)
+    result = integration.adjust_order_size(base_size=0.01, advice=advice)
+    assert result == 0.01
+
+
+def test_fill_model_integration_check_health_implemented():
+    """check_health() D87-1 구현 완료 검증"""
     config = FillModelConfig(enabled=False)
     integration = FillModelIntegration(config)
     
-    with pytest.raises(NotImplementedError, match="D87-3에서 구현 예정"):
-        integration.check_health()
+    # D87-1: check_health 구현 완료 (calibration 없으면 unhealthy)
+    result = integration.check_health()
+    assert result["healthy"] is False
+    assert "Calibration 데이터 없음" in result["warnings"]
 
 
 # =============================================================================
@@ -244,12 +245,12 @@ def test_fill_model_integration_check_health_not_implemented():
 
 def test_d87_0_integration_summary():
     """
-    D87-0 통합 요약 테스트
+    D87-0/D87-1 통합 요약 테스트
     
     검증 항목:
     - FillModelAdvice, FillModelConfig, FillModelIntegration 인터페이스 정의 완료
     - ArbRoute.evaluate() backward compatibility 유지
-    - 모든 skeleton 메서드가 NotImplementedError 발생 (D87-1+ 구현 예정)
+    - D87-1에서 모든 메서드 구현 완료 (Advisory Mode)
     """
     # 1. FillModelAdvice 생성 가능
     advice = FillModelAdvice(
@@ -270,15 +271,18 @@ def test_d87_0_integration_summary():
     integration = FillModelIntegration(config)
     assert integration.config.enabled is False
     
-    # 4. Skeleton 메서드들이 NotImplementedError 발생
-    with pytest.raises(NotImplementedError):
-        integration.compute_advice(10.0, 15.0)
+    # 4. D87-1: 메서드들이 구현되어 정상 동작 (enabled=False이면 no-op)
+    result = integration.compute_advice(10.0, 15.0)
+    assert result is None  # enabled=False
     
-    with pytest.raises(NotImplementedError):
-        integration.adjust_route_score(60.0, advice)
+    score = integration.adjust_route_score(60.0, advice)
+    assert score == 60.0  # mode='none'
     
-    with pytest.raises(NotImplementedError):
-        integration.adjust_order_params(0.01, 1.0, advice)
+    size = integration.adjust_order_size(0.01, advice)
+    assert size == 0.01  # mode='none'
     
-    with pytest.raises(NotImplementedError):
-        integration.check_health()
+    limit = integration.adjust_risk_limit(100000.0, advice)
+    assert limit == 100000.0  # mode='none'
+    
+    health = integration.check_health()
+    assert health["healthy"] is False  # no calibration

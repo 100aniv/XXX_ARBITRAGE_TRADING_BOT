@@ -29,7 +29,10 @@ import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Any, Literal, Union
+from typing import Dict, List, Optional, Any, Literal, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from arbitrage.execution.fill_model_integration import FillModelIntegration
 
 from .integration import CrossExchangeDecision, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager
@@ -271,6 +274,7 @@ class CrossExchangeRiskGuard:
         pnl_tracker: Optional[CrossExchangePnLTracker] = None,
         alert_manager: Optional[Any] = None,  # D76 AlertManager (optional)
         metrics_collector: Optional[Any] = None,  # D79-6 CrossExchangeMetrics (optional)
+        fill_model_integration: Optional["FillModelIntegration"] = None,  # D87-1
     ):
         """
         Initialize CrossExchangeRiskGuard
@@ -291,6 +295,7 @@ class CrossExchangeRiskGuard:
         self.pnl_tracker = pnl_tracker or CrossExchangePnLTracker()
         self.alert_manager = alert_manager
         self.metrics_collector = metrics_collector
+        self.fill_model_integration = fill_model_integration
         
         # Cooldown state (symbol → cooldown_until timestamp)
         self._cooldown_state: Dict[str, float] = {}
@@ -318,7 +323,7 @@ class CrossExchangeRiskGuard:
         Cross-Exchange 아비트라지 진입/청산 전 최종 Risk Gate.
         
         D87-0: fill_model_advice 통합 훅 추가 (backward compatible)
-        D87-3: Zone별 동적 한도 조정 구현 예정
+        D87-1: Zone별 동적 한도 조정 구현 완료 (Advisory Mode)
         
         Args:
             decision: CrossExchangeDecision (from Integration layer)
@@ -349,8 +354,26 @@ class CrossExchangeRiskGuard:
                     self._update_metrics(core_decision)
                     return core_decision
             
+            # D87-1: Fill Model Advice 기반 동적 한도 조정
+            adjusted_config = self.config
+            if fill_model_advice and self.fill_model_integration:
+                # 기존 config의 notional limit을 기반으로 조정
+                adjusted_max_notional = self.fill_model_integration.adjust_risk_limit(
+                    base_limit=self.config.max_notional_krw,
+                    advice=fill_model_advice
+                )
+                logger.debug(
+                    f"[CROSS_RISK_GUARD] Fill Model Risk Limit 조정: "
+                    f"base={self.config.max_notional_krw:.2f} → adjusted={adjusted_max_notional:.2f} KRW, "
+                    f"zone={fill_model_advice.zone_id}"
+                )
+                # 임시 config 생성 (기존 config를 변경하지 않음)
+                from copy import copy
+                adjusted_config = copy(self.config)
+                adjusted_config.max_notional_krw = adjusted_max_notional
+            
             # Step 2: CrossSync 규칙
-            cross_sync_decision = self._check_cross_sync_rules(decision)
+            cross_sync_decision = self._check_cross_sync_rules(decision, adjusted_config)
             if not cross_sync_decision.allowed:
                 self._update_metrics(cross_sync_decision)
                 self._record_metrics_decision(cross_sync_decision, decision)

@@ -25,8 +25,11 @@ Architecture:
 import logging
 import time
 from decimal import Decimal
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, TYPE_CHECKING
 from dataclasses import dataclass, asdict, field
+
+if TYPE_CHECKING:
+    from arbitrage.execution.fill_model_integration import FillModelIntegration
 
 from .integration import CrossExchangeDecision, CrossExchangeAction
 from .position_manager import CrossExchangePositionManager
@@ -135,15 +138,14 @@ class CrossExchangeExecutor:
     
     def __init__(
         self,
-        upbit_client: Any,
-        binance_client: Any,
+        upbit_exchange: BaseExchange,
+        binance_exchange: BaseExchange,
         position_manager: CrossExchangePositionManager,
         fx_converter: FXConverter,
-        health_monitor: Any,
-        settings: Any,
         risk_guard: Optional[CrossExchangeRiskGuard] = None,
-        metrics_collector: Optional[Any] = None,
-        alert_manager: Optional[Any] = None,
+        secrets_checker: Optional[Any] = None,  # SecretsChecker
+        dry_run: bool = False,
+        fill_model_integration: Optional["FillModelIntegration"] = None,
         fx_provider: Optional[FxRateProvider] = None,  # D80-2
         base_currency: Currency = Currency.KRW,  # D80-2
     ):
@@ -151,26 +153,25 @@ class CrossExchangeExecutor:
         Initialize CrossExchangeExecutor
         
         Args:
-            upbit_client: Upbit exchange adapter (BaseExchange)
-            binance_client: Binance exchange adapter (BaseExchange)
+            upbit_exchange: Upbit exchange adapter (BaseExchange)
+            binance_exchange: Binance exchange adapter (BaseExchange)
             position_manager: CrossExchangePositionManager
             fx_converter: FXConverter
-            health_monitor: HealthMonitor (D75-3)
-            settings: Settings (D78)
             risk_guard: CrossExchangeRiskGuard (optional, D79-5)
-            alert_manager: AlertManager (optional, D76)
+            secrets_checker: SecretsChecker (optional)
+            dry_run: Dry run mode (optional)
+            fill_model_integration: FillModelIntegration (optional)
             fx_provider: FxRateProvider (optional, D80-2)
             base_currency: 기본 통화 (D80-2)
         """
-        self.upbit_client = upbit_client
-        self.binance_client = binance_client
+        self.upbit_exchange = upbit_exchange
+        self.binance_exchange = binance_exchange
         self.position_manager = position_manager
         self.fx_converter = fx_converter
-        self.health_monitor = health_monitor
-        self.settings = settings
         self.risk_guard = risk_guard
-        self.metrics_collector = metrics_collector
-        self.alert_manager = alert_manager
+        self.secrets_checker = secrets_checker
+        self.dry_run = dry_run
+        self.fill_model_integration = fill_model_integration
         
         # D80-2/D80-3: Multi-Currency 지원
         if fx_provider is None:
@@ -391,9 +392,23 @@ class CrossExchangeExecutor:
             }
         
         D87-0: fill_model_advice 통합 훅 추가 (backward compatible)
-        D87-2: Zone별 주문 파라미터 조정 구현 예정
+        D87-1: Zone별 주문 수량 조정 구현 완료 (Advisory Mode)
         """
         notional_krw = decision.notional_krw or self.DEFAULT_NOTIONAL_KRW
+        
+        # D87-1: Fill Model Advice 기반 주문 수량 조정
+        if fill_model_advice and self.fill_model_integration:
+            # Notional을 기준으로 조정 (base size로 사용)
+            adjusted_notional = self.fill_model_integration.adjust_order_size(
+                base_size=notional_krw,
+                advice=fill_model_advice
+            )
+            logger.debug(
+                f"[CROSS_EXECUTOR] Fill Model Size 조정: "
+                f"base={notional_krw:.2f} → adjusted={adjusted_notional:.2f} KRW, "
+                f"zone={fill_model_advice.zone_id}"
+            )
+            notional_krw = adjusted_notional
         
         # FX rate
         fx_rate = self.fx_converter.get_fx_rate()
