@@ -3003,11 +3003,11 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
-### D82-8: Intermediate Threshold Long-run & Runtime Edge Monitor ✅ COMPLETE (2025-12-05)
+### D83-1: Real L2 WebSocket Provider Integration ✅ IMPLEMENTATION COMPLETE (2025-12-06)
 
-**Status:** ✅ **COMPLETE**
+**Status:** ✅ **IMPLEMENTATION COMPLETE** / ⚠️ **VALIDATION CONDITIONAL**
 
-**목표:** D82-6 (구조적 마이너스) ~ D82-7 (거래 미발생) 사이 Gap을 메우는 Intermediate Threshold Zone (Entry 10-14, TP 12-20 bps)에서 Long-run Real PAPER 실행하여 운영 가능한 Threshold 후보 선정.
+**목표:** Real WebSocket 기반 L2 Orderbook Provider를 MarketDataProvider 인터페이스로 통합하여, Executor가 실제 거래소 L2 데이터를 소비할 수 있도록 한다.
 
 **핵심 구현:**
 1. Runtime Edge Monitor (arbitrage/logging/trade_logger.py, +220 lines): Rolling Window (50 trades) 기준 실시간 Edge 통계, Effective Edge = Spread - Slippage - Fee, PnL 통계 (USD/bps), Win Rate 추적, JSONL Snapshot 로깅

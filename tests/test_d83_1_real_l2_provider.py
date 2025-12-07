@@ -196,9 +196,16 @@ class TestUpbitL2WebSocketProvider:
         fake_adapter.inject_snapshot(snapshot2)
         
         # Then
-        assert len(provider.latest_snapshots) == 2
-        assert provider.get_latest_snapshot("KRW-BTC") == snapshot1
-        assert provider.get_latest_snapshot("KRW-ETH") == snapshot2
+        # D83-1.5: 심볼 매핑 추가로 4개 항목 (Upbit 형식 + 표준 심볼)
+        assert len(provider.latest_snapshots) == 4
+        assert "KRW-BTC" in provider.latest_snapshots
+        assert "KRW-ETH" in provider.latest_snapshots
+        assert "BTC" in provider.latest_snapshots  # 표준 심볼
+        assert "ETH" in provider.latest_snapshots  # 표준 심볼
+        assert provider.latest_snapshots["KRW-BTC"] == snapshot1
+        assert provider.latest_snapshots["KRW-ETH"] == snapshot2
+        assert provider.latest_snapshots["BTC"] == snapshot1  # 매핑 확인
+        assert provider.latest_snapshots["ETH"] == snapshot2  # 매핑 확인
     
     def test_snapshot_overwrite(self):
         """스냅샷 덮어쓰기 테스트"""

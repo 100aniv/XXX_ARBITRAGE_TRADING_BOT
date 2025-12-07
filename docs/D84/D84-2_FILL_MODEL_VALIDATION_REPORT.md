@@ -1,13 +1,13 @@
 # D84-2: CalibratedFillModel 장기 PAPER 검증 리포트
 
-**작성일:** 2025-12-06 13:18:25
+**작성일:** 2025-12-07 13:36:41
 **상태:** ✅ **COMPLETE**
 
 ---
 
 ## 📋 실행 개요
 
-- **Events 파일**: `logs\d84-2\fill_events_20251206_041315.jsonl`
+- **Events 파일**: `logs\d84-2\fill_events_20251207_043133.jsonl`
 - **Calibration 파일**: `logs\d84\d84_1_calibration.json`
 - **총 이벤트 수**: 60
 - **BUY 이벤트**: 30
@@ -18,22 +18,22 @@
 ### BUY available_volume
 
 - Count: 30
-- Min: 0.055412
-- Max: 0.149238
-- Mean: 0.101536
-- Median: 0.100005
-- Std: 0.027535
-- **✅ DISPERSED** (std=27.1% of mean)
+- Min: 0.050642
+- Max: 0.148947
+- Mean: 0.095153
+- Median: 0.097819
+- Std: 0.032067
+- **✅ DISPERSED** (std=33.7% of mean)
 
 ### SELL available_volume
 
 - Count: 30
-- Min: 0.055983
-- Max: 0.149098
-- Mean: 0.108047
-- Median: 0.109027
-- Std: 0.031402
-- **✅ DISPERSED** (std=29.1% of mean)
+- Min: 0.059306
+- Max: 0.148647
+- Mean: 0.106285
+- Median: 0.109934
+- Std: 0.024657
+- **✅ DISPERSED** (std=23.2% of mean)
 
 ## 📊 fill_ratio 분석
 
@@ -77,7 +77,7 @@
 ## 🏁 결론
 
 - ✅ Fill Events 수 충족: 60개 (≥ 50)
-- ✅ available_volume 분산 확인: BUY 27.1%, SELL 29.1%
+- ✅ available_volume 분산 확인: BUY 33.7%, SELL 23.2%
 - ✅ BUY Fill Ratio Calibration 적용 확인 (차이 0.0000)
 
 ---

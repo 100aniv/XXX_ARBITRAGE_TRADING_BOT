@@ -176,7 +176,17 @@ class UpbitL2WebSocketProvider(MarketDataProvider):
         Args:
             snapshot: Upbit 호가 스냅샷
         """
+        # Upbit 형식 저장 (KRW-BTC)
         self.latest_snapshots[snapshot.symbol] = snapshot
+        
+        # 표준 심볼 변환 저장 (KRW-BTC → BTC)
+        # Executor가 표준 심볼로 요청할 수 있도록 양쪽 매핑 지원
+        if snapshot.symbol.startswith("KRW-"):
+            standard_symbol = snapshot.symbol.replace("KRW-", "")
+            self.latest_snapshots[standard_symbol] = snapshot
+        elif snapshot.symbol.startswith("USDT-"):
+            standard_symbol = snapshot.symbol.replace("USDT-", "")
+            self.latest_snapshots[standard_symbol] = snapshot
         
         logger.debug(
             f"[D83-1_L2] Updated snapshot: {snapshot.symbol}, "
@@ -232,11 +242,11 @@ class UpbitL2WebSocketProvider(MarketDataProvider):
                 # 재연결 카운터 리셋 (연결 성공)
                 self._reconnect_count = 0
                 
-                # 연결 유지 (메시지 수신은 ws_adapter가 처리)
-                while self._is_running:
-                    await asyncio.sleep(1.0)
+                # D83-1.5 FIX: receive_loop 실행하여 메시지 수신
+                await self.ws_adapter.receive_loop()
                 
-                # 정상 종료 요청
+                # receive_loop가 종료되면 연결이 끊어진 것
+                logger.warning("[D83-1_L2] receive_loop ended, connection lost")
                 break
             
             except asyncio.CancelledError:
