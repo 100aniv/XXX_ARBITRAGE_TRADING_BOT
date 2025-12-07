@@ -54,22 +54,32 @@ class FillModelAdvice:
 @dataclass
 class FillModelConfig:
     """
-    D87-1: Fill Model Config
+    D87-1/D87-2: Fill Model Config
     
     Fill Model 설정을 담는 구조체.
     
     Attributes:
         enabled: Fill Model 활성화 여부
-        mode: "none" (비활성화), "advisory" (soft bias), "strict" (강한 개입, D87-2+)
+        mode: "none" (비활성화), "advisory" (soft bias), "strict" (강한 개입, D87-2)
         calibration_path: Calibration JSON 경로
         min_confidence_level: 최소 신뢰도 (샘플 수 기반)
         staleness_threshold_seconds: Calibration 유효기간 (기본 24시간)
+        
+        # Advisory Mode 파라미터 (D87-1, ±10% 이내)
         advisory_score_bias_z2: Z2(고 fill_ratio) Route Score 보정값 (기본 +5.0)
         advisory_score_bias_other: Z1/Z3/Z4 Route Score 보정값 (기본 -2.0)
         advisory_size_multiplier_z2: Z2 주문 수량 배율 (기본 1.1)
         advisory_size_multiplier_other: 기타 Zone 주문 수량 배율 (기본 1.0)
         advisory_risk_multiplier_z2: Z2 Risk Limit 완화 배율 (기본 1.1)
         advisory_risk_multiplier_other: 기타 Zone Risk Limit 배율 (기본 1.0)
+        
+        # Strict Mode 파라미터 (D87-2, ±20% 이내)
+        strict_score_bias_z2: Z2 Route Score 보정값 (기본 +10.0)
+        strict_score_bias_other: Z1/Z3/Z4 Route Score 보정값 (기본 -5.0)
+        strict_size_multiplier_z2: Z2 주문 수량 배율 (기본 1.2)
+        strict_size_multiplier_other: 기타 Zone 주문 수량 배율 (기본 1.0)
+        strict_risk_multiplier_z2: Z2 Risk Limit 완화 배율 (기본 1.2)
+        strict_risk_multiplier_other: 기타 Zone Risk Limit 배율 (기본 1.0)
     """
     enabled: bool = False
     mode: Literal["none", "advisory", "strict"] = "none"
@@ -77,13 +87,21 @@ class FillModelConfig:
     min_confidence_level: float = 0.5
     staleness_threshold_seconds: float = 86400.0  # 24시간
     
-    # Advisory Mode 파라미터 (D87-1)
+    # Advisory Mode 파라미터 (D87-1, ±10% 이내)
     advisory_score_bias_z2: float = 5.0  # Z2 Score +5.0
     advisory_score_bias_other: float = -2.0  # Z1/Z3/Z4 Score -2.0
     advisory_size_multiplier_z2: float = 1.1  # Z2 수량 10% 증가
     advisory_size_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
     advisory_risk_multiplier_z2: float = 1.1  # Z2 Risk Limit 10% 완화
     advisory_risk_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
+    
+    # Strict Mode 파라미터 (D87-2, ±20% 이내)
+    strict_score_bias_z2: float = 10.0  # Z2 Score +10.0
+    strict_score_bias_other: float = -5.0  # Z1/Z3/Z4 Score -5.0
+    strict_size_multiplier_z2: float = 1.2  # Z2 수량 20% 증가
+    strict_size_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
+    strict_risk_multiplier_z2: float = 1.2  # Z2 Risk Limit 20% 완화
+    strict_risk_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
 
 
 class FillModelIntegration:
@@ -245,11 +263,15 @@ class FillModelIntegration:
         advice: FillModelAdvice
     ) -> float:
         """
-        D87-1: RouteHealthScore 보정 (Advisory Mode)
+        D87-1/D87-2: RouteHealthScore 보정 (Advisory/Strict Mode)
         
         Zone별로 Route Score를 보정한다:
-        - Z2 (고 fill_ratio): +advisory_score_bias_z2 (기본 +5.0)
-        - 기타 Zone: +advisory_score_bias_other (기본 -2.0)
+        - Advisory Mode:
+          - Z2 (고 fill_ratio): +advisory_score_bias_z2 (기본 +5.0)
+          - 기타 Zone: +advisory_score_bias_other (기본 -2.0)
+        - Strict Mode:
+          - Z2: +strict_score_bias_z2 (기본 +10.0)
+          - 기타 Zone: +strict_score_bias_other (기본 -5.0)
         
         Args:
             base_score: 기본 RouteHealthScore (0~100)
@@ -262,11 +284,19 @@ class FillModelIntegration:
         if self.config.mode == "none":
             return base_score
         
-        # Advisory Mode 보정
-        if advice.zone_id == "Z2":
-            bias = self.config.advisory_score_bias_z2
+        # Mode별 bias 선택
+        if self.config.mode == "advisory":
+            if advice.zone_id == "Z2":
+                bias = self.config.advisory_score_bias_z2
+            else:
+                bias = self.config.advisory_score_bias_other
+        elif self.config.mode == "strict":
+            if advice.zone_id == "Z2":
+                bias = self.config.strict_score_bias_z2
+            else:
+                bias = self.config.strict_score_bias_other
         else:
-            bias = self.config.advisory_score_bias_other
+            bias = 0.0
         
         adjusted_score = base_score + bias
         
@@ -275,7 +305,7 @@ class FillModelIntegration:
         
         logger.debug(
             f"[FILL_MODEL_INTEGRATION] Score 보정: "
-            f"base={base_score:.1f}, zone={advice.zone_id}, "
+            f"mode={self.config.mode}, base={base_score:.1f}, zone={advice.zone_id}, "
             f"bias={bias:+.1f}, adjusted={adjusted_score:.1f}"
         )
         
@@ -287,11 +317,15 @@ class FillModelIntegration:
         advice: FillModelAdvice
     ) -> float:
         """
-        D87-1: 주문 수량 조정 (Advisory Mode)
+        D87-1/D87-2: 주문 수량 조정 (Advisory/Strict Mode)
         
         Zone별로 주문 수량을 조정한다:
-        - Z2 (고 fill_ratio): base_size * advisory_size_multiplier_z2 (기본 1.1)
-        - 기타 Zone: base_size * advisory_size_multiplier_other (기본 1.0)
+        - Advisory Mode:
+          - Z2 (고 fill_ratio): base_size * advisory_size_multiplier_z2 (기본 1.1)
+          - 기타 Zone: base_size * advisory_size_multiplier_other (기본 1.0)
+        - Strict Mode:
+          - Z2: base_size * strict_size_multiplier_z2 (기본 1.2)
+          - 기타 Zone: base_size * strict_size_multiplier_other (기본 1.0)
         
         Args:
             base_size: 기본 주문 수량
@@ -304,17 +338,25 @@ class FillModelIntegration:
         if self.config.mode == "none":
             return base_size
         
-        # Advisory Mode 조정
-        if advice.zone_id == "Z2":
-            multiplier = self.config.advisory_size_multiplier_z2
+        # Mode별 multiplier 선택
+        if self.config.mode == "advisory":
+            if advice.zone_id == "Z2":
+                multiplier = self.config.advisory_size_multiplier_z2
+            else:
+                multiplier = self.config.advisory_size_multiplier_other
+        elif self.config.mode == "strict":
+            if advice.zone_id == "Z2":
+                multiplier = self.config.strict_size_multiplier_z2
+            else:
+                multiplier = self.config.strict_size_multiplier_other
         else:
-            multiplier = self.config.advisory_size_multiplier_other
+            multiplier = 1.0
         
         adjusted_size = base_size * multiplier
         
         logger.debug(
             f"[FILL_MODEL_INTEGRATION] Size 조정: "
-            f"base={base_size:.6f}, zone={advice.zone_id}, "
+            f"mode={self.config.mode}, base={base_size:.6f}, zone={advice.zone_id}, "
             f"multiplier={multiplier:.2f}, adjusted={adjusted_size:.6f}"
         )
         
@@ -326,11 +368,15 @@ class FillModelIntegration:
         advice: FillModelAdvice
     ) -> float:
         """
-        D87-1: RiskGuard 한도 조정 (Advisory Mode)
+        D87-1/D87-2: RiskGuard 한도 조정 (Advisory/Strict Mode)
         
         Zone별로 Risk Limit을 조정한다:
-        - Z2 (고 fill_ratio): base_limit * advisory_risk_multiplier_z2 (기본 1.1)
-        - 기타 Zone: base_limit * advisory_risk_multiplier_other (기본 1.0)
+        - Advisory Mode:
+          - Z2 (고 fill_ratio): base_limit * advisory_risk_multiplier_z2 (기본 1.1)
+          - 기타 Zone: base_limit * advisory_risk_multiplier_other (기본 1.0)
+        - Strict Mode:
+          - Z2: base_limit * strict_risk_multiplier_z2 (기본 1.2)
+          - 기타 Zone: base_limit * strict_risk_multiplier_other (기본 1.0)
         
         Args:
             base_limit: 기본 Risk Limit (예: max_notional, max_position)
@@ -343,17 +389,25 @@ class FillModelIntegration:
         if self.config.mode == "none":
             return base_limit
         
-        # Advisory Mode 조정
-        if advice.zone_id == "Z2":
-            multiplier = self.config.advisory_risk_multiplier_z2
+        # Mode별 multiplier 선택
+        if self.config.mode == "advisory":
+            if advice.zone_id == "Z2":
+                multiplier = self.config.advisory_risk_multiplier_z2
+            else:
+                multiplier = self.config.advisory_risk_multiplier_other
+        elif self.config.mode == "strict":
+            if advice.zone_id == "Z2":
+                multiplier = self.config.strict_risk_multiplier_z2
+            else:
+                multiplier = self.config.strict_risk_multiplier_other
         else:
-            multiplier = self.config.advisory_risk_multiplier_other
+            multiplier = 1.0
         
         adjusted_limit = base_limit * multiplier
         
         logger.debug(
             f"[FILL_MODEL_INTEGRATION] Risk Limit 조정: "
-            f"base={base_limit:.2f}, zone={advice.zone_id}, "
+            f"mode={self.config.mode}, base={base_limit:.2f}, zone={advice.zone_id}, "
             f"multiplier={multiplier:.2f}, adjusted={adjusted_limit:.2f}"
         )
         

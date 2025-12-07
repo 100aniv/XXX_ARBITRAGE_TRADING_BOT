@@ -3145,7 +3145,6 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 **목표:** D86에서 발견한 Z2(Entry 7-12 bps)의 높은 fill_ratio(≈0.63)가 20분 PAPER에서 재현되는지 검증
 
-**핵심 성과:**
 - **Z2 패턴 완벽 재현**: BUY fill_ratio=0.6307 (63%) 동일 (D86 vs D86-1)
 - **샘플 사이즈 확보**: 240 events (목표 200 대비 120%), Z2=80 samples (목표 30 대비 267%)
 - **Acceptance Criteria 전체 통과**:## D86-1: Fill Model 20분 PAPER Validation
@@ -3153,7 +3152,7 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 ## D87: Multi-Exchange Execution – Fill Model Integration
 
 **작성일:** 2025-12-07  
-**상태:** 🔄 **IN PROGRESS**
+**상태:** ✅ **COMPLETED** (D87-0/1/2 완료)
 
 ### 전체 목표
 D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exchange Execution 레이어(CrossExchangeExecutor, ArbRoute, RiskGuard, Metrics, Alerting)와 정합성 있게 통합하여, Zone별 fill_ratio 차이(Z1 26% vs Z2 63%)를 실전 트레이딩에 반영한다.
@@ -3169,10 +3168,10 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 **작성일:** 2025-12-07  
 **상태:** ✅ **DESIGN COMPLETE**
 
----
+### D87-1: FillModelIntegration Advisory Mode (✅ COMPLETED)
 
-**Next Steps:**
-- **D86-2**: 1시간 PAPER (OPTIONAL, 500+ events, Z4 샘플 추가) - MEDIUM Priority
+**작성일:** 2025-12-07  
+**상태:** ✅ **COMPLETED**
 - **D87**: Multi-Exchange Execution (HIGH Priority, D86 Calibration 기반)
 
 ---
