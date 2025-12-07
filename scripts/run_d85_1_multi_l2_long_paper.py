@@ -129,6 +129,7 @@ def generate_entry_tp_pairs() -> List[Tuple[float, float]]:
 def run_multi_l2_long_paper(
     duration_seconds: int,
     calibration_path: Path,
+    output_dir: Path,
 ) -> Dict[str, Any]:
     """
     Multi L2 Long PAPER 실행
@@ -136,6 +137,7 @@ def run_multi_l2_long_paper(
     Args:
         duration_seconds: 실행 시간 (초)
         calibration_path: Calibration JSON 파일 경로
+        output_dir: 출력 디렉토리 (logs/d85-1, logs/d85-2 등)
     
     Returns:
         실행 KPI (dict)
@@ -143,7 +145,6 @@ def run_multi_l2_long_paper(
     # 0. 세션 ID 및 출력 경로 설정
     session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
-    output_dir = Path(__file__).parent.parent / "logs" / "d85-1"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     fill_events_path = output_dir / f"fill_events_{session_id}.jsonl"
@@ -353,6 +354,12 @@ def main():
         default="logs/d84/d84_1_calibration.json",
         help="Calibration JSON 파일 경로 (기본값: logs/d84/d84_1_calibration.json)"
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="logs/d85-1",
+        help="출력 디렉토리 (기본값: logs/d85-1)"
+    )
     
     args = parser.parse_args()
     
@@ -376,7 +383,8 @@ def main():
     logger.info("")
     
     # 실행
-    metrics = run_multi_l2_long_paper(duration_seconds, calibration_path)
+    output_dir = Path(args.output_dir)
+    metrics = run_multi_l2_long_paper(duration_seconds, calibration_path, output_dir)
     
     # 요약 출력
     logger.info("")

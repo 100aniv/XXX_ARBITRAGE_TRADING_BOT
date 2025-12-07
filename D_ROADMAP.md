@@ -3009,6 +3009,84 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D85-1: Multi L2 Long PAPER & Calibration Data Collection ✅ COMPLETE (2025-12-07)
+
+**Status:** ✅ **COMPLETE** (Acceptance Criteria 5/5 PASS)
+
+**목표:** Multi L2 (Upbit + Binance) 20분 PAPER 실행, 다양한 Entry/TP 조합으로 Fill Event 데이터 수집
+
+**핵심 성과:**
+- ✅ **C1: Duration ≥ 20분**: 1205.7초 (20.1분)
+- ✅ **C2: Fill Events ≥ 100**: 240개 (BUY 120, SELL 120)
+- ✅ **C3: 인프라 안정성**: Fatal Exception 0건
+- ✅ **C4: available_volume 분산**: BUY 70.5%, SELL 457.5%
+- ✅ **C5: 문서화**: 리포트 + 분석 완료
+
+**실행 결과:**
+- Session ID: 20251207_095602, Duration: 1205.7초 (20.1분)
+- Entry Trades: 120, Fill Events: 240
+- Entry/TP 조합: 12개 조합 각 10회씩 사용
+- BUY fill_ratio: mean=0.3846 (38.49%), Calibration 0.2615 대비 +12.3%p
+
+**한계:** 모든 데이터 Z1로 분류, Zone별 차이 미관측
+
+**산출물:**
+- `scripts/run_d85_1_multi_l2_long_paper.py`
+- `scripts/analyze_d85_1_fill_results.py`
+- `docs/D85/D85-1_MULTI_L2_LONG_PAPER_REPORT.md`
+
+**결론:** ⚠️ CONDITIONAL GO - 데이터 수집 성공, Zone별 차이 미관측
+
+---
+
+### D85-2: Multi L2 1h PAPER & Calibration Data Expansion ✅ COMPLETE (2025-12-07)
+
+**Status:** ✅ **COMPLETE** (Acceptance Criteria 5/5 PASS)
+
+**목표:** Multi L2 1시간 장기 PAPER 실행, 500+ Fill Events 수집, Zone별 데이터 확장
+
+**핵심 성과:**
+- ✅ **C1: Duration ≥ 1시간**: 3605.2초 (60.1분)
+- ✅ **C2: Fill Events ≥ 500**: 718개 (BUY 359, SELL 359)
+- ✅ **C3: 인프라 안정성**: Fatal Exception 0건, Multi L2 정상 동작
+- ✅ **C4: available_volume 분산**: BUY 65.9%, SELL 300.5%
+- ✅ **C5: 문서화**: 리포트 완료
+
+**D85-1 대비 개선:**
+- Events: 240 → 718 (+199%)
+- Duration: 20.1분 → 60.1분 (+199%)
+- Entry Trades: 120 → 359 (+199%)
+
+**실행 결과:**
+- Session ID: 20251207_103956
+- Entry/TP 조합: 12개 조합 각 30회씩 사용
+- BUY fill_ratio: mean=0.3849 (38.49%)
+- 통계적 특성 D85-1과 거의 동일
+
+**Zone 분류 문제:**
+- 모든 데이터 Z1로 분류 (D85-1과 동일)
+- Calibration JSON의 Zone 정의가 실제 Entry BPS 범위와 불일치
+- D84-1 Calibration은 D82 데이터 (Entry 5-7 bps만 존재) 기반
+
+**산출물:**
+- `scripts/run_d85_1_multi_l2_long_paper.py` (--output-dir 인자 추가)
+- `docs/D85/D85-2_MULTI_L2_1H_PAPER_REPORT.md`
+- `logs/d85-2/fill_events_20251207_103956.jsonl` (718 events)
+
+**D86 시사점:**
+1. Zone 재정의 필요 (Entry 5~30 bps 커버)
+2. fill_ratio 재캘리브레이션 (Calibration 예측 0.2615 vs 실측 0.3849, +47%)
+3. D85-1/2 데이터 (958 events) 통합
+
+**결론:** ⚠️ CONDITIONAL GO → READY FOR D86
+
+**Next Steps:**
+- **D86**: Fill Model Re-calibration (HIGH Priority)
+- **D85-3**: Multi-Regime PAPER (OPTIONAL, 여러 시간대, 1000+ events)
+- **D87+**: Multi-Exchange Execution
+
+---
+
 ### D83-1: Real L2 WebSocket Provider Integration 
 **Status:**  **COMPLETE** (Implementation + Validation ALL PASS)
 

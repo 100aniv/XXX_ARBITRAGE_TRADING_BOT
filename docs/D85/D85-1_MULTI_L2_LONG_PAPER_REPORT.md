@@ -1,55 +1,55 @@
 # D85-1: Multi L2 Long PAPER & Calibration Data Collection 리포트
 
-**작성일:** 2025-12-07 19:16:22
+**작성일:** 2025-12-07 20:40:33
 **상태:** ✅ **COMPLETE**
 
 ---
 
 ## 📋 실행 개요
 
-- **Events 파일**: `logs\d85-1\fill_events_20251207_095602.jsonl`
+- **Events 파일**: `logs\d85-2\fill_events_20251207_103956.jsonl`
 - **Calibration 파일**: `logs\d84\d84_1_calibration.json`
 - **L2 Source**: Multi (Upbit + Binance)
-- **총 이벤트 수**: 240
-- **BUY 이벤트**: 120
-- **SELL 이벤트**: 120
+- **총 이벤트 수**: 718
+- **BUY 이벤트**: 359
+- **SELL 이벤트**: 359
 
 ## 📊 available_volume 분석
 
 ### BUY available_volume
 
-- Count: 120
-- Min: 0.067100
-- Max: 9.439270
-- Mean: 3.411484
-- Median: 2.876280
-- Std: 2.406316
-- **✅ DISPERSED** (std=70.5% of mean)
+- Count: 359
+- Min: 0.003740
+- Max: 9.709750
+- Mean: 3.749194
+- Median: 3.085540
+- Std: 2.472476
+- **✅ DISPERSED** (std=65.9% of mean)
 
 ### SELL available_volume
 
-- Count: 120
+- Count: 359
 - Min: 0.000037
-- Max: 6.204670
-- Mean: 0.150131
-- Median: 0.019761
-- Std: 0.686914
-- **✅ DISPERSED** (std=457.5% of mean)
+- Max: 3.102390
+- Mean: 0.063234
+- Median: 0.010499
+- Std: 0.189999
+- **✅ DISPERSED** (std=300.5% of mean)
 
 ## 📊 fill_ratio 분석
 
 ### BUY fill_ratio (전체)
 
-- Count: 120
+- Count: 359
 - Min: 0.2615 (26.15%)
 - Max: 1.0000 (100.00%)
-- Mean: 0.3846 (38.46%)
+- Mean: 0.3849 (38.49%)
 - Median: 0.2615 (26.15%)
-- Std: 0.2764
+- Std: 0.2759
 
 ### SELL fill_ratio (전체)
 
-- Count: 120
+- Count: 359
 - Min: 1.0000 (100.00%)
 - Max: 1.0000 (100.00%)
 - Mean: 1.0000 (100.00%)
@@ -60,25 +60,25 @@
 
 ### Z1
 
-- **총 이벤트**: 240 (BUY=120, SELL=120)
+- **총 이벤트**: 718 (BUY=359, SELL=359)
 
-- **BUY fill_ratio**: mean=0.3846 (38.46%), std=0.2764
+- **BUY fill_ratio**: mean=0.3849 (38.49%), std=0.2759
 - **SELL fill_ratio**: mean=1.0000 (100.00%), std=0.0000
-- **BUY slippage**: mean=0.00 bps, std=0.00 bps
-- **SELL slippage**: mean=0.16 bps, std=0.29 bps
+- **BUY slippage**: mean=0.00 bps, std=0.02 bps
+- **SELL slippage**: mean=0.15 bps, std=0.29 bps
 
 ### Zone 간 비교
 
 | Zone | BUY Events | BUY Fill Ratio (mean) | SELL Events | SELL Fill Ratio (mean) |
 |------|------------|----------------------|-------------|------------------------|
-| Z1 | 120 | 0.3846 (38.46%) | 120 | 1.0000 (100.00%) |
+| Z1 | 359 | 0.3849 (38.49%) | 359 | 1.0000 (100.00%) |
 
 ## 📊 Calibration 예측 vs 실측
 
 - **BUY Fill Ratio**:
   - Calibration 예측: 0.2615
-  - 실측 평균: 0.3846
-  - 차이: 0.1231
+  - 실측 평균: 0.3849
+  - 차이: 0.1234
 
 - **SELL Fill Ratio**:
   - Calibration 예측: 1.0000
@@ -87,13 +87,13 @@
 
 ## 📊 Slippage (bps)
 
-- **BUY**: mean=0.00 bps, std=0.00 bps
-- **SELL**: mean=0.16 bps, std=0.29 bps
+- **BUY**: mean=0.00 bps, std=0.02 bps
+- **SELL**: mean=0.15 bps, std=0.29 bps
 
 ## 🎯 Acceptance Criteria
 
-- ✅ **C2: Fill Events 수 충족**: 240개 (≥ 100)
-- ✅ **C4: available_volume 분산 확인**: BUY 70.5%, SELL 457.5%
+- ✅ **C2: Fill Events 수 충족**: 718개 (≥ 100)
+- ✅ **C4: available_volume 분산 확인**: BUY 65.9%, SELL 300.5%
 
 ## 🏁 결론
 
