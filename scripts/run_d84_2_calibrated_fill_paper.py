@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-D84-2: CalibratedFillModel 장기 PAPER 검증 Runner
+"""D84-2/D87-3: CalibratedFillModel + FillModelIntegration 장기 PAPER 검증 Runner
 D83-1: Real L2 WebSocket Provider 통합
+D87-3: FillModel Advisory vs Strict Long-run PAPER A/B
 
 목적:
 - D84-1에서 구현한 CalibratedFillModel을 실제 PAPER 환경에서 20분 이상 실행
 - D83-0 L2 Orderbook + D84-1 FillEventCollector 통합
 - D83-1 Real L2 WebSocket Provider 검증
+- D87-1/2 FillModelIntegration (Advisory/Strict Mode) A/B 검증
 - Zone별 Fill Ratio 보정이 실제로 작동하는지 검증
 - 50개 이상의 Fill Event 수집 및 분석
 
 실행 조건:
 - 단일 심볼 (BTC)
-- CalibratedFillModel (d84_1_calibration.json 사용)
+- CalibratedFillModel (d86_1 calibration 사용) + FillModelIntegration
 - L2 Orderbook Provider (Mock or Real WebSocket)
 - FillEventCollector 활성화
 
@@ -21,14 +22,14 @@ Usage:
     # 5분 스모크 테스트 (Mock L2)
     python scripts/run_d84_2_calibrated_fill_paper.py --smoke
     
-    # 5분 스모크 테스트 (Real L2)
-    python scripts/run_d84_2_calibrated_fill_paper.py --smoke --l2-source real
+    # 5분 스모크 테스트 (Real L2, Advisory Mode)
+    python scripts/run_d84_2_calibrated_fill_paper.py --smoke --l2-source real --fillmodel-mode advisory
     
-    # 20분 본 실행 (Real L2)
-    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 1200 --l2-source real
+    # D87-3: Advisory 3h
+    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 10800 --l2-source real --fillmodel-mode advisory --calibration-path logs/d86-1/calibration_20251207_123906.json --session-tag d87_3_advisory_3h
     
-    # 사용자 지정 시간
-    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 600 --l2-source mock
+    # D87-3: Strict 3h
+    python scripts/run_d84_2_calibrated_fill_paper.py --duration-seconds 10800 --l2-source real --fillmodel-mode strict --calibration-path logs/d86-1/calibration_20251207_123906.json --session-tag d87_3_strict_3h
 """
 
 import argparse
@@ -59,6 +60,9 @@ from arbitrage.exchanges.upbit_l2_ws_provider import UpbitL2WebSocketProvider
 
 # D83-2: Real L2 WebSocket Provider Import (Binance)
 from arbitrage.exchanges.binance_l2_ws_provider import BinanceL2WebSocketProvider
+
+# D87-1/2/3: FillModelIntegration (Advisory/Strict Mode)
+from arbitrage.execution.fill_model_integration import FillModelIntegration, FillModelConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -164,13 +168,18 @@ def run_calibrated_fill_paper(
     duration_seconds: int,
     calibration_path: Path,
     l2_source: str = "mock",
+    fillmodel_mode: str = "none",
+    session_tag: str = None,
 ) -> Dict[str, Any]:
     """
-    CalibratedFillModel 장기 PAPER 실행
+    CalibratedFillModel + FillModelIntegration 장기 PAPER 실행
     
     Args:
         duration_seconds: 실행 시간 (초)
         calibration_path: Calibration JSON 파일 경로
+        l2_source: L2 Source (mock/real/upbit/binance/multi)
+        fillmodel_mode: FillModel Mode (none/advisory/strict)
+        session_tag: 세션 태그 (로그 디렉토리 구분용)
     
     Returns:
         실행 KPI (dict)
@@ -178,17 +187,23 @@ def run_calibrated_fill_paper(
     # 0. 세션 ID 및 출력 경로 설정
     session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
-    output_dir = Path(__file__).parent.parent / "logs" / "d84-2"
+    # D87-3: session_tag가 있으면 해당 디렉토리 사용
+    if session_tag:
+        output_dir = Path(__file__).parent.parent / "logs" / "d87-3" / session_tag
+    else:
+        output_dir = Path(__file__).parent.parent / "logs" / "d84-2"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     fill_events_path = output_dir / f"fill_events_{session_id}.jsonl"
     kpi_path = output_dir / f"kpi_{session_id}.json"
     
-    logger.info(f"[D84-2] Session ID: {session_id}")
-    logger.info(f"[D84-2] Duration: {duration_seconds}초")
-    logger.info(f"[D84-2] L2 Source: {l2_source}")
-    logger.info(f"[D84-2] Fill Events 경로: {fill_events_path}")
-    logger.info(f"[D84-2] KPI 경로: {kpi_path}")
+    logger.info(f"[D87-3] Session ID: {session_id}")
+    logger.info(f"[D87-3] Session Tag: {session_tag or 'N/A'}")
+    logger.info(f"[D87-3] Duration: {duration_seconds}초 ({duration_seconds/60:.1f}분)")
+    logger.info(f"[D87-3] L2 Source: {l2_source}")
+    logger.info(f"[D87-3] FillModel Mode: {fillmodel_mode}")
+    logger.info(f"[D87-3] Fill Events 경로: {fill_events_path}")
+    logger.info(f"[D87-3] KPI 경로: {kpi_path}")
     logger.info("")
     
     # 1. Calibration 로드
@@ -314,7 +329,20 @@ def run_calibrated_fill_paper(
         tp_bps=tp_bps,
     )
     
-    logger.info(f"[D84-2] CalibratedFillModel 생성 완료: Entry={entry_bps}bps, TP={tp_bps}bps")
+    logger.info(f"[D87-3] CalibratedFillModel 생성 완료: Entry={entry_bps}bps, TP={tp_bps}bps")
+    
+    # D87-1/2/3: FillModelIntegration 생성 (Advisory/Strict Mode)
+    fillmodel_integration = None
+    if fillmodel_mode in ["advisory", "strict"]:
+        fillmodel_config = FillModelConfig(
+            enabled=True,
+            mode=fillmodel_mode,
+            calibration_path=str(calibration_path),
+        )
+        fillmodel_integration = FillModelIntegration.from_config(fillmodel_config)
+        logger.info(f"[D87-3] FillModelIntegration 생성 완료: mode={fillmodel_mode}")
+    else:
+        logger.info(f"[D87-3] FillModelIntegration 미사용 (mode={fillmodel_mode})")
     
     # 6. PaperExecutor 생성 (BTC 심볼)
     symbol = "BTC"
@@ -442,6 +470,19 @@ def main():
         default="mock",
         help="L2 Orderbook 소스: mock, real (=upbit), upbit, binance, multi (Upbit+Binance) (기본값: mock)"
     )
+    parser.add_argument(
+        "--fillmodel-mode",
+        type=str,
+        choices=["none", "advisory", "strict"],
+        default="none",
+        help="D87-3: FillModel Integration 모드 (none/advisory/strict, 기본값: none)"
+    )
+    parser.add_argument(
+        "--session-tag",
+        type=str,
+        default=None,
+        help="D87-3: 세션 태그 (로그 디렉토리 구분용, 예: d87_3_advisory_3h)"
+    )
     
     args = parser.parse_args()
     
@@ -465,7 +506,13 @@ def main():
     logger.info("")
     
     # 실행
-    metrics = run_calibrated_fill_paper(duration_seconds, calibration_path, l2_source=args.l2_source)
+    metrics = run_calibrated_fill_paper(
+        duration_seconds,
+        calibration_path,
+        l2_source=args.l2_source,
+        fillmodel_mode=args.fillmodel_mode,
+        session_tag=args.session_tag,
+    )
     
     # 요약 출력
     logger.info("")

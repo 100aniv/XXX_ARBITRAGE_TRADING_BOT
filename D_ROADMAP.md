@@ -3095,10 +3095,6 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 **핵심 성과:**
 - ✅ **FillEventCollector 버그 수정**: entry_bps/tp_bps 올바르게 기록 (AS-IS: 0.0 하드코딩)
-- ✅ **Zone 재정의**: 실측 데이터 기반 4개 Zone (Z1-Z4, Entry 5~30 bps 커버)
-- ✅ **Zone별 차이 발견**: Z2 BUY fill_ratio=**0.6307 (63%)** vs Z1=0.2615 (26%), **2.4배 차이**
-- ✅ **새 Calibration JSON**: d86_0_calibration.json (60 events 기반)
-- ✅ **테스트 100% 통과**: 8/8 신규 + 15/15 기존 (리그레션 없음)
 
 **실행 결과 (D86 Smoke Test, 5분):**
 - Session ID: 20251207_120533, Duration: 305.5초 (5.1분)
