@@ -3007,13 +3007,6 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 - Total PnL: $0.77, Zero fatal exceptions
 - MultiExchangeL2Snapshot 정상 감지, Dynamic exchange selection 확인
 
-**Changed Files:**
-- `arbitrage/exchanges/multi_exchange_l2_provider.py`
-- `scripts/debug/d85_0_debug_multi_l2_snapshot.py`
-
-**Documentation:**
-- `docs/D85/D85-0.1_MULTI_L2_RUNTIME_HOTFIX_REPORT.md`
-
 ---
 
 ### D83-1: Real L2 WebSocket Provider Integration 
