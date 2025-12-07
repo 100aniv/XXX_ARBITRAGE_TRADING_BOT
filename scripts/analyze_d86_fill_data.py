@@ -269,17 +269,42 @@ def generate_calibration_json(
 
 def main():
     """메인 함수"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="D86 Fill Event 데이터 분석")
+    parser.add_argument(
+        "--input",
+        type=str,
+        default="logs/d86/fill_events_20251207_120533.jsonl",
+        help="입력 Fill Events JSONL 파일 경로"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="출력 Calibration JSON 파일 경로 (기본값: 입력 파일과 같은 디렉토리)"
+    )
+    
+    args = parser.parse_args()
+    
     # 입력 파일
-    jsonl_path = Path("logs/d86/fill_events_20251207_120533.jsonl")
+    jsonl_path = Path(args.input)
     
     if not jsonl_path.exists():
         logger.error(f"[D86] Fill events file not found: {jsonl_path}")
         sys.exit(1)
     
+    # 출력 파일 경로 결정
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        output_path = jsonl_path.parent / f"{jsonl_path.stem.replace('fill_events', 'calibration')}.json"
+    
     logger.info("=" * 80)
     logger.info("[D86] Fill Event 데이터 분석 시작")
     logger.info("=" * 80)
     logger.info(f"Input: {jsonl_path}")
+    logger.info(f"Output: {output_path}")
     logger.info("")
     
     # 1. 데이터 로드
@@ -317,7 +342,6 @@ def main():
     logger.info("")
     
     # 5. Calibration JSON 생성
-    output_path = Path("logs/d86/d86_0_calibration.json")
     generate_calibration_json(zones, zone_stats, len(events), unmatched, output_path)
     logger.info("")
     
