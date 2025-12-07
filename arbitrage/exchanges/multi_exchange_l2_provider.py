@@ -37,6 +37,8 @@ from arbitrage.exchanges.base import OrderBookSnapshot
 from arbitrage.exchanges.market_data_provider import MarketDataProvider
 from arbitrage.exchanges.upbit_l2_ws_provider import UpbitL2WebSocketProvider
 from arbitrage.exchanges.binance_l2_ws_provider import BinanceL2WebSocketProvider
+from arbitrage.exchanges.upbit_ws_adapter import UpbitWebSocketAdapter
+from arbitrage.exchanges.binance_ws_adapter import BinanceWebSocketAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -384,20 +386,36 @@ class MultiExchangeL2Provider(MarketDataProvider):
         # 거래소별 Provider 초기화
         self._exchange_providers = {}
         
-        # Upbit Provider
+        # Upbit Provider with wrapped callback
         upbit_symbols = [self._get_exchange_symbol(sym, ExchangeId.UPBIT) for sym in symbols]
+        upbit_ws_adapter = UpbitWebSocketAdapter(
+            symbols=upbit_symbols,
+            callback=self._make_wrapped_callback(ExchangeId.UPBIT),
+            heartbeat_interval=upbit_heartbeat_interval,
+            timeout=upbit_timeout,
+        )
         self._exchange_providers[ExchangeId.UPBIT] = UpbitL2WebSocketProvider(
             symbols=upbit_symbols,
+            ws_adapter=upbit_ws_adapter,
             heartbeat_interval=upbit_heartbeat_interval,
             timeout=upbit_timeout,
             max_reconnect_attempts=upbit_max_reconnect_attempts,
             reconnect_backoff=upbit_reconnect_backoff,
         )
         
-        # Binance Provider
+        # Binance Provider with wrapped callback
         binance_symbols = [self._get_exchange_symbol(sym, ExchangeId.BINANCE) for sym in symbols]
+        binance_ws_adapter = BinanceWebSocketAdapter(
+            symbols=binance_symbols,
+            callback=self._make_wrapped_callback(ExchangeId.BINANCE),
+            depth=binance_depth,
+            interval=binance_interval,
+            heartbeat_interval=binance_heartbeat_interval,
+            timeout=binance_timeout,
+        )
         self._exchange_providers[ExchangeId.BINANCE] = BinanceL2WebSocketProvider(
             symbols=binance_symbols,
+            ws_adapter=binance_ws_adapter,
             depth=binance_depth,
             interval=binance_interval,
             heartbeat_interval=binance_heartbeat_interval,
@@ -406,30 +424,61 @@ class MultiExchangeL2Provider(MarketDataProvider):
             reconnect_backoff=binance_reconnect_backoff,
         )
         
-        # Override callback to update aggregator
-        self._wrap_callbacks()
-        
         logger.info(
             f"[D83-3_MULTI_L2] MultiExchangeL2Provider initialized for symbols={symbols}"
         )
     
-    def _wrap_callbacks(self) -> None:
+    def _make_wrapped_callback(self, exchange_id: ExchangeId):
         """
-        기존 Provider의 callback을 wrap하여 Aggregator 업데이트 추가.
+        거래소별 wrapped callback 생성.
+        
+        WebSocket Adapter가 호출하는 callback을 감싸서:
+        1. Aggregator 업데이트 (Multi L2 집계)
+        2. Provider의 latest_snapshots 업데이트 (Single L2 호환성)
+        
+        D85-0.1 FIX:
+        - ws_adapter 생성 시점에 callback 주입
+        - provider._on_snapshot 로직을 여기서 직접 구현
+        
+        Args:
+            exchange_id: 거래소 ID
+        
+        Returns:
+            wrapped callback function
         """
-        for ex_id, provider in self._exchange_providers.items():
-            original_callback = provider._on_snapshot
+        def wrapped_callback(snapshot: OrderBookSnapshot) -> None:
+            # 1. Aggregator 업데이트 (Multi L2 경로)
+            self.aggregator.update(exchange_id, snapshot)
+            logger.debug(
+                f"[D85-0.1_MULTI_L2] Aggregator updated: {exchange_id.value}, "
+                f"symbol={snapshot.symbol}, bid={snapshot.bids[0][0] if snapshot.bids else None}"
+            )
             
-            def make_wrapped_callback(exchange_id):
-                """Closure to capture exchange_id"""
-                def wrapped_callback(snapshot):
-                    # Aggregator 업데이트
-                    self.aggregator.update(exchange_id, snapshot)
-                    # 원래 callback 호출 (latest_snapshots 업데이트)
-                    original_callback(snapshot)
-                return wrapped_callback
-            
-            provider._on_snapshot = make_wrapped_callback(ex_id)
+            # 2. Provider의 latest_snapshots 업데이트 (Single L2 호환성 유지)
+            # provider._on_snapshot의 로직을 여기서 구현
+            provider = self._exchange_providers.get(exchange_id)
+            if provider:
+                # 거래소 형식 저장 (KRW-BTC or BTCUSDT)
+                provider.latest_snapshots[snapshot.symbol] = snapshot
+                
+                # 표준 심볼 변환 저장 (KRW-BTC → BTC, BTCUSDT → BTC)
+                if snapshot.symbol.startswith("KRW-"):
+                    standard_symbol = snapshot.symbol.replace("KRW-", "")
+                    provider.latest_snapshots[standard_symbol] = snapshot
+                elif snapshot.symbol.startswith("USDT-"):
+                    standard_symbol = snapshot.symbol.replace("USDT-", "")
+                    provider.latest_snapshots[standard_symbol] = snapshot
+                elif snapshot.symbol.endswith("USDT"):
+                    # Binance: BTCUSDT → BTC
+                    standard_symbol = snapshot.symbol.replace("USDT", "")
+                    provider.latest_snapshots[standard_symbol] = snapshot
+                
+                logger.debug(
+                    f"[D85-0.1_MULTI_L2] Provider snapshots updated: {exchange_id.value}, "
+                    f"symbol={snapshot.symbol}"
+                )
+        
+        return wrapped_callback
     
     def start(self) -> None:
         """

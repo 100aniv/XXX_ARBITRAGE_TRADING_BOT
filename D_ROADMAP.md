@@ -2978,6 +2978,44 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 
 ---
 
+### D85-0.1: Multi L2 Runtime Hotfix ✅ COMPLETE (2025-12-07)
+
+**Status:** ✅ **COMPLETE** (Acceptance Criteria 5/5 PASS)
+
+**목표:** D85-0 Multi L2 runtime issue 해결 ("No active sources" 제거)
+
+**Root Cause:**
+- WebSocket Adapter callback 참조가 provider 생성 시점에 고정됨
+- `_wrap_callbacks()` 사후 override가 aggregator에 전달되지 않음
+- 결과: Aggregator가 snapshot을 받지 못함 → "No active sources"
+
+**Solution (Minimal Fix):**
+- `_make_wrapped_callback(exchange_id)` 메서드로 교체
+- Adapter 생성 시점에 wrapped callback 주입
+- Aggregator 업데이트 + Provider snapshot 저장 동시 처리
+
+**핵심 성과:**
+- ✅ **"No active sources" 완전 제거:** 5분 테스트 0건
+- ✅ **Multi L2 활성화:** Upbit + Binance 동시 운영 (aggregation_count=7 in 30s)
+- ✅ **BUY available_volume std/mean:** 0.714 (71.4%) ≥ 0.1
+- ✅ **SELL available_volume std/mean:** 1.780 (178.0%) ≥ 0.1
+- ✅ **Unit/Regression:** 40/40 PASS (100%)
+
+**5min PAPER 테스트:**
+- Session ID: 20251207_090139, Duration: 307초
+- Entry Trades: 30, Fill Events: 60 (30 BUY, 30 SELL)
+- Total PnL: $0.77, Zero fatal exceptions
+- MultiExchangeL2Snapshot 정상 감지, Dynamic exchange selection 확인
+
+**Changed Files:**
+- `arbitrage/exchanges/multi_exchange_l2_provider.py`
+- `scripts/debug/d85_0_debug_multi_l2_snapshot.py`
+
+**Documentation:**
+- `docs/D85/D85-0.1_MULTI_L2_RUNTIME_HOTFIX_REPORT.md`
+
+---
+
 ### D83-1: Real L2 WebSocket Provider Integration 
 **Status:**  **COMPLETE** (Implementation + Validation ALL PASS)
 
