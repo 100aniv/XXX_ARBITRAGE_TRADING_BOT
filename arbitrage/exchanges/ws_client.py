@@ -158,6 +158,7 @@ class BaseWebSocketClient(ABC):
             self._last_heartbeat = time.time()
             
             logger.info(f"[D49_WS] Connected to {self.url}")
+            logger.debug(f"[D49_WS_DEBUG] Connection successful, ws object: {type(self.ws)}")
         
         except asyncio.TimeoutError:
             raise WebSocketTimeoutError(f"Connection timeout: {self.url}")
@@ -193,14 +194,32 @@ class BaseWebSocketClient(ABC):
                     await self._reconnect()
                 
                 # 메시지 수신
-                message_str = await asyncio.wait_for(
+                raw_message = await asyncio.wait_for(
                     self.ws.recv(),
                     timeout=self.timeout,
                 )
                 
+                # D83-1.6 DEBUG: raw 메시지 정보
+                logger.debug(
+                    f"[D49_WS_DEBUG] Received message: type={type(raw_message)}, "
+                    f"len={len(raw_message) if isinstance(raw_message, (str, bytes)) else 'N/A'}"
+                )
+                
+                # D83-1.6 FIX: bytes를 str로 변환 (Upbit은 binary로 메시지 전송)
+                if isinstance(raw_message, bytes):
+                    try:
+                        message_str = raw_message.decode('utf-8')
+                        logger.debug(f"[D49_WS_DEBUG] Decoded bytes to UTF-8: {message_str[:100]}...")
+                    except UnicodeDecodeError as e:
+                        logger.error(f"[D49_WS] Failed to decode bytes message: {e}")
+                        continue
+                else:
+                    message_str = raw_message
+                
                 # JSON 파싱
                 try:
                     message = json.loads(message_str)
+                    logger.debug(f"[D49_WS_DEBUG] Parsed JSON message: keys={list(message.keys())}")
                     self.on_message(message)
                     self._last_heartbeat = time.time()
                 except json.JSONDecodeError as e:
@@ -263,6 +282,7 @@ class BaseWebSocketClient(ABC):
         
         try:
             message_str = json.dumps(message)
+            logger.debug(f"[D49_WS_DEBUG] Sending message: {message_str[:200]}..." if len(message_str) > 200 else f"[D49_WS_DEBUG] Sending message: {message_str}")
             await self.ws.send(message_str)
         except Exception as e:
             logger.error(f"[D49_WS] Send error: {e}")

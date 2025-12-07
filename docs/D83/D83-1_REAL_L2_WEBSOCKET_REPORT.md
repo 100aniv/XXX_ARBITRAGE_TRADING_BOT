@@ -59,12 +59,19 @@ Real WebSocket 기반 L2 Orderbook Provider를 MarketDataProvider 인터페이�
 - ✅ 유닛 테스트 7/7 PASS
 - ✅ 회귀 테스트 25/25 PASS (D83-0, D84-1, D84-2)
 
-### STEP 5: REAL PAPER 실행
+### STEP 5: REAL PAPER 실행 및 디버깅
 - ✅ Real WebSocket 연결 시도 (Upbit API)
-- ✅ 5분 스모크 테스트 실행 (D83-1.5)
-- ✅ 분석 스크립트 실행
-- ⚠️ **Result:** CONDITIONAL (Mock L2 PASS, Real L2 WebSocket message reception issues)
-- 📋 **Details:** See `docs/D83/D83-1_5_REAL_L2_SMOKE_REPORT.md`
+- ✅ 5분 스모크 테스트 실행 (D83-1.5 초기)
+- ⚠️ D83-1.5: CONDITIONAL (Mock L2 PASS, Real L2 메시지 수신 실패)
+- ✅ D83-1.6: Upbit WebSocket 독립 디버깅
+  - bytes 디코딩 추가 (Upbit은 binary 메시지 전송)
+  - 구독 포맷 수정 (배열 + ticket 필수)
+  - 독립 테스트: 219개 메시지 수신 확인
+- ✅ D83-1.6: Real L2 PAPER 재실행
+  - Duration: 300.2s, Fill Events: 60, PnL: $0.77
+  - BUY std/mean: 1.891, SELL std/mean: 1.245
+  - **ALL ACCEPTANCE CRITERIA PASS** ✅
+- 📋 **Details:** See `docs/D83/D83-1_5_REAL_L2_SMOKE_REPORT.md` and `docs/D83/D83-1_6_UPBIT_WS_DEBUG_NOTE.md`
 
 ---
 

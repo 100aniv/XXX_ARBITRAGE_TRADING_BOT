@@ -70,15 +70,28 @@ class UpbitWebSocketAdapter(BaseWebSocketClient):
         
         Args:
             channels: 구독할 심볼 목록
+        
+        Note:
+            Upbit WebSocket API는 배열 형태로 메시지를 요구합니다:
+            [{"ticket":"UUID"}, {"type":"orderbook","codes":["KRW-BTC"]}]
         """
-        message = {
-            "type": "orderbook",
-            "codes": channels,
-        }
+        import uuid
+        
+        # D83-1.6 FIX: Upbit API 정식 포맷 (배열 + ticket)
+        message = [
+            {"ticket": str(uuid.uuid4())},
+            {"type": "orderbook", "codes": channels}
+        ]
+        
+        logger.debug(f"[D49.5_UPBIT_DEBUG] Subscription message: {message}")
         
         try:
-            await self.send_message(message)
+            # send_message는 dict만 받으므로, 직접 JSON 전송
+            import json
+            message_str = json.dumps(message)
+            await self.ws.send(message_str)
             logger.info(f"[D49.5_UPBIT] Subscribed to: {channels}")
+            logger.debug(f"[D49.5_UPBIT_DEBUG] Subscription successful, waiting for orderbook messages...")
         except Exception as e:
             logger.error(f"[D49.5_UPBIT] Subscribe error: {e}")
             raise
@@ -91,11 +104,17 @@ class UpbitWebSocketAdapter(BaseWebSocketClient):
             message: 수신한 메시지 (JSON 파싱됨)
         """
         try:
-            if message.get("type") == "orderbook":
+            msg_type = message.get("type")
+            logger.debug(f"[D49.5_UPBIT_DEBUG] on_message called: type={msg_type}")
+            
+            if msg_type == "orderbook":
                 snapshot = self._parse_message(message)
                 if snapshot:
+                    logger.debug(f"[D49.5_UPBIT_DEBUG] Snapshot parsed successfully: {snapshot.symbol}")
                     self._last_snapshots[snapshot.symbol] = snapshot
                     self.callback(snapshot)
+            else:
+                logger.debug(f"[D49.5_UPBIT_DEBUG] Ignoring non-orderbook message: type={msg_type}")
         except Exception as e:
             logger.error(f"[D49.5_UPBIT] Message handling error: {e}")
             self.on_error(e)
@@ -157,6 +176,12 @@ class UpbitWebSocketAdapter(BaseWebSocketClient):
                 f"[D49.5_UPBIT] Parsed snapshot: {code}, "
                 f"bids={len(bids)}, asks={len(asks)}, ts={timestamp_s}"
             )
+            
+            if bids and asks:
+                logger.debug(
+                    f"[D49.5_UPBIT_DEBUG] Top bid: {bids[0][0]:.2f} x {bids[0][1]:.4f}, "
+                    f"Top ask: {asks[0][0]:.2f} x {asks[0][1]:.4f}"
+                )
             
             return snapshot
         
