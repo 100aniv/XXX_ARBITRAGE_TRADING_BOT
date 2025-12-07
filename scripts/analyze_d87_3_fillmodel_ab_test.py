@@ -69,7 +69,46 @@ def load_kpi(kpi_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def analyze_session(session_dir: Path, session_name: str) -> Dict[str, Any]:
+def load_calibration(calibration_path: Path) -> Dict[str, Any]:
+    """
+    Calibration JSON 파일 로드
+    
+    Args:
+        calibration_path: Calibration JSON 파일 경로
+    
+    Returns:
+        Calibration dict
+    """
+    with open(calibration_path, "r") as f:
+        return json.load(f)
+
+
+def map_zone(entry_bps: float, tp_bps: float, zones: List[Dict[str, Any]]) -> str:
+    """
+    entry_bps/tp_bps 기반 Zone 매핑
+    
+    Args:
+        entry_bps: Entry BPS
+        tp_bps: TP BPS
+        zones: Calibration zones 리스트
+    
+    Returns:
+        Zone ID (Z1~Z4) 또는 "UNKNOWN"
+    """
+    for zone in zones:
+        entry_min = zone["entry_min"]
+        entry_max = zone["entry_max"]
+        tp_min = zone["tp_min"]
+        tp_max = zone["tp_max"]
+        
+        # Entry와 TP 모두 범위 내에 있어야 함
+        if entry_min <= entry_bps < entry_max and tp_min <= tp_bps <= tp_max:
+            return zone["zone_id"]
+    
+    return "UNKNOWN"
+
+
+def analyze_session(session_dir: Path, session_name: str, calibration: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     단일 세션 분석
     
@@ -103,7 +142,12 @@ def analyze_session(session_dir: Path, session_name: str) -> Dict[str, Any]:
     events = load_fill_events(fill_events_path)
     logger.info(f"[{session_name}] Fill Events 수: {len(events)}")
     
-    # 4. Zone별 통계 계산
+    # 4. Calibration Zones 추출
+    zones = calibration.get("zones", []) if calibration else []
+    if not zones:
+        logger.warning(f"[{session_name}] Calibration zones가 비어 있음. Zone 분석은 UNKNOWN으로 처리됨.")
+    
+    # 5. Zone별 통계 계산
     zone_stats = defaultdict(lambda: {
         "count": 0,
         "notional_sum": 0.0,
@@ -120,10 +164,16 @@ def analyze_session(session_dir: Path, session_name: str) -> Dict[str, Any]:
         if event.get("side") == "buy":
             entry_count += 1
             
-            zone_id = event.get("zone_id", "UNKNOWN")
-            quantity = event.get("quantity", 0.0)
-            price = event.get("price", 0.0)
-            notional = quantity * price
+            # Zone 매핑 (Calibration 기반)
+            entry_bps = event.get("entry_bps", 0.0)
+            tp_bps = event.get("tp_bps", 0.0)
+            zone_id = map_zone(entry_bps, tp_bps, zones) if zones else "UNKNOWN"
+            
+            # Notional 계산 (간단한 추정: filled_quantity * 가정 price)
+            # 실제 price 정보가 없으므로 BTC 기준 $50,000로 가정
+            quantity = event.get("filled_quantity", 0.0)
+            assumed_price = 50000.0  # BTC price assumption
+            notional = quantity * assumed_price
             
             # PnL 추정 (매우 단순화: buy와 sell을 매칭해야 하지만 여기서는 생략)
             pnl = 0.0  # 실제로는 sell 이벤트와 매칭 필요
@@ -136,7 +186,11 @@ def analyze_session(session_dir: Path, session_name: str) -> Dict[str, Any]:
             total_notional += notional
             total_pnl += pnl
     
-    # 5. Zone별 비중 계산
+    # 6. KPI에서 실제 PnL 가져오기
+    if kpi:
+        total_pnl = kpi.get("total_pnl_usd", 0.0)
+    
+    # 7. Zone별 비중 계산
     zone_analysis = {}
     for zone_id, stats in zone_stats.items():
         zone_analysis[zone_id] = {
@@ -307,12 +361,42 @@ def main():
         default="logs/d87-3/d87_3_ab_summary.json",
         help="출력 JSON 경로 (기본값: logs/d87-3/d87_3_ab_summary.json)"
     )
+    parser.add_argument(
+        "--calibration-path",
+        type=str,
+        default=None,
+        help="Calibration JSON 경로 (선택, 없으면 Zone 분석 불가)"
+    )
     
     args = parser.parse_args()
     
     advisory_dir = Path(args.advisory_dir)
     strict_dir = Path(args.strict_dir)
     output_path = Path(args.output)
+    
+    # Calibration 로드
+    calibration = None
+    if args.calibration_path:
+        calibration_path = Path(args.calibration_path)
+        if calibration_path.exists():
+            calibration = load_calibration(calibration_path)
+            logger.info(f"Calibration 로드: {calibration_path}")
+            logger.info(f"Zones: {len(calibration.get('zones', []))}개")
+        else:
+            logger.warning(f"Calibration 파일이 존재하지 않음: {calibration_path}")
+    else:
+        # 기본 경로 시도
+        default_cal_path = Path("logs/d86-1")
+        if default_cal_path.exists():
+            cal_files = list(default_cal_path.glob("calibration_*.json"))
+            if cal_files:
+                calibration_path = cal_files[0]
+                calibration = load_calibration(calibration_path)
+                logger.info(f"Calibration 기본 경로 사용: {calibration_path}")
+                logger.info(f"Zones: {len(calibration.get('zones', []))}개")
+    
+    if not calibration:
+        logger.warning("Calibration이 없습니다. Zone 분석은 UNKNOWN으로 처리됩니다.")
     
     if not advisory_dir.exists():
         logger.error(f"Advisory 디렉토리가 존재하지 않습니다: {advisory_dir}")
@@ -330,8 +414,10 @@ def main():
     logger.info(f"Output: {output_path}")
     logger.info("")
     
+    logger.info("")
+    
     # 1. Advisory 세션 분석
-    advisory_summary = analyze_session(advisory_dir, "Advisory")
+    advisory_summary = analyze_session(advisory_dir, "Advisory", calibration)
     if not advisory_summary:
         logger.error("Advisory 세션 분석 실패")
         sys.exit(1)
@@ -339,7 +425,7 @@ def main():
     logger.info("")
     
     # 2. Strict 세션 분석
-    strict_summary = analyze_session(strict_dir, "Strict")
+    strict_summary = analyze_session(strict_dir, "Strict", calibration)
     if not strict_summary:
         logger.error("Strict 세션 분석 실패")
         sys.exit(1)
