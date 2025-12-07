@@ -200,7 +200,20 @@ def run_calibrated_fill_paper(
         l2_source = "upbit"
         logger.info("[D83-2] l2_source 'real' → 'upbit' (backward compatibility)")
     
-    if l2_source == "upbit":
+    if l2_source == "multi":
+        # D83-3: Multi-exchange L2 Provider
+        from arbitrage.exchanges.multi_exchange_l2_provider import MultiExchangeL2Provider
+        
+        market_data_provider = MultiExchangeL2Provider(
+            symbols=["BTC"],
+            staleness_threshold_seconds=2.0,
+        )
+        market_data_provider.start()
+        logger.info("[D83-3] MultiExchangeL2Provider started (Upbit + Binance)")
+        
+        # WebSocket 연결 대기는 Provider 내부에서 처리됨
+    
+    elif l2_source == "upbit":
         # D83-1: Upbit Real L2 WebSocket Provider
         symbol_upbit = "KRW-BTC"  # Upbit 심볼 포맷
         market_data_provider = UpbitL2WebSocketProvider(
@@ -425,9 +438,9 @@ def main():
     parser.add_argument(
         "--l2-source",
         type=str,
-        choices=["mock", "real", "upbit", "binance"],
+        choices=["mock", "real", "upbit", "binance", "multi"],
         default="mock",
-        help="L2 Orderbook 소스: mock, real (=upbit), upbit, binance (기본값: mock)"
+        help="L2 Orderbook 소스: mock, real (=upbit), upbit, binance, multi (Upbit+Binance) (기본값: mock)"
     )
     
     args = parser.parse_args()
