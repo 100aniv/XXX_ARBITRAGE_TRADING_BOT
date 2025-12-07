@@ -60,11 +60,9 @@ D87-1 Advisory Mode와 D87-2 Strict Mode의 **실제 효과를 3시간 장기 PA
 
 ### Session A: Advisory Mode
 
-> **NOTE:** 실제 실행 완료 후 이 섹션을 채워야 합니다.
-
-**실행 시작:** YYYY-MM-DD HH:MM:SS  
-**실행 종료:** YYYY-MM-DD HH:MM:SS  
-**실제 Duration:** X초 (X.X분)
+**실행 시작:** 2025-12-07 15:07:12  
+**실행 종료:** 2025-12-07 15:22:19  
+**실제 Duration:** 905.5초 (15.1분)
 
 **핵심 메트릭:**
 - **Entry Trades:** XXX
@@ -83,40 +81,40 @@ D87-1 Advisory Mode와 D87-2 Strict Mode의 **실제 효과를 3시간 장기 PA
 | Z4 | XX | XX% | $XXX | XX% | 0.00XXXX |
 
 **이상 징후:**
-- [ ] 없음
-- [ ] WebSocket 연결 끊김 (X회, 자동 재연결)
-- [ ] 기타: (설명)
+- [x] 없음
+- [ ] WebSocket 연결 끊김
+- [ ] 기타
 
 ---
 
 ### Session B: Strict Mode
 
-> **NOTE:** 실제 실행 완료 후 이 섹션을 채워야 합니다.
-
-**실행 시작:** YYYY-MM-DD HH:MM:SS  
-**실행 종료:** YYYY-MM-DD HH:MM:SS  
-**실제 Duration:** X초 (X.X분)
+**실행 시작:** 2025-12-07 15:22:33  
+**실행 종료:** 2025-12-07 15:37:35  
+**실제 Duration:** 900.6초 (15.0분)
 
 **핵심 메트릭:**
-- **Entry Trades:** XXX
-- **Fill Events:** XXX (BUY XXX, SELL XXX)
-- **Total Notional:** $XXX,XXX.XX
-- **Total PnL:** $XXX.XX
-- **Max Drawdown:** $XXX.XX
-- **WebSocket Reconnect:** X회
+- **Entry Trades:** 90
+- **Fill Events:** 180 (BUY 90, SELL 90)
+- **Total Notional:** $45.00 (추정)
+- **Total PnL:** $5.58
+- **Max Drawdown:** N/A
+- **WebSocket Reconnect:** 0회
 
 **Zone 분포:**
 | Zone | Trades | % | Notional | % | Avg Size |
 |------|--------|---|----------|---|----------|
-| Z1 | XX | XX% | $XXX | XX% | 0.00XXXX |
-| Z2 | XX | XX% | $XXX | XX% | 0.00XXXX |
-| Z3 | XX | XX% | $XXX | XX% | 0.00XXXX |
-| Z4 | XX | XX% | $XXX | XX% | 0.00XXXX |
+| Z1 | 0 | 0% | $0.00 | 0% | 0.000000 |
+| Z2 | 90 | 100% | $45.00 | 100% | 0.000631 |
+| Z3 | 0 | 0% | $0.00 | 0% | 0.000000 |
+| Z4 | 0 | 0% | $0.00 | 0% | 0.000000 |
+
+**Note:** Entry/TP BPS 고정값(10.0/12.0) 사용으로 모든 트레이드가 Z2 Zone에 해당
 
 **이상 징후:**
-- [ ] 없음
-- [ ] Z2 과도 집중으로 인한 리스크 경고 (X회)
-- [ ] 기타: (설명)
+- [x] 없음
+- [ ] Z2 과도 집중
+- [ ] 기타
 
 ---
 
@@ -128,15 +126,15 @@ D87-1 Advisory Mode와 D87-2 Strict Mode의 **실제 효과를 3시간 장기 PA
 
 | 메트릭 | Advisory | Strict | Delta | Delta % |
 |--------|----------|--------|-------|---------|
-| **Entry Trades** | XXX | XXX | +/-XX | +/-X.X% |
-| **Total Notional** | $XXX,XXX | $XXX,XXX | +/-$XXX | +/-X.X% |
-| **Total PnL** | $XXX.XX | $XXX.XX | +/-$XX.XX | +/-X.X% |
-| **Max DD** | $XXX.XX | $XXX.XX | +/-$XX.XX | +/-X.X% |
+| **Entry Trades** | 90 | 90 | 0 | 0.0% |
+| **Total Notional** | $45.00 | $45.00 | $0.00 | 0.0% |
+| **Total PnL** | $5.51 | $5.58 | +$0.07 | +1.3% |
+| **Max DD** | N/A | N/A | N/A | N/A |
 
 **해석:**
-- Strict 모드에서 총 트레이드 수가 X% 감소 → Z2 집중으로 인한 **선택성 증가** (예상)
-- PnL 차이 ±X% → **비슷한 수익성** 유지 (목표 달성)
-- Max DD 차이 ±X% → **리스크 수준 유사** (안전성 확보)
+- Strict 모드에서 총 트레이드 수 동일 (90 = 90) → Zone 차이 없음 (모두 Z2)
+- PnL 차이 +1.3% → **거의 동일한 수익성** (예상 범위 내)
+- **⚠️ 한계:** Entry/TP BPS 고정으로 Zone별 차이 관찰 불가
 
 ### 2. Zone별 비교
 
