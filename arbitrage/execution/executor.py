@@ -347,42 +347,25 @@ class PaperExecutor(BaseExecutor):
         
         return result
     
-    def _get_available_volume_from_orderbook(
+    def _extract_volume_from_single_l2(
         self,
+        snapshot,
         symbol: str,
         side: OrderSide,
-        target_price: float,
         fallback_quantity: float,
     ) -> float:
         """
-        D83-0: L2 Orderbook에서 available_volume 계산
-        
-        L2 Orderbook의 Best Level (첫 번째 호가) volume을 반환한다.
-        Orderbook이 없거나 Provider가 없으면 기존 fallback 로직 사용.
+        D85-0: Single L2 Snapshot (OrderBookSnapshot)에서 available_volume 추출
         
         Args:
+            snapshot: OrderBookSnapshot (.bids, .asks 속성 존재)
             symbol: 거래 심볼
             side: BUY or SELL
-            target_price: 목표 가격 (현재 미사용, D83-1+에서 활용)
-            fallback_quantity: Orderbook 없을 시 fallback (기존 로직)
+            fallback_quantity: Fallback 수량
         
         Returns:
-            available_volume (실제 L2 기반 값 또는 fallback)
-        
-        Notes:
-            - D83-0 (Baseline): Best level volume만 사용
-            - D83-1+ (Future): Multi-level aggregation, price impact 고려
+            available_volume (best level volume)
         """
-        # Provider 없으면 기존 fallback 로직
-        if self.market_data_provider is None:
-            return fallback_quantity * self.default_available_volume_factor
-        
-        # Orderbook snapshot 가져오기
-        snapshot = self.market_data_provider.get_latest_snapshot(symbol)
-        if snapshot is None:
-            logger.warning(f"[D83-0_L2] No snapshot for {symbol}, using fallback")
-            return fallback_quantity * self.default_available_volume_factor
-        
         # L2 Orderbook에서 available_volume 계산
         if side == OrderSide.BUY:
             # BUY: asks 사용 (매도 호가)
@@ -392,18 +375,132 @@ class PaperExecutor(BaseExecutor):
             levels = snapshot.bids
         
         if not levels:
-            logger.warning(f"[D83-0_L2] Empty {side.value} levels for {symbol}, using fallback")
+            logger.warning(f"[D85-0_SINGLE_L2] Empty {side.value} levels for {symbol}, using fallback")
             return fallback_quantity * self.default_available_volume_factor
         
-        # Best Level의 volume 반환 (1단계)
+        # Best Level의 volume 반환
         best_price, best_volume = levels[0]
         
         logger.debug(
-            f"[D83-0_L2] {symbol} {side.value} available_volume={best_volume:.6f} "
-            f"(best_price={best_price:.2f}, fallback={fallback_quantity * self.default_available_volume_factor:.6f})"
+            f"[D85-0_SINGLE_L2] {symbol} {side.value} available_volume={best_volume:.6f} "
+            f"(best_price={best_price:.2f})"
         )
         
         return best_volume
+    
+    def _extract_volume_from_multi_l2(
+        self,
+        snapshot,
+        symbol: str,
+        side: OrderSide,
+        fallback_quantity: float,
+    ) -> float:
+        """
+        D85-0: Multi L2 Snapshot (MultiExchangeL2Snapshot)에서 available_volume 추출
+        
+        v0 구현: Best exchange 1개 선택 → OrderBookSnapshot 추출 → volume 반환
+        
+        Args:
+            snapshot: MultiExchangeL2Snapshot (.per_exchange, .best_bid_exchange, .best_ask_exchange)
+            symbol: 거래 심볼
+            side: BUY or SELL
+            fallback_quantity: Fallback 수량
+        
+        Returns:
+            available_volume (best exchange의 best level volume)
+        """
+        # Best exchange 선택
+        if side == OrderSide.BUY:
+            # BUY: 가장 낮은 ask를 제공하는 exchange
+            best_exchange_id = snapshot.best_ask_exchange
+        else:
+            # SELL: 가장 높은 bid를 제공하는 exchange
+            best_exchange_id = snapshot.best_bid_exchange
+        
+        if best_exchange_id is None:
+            logger.warning(f"[D85-0_MULTI_L2] No best exchange for {symbol} {side.value}, using fallback")
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # Best exchange의 OrderBookSnapshot 추출
+        exchange_snapshot = snapshot.per_exchange.get(best_exchange_id)
+        if exchange_snapshot is None:
+            logger.warning(
+                f"[D85-0_MULTI_L2] No snapshot for best exchange {best_exchange_id.value}, using fallback"
+            )
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # OrderBookSnapshot에서 volume 추출 (재사용)
+        volume = self._extract_volume_from_single_l2(
+            exchange_snapshot, symbol, side, fallback_quantity
+        )
+        
+        logger.info(
+            f"[D85-0_MULTI_L2] {symbol} {side.value} using {best_exchange_id.value} "
+            f"available_volume={volume:.6f}"
+        )
+        
+        return volume
+    
+    def _get_available_volume_from_orderbook(
+        self,
+        symbol: str,
+        side: OrderSide,
+        target_price: float,
+        fallback_quantity: float,
+    ) -> float:
+        """
+        D85-0: L2 Orderbook에서 available_volume 계산 (Multi L2 지원)
+        
+        L2 Orderbook의 Best Level (첫 번째 호가) volume을 반환한다.
+        MultiExchangeL2Snapshot 및 OrderBookSnapshot 모두 지원.
+        Orderbook이 없거나 Provider가 없으면 기존 fallback 로직 사용.
+        
+        Args:
+            symbol: 거래 심볼
+            side: BUY or SELL
+            target_price: 목표 가격 (현재 미사용, D85-1+에서 활용)
+            fallback_quantity: Orderbook 없을 시 fallback (기존 로직)
+        
+        Returns:
+            available_volume (실제 L2 기반 값 또는 fallback)
+        
+        Notes:
+            - D83-0: Single L2 (OrderBookSnapshot) 지원
+            - D85-0: Multi L2 (MultiExchangeL2Snapshot) 지원 추가
+            - D85-1+: Multi-level aggregation, cross-exchange order routing
+        """
+        # Provider 없으면 기존 fallback 로직
+        if self.market_data_provider is None:
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # Orderbook snapshot 가져오기
+        snapshot = self.market_data_provider.get_latest_snapshot(symbol)
+        if snapshot is None:
+            logger.warning(f"[D85-0_L2] No snapshot for {symbol}, using fallback")
+            return fallback_quantity * self.default_available_volume_factor
+        
+        # D85-0: Type 체크 순서 중요 (Multi L2 우선 체크)
+        # Type 1: MultiExchangeL2Snapshot (Multi L2: Upbit + Binance)
+        if hasattr(snapshot, 'per_exchange'):
+            logger.info(f"[D85-0_L2] Detected MultiExchangeL2Snapshot for {symbol}")
+            return self._extract_volume_from_multi_l2(
+                snapshot, symbol, side, fallback_quantity
+            )
+        
+        # Type 2: OrderBookSnapshot (Single L2: Upbit/Binance)
+        elif hasattr(snapshot, 'bids') and hasattr(snapshot, 'asks'):
+            logger.debug(f"[D85-0_L2] Detected OrderBookSnapshot for {symbol}")
+            return self._extract_volume_from_single_l2(
+                snapshot, symbol, side, fallback_quantity
+            )
+        
+        # Fallback: 알 수 없는 타입
+        else:
+            logger.warning(
+                f"[D85-0_L2] Unknown snapshot type for {symbol}, using fallback. "
+                f"Snapshot type: {type(snapshot).__name__}"
+            )
+            return fallback_quantity * self.default_available_volume_factor
     
     def _execute_single_trade_with_fill_model(self, trade) -> ExecutionResult:
         """
