@@ -96,6 +96,7 @@ class ArbRoute:
         self,
         snapshot: OrderBookSnapshot,
         inventory_imbalance_ratio: float = 0.0,
+        fill_model_advice=None,  # D87-0: FillModelAdvice 통합 훅 (D87-1에서 구현 예정)
     ) -> ArbRouteDecision:
         """
         Route 평가 및 decision 생성.
@@ -104,6 +105,7 @@ class ArbRoute:
             snapshot: Orderbook snapshot
             inventory_imbalance_ratio: Inventory 불균형 비율 (-1.0 ~ 1.0)
                 양수: A가 많음, 음수: B가 많음
+            fill_model_advice: D87-0: Fill Model Advice (Optional, D87-1+)
         
         Returns:
             ArbRouteDecision
@@ -134,6 +136,12 @@ class ArbRoute:
         )
         
         total_score = route_score.total_score()
+        
+        # D87-0: Fill Model Advice 반영 (D87-1에서 구현 예정)
+        # TODO(D87-1): fill_model_advice가 있으면 total_score 보정
+        # if fill_model_advice:
+        #     adjustment = self._compute_fill_probability_adjustment(fill_model_advice)
+        #     total_score += adjustment
         
         # 4. Score 기반 최종 결정
         if total_score < 50.0:

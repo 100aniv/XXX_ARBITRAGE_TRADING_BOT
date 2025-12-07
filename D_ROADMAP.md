@@ -3148,40 +3148,26 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 **핵심 성과:**
 - **Z2 패턴 완벽 재현**: BUY fill_ratio=0.6307 (63%) 동일 (D86 vs D86-1)
 - **샘플 사이즈 확보**: 240 events (목표 200 대비 120%), Z2=80 samples (목표 30 대비 267%)
-- **Acceptance Criteria 전체 통과**: C1-C5 모두 PASS
-- **Calibration 유효성 입증**: d86_0_calibration.json이 실전에서 작동
+- **Acceptance Criteria 전체 통과**:## D86-1: Fill Model 20분 PAPER Validation
 
-**실행 결과 (20분 PAPER):**
-- Session ID: 20251207_123906, Duration: 1205.9초 (20.1분)
-- Entry Trades: 120, Fill Events: 240 (BUY 120, SELL 120)
-- Total PnL: $4.59
+## D87: Multi-Exchange Execution – Fill Model Integration
 
-**Zone별 Fill Ratio (D86-1):**
-| Zone | Samples | BUY Fill Ratio | D86 대비 |
-|------|---------|----------------|----------|
-| Z1 | 80 (33%) | 0.2615 (26%) | 동일 |
-| Z2 | 80 (33%) | **0.6307 (63%)** | **동일** |
-| Z3 | 60 (25%) | 0.2615 (26%) | 동일 |
-| Z4 | 20 (8%) | 0.2615 (26%) | 동일 |
+**작성일:** 2025-12-07  
+**상태:** 🔄 **IN PROGRESS**
 
-**Acceptance Criteria:**
-- C1 (Duration ≥ 20분): 1205.9초 
-- C2 (Samples ≥ 200): 240 events 
-- C3 (Zone Coverage, Z2 ≥ 30): Z2=80 samples 
-- C4 (Z2 ≥ 0.45, Z2-Z1 ≥ 0.10): 0.6307, diff=0.3692 
-- C5 (문서화): 완료 
+### 전체 목표
+D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exchange Execution 레이어(CrossExchangeExecutor, ArbRoute, RiskGuard, Metrics, Alerting)와 정합성 있게 통합하여, Zone별 fill_ratio 차이(Z1 26% vs Z2 63%)를 실전 트레이딩에 반영한다.
 
-**산출물:**
-- `logs/d86-1/fill_events_20251207_123906.jsonl` (240 events)
-- `logs/d86-1/kpi_20251207_123906.json`
-- `docs/D86/D86-1_FILL_MODEL_20M_PAPER_VALIDATION_REPORT.md`
-- `scripts/analyze_d86_fill_data.py` (CLI 인자 추가)
+### 핵심 가치:
+- **슬리피지/체결 리스크 정량화:** Zone별 fill_ratio를 Route Health Score에 반영
+- **Route 선택 최적화:** Z2 고신뢰 구간에서 공격적 진입, Z1/Z3/Z4에서 보수적 진입
+- **RiskGuard 동적 한도 조정:** Zone별 fill probability로 Position limit/PnL threshold 조정
+- **Metrics/Alerting 확장:** Fill Model KPI를 Prometheus/Grafana에 추가
 
-**결론:** PASS → **D86 ACCEPTED**
+### D87-0: Multi-Exchange Execution Design (✅ COMPLETED)
 
-**D86 전체 상태 업데이트:**
-- AS-IS: CONDITIONAL PASS (샘플 부족, Z2 재현성 미검증)
-- TO-BE: PASS → ACCEPTED (Z2 재현, 샘플 확보, 전체 AC PASS)
+**작성일:** 2025-12-07  
+**상태:** ✅ **DESIGN COMPLETE**
 
 ---
 

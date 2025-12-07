@@ -370,12 +370,17 @@ class CrossExchangeExecutor:
             logger.error(f"[CROSS_EXECUTOR] Secrets check error: {e}")
             return False
     
-    def _build_order_sizes(self, decision: CrossExchangeDecision) -> Dict[str, Any]:
+    def _build_order_sizes(
+        self, 
+        decision: CrossExchangeDecision,
+        fill_model_advice=None,  # D87-0: FillModelAdvice 통합 훅 (D87-2에서 구현 예정)
+    ) -> Dict[str, Any]:
         """
         주문 수량 계산
         
         Args:
             decision: CrossExchangeDecision
+            fill_model_advice: D87-0: Fill Model Advice (Optional, D87-2+)
         
         Returns:
             {
@@ -384,6 +389,9 @@ class CrossExchangeExecutor:
                 "upbit_price": float,
                 "binance_price": float,
             }
+        
+        D87-0: fill_model_advice 통합 훅 추가 (backward compatible)
+        D87-2: Zone별 주문 파라미터 조정 구현 예정
         """
         notional_krw = decision.notional_krw or self.DEFAULT_NOTIONAL_KRW
         

@@ -312,9 +312,13 @@ class CrossExchangeRiskGuard:
     def check_cross_exchange_trade(
         self,
         decision: CrossExchangeDecision,
+        fill_model_advice=None,  # D87-0: FillModelAdvice 통합 훅 (D87-3에서 구현 예정)
     ) -> CrossRiskDecision:
         """
         Cross-Exchange 아비트라지 진입/청산 전 최종 Risk Gate.
+        
+        D87-0: fill_model_advice 통합 훅 추가 (backward compatible)
+        D87-3: Zone별 동적 한도 조정 구현 예정
         
         Args:
             decision: CrossExchangeDecision (from Integration layer)
