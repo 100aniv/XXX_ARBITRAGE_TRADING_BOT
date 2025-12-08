@@ -3140,15 +3140,8 @@ min_tp_bps = ceil(min_entry + p95_slippage + safety_margin) = 19 bps
 **Status:** PASS (All Acceptance Criteria PASS)
 
 **목표:** D86에서 발견한 Z2(Entry 7-12 bps)의 높은 fill_ratio(≈0.63)가 20분 PAPER에서 재현되는지 검증
-
-- **Z2 패턴 완벽 재현**: BUY fill_ratio=0.6307 (63%) 동일 (D86 vs D86-1)
-- **샘플 사이즈 확보**: 240 events (목표 200 대비 120%), Z2=80 samples (목표 30 대비 267%)
-- **Acceptance Criteria 전체 통과**:## D86-1: Fill Model 20분 PAPER Validation
-
-## D87: Multi-Exchange Execution – Fill Model Integration
-
 **작성일:** 2025-12-07  
-**상태:** ✅ **COMPLETED** (D87-0/1/2 완료)
+**상태:** ✅ **D87-3 완료** (D87-0/1/2/3 완료: SHORT_VALIDATION INFRASTRUCTURE_PASS / FUNCTIONAL_FAIL)
 
 ### 전체 목표
 D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exchange Execution 레이어(CrossExchangeExecutor, ArbRoute, RiskGuard, Metrics, Alerting)와 정합성 있게 통합하여, Zone별 fill_ratio 차이(Z1 26% vs Z2 63%)를 실전 트레이딩에 반영한다.
@@ -3168,7 +3161,40 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 
 **작성일:** 2025-12-07  
 **상태:** ✅ **COMPLETED**
-- **D87**: Multi-Exchange Execution (HIGH Priority, D86 Calibration 기반)
+
+### D87-2: FillModelIntegration Strict Mode (✅ COMPLETED)
+
+**작성일:** 2025-12-07  
+**상태:** ✅ **COMPLETED**
+
+### D87-3: FillModel A/B Test Validation (✅ COMPLETED)
+
+**작성일:** 2025-12-08  
+**상태:** ✅ **COMPLETED** (SHORT_VALIDATION: INFRASTRUCTURE_PASS / FUNCTIONAL_FAIL)
+
+**주요 산출물:**
+- ✅ D87-3_FIX: Duration Guard + Orchestrator Timeout 구현 및 검증 완료 (Commit: e7a06a0)
+- ✅ D87-3_SHORT_VALIDATION: 30m×2 PAPER 실행 완료
+  - Advisory 30m: 360 Fill Events, $11.10 PnL
+  - Strict 30m: 360 Fill Events, $11.15 PnL
+  - **인프라:** ✅ PASS (Duration Guard 30.0분 정확 완주, Timeout, KPI/FillEvents 파일 생성 정상)
+  - **기능:** ❌ FAIL (Advisory vs Strict Zone 차이 0%p, 목표: Z2 +5%p)
+
+**Acceptance Criteria:**
+- SC1 (Duration 30분 완주): ✅ PASS
+- SC2 (Fill Events ≥300): ✅ PASS
+- SC3 (Z2 비중 +5%p): ❌ FAIL (+0.0%p)
+- SC4 (Z1/Z3/Z4 비중 -3%p): ❌ FAIL (+0.0%p)
+- SC5 (Z2 평균 사이즈 +3%): ❌ FAIL (+0.6%)
+- SC6 (PnL 정상 범위): ✅ PASS
+
+**근본 원인:**
+- FillModelIntegration의 Advisory vs Strict 로직이 실제 zone 분포를 변경하지 못함
+- 모든 트레이드가 Z2에서만 발생 (상위 SignalEngine/ArbEngine이 동일 zone만 선택)
+
+**Next Steps:**
+- D87-4: Zone Selection 개선 (SignalEngine/ArbEngine 레벨에서 zone preference 로직 추가)
+- D87-3_LONGRUN_VALIDATION: 서버 환경에서 3h+3h 실행 (D87-4 완료 후 권장)
 
 ---
 

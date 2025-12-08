@@ -369,5 +369,78 @@ Duration Guard가 정확하게 작동한다는 것이 30s 테스트로 검증되
 
 ---
 
-**Status:** ⚠️ **CONDITIONAL FAIL** - Duration Guard 완료, 3h+3h는 환경 제약으로 미완료  
-**Next:** D87-3_LONGRUN_VALIDATION (서버 환경) 또는 D87-3_SHORT_VALIDATION (30분×2)
+## Run #2_SHORT: D87-3_SHORT_VALIDATION (30m Advisory + 30m Strict)
+
+**일시:** 2025-12-08  
+**목표:** 환경 제약으로 3h+3h 미완주 → 30m×2 Short Validation으로 기술적 타당성 검증  
+**Runner:** `scripts/d87_3_short_validation.py`
+
+### 실행 결과
+
+| Metric | Advisory (30m) | Strict (30m) |
+|--------|---------------|--------------|
+| Duration | 30.0분 (1800.97초) | 30.0분 (1800.94초) |
+| Fill Events | 360개 | 360개 |
+| Entry Trades | 180개 | 180개 |
+| Total Notional | $5,645.44 | $5,676.69 |
+| Total PnL | **$11.10** | **$11.15** |
+| Z2 Trade 비중 | 100.0% | 100.0% |
+| Z2 Avg Size | 0.000627 | 0.000631 |
+
+### Acceptance Criteria 평가
+
+| ID | Criteria | Target | Result | Status |
+|----|----------|--------|--------|--------|
+| SC1 | Duration 30분 완주 | 28~32분 | Advisory: 30.0분<br/>Strict: 30.0분 | ✅ PASS |
+| SC2 | Fill Events ≥ 300 | ≥300/세션 | Advisory: 360<br/>Strict: 360 | ✅ PASS |
+| SC3 | Z2 비중 Strict > Advisory | +5%p | +0.0%p | ❌ FAIL |
+| SC4 | Z1/Z3/Z4 비중 Strict < Advisory | -3%p | Z1/Z3/Z4: +0.0%p | ❌ FAIL |
+| SC5 | Z2 평균 사이즈 Strict > Advisory | +3% | +0.6% | ❌ FAIL |
+| SC6 | PnL 정상 범위 | > -$1000 | Advisory: $11.10<br/>Strict: $11.15 | ✅ PASS |
+
+**Overall Status:** ❌ **FAIL** (3/6 PASS, Critical SC3 FAIL)
+
+### 근본 원인 분석
+
+**문제:** Advisory vs Strict 모드의 Zone 선택 차이가 실제 Fill Events에 반영되지 않음
+
+**발견 사실:**
+1. ✅ Duration Guard 완벽 작동 (30.0분 정확 완주, 99% accuracy)
+2. ✅ Fill Events 충분히 수집 (360개 > 300개 목표)
+3. ✅ Analyzer Zone 분류 정상 (entry_bps=10.0, tp_bps=12.0 → Z2 정확 분류)
+4. ❌ **FillModelIntegration의 Advisory vs Strict 로직이 실제 zone 분포를 변경하지 못함**
+   - Advisory: 100% Z2
+   - Strict: 100% Z2 (차이 없음)
+
+**기술적 해석:**
+- D87-1/D87-2에서 구현한 FillModelIntegration의 `advisory` vs `strict` mode는 **Zone별 fill_ratio 적용 방식의 차이**를 의도했으나,
+- 실제 PAPER 실행 시 모든 트레이드가 동일한 Z2 zone (entry_bps=10.0, tp_bps=12.0)에서만 발생
+- 이는 **상위 SignalEngine/ArbEngine이 항상 동일한 zone의 기회만 선택**하고 있음을 의미
+
+**Short Validation 유효성:**
+- ✅ **인프라 안정성:** Duration Guard, Timeout, KPI/FillEvents 파일 생성 모두 정상
+- ✅ **데이터 수집:** 30분에 360개 Fill Events 안정적 수집
+- ❌ **기능적 차별성:** Advisory vs Strict의 zone 선택 차이 미검증
+
+### 다음 단계
+
+**D87-3_SHORT_VALIDATION 결론:**
+- **인프라 검증:** ✅ PASS (Duration Guard, Timeout, 파일 생성 모두 정상)
+- **기능 검증:** ❌ FAIL (Advisory vs Strict zone 차이 없음)
+- **판정:** D87-3_SHORT_VALIDATION = **INFRASTRUCTURE_PASS / FUNCTIONAL_FAIL**
+
+**향후 작업:**
+1. **D87-4: FillModelIntegration Zone Selection 개선**
+   - Advisory vs Strict 모드가 실제로 다른 zone을 선택하도록 SignalEngine 또는 ArbEngine 레벨의 zone preference 로직 추가
+   - 예: Strict 모드에서 Z2 zone 기회의 우선순위를 높이는 로직
+
+2. **D87-3_LONGRUN_VALIDATION (Optional)**
+   - 서버 환경에서 3h+3h 실행
+   - Short Validation과 동일한 문제 예상되므로, D87-4 완료 후 재실행 권장
+
+---
+
+**Status:** ✅ **D87-3_FIX + SHORT_VALIDATION 완료**  
+- D87-3_FIX: ✅ Duration Guard + Timeout 검증 완료
+- D87-3_SHORT_VALIDATION: ⚠️ Infrastructure PASS / Functional FAIL  
+**Next:** D87-4 (FillModelIntegration Zone Selection 개선) 또는 D88-X (다음 Phase)
