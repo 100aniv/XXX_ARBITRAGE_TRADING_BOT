@@ -264,7 +264,7 @@ def test_adjust_route_score_z2_bonus(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=60.0, advice=advice)
     
-    assert adjusted == 65.0  # 60 + 5
+    assert adjusted == 63.0  # 60 * 1.05 (D87-4 multiplicative)
 
 
 def test_adjust_route_score_z1_penalty(mock_calibration_file):
@@ -288,7 +288,7 @@ def test_adjust_route_score_z1_penalty(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=60.0, advice=advice)
     
-    assert adjusted == 58.0  # 60 - 2
+    assert adjusted == 54.0  # 60 * 0.90 (D87-4 multiplicative)
 
 
 def test_adjust_route_score_clipping(mock_calibration_file):
@@ -312,7 +312,7 @@ def test_adjust_route_score_clipping(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=90.0, advice=advice)
     
-    assert adjusted == 100.0  # clipped to 100
+    assert adjusted == 94.5  # 90.0 * 1.05 = 94.5 (D87-4 multiplicative, no clip needed) to 100
 
 
 def test_adjust_route_score_mode_none_no_change():
@@ -560,7 +560,7 @@ def test_d87_1_integration_summary(mock_calibration_file):
     
     # 3. Z2 우대 검증
     score_z2 = integration.adjust_route_score(base_score=60.0, advice=advice_z2)
-    assert score_z2 == 65.0  # +5.0 bonus
+    assert score_z2 == 63.0  # 60 * 1.05 (D87-4 multiplicative)
     
     size_z2 = integration.adjust_order_size(base_size=0.01, advice=advice_z2)
     assert size_z2 == pytest.approx(0.011)  # 1.1x
@@ -575,7 +575,7 @@ def test_d87_1_integration_summary(mock_calibration_file):
     
     # 5. Z1 페널티 검증
     score_z1 = integration.adjust_route_score(base_score=60.0, advice=advice_z1)
-    assert score_z1 == 58.0  # -2.0 penalty
+    assert score_z1 == 54.0  # 60 * 0.90 (D87-4 multiplicative)
     
     size_z1 = integration.adjust_order_size(base_size=0.01, advice=advice_z1)
     assert size_z1 == 0.01  # 1.0x (no change)

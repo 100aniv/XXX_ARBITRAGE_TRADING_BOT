@@ -54,7 +54,7 @@ class FillModelAdvice:
 @dataclass
 class FillModelConfig:
     """
-    D87-1/D87-2: Fill Model Config
+    D87-1/D87-2/D87-4: Fill Model Config
     
     Fill Model 설정을 담는 구조체.
     
@@ -65,7 +65,7 @@ class FillModelConfig:
         min_confidence_level: 최소 신뢰도 (샘플 수 기반)
         staleness_threshold_seconds: Calibration 유효기간 (기본 24시간)
         
-        # Advisory Mode 파라미터 (D87-1, ±10% 이내)
+        # Advisory Mode 파라미터 (D87-1, ±10% 이내) - Deprecated in favor of zone_preference (D87-4)
         advisory_score_bias_z2: Z2(고 fill_ratio) Route Score 보정값 (기본 +5.0)
         advisory_score_bias_other: Z1/Z3/Z4 Route Score 보정값 (기본 -2.0)
         advisory_size_multiplier_z2: Z2 주문 수량 배율 (기본 1.1)
@@ -73,13 +73,19 @@ class FillModelConfig:
         advisory_risk_multiplier_z2: Z2 Risk Limit 완화 배율 (기본 1.1)
         advisory_risk_multiplier_other: 기타 Zone Risk Limit 배율 (기본 1.0)
         
-        # Strict Mode 파라미터 (D87-2, ±20% 이내)
+        # Strict Mode 파라미터 (D87-2, ±20% 이내) - Deprecated in favor of zone_preference (D87-4)
         strict_score_bias_z2: Z2 Route Score 보정값 (기본 +10.0)
         strict_score_bias_other: Z1/Z3/Z4 Route Score 보정값 (기본 -5.0)
         strict_size_multiplier_z2: Z2 주문 수량 배율 (기본 1.2)
         strict_size_multiplier_other: 기타 Zone 주문 수량 배율 (기본 1.0)
         strict_risk_multiplier_z2: Z2 Risk Limit 완화 배율 (기본 1.2)
         strict_risk_multiplier_other: 기타 Zone Risk Limit 배율 (기본 1.0)
+        
+        # D87-4: Zone Preference Weights (Multiplicative)
+        zone_preference: Mode별 Zone 선호도 가중치 (Dict[mode, Dict[zone_id, weight]])
+            none: 모든 Zone 1.0 (neutral)
+            advisory: Z2=1.05, Z1/Z4=0.90, Z3=0.95
+            strict: Z2=1.15, Z1/Z4=0.80, Z3=0.85
     """
     enabled: bool = False
     mode: Literal["none", "advisory", "strict"] = "none"
@@ -102,6 +108,40 @@ class FillModelConfig:
     strict_size_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
     strict_risk_multiplier_z2: float = 1.2  # Z2 Risk Limit 20% 완화
     strict_risk_multiplier_other: float = 1.0  # 기타 Zone 변화 없음
+    
+    # D87-4: Zone Preference Weights (Multiplicative)
+    zone_preference: Optional[dict] = None
+    
+    def __post_init__(self):
+        """
+        D87-4: Zone Preference Weights 초기화
+        
+        zone_preference가 None이면 기본값으로 설정.
+        """
+        if self.zone_preference is None:
+            self.zone_preference = {
+                "none": {
+                    "Z1": 1.0,
+                    "Z2": 1.0,
+                    "Z3": 1.0,
+                    "Z4": 1.0,
+                    "DEFAULT": 1.0,
+                },
+                "advisory": {
+                    "Z1": 0.90,
+                    "Z2": 1.05,
+                    "Z3": 0.95,
+                    "Z4": 0.90,
+                    "DEFAULT": 0.95,
+                },
+                "strict": {
+                    "Z1": 0.80,
+                    "Z2": 1.15,
+                    "Z3": 0.85,
+                    "Z4": 0.80,
+                    "DEFAULT": 0.85,
+                },
+            }
 
 
 class FillModelIntegration:
@@ -263,15 +303,22 @@ class FillModelIntegration:
         advice: FillModelAdvice
     ) -> float:
         """
-        D87-1/D87-2: RouteHealthScore 보정 (Advisory/Strict Mode)
+        D87-4: RouteHealthScore 보정 (Multiplicative Zone Preference)
         
         Zone별로 Route Score를 보정한다:
-        - Advisory Mode:
-          - Z2 (고 fill_ratio): +advisory_score_bias_z2 (기본 +5.0)
-          - 기타 Zone: +advisory_score_bias_other (기본 -2.0)
-        - Strict Mode:
-          - Z2: +strict_score_bias_z2 (기본 +10.0)
-          - 기타 Zone: +strict_score_bias_other (기본 -5.0)
+        - AS-IS (D87-1/2): adjusted_score = base_score + bias (Additive)
+        - TO-BE (D87-4): adjusted_score = base_score * zone_pref (Multiplicative)
+        
+        Mode별 Zone Preference:
+        - none: 모든 Zone 1.0 (neutral)
+        - advisory: Z2=1.05, Z1/Z4=0.90, Z3=0.95
+        - strict: Z2=1.15, Z1/Z4=0.80, Z3=0.85
+        
+        효과:
+        - Strict mode, base_score=60.0 기준:
+          - Z2: 60.0 * 1.15 = 69.0 (+15%)
+          - Z1: 60.0 * 0.80 = 48.0 (-20%)
+          - Z2 vs Z1 차이: 21점 (35% 상대 차이)
         
         Args:
             base_score: 기본 RouteHealthScore (0~100)
@@ -284,29 +331,27 @@ class FillModelIntegration:
         if self.config.mode == "none":
             return base_score
         
-        # Mode별 bias 선택
-        if self.config.mode == "advisory":
-            if advice.zone_id == "Z2":
-                bias = self.config.advisory_score_bias_z2
-            else:
-                bias = self.config.advisory_score_bias_other
-        elif self.config.mode == "strict":
-            if advice.zone_id == "Z2":
-                bias = self.config.strict_score_bias_z2
-            else:
-                bias = self.config.strict_score_bias_other
-        else:
-            bias = 0.0
+        # Zone preference weight 가져오기
+        zone_id = advice.zone_id
+        zone_pref = self.config.zone_preference.get(self.config.mode, {}).get(
+            zone_id,
+            self.config.zone_preference[self.config.mode].get("DEFAULT", 1.0)
+        )
         
-        adjusted_score = base_score + bias
+        # Multiplicative adjustment
+        adjusted_score = base_score * zone_pref
         
-        # 0~100 범위로 클리핑
+        # 0~100 범위로 clipping
         adjusted_score = max(0.0, min(100.0, adjusted_score))
         
+        # 변화율 계산
+        change_pct = ((adjusted_score / base_score) - 1.0) * 100 if base_score > 0 else 0.0
+        
         logger.debug(
-            f"[FILL_MODEL_INTEGRATION] Score 보정: "
-            f"mode={self.config.mode}, base={base_score:.1f}, zone={advice.zone_id}, "
-            f"bias={bias:+.1f}, adjusted={adjusted_score:.1f}"
+            f"[FILL_MODEL_INTEGRATION] Score 보정 (D87-4 Multiplicative): "
+            f"mode={self.config.mode}, base={base_score:.1f}, zone={zone_id}, "
+            f"zone_pref={zone_pref:.2f}, adjusted={adjusted_score:.1f} "
+            f"({change_pct:+.1f}%)"
         )
         
         return adjusted_score

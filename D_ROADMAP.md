@@ -3198,9 +3198,10 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 
 ---
 
-### D83-1: Real L2 WebSocket Provider Integration 
-**Status:**  COMPLETE (Implementation + Validation ALL PASS)
+### D87-4: Zone-aware Route Selection (✅ COMPLETED)
 
+**작성일:** 2025-12-08  
+**상태:** ✅ **COMPLETED**
 **목표:** Real WebSocket 기반 L2 Orderbook Provider를 MarketDataProvider 인터페이스로 통합하여, Executor가 실제 거래소 L2 데이터(실시간 호가 잔량)를 소비할 수 있도록 한다.
 
 **핵심 구현 (D83-1):**

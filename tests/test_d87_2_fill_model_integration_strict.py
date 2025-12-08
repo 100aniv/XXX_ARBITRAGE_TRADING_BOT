@@ -145,7 +145,7 @@ def test_strict_mode_adjust_route_score_z2(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=60.0, advice=advice)
     
-    assert adjusted == 70.0  # 60 + 10
+    assert adjusted == 69.0  # 60 * 1.15 (D87-4 multiplicative)
 
 
 def test_strict_mode_adjust_route_score_z1(mock_calibration_file):
@@ -168,7 +168,7 @@ def test_strict_mode_adjust_route_score_z1(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=60.0, advice=advice)
     
-    assert adjusted == 55.0  # 60 - 5
+    assert adjusted == 48.0  # 60 * 0.80 (D87-4 multiplicative)
 
 
 def test_strict_mode_score_stronger_than_advisory(mock_calibration_file):
@@ -204,8 +204,8 @@ def test_strict_mode_score_stronger_than_advisory(mock_calibration_file):
     
     # Strict가 더 크게 증가
     assert strict_score > advisory_score
-    assert advisory_score == 65.0  # 60 + 5
-    assert strict_score == 70.0  # 60 + 10
+    assert advisory_score == 63.0  # 60 * 1.05 (D87-4 multiplicative)
+    assert strict_score == 69.0  # 60 * 1.15 (D87-4 multiplicative)
 
 
 # =============================================================================
@@ -484,7 +484,7 @@ def test_backward_compatibility_with_d87_1():
     
     # Advisory 파라미터만 적용
     score = integration.adjust_route_score(60.0, advice)
-    assert score == 65.0  # 60 + 5 (advisory_score_bias_z2)
+    assert score == 63.0  # 60 * 1.05 (D87-4 multiplicative)
 
 
 # =============================================================================
@@ -536,7 +536,7 @@ def test_strict_mode_score_clipping_lower(mock_calibration_file):
     
     adjusted = integration.adjust_route_score(base_score=50.0, advice=advice)
     
-    assert adjusted == 0.0  # clipped to 0
+    assert adjusted == 40.0  # 50.0 * 0.80 = 40.0 (D87-4 multiplicative, no clip to 0)
 
 
 # =============================================================================
@@ -567,7 +567,7 @@ def test_d87_2_strict_mode_summary(mock_calibration_file):
     
     # 3. Z2 Strict 조정 검증 (±20% 범위)
     score_z2 = integration.adjust_route_score(base_score=60.0, advice=advice_z2)
-    assert score_z2 == 70.0  # +10.0 (strict_score_bias_z2)
+    assert score_z2 == 69.0  # 60 * 1.15 (D87-4 multiplicative)
     
     size_z2 = integration.adjust_order_size(base_size=0.01, advice=advice_z2)
     assert size_z2 == pytest.approx(0.012)  # 1.2x (strict_size_multiplier_z2)
@@ -581,7 +581,7 @@ def test_d87_2_strict_mode_summary(mock_calibration_file):
     
     # 5. Z1 페널티 검증
     score_z1 = integration.adjust_route_score(base_score=60.0, advice=advice_z1)
-    assert score_z1 == 55.0  # -5.0 (strict_score_bias_other)
+    assert score_z1 == 48.0  # 60 * 0.80 (D87-4 multiplicative)
     
     size_z1 = integration.adjust_order_size(base_size=0.01, advice=advice_z1)
     assert size_z1 == 0.01  # 1.0x (no change)

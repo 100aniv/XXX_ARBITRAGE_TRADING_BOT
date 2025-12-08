@@ -224,5 +224,5 @@ D87-3는 Advisory vs Strict 3h+3h Long-run PAPER 검증을 목표로 했으나, 
 **Final Status:** ✅ **D87-3 완료 (SHORT_VALIDATION: INFRASTRUCTURE_PASS / FUNCTIONAL_FAIL)**  
 - D87-3_FIX: ✅ Duration Guard + Timeout 검증 완료 (Commit: e7a06a0)
 - D87-3_SHORT_VALIDATION: ⚠️ Infrastructure PASS / Functional FAIL  
-**Next:** D87-4 (Zone Selection 개선) 또는 D88-X (다음 Phase)  
+- **D87-4에서 Zone Selection 개선으로 기능격차 보완 완료** ✅  
 **Date:** 2025-12-08
