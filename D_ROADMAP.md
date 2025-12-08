@@ -3209,7 +3209,6 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
    - Advisory Mode: Zone별 multiplicative preference (Z2: 2.0x, Z3: 1.5x, Z1/Z4: 1.0x)
    - Strict Mode: Zone별 additive bonus (Z2: +20 points, Z3: +10 points)
    - RouteHealthScore 계산 시 zone preference 반영
-
 2. **테스트 코드** (tests/test_d87_4_zone_selection.py, 10/10 PASS)
    - Advisory/Strict 모드별 zone preference 검증
    - RouteHealthScore 계산 정확도 검증
@@ -3220,25 +3219,57 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 - 테스트: 10/10 PASS
 
 **산출물:**
-- arbitrage/domain/entry_bps_profile.py
-- tests/test_d88_0_entry_bps_profile.py
-- scripts/d88_0_analyze_zone_distribution.py
+- arbitrage/fill_model_integration.py (수정)
+- tests/test_d87_4_zone_selection.py (10/10 PASS)
+- docs/D87/D87_4_ZONE_SELECTION_DESIGN.md
+
+**Final Decision:** ✅ **COMPLETE** - Zone Selection 로직 구현 완료
+
+**Next Steps:**
+- D88-0: Entry BPS Diversification (PAPER 입력 다양화)
+- D87-3_LONGRUN_VALIDATION: 3h+3h 실행 (D88-0 완료 후 권장)
+
+---
+
+## Phase F: Entry BPS Diversification & Zone Preference Validation (D88-X)
+
+### D88-0: Entry BPS Diversification (✅ COMPLETED)
+
+**작성일:** 2025-12-09  
+**상태:** ✅ **COMPLETE**
+
+**목표:** D87-6에서 발견된 "모든 트레이드가 Z2에만 집중되는 문제"를 해결하기 위해, PAPER 실행 시 Entry BPS를 다양하게 생성하여 Z1~Z4 Zone에 트레이드가 분산되도록 한다.
+
+**핵심 구현:**
+1. **EntryBPSProfile 클래스** (arbitrage/domain/entry_bps_profile.py, 190 lines)
+   - fixed 모드: 고정값 (기존 동작)
+   - cycle 모드: Zone별 대표 BPS 순환 (Z1→Z2→Z3→Z4)
+   - random 모드: [min_bps, max_bps] 범위 내 균일 분포 난수
+
+2. **run_d84_2_calibrated_fill_paper.py 확장**
+   - CLI 인자 4개 추가: `--entry-bps-mode/min/max/seed`
+   - Entry BPS Profile 통합
+
+**검증 결과:**
+- Unit Test: 11/11 PASS
+- Short PAPER (120s, cycle): Z1~Z4 각 25% 분산 ✅
+- 회귀 테스트: 103/103 PASS
+
+**산출물:**
+- arbitrage/domain/entry_bps_profile.py (190 lines)
+- tests/test_d88_0_entry_bps_profile.py (200 lines, 11/11 PASS)
+- scripts/d88_0_analyze_zone_distribution.py (130 lines)
 - docs/D88/D88_0_ENTRY_BPS_DIVERSIFICATION.md
 - run_d84_2_calibrated_fill_paper.py (수정)
 
 **Final Decision:** ✅ **COMPLETE** - Entry BPS Diversification 인프라 구축 완료
 
-**Next Steps:**
-- **D88-1**: Advisory vs Strict 30m A/B 재검증 (Entry BPS Diversification 적용)
-- **D87-3_LONGRUN_VALIDATION**: 3h+3h 실행 (Entry BPS Diversification 적용)
-
 ---
-**Next Steps (from D87-4):**
-- **D83-2: Binance L2 WebSocket Provider (다른 거래소 지원)
-- **D84-2+: Long-run PAPER (20분+, 100+ fill events)
-- **D84-3: Mock vs Real L2 fill distribution 비교
 
+### D88-1: LONGRUN PAPER Validation (Cycle Mode) (✅ COMPLETED)
 
+**작성일:** 2025-12-09  
+**상태:** ✅ **COMPLETE**
 **목표:** D83-1 Upbit 패턴을 재사용하여 Binance L2 WebSocket Provider 구현 및 검증
 
 **핵심 성과:**
