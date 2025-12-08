@@ -3220,22 +3220,24 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 - 테스트: 10/10 PASS
 
 **산출물:**
-- arbitrage/fill_model_integration.py: Zone preference 로직 추가
-- tests/test_d87_4_zone_selection.py: 10개 테스트
-- docs/D87/D87_4_ZONE_SELECTION_DESIGN.md
+- arbitrage/domain/entry_bps_profile.py
+- tests/test_d88_0_entry_bps_profile.py
+- scripts/d88_0_analyze_zone_distribution.py
+- docs/D88/D88_0_ENTRY_BPS_DIVERSIFICATION.md
+- run_d84_2_calibrated_fill_paper.py (수정)
 
-**Final Decision:** COMPLETE - Zone Selection 로직 구현 완료
+**Final Decision:** ✅ **COMPLETE** - Entry BPS Diversification 인프라 구축 완료
 
 **Next Steps:**
+- **D88-1**: Advisory vs Strict 30m A/B 재검증 (Entry BPS Diversification 적용)
+- **D87-3_LONGRUN_VALIDATION**: 3h+3h 실행 (Entry BPS Diversification 적용)
+
+---
+**Next Steps (from D87-4):**
 - **D83-2: Binance L2 WebSocket Provider (다른 거래소 지원)
 - **D84-2+: Long-run PAPER (20분+, 100+ fill events)
 - **D84-3: Mock vs Real L2 fill distribution 비교
 
----
-
-### D83-2: Binance L2 WebSocket Provider ✅ COMPLETE (2025-12-07)
-
-**Status:** ✅ **COMPLETE** (Implementation + Validation ALL PASS)
 
 **목표:** D83-1 Upbit 패턴을 재사용하여 Binance L2 WebSocket Provider 구현 및 검증
 

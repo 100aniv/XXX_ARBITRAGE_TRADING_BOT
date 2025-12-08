@@ -48,6 +48,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # D84-2: 필수 Import
 from arbitrage.types import PortfolioState, OrderSide
 from arbitrage.live_runner import RiskGuard, RiskLimits
+
+# D88-0: Entry BPS Profile
+from arbitrage.domain.entry_bps_profile import EntryBPSProfile
 from arbitrage.config.settings import Settings
 from arbitrage.execution.executor_factory import ExecutorFactory
 from arbitrage.execution.fill_model import SimpleFillModel, CalibratedFillModel, CalibrationTable
@@ -170,6 +173,10 @@ def run_calibrated_fill_paper(
     l2_source: str = "mock",
     fillmodel_mode: str = "none",
     session_tag: str = None,
+    entry_bps_mode: str = "fixed",
+    entry_bps_min: float = 10.0,
+    entry_bps_max: float = 10.0,
+    entry_bps_seed: int = 42,
 ) -> Dict[str, Any]:
     """
     CalibratedFillModel + FillModelIntegration 장기 PAPER 실행
@@ -180,6 +187,10 @@ def run_calibrated_fill_paper(
         l2_source: L2 Source (mock/real/upbit/binance/multi)
         fillmodel_mode: FillModel Mode (none/advisory/strict)
         session_tag: 세션 태그 (로그 디렉토리 구분용)
+        entry_bps_mode: Entry BPS 생성 모드 (fixed/cycle/random)
+        entry_bps_min: Entry BPS 최소값
+        entry_bps_max: Entry BPS 최대값
+        entry_bps_seed: Entry BPS 난수 생성 seed
     
     Returns:
         실행 KPI (dict)
@@ -211,6 +222,10 @@ def run_calibrated_fill_paper(
     logger.info(f"[D87-3] FillModel Mode: {fillmodel_mode}")
     logger.info(f"[D87-3] Fill Events 경로: {fill_events_path}")
     logger.info(f"[D87-3] KPI 경로: {kpi_path}")
+    logger.info("")
+    
+    # D88-0: Entry BPS Profile 정보 출력
+    logger.info(f"[D88-0] Entry BPS Profile: mode={entry_bps_mode}, min={entry_bps_min}, max={entry_bps_max}, seed={entry_bps_seed}")
     logger.info("")
     
     # 1. Calibration 로드
@@ -319,9 +334,23 @@ def run_calibrated_fill_paper(
     executor_factory = ExecutorFactory()
     
     # 5. CalibratedFillModel 생성
-    # Entry/TP를 10.0/12.0으로 고정 (Zone Z2 또는 Z3에 해당)
-    entry_bps = 10.0
+    # D88-0: Entry BPS Profile 사용
+    # TP는 고정 (12.0bps)
     tp_bps = 12.0
+    
+    # D88-0: Entry BPS Profile 생성
+    # Calibration에서 zone_boundaries 추출
+    zone_boundaries = [(z['entry_min'], z['entry_max']) for z in calibration.zones]
+    entry_bps_profile = EntryBPSProfile(
+        mode=entry_bps_mode,
+        min_bps=entry_bps_min,
+        max_bps=entry_bps_max,
+        seed=entry_bps_seed,
+        zone_boundaries=zone_boundaries,
+    )
+    
+    # 초기 Entry BPS 생성
+    entry_bps = entry_bps_profile.next()
     
     base_model = SimpleFillModel(
         enable_partial_fill=True,
@@ -336,7 +365,7 @@ def run_calibrated_fill_paper(
         tp_bps=tp_bps,
     )
     
-    logger.info(f"[D87-3] CalibratedFillModel 생성 완료: Entry={entry_bps}bps, TP={tp_bps}bps")
+    logger.info(f"[D88-0] CalibratedFillModel 생성 완료: Entry={entry_bps}bps (동적 생성), TP={tp_bps}bps (고정)")
     
     # D87-1/2/3: FillModelIntegration 생성 (Advisory/Strict Mode)
     fillmodel_integration = None
@@ -461,6 +490,11 @@ def run_calibrated_fill_paper(
         
         # Mock Trade 생성 (매 10초마다)
         if iteration % 10 == 0:
+            # D88-0: 매 트레이드마다 Entry BPS 동적 생성
+            entry_bps = entry_bps_profile.next()
+            fill_model.entry_bps = entry_bps
+            fill_model.zone = calibration.select_zone(entry_bps, tp_bps)
+            
             trade = MockTrade(
                 trade_id=f"TRADE_{iteration}",
                 buy_exchange="upbit",
@@ -590,6 +624,31 @@ def main():
         default=None,
         help="D87-3: 세션 태그 (로그 디렉토리 구분용, 예: d87_3_advisory_3h)"
     )
+    parser.add_argument(
+        "--entry-bps-mode",
+        type=str,
+        choices=["fixed", "cycle", "random"],
+        default="fixed",
+        help="D88-0: Entry BPS 생성 모드 (fixed/cycle/random, 기본값: fixed)"
+    )
+    parser.add_argument(
+        "--entry-bps-min",
+        type=float,
+        default=10.0,
+        help="D88-0: Entry BPS 최소값 (기본값: 10.0)"
+    )
+    parser.add_argument(
+        "--entry-bps-max",
+        type=float,
+        default=10.0,
+        help="D88-0: Entry BPS 최대값 (기본값: 10.0)"
+    )
+    parser.add_argument(
+        "--entry-bps-seed",
+        type=int,
+        default=42,
+        help="D88-0: Entry BPS 난수 생성 seed (재현성 보장, 기본값: 42)"
+    )
     
     args = parser.parse_args()
     
@@ -619,6 +678,10 @@ def main():
         l2_source=args.l2_source,
         fillmodel_mode=args.fillmodel_mode,
         session_tag=args.session_tag,
+        entry_bps_mode=args.entry_bps_mode,
+        entry_bps_min=args.entry_bps_min,
+        entry_bps_max=args.entry_bps_max,
+        entry_bps_seed=args.entry_bps_seed,
     )
     
     # 요약 출력
