@@ -187,9 +187,16 @@ def run_calibrated_fill_paper(
     # 0. 세션 ID 및 출력 경로 설정
     session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
-    # D87-3: session_tag가 있으면 해당 디렉토리 사용
+    # D87-3/D87-5: session_tag가 있으면 해당 디렉토리 사용
     if session_tag:
-        output_dir = Path(__file__).parent.parent / "logs" / "d87-3" / session_tag
+        # D87-5-FIX: session_tag prefix에 따라 로그 디렉토리 결정
+        if session_tag.startswith("d87_5"):
+            base_log_dir = "d87-5"
+        elif session_tag.startswith("d87_3"):
+            base_log_dir = "d87-3"
+        else:
+            base_log_dir = "d87-3"  # 기본값 (backward compatibility)
+        output_dir = Path(__file__).parent.parent / "logs" / base_log_dir / session_tag
     else:
         output_dir = Path(__file__).parent.parent / "logs" / "d84-2"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -375,17 +382,28 @@ def run_calibrated_fill_paper(
         notional_usd: float = 0.0  # USD 명목가 (risk guard용)
     
     # 8. PAPER 실행 루프
+    # 
+    # ⚠️ 중요: 이 Runner는 백테스트(가상 시간 가속) 구조가 아닙니다.
+    # 벽시계(wall-clock) 기준 실시간 PAPER 구조입니다.
+    # - time.sleep(1)로 매 초마다 실제로 1초를 소비합니다.
+    # - 30분 duration → 실제 30분(1800초) 소요됩니다.
+    # - 시간 가속 없음, 메트릭 샘플링 없음, 실시간 L2 WebSocket 연결 유지.
+    #
     start_time = time.time()
     end_time = start_time + duration_seconds
     
-    # Duration 하드가드: 최대 iteration 수 계산
-    max_iterations = duration_seconds + 60  # Duration + 60초 grace period
+    # Duration Guard 설계 원칙 (D87-3/D87-5 검증 완료):
+    # 1. PRIMARY 종료 조건: `now >= end_time` (벽시계 시간 체크)
+    # 2. SECONDARY 안전망: `iteration >= max_iterations` (무한 루프 방지, 도달 불가능)
+    # 3. 정확도 목표: ±30초 이내 (D87-5 AC 기준)
+    # 4. max_iterations는 의도적으로 매우 큰 값(1,000,000)으로 설정하여 실질적으로 도달 불가능하게 함
+    max_iterations = 1_000_000  # Safety net only (이 값에 도달하면 CRITICAL 에러)
     
     logger.info(f"[D84-2] PAPER 루프 시작")
     logger.info(f"[D84-2] Start: {datetime.fromtimestamp(start_time).strftime('%H:%M:%S')}")
-    logger.info(f"[D84-2] End: {datetime.fromtimestamp(end_time).strftime('%H:%M:%S')}")
-    logger.info(f"[D84-2] Duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
-    logger.info(f"[D84-2] Max iterations: {max_iterations}")
+    logger.info(f"[D84-2] Target End: {datetime.fromtimestamp(end_time).strftime('%H:%M:%S')}")
+    logger.info(f"[D84-2] Duration: {duration_seconds}초 ({duration_seconds/60:.1f}분, {duration_seconds/3600:.2f}시간)")
+    logger.info(f"[D84-2] Termination: TIME-BASED (wall-clock), safety max_iterations={max_iterations}")
     logger.info("")
     
     metrics = {
@@ -398,24 +416,46 @@ def run_calibrated_fill_paper(
     }
     
     iteration = 0
-    while time.time() < end_time and iteration < max_iterations:
+    termination_reason = "UNKNOWN"
+    
+    while True:
         iteration += 1
+        now = time.time()  # 현재 벽시계 시간 (실시간)
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Duration Guard: PRIMARY 종료 조건 (시간 기반)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 벽시계 시간이 목표 종료 시간에 도달하면 즉시 종료합니다.
+        # 이 조건은 iteration 횟수와 무관하며, 오직 wall-clock time만을 기준으로 합니다.
+        if now >= end_time:
+            termination_reason = "TIME_LIMIT"
+            logger.info(
+                f"[D84-2] Duration 도달: {now - start_time:.1f}초 경과, "
+                f"목표 {duration_seconds}초 완료"
+            )
+            break
         
         # 주기적 시간 체크 로깅 (매 300초 = 5분마다)
         if iteration % 300 == 0:
-            elapsed = time.time() - start_time
-            remaining = end_time - time.time()
+            elapsed = now - start_time
+            remaining = end_time - now
             logger.info(
                 f"[D84-2] Heartbeat: {iteration} iterations, "
-                f"elapsed={elapsed:.0f}s ({elapsed/3600:.2f}h), "
-                f"remaining={remaining:.0f}s ({remaining/3600:.2f}h)"
+                f"elapsed={elapsed:.0f}s ({elapsed/60:.1f}분), "
+                f"remaining={remaining:.0f}s ({remaining/60:.1f}분)"
             )
         
-        # 하드가드: iteration 한계 체크
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Duration Guard: SECONDARY 안전망 (iteration 기반)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 이 조건은 time.sleep()이 작동하지 않거나, 시스템 시간이 비정상적인 경우에만 발동합니다.
+        # max_iterations=1,000,000 → 1초 sleep 기준 11.6일 → 절대 도달 불가능
+        # 만약 이 조건에 도달한다면, Duration Guard 로직에 심각한 버그가 있다는 신호입니다.
         if iteration >= max_iterations:
-            logger.warning(
-                f"[D84-2] HARD GUARD: Max iterations ({max_iterations}) reached! "
-                f"Forcing termination."
+            termination_reason = "ITERATION_LIMIT_SAFETY_NET"
+            logger.error(
+                f"[D84-2] ❌ SAFETY NET TRIGGERED: Max iterations ({max_iterations}) reached! "
+                f"This should NEVER happen. Forcing termination."
             )
             break
         
@@ -457,17 +497,33 @@ def run_calibrated_fill_paper(
     actual_end_time = time.time()
     actual_duration = actual_end_time - start_time
     
+    logger.info(f"[D84-2] Termination Reason: {termination_reason}")
     logger.info(f"[D84-2] Total iterations: {iteration}")
-    logger.info(f"[D84-2] Actual duration: {actual_duration:.1f}초 ({actual_duration/3600:.2f}h)")
-    logger.info(f"[D84-2] Target duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
-    logger.info(f"[D84-2] Duration delta: {actual_duration - duration_seconds:+.1f}초")
+    logger.info(f"[D84-2] Actual duration: {actual_duration:.1f}초 ({actual_duration/60:.1f}분, {actual_duration/3600:.2f}시간)")
+    logger.info(f"[D84-2] Target duration: {duration_seconds}초 ({duration_seconds/60:.1f}분, {duration_seconds/3600:.2f}시간)")
+    logger.info(f"[D84-2] Duration delta: {actual_duration - duration_seconds:+.1f}초 ({(actual_duration - duration_seconds)/60:+.2f}분)")
     
-    # Duration 오버런 경고
-    if actual_duration > duration_seconds + 120:  # 2분 이상 초과
+    # D87-5-FIX: Duration 정확도 검증 (±30초 허용)
+    duration_tolerance_seconds = 30  # D87-5 AC 기준
+    duration_delta_abs = abs(actual_duration - duration_seconds)
+    
+    if duration_delta_abs > duration_tolerance_seconds:
         logger.warning(
-            f"[D84-2] ⚠️ Duration overrun detected! "
-            f"Actual: {actual_duration:.0f}s, Target: {duration_seconds}s, "
-            f"Delta: {actual_duration - duration_seconds:+.0f}s"
+            f"[D84-2] ⚠️ Duration 오차 범위 초과! "
+            f"허용: ±{duration_tolerance_seconds}초, "
+            f"실제: {actual_duration - duration_seconds:+.1f}초"
+        )
+    else:
+        logger.info(
+            f"[D84-2] ✅ Duration 정확도: 허용 범위 내 "
+            f"(±{duration_tolerance_seconds}초, 실제: {actual_duration - duration_seconds:+.1f}초)"
+        )
+    
+    # Safety net 발동 시 심각한 경고
+    if termination_reason == "ITERATION_LIMIT_SAFETY_NET":
+        logger.error(
+            f"[D84-2] ❌❌❌ CRITICAL: Safety net으로 종료됨! "
+            f"Duration Guard 로직에 심각한 문제가 있습니다. 즉시 수정 필요."
         )
     
     market_data_provider.stop()

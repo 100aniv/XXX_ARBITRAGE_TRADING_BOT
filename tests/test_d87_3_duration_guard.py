@@ -26,6 +26,78 @@ sys.path.insert(0, str(PROJECT_ROOT))
 class TestDurationGuard:
     """Duration Guard 테스트"""
     
+    def test_runner_10s_duration_realistic(self):
+        """D87-5: Runner 10초 실행 테스트 (실시간 벽시계 기반 Duration Guard 검증)
+        
+        이 테스트는 Duration Guard가 time-based로 정확히 작동하는지 검증합니다.
+        - 백테스트 구조가 아닌 실시간 PAPER 구조 (time.sleep(1) 실제 소비)
+        - 10초 duration → 실제로 10초 소요
+        - Termination Reason == "TIME_LIMIT" 확인
+        - actual_duration이 8~15초 사이인지 확인 (허용 오차 포함)
+        """
+        # Arrange
+        duration_seconds = 10
+        session_tag = f"test_duration_10s_{int(time.time())}"
+        logs_dir = PROJECT_ROOT / "logs" / "d87-3" / session_tag
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
+        calibration_path = PROJECT_ROOT / "logs" / "d86-1" / "calibration_20251207_123906.json"
+        
+        cmd = [
+            "python",
+            "scripts/run_d84_2_calibrated_fill_paper.py",
+            "--duration-seconds", str(duration_seconds),
+            "--l2-source", "mock",  # Mock L2로 빠르게 테스트
+            "--fillmodel-mode", "advisory",
+            "--calibration-path", str(calibration_path),
+            "--session-tag", session_tag,
+        ]
+        
+        # Act
+        start_time = time.time()
+        result = subprocess.run(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=30  # 10초 + 20초 grace
+        )
+        actual_duration = time.time() - start_time
+        
+        # Assert
+        assert result.returncode == 0, f"Runner failed: {result.stderr}"
+        
+        # Duration 검증: 10초 기준 8~15초 이내 (실시간 벽시계 기반)
+        assert 8 <= actual_duration <= 15, \
+            f"Duration out of range: {actual_duration:.1f}s (expected: 8~15s for 10s target)"
+        
+        # KPI 파일 존재 확인
+        kpi_files = list(logs_dir.glob("kpi_*.json"))
+        assert len(kpi_files) == 1, f"KPI file not found in {logs_dir}"
+        
+        # KPI 내용 검증
+        with open(kpi_files[0], "r") as f:
+            kpi = json.load(f)
+        
+        assert "actual_duration_seconds" in kpi
+        assert "total_iterations" in kpi
+        
+        # Duration 정확도: KPI의 actual_duration도 8~15초 이내
+        kpi_duration = kpi["actual_duration_seconds"]
+        assert 8 <= kpi_duration <= 15, \
+            f"KPI duration out of range: {kpi_duration:.1f}s (expected: 8~15s)"
+        
+        # Termination reason 확인 (로그에서 "TIME_LIMIT" 찾기)
+        output = result.stdout + result.stderr
+        assert "TIME_LIMIT" in output or "Termination Reason: TIME_LIMIT" in output, \
+            "Expected termination reason TIME_LIMIT not found in logs"
+        
+        print(f"✅ D87-5: 10s duration test passed (realistic wall-clock based)")
+        print(f"   - Actual duration: {actual_duration:.1f}s (subprocess)")
+        print(f"   - KPI duration: {kpi_duration:.1f}s")
+        print(f"   - Iterations: {kpi['total_iterations']}")
+        print(f"   - Termination: TIME_LIMIT ✅")
+    
     def test_runner_30s_duration(self):
         """Runner 30초 실행 테스트 (정확한 종료 확인)"""
         # Arrange

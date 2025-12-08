@@ -3201,71 +3201,30 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 ### D87-4: Zone-aware Route Selection (✅ COMPLETED)
 
 **작성일:** 2025-12-08  
-**상태:** ✅ **COMPLETED**
-**목표:** Real WebSocket 기반 L2 Orderbook Provider를 MarketDataProvider 인터페이스로 통합하여, Executor가 실제 거래소 L2 데이터(실시간 호가 잔량)를 소비할 수 있도록 한다.
+**상태:** COMPLETE
+**목표:** FillModelIntegration의 Zone별 fill_ratio 차이를 실전 트레이딩에 반영하기 위해, SignalEngine/ArbEngine 레벨에서 Zone preference 로직을 추가한다.
 
-**핵심 구현 (D83-1):**
-1. **UpbitL2WebSocketProvider** (arbitrage/exchanges/upbit_l2_ws_provider.py, 310 lines)
-   - MarketDataProvider 인터페이스 완전 준수
-   - UpbitWebSocketAdapter 재사용, 별도 스레드 + asyncio event loop
-   - 자동 재연결 (exponential backoff, 최대 5회)
-   - 심볼별 최신 스냅샷 버퍼링, 스레드 안전성 보장
+**핵심 구현:**
+1. **Zone-aware Route Scoring** (arbitrage/fill_model_integration.py)
+   - Advisory Mode: Zone별 multiplicative preference (Z2: 2.0x, Z3: 1.5x, Z1/Z4: 1.0x)
+   - Strict Mode: Zone별 additive bonus (Z2: +20 points, Z3: +10 points)
+   - RouteHealthScore 계산 시 zone preference 반영
 
-2. **BaseWebSocketClient** (arbitrage/exchanges/ws_client.py, 280 lines)
-   - 연결/재연결 관리, ping/pong 및 heartbeat
-   - 메시지 수신 루프, 에러 처리 및 분류
-   - D83-1.6: bytes 디코딩 추가 (Upbit binary 메시지 처리)
+2. **테스트 코드** (tests/test_d87_4_zone_selection.py, 10/10 PASS)
+   - Advisory/Strict 모드별 zone preference 검증
+   - RouteHealthScore 계산 정확도 검증
 
-3. **UpbitWebSocketAdapter** (arbitrage/exchanges/upbit_ws_adapter.py, 200 lines)
-   - Upbit WebSocket 연결 및 orderbook 채널 구독
-   - 메시지 파싱 → OrderBookSnapshot 변환, 콜백 기반 업데이트
-   - D83-1.6: 구독 포맷 수정 (배열 + ticket 필수)
-
-4. **Runner 통합** (scripts/run_d84_2_calibrated_fill_paper.py)
-   - `--l2-source [mock|real]` CLI 인자 추가
-   - Provider 생성 로직 분기 (Mock vs Real)
-
-5. **테스트 코드** (tests/test_d83_1_real_l2_provider.py, 250 lines, 7/7 PASS)
-   - FakeWebSocketAdapter 구현, 유닛 테스트 7개
-   - 회귀 테스트 32/32 PASS (D83-0, D84-1, D84-2)
-
-**검증 결과 (D83-1.5~1.6):**
-
-**D83-1.5 (초기 검증):**
-- Mock L2:  ALL PASS (60 events, std/mean=0.337, 300s)
-- Real L2:  FAIL (메시지 수신 없음, fallback 사용)
-
-**D83-1.6 (디버깅 & 수정):**
-1. **독립 디버그 스크립트** (scripts/debug/d83_1_6_upbit_ws_debug.py)
-   - 30초 독립 테스트: 219개 메시지 수신, 7.35 msg/s
-   - 근본 원인 식별: bytes 디코딩 누락 + 구독 포맷 불일치
-
-2. **FIX #1: bytes 디코딩** (ws_client.py)
-   - Upbit은 binary (bytes) 형태로 메시지 전송
-   - UTF-8 디코딩 로직 추가
-
-3. **FIX #2: Upbit 구독 포맷** (upbit_ws_adapter.py)
-   - 변경 전: `{"type":"orderbook","codes":["KRW-BTC"]}`
-   - 변경 후: `[{"ticket":"UUID"},{"type":"orderbook","codes":["KRW-BTC"]}]`
-
-4. **Real L2 PAPER 재실행:**
-   - Duration: 300.2s ✅, Fill Events: 60 ✅
-   - BUY std/mean: **1.891** ✅ (> 0.1), SELL std/mean: **1.245** ✅ (> 0.1)
-   - WebSocket Reconnect: 0 ✅, Fatal Exceptions: 0 ✅
-   - **ALL ACCEPTANCE CRITERIA PASS** ✅
+**검증 결과:**
+- Advisory Mode: Z2 routes 2배 우선순위
+- Strict Mode: Z2 routes +20 points bonus
+- 테스트: 10/10 PASS
 
 **산출물:**
-- arbitrage/exchanges/upbit_l2_ws_provider.py (310 lines)
-- arbitrage/exchanges/ws_client.py (280 lines, bytes 디코딩 추가)
-- arbitrage/exchanges/upbit_ws_adapter.py (200 lines, 구독 포맷 수정)
-- tests/test_d83_1_real_l2_provider.py (250 lines, 7/7 PASS)
-- scripts/debug/d83_1_6_upbit_ws_debug.py (240 lines, 디버그 도구)
-- docs/D83/D83-1_REAL_L2_WEBSOCKET_DESIGN.md
-- docs/D83/D83-1_REAL_L2_WEBSOCKET_REPORT.md
-- docs/D83/D83-1_5_REAL_L2_SMOKE_REPORT.md (검증 결과)
-- docs/D83/D83-1_6_UPBIT_WS_DEBUG_NOTE.md (디버깅 노트)
+- arbitrage/fill_model_integration.py: Zone preference 로직 추가
+- tests/test_d87_4_zone_selection.py: 10개 테스트
+- docs/D87/D87_4_ZONE_SELECTION_DESIGN.md
 
-**Final Decision:** ✅ **COMPLETE** - Real L2 WebSocket 정상 작동, Acceptance Criteria 전체 충족
+**Final Decision:** COMPLETE - Zone Selection 로직 구현 완료
 
 **Next Steps:**
 - D83-2: Binance L2 WebSocket Provider (다른 거래소 지원)
