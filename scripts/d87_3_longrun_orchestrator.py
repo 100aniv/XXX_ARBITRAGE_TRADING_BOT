@@ -165,10 +165,13 @@ class D87LongrunOrchestrator:
         
         self._prepare_session_dir(self.advisory_session_tag)
         
+        duration_seconds = 10800  # 3시간
+        timeout_seconds = duration_seconds + 600  # 3h + 10분 grace period
+        
         cmd = [
             "python",
             "scripts/run_d84_2_calibrated_fill_paper.py",
-            "--duration-seconds", "10800",
+            "--duration-seconds", str(duration_seconds),
             "--l2-source", "real",
             "--fillmodel-mode", "advisory",
             "--calibration-path", str(self.calibration_path),
@@ -176,6 +179,8 @@ class D87LongrunOrchestrator:
         ]
         
         logger.info(f"명령: {' '.join(cmd)}")
+        logger.info(f"Target duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
+        logger.info(f"Timeout: {timeout_seconds}초 ({timeout_seconds/3600:.2f}h)")
         logger.info("")
         
         if self.mode == "dry-run":
@@ -191,22 +196,39 @@ class D87LongrunOrchestrator:
                 cmd,
                 cwd=str(self.project_root),
                 check=True,
-                text=True
+                text=True,
+                timeout=timeout_seconds  # TIMEOUT 추가
             )
             
             duration = time.time() - start_time
-            logger.info(f"✅ Advisory 세션 완료 ({duration:.1f}초)")
+            logger.info(f"✅ Advisory 세션 완료 ({duration:.1f}초 = {duration/3600:.2f}h)")
+            
+            # KPI 파일 검증
+            kpi_files = list((self.logs_dir / self.advisory_session_tag).glob("kpi_*.json"))
+            if not kpi_files:
+                logger.error(f"❌ KPI 파일이 생성되지 않았습니다: {self.logs_dir / self.advisory_session_tag}")
+                return False
+            logger.info(f"✅ KPI 파일 생성 확인: {kpi_files[0].name}")
             
             self.advisory_result = {
                 "session_tag": self.advisory_session_tag,
                 "duration_seconds": duration,
                 "exit_code": result.returncode,
+                "kpi_path": str(kpi_files[0]),
             }
             
             logger.info("=" * 100)
             logger.info("")
             return True
             
+        except subprocess.TimeoutExpired:
+            logger.error(
+                f"❌ Advisory 세션 TIMEOUT! "
+                f"Duration limit: {timeout_seconds}초 ({timeout_seconds/3600:.2f}h)"
+            )
+            logger.info("=" * 100)
+            logger.info("")
+            return False
         except subprocess.CalledProcessError as e:
             logger.error(f"❌ Advisory 세션 실패: exit code {e.returncode}")
             logger.info("=" * 100)
@@ -226,10 +248,13 @@ class D87LongrunOrchestrator:
         
         self._prepare_session_dir(self.strict_session_tag)
         
+        duration_seconds = 10800  # 3시간
+        timeout_seconds = duration_seconds + 600  # 3h + 10분 grace period
+        
         cmd = [
             "python",
             "scripts/run_d84_2_calibrated_fill_paper.py",
-            "--duration-seconds", "10800",
+            "--duration-seconds", str(duration_seconds),
             "--l2-source", "real",
             "--fillmodel-mode", "strict",
             "--calibration-path", str(self.calibration_path),
@@ -237,6 +262,8 @@ class D87LongrunOrchestrator:
         ]
         
         logger.info(f"명령: {' '.join(cmd)}")
+        logger.info(f"Target duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
+        logger.info(f"Timeout: {timeout_seconds}초 ({timeout_seconds/3600:.2f}h)")
         logger.info("")
         
         if self.mode == "dry-run":
@@ -252,22 +279,39 @@ class D87LongrunOrchestrator:
                 cmd,
                 cwd=str(self.project_root),
                 check=True,
-                text=True
+                text=True,
+                timeout=timeout_seconds  # TIMEOUT 추가
             )
             
             duration = time.time() - start_time
-            logger.info(f"✅ Strict 세션 완료 ({duration:.1f}초)")
+            logger.info(f"✅ Strict 세션 완료 ({duration:.1f}초 = {duration/3600:.2f}h)")
+            
+            # KPI 파일 검증
+            kpi_files = list((self.logs_dir / self.strict_session_tag).glob("kpi_*.json"))
+            if not kpi_files:
+                logger.error(f"❌ KPI 파일이 생성되지 않았습니다: {self.logs_dir / self.strict_session_tag}")
+                return False
+            logger.info(f"✅ KPI 파일 생성 확인: {kpi_files[0].name}")
             
             self.strict_result = {
                 "session_tag": self.strict_session_tag,
                 "duration_seconds": duration,
                 "exit_code": result.returncode,
+                "kpi_path": str(kpi_files[0]),
             }
             
             logger.info("=" * 100)
             logger.info("")
             return True
             
+        except subprocess.TimeoutExpired:
+            logger.error(
+                f"❌ Strict 세션 TIMEOUT! "
+                f"Duration limit: {timeout_seconds}초 ({timeout_seconds/3600:.2f}h)"
+            )
+            logger.info("=" * 100)
+            logger.info("")
+            return False
         except subprocess.CalledProcessError as e:
             logger.error(f"❌ Strict 세션 실패: exit code {e.returncode}")
             logger.info("=" * 100)

@@ -378,6 +378,16 @@ def run_calibrated_fill_paper(
     start_time = time.time()
     end_time = start_time + duration_seconds
     
+    # Duration 하드가드: 최대 iteration 수 계산
+    max_iterations = duration_seconds + 60  # Duration + 60초 grace period
+    
+    logger.info(f"[D84-2] PAPER 루프 시작")
+    logger.info(f"[D84-2] Start: {datetime.fromtimestamp(start_time).strftime('%H:%M:%S')}")
+    logger.info(f"[D84-2] End: {datetime.fromtimestamp(end_time).strftime('%H:%M:%S')}")
+    logger.info(f"[D84-2] Duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
+    logger.info(f"[D84-2] Max iterations: {max_iterations}")
+    logger.info("")
+    
     metrics = {
         "session_id": session_id,
         "symbol": symbol,
@@ -388,8 +398,26 @@ def run_calibrated_fill_paper(
     }
     
     iteration = 0
-    while time.time() < end_time:
+    while time.time() < end_time and iteration < max_iterations:
         iteration += 1
+        
+        # 주기적 시간 체크 로깅 (매 300초 = 5분마다)
+        if iteration % 300 == 0:
+            elapsed = time.time() - start_time
+            remaining = end_time - time.time()
+            logger.info(
+                f"[D84-2] Heartbeat: {iteration} iterations, "
+                f"elapsed={elapsed:.0f}s ({elapsed/3600:.2f}h), "
+                f"remaining={remaining:.0f}s ({remaining/3600:.2f}h)"
+            )
+        
+        # 하드가드: iteration 한계 체크
+        if iteration >= max_iterations:
+            logger.warning(
+                f"[D84-2] HARD GUARD: Max iterations ({max_iterations}) reached! "
+                f"Forcing termination."
+            )
+            break
         
         # Mock Trade 생성 (매 10초마다)
         if iteration % 10 == 0:
@@ -421,9 +449,31 @@ def run_calibrated_fill_paper(
         time.sleep(1)  # 1초 대기
     
     # 9. 종료 처리
+    logger.info("")
+    logger.info("=" * 100)
+    logger.info("[D84-2] PAPER 루프 종료")
+    logger.info("=" * 100)
+    
+    actual_end_time = time.time()
+    actual_duration = actual_end_time - start_time
+    
+    logger.info(f"[D84-2] Total iterations: {iteration}")
+    logger.info(f"[D84-2] Actual duration: {actual_duration:.1f}초 ({actual_duration/3600:.2f}h)")
+    logger.info(f"[D84-2] Target duration: {duration_seconds}초 ({duration_seconds/3600:.2f}h)")
+    logger.info(f"[D84-2] Duration delta: {actual_duration - duration_seconds:+.1f}초")
+    
+    # Duration 오버런 경고
+    if actual_duration > duration_seconds + 120:  # 2분 이상 초과
+        logger.warning(
+            f"[D84-2] ⚠️ Duration overrun detected! "
+            f"Actual: {actual_duration:.0f}s, Target: {duration_seconds}s, "
+            f"Delta: {actual_duration - duration_seconds:+.0f}s"
+        )
+    
     market_data_provider.stop()
-    metrics["end_time"] = time.time()
-    metrics["actual_duration_seconds"] = metrics["end_time"] - metrics["start_time"]
+    metrics["end_time"] = actual_end_time
+    metrics["actual_duration_seconds"] = actual_duration
+    metrics["total_iterations"] = iteration
     
     # 10. FillEventCollector 요약
     collector_summary = fill_event_collector.get_summary()
@@ -436,6 +486,7 @@ def run_calibrated_fill_paper(
     
     logger.info(f"[D84-2] KPI 저장 완료: {kpi_path}")
     logger.info(f"[D84-2] Fill Events 저장 완료: {fill_events_path}")
+    logger.info("=" * 100)
     logger.info("")
     
     return metrics
