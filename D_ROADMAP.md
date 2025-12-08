@@ -3227,9 +3227,9 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 **Final Decision:** COMPLETE - Zone Selection 로직 구현 완료
 
 **Next Steps:**
-- D83-2: Binance L2 WebSocket Provider (다른 거래소 지원)
-- D84-2+: Long-run PAPER (20분+, 100+ fill events)
-- D84-3: Mock vs Real L2 fill distribution 비교
+- **D83-2: Binance L2 WebSocket Provider (다른 거래소 지원)
+- **D84-2+: Long-run PAPER (20분+, 100+ fill events)
+- **D84-3: Mock vs Real L2 fill distribution 비교
 
 ---
 

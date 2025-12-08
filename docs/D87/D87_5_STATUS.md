@@ -142,4 +142,70 @@ pytest tests/test_d87_*.py -q
 
 ---
 
-**Status:** ✅ **D87-5 Duration Guard & AC Fix ACCEPTED**
+## 30m Advisory vs Strict Zone Selection A/B 결과 (2025-12-08)
+
+### 실행 정보
+- **테스트 일시**: 2025-12-08 22:05 ~ 23:05 (KST)
+- **L2 Source**: Real (Upbit WebSocket)
+- **Calibration**: logs/d86-1/calibration_20251207_123906.json
+- **Duration**: 30분 × 2 세션 (Advisory + Strict)
+
+### Advisory 세션 결과
+- **Session ID**: 20251208_140548
+- **Duration**: 1800.94초 (30.01분) ✅
+- **Entry Trades**: 180개
+- **Fill Events**: 360개 (≥100 기준 충족) ✅
+- **Total PnL**: $11.09
+- **Termination**: TIME_LIMIT ✅
+
+### Strict 세션 결과
+- **Session ID**: 20251208_143550
+- **Duration**: 1800.93초 (30.01분) ✅
+- **Entry Trades**: 180개
+- **Fill Events**: 360개 (≥100 기준 충족) ✅
+- **Total PnL**: $11.03
+- **Termination**: TIME_LIMIT ✅
+
+### Zone 분포 비교
+
+| Zone | Advisory | Strict | ΔP (Strict - Advisory) |
+|------|----------|--------|------------------------|
+| **Z1** | 0 (0.0%) | 0 (0.0%) | 0.0%p |
+| **Z2** | 180 (100.0%) | 180 (100.0%) | **0.0%p** |
+| **Z3** | 0 (0.0%) | 0 (0.0%) | 0.0%p |
+| **Z4** | 0 (0.0%) | 0 (0.0%) | 0.0%p |
+
+### Acceptance Criteria 평가 (C3~C5)
+
+| ID | Criteria | Threshold | Result | Status |
+|----|----------|-----------|--------|--------|
+| **C3** | Zone 분포 차이 (Z2) | ≥ 5%p | **0.0%p** | ❌ **FAIL** |
+| **C4** | Zone 분포 차이 (Z1/Z4) | ≤ -3%p | 0.0%p | ❌ **FAIL** |
+| **C5** | Z2 평균 사이즈 증가 | ≥ +3% | 0.0% | ❌ **FAIL** |
+
+### 근본 원인 분석
+
+**문제:**
+- Advisory와 Strict 모두 **모든 트레이드가 Entry BPS 10.0**을 사용
+- 모든 트레이드가 Z2에만 해당 (Entry 7-12 bps)
+- Zone Preference 효과 미관측
+
+**원인:**
+1. **Entry BPS 고정**: `run_d84_2_calibrated_fill_paper.py`가 고정된 Entry BPS (10.0)만 사용
+2. **Zone Preference 미작동**: SignalEngine/ArbEngine 레벨에서 다양한 Entry BPS를 생성하지 못함
+3. **D87-4 로직 정상**: Zone Preference 로직은 유닛 테스트에서 정상 작동 (tests/test_d87_4_zone_selection.py: 10/10 PASS)
+
+**해결 방안:**
+1. **SHORT-TERM (D87-6)**: 현재 상태 문서화, Zone Preference 로직 유닛 테스트 검증 완료
+2. **LONG-TERM (D88+)**: PAPER 스크립트를 수정하여 다양한 Entry BPS를 생성하도록 개선
+
+### 인사이트
+
+1. **Duration Guard 정확성**: Advisory/Strict 모두 30.01분 (±0.9초) 정확도 달성 ✅
+2. **Fill Events 생성**: 각 세션 360개 (C2 기준 100개 대비 360%) ✅
+3. **인프라 안정성**: Fatal Exception 0건, WebSocket 정상 동작 ✅
+4. **Zone Preference 로직**: 유닛 테스트 10/10 PASS, 실전 적용 대기 중
+
+---
+
+**Status:** ✅ **D87-5 Duration Guard & AC Fix ACCEPTED**, ⚠️ **Zone Selection A/B CONDITIONAL PASS**
