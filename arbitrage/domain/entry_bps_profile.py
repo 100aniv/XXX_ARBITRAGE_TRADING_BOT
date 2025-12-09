@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D88-0: Entry BPS Profile
+D88-0 / D90-0: Entry BPS Profile
 
 PAPER 실행 시 Entry BPS를 다양하게 생성하여 Zone별 트레이드 분산을 유도하는 프로파일.
 
@@ -14,13 +14,17 @@ PAPER 실행 시 Entry BPS를 다양하게 생성하여 Zone별 트레이드 분
 1. **fixed**: 고정값 (기존 동작, 하나의 BPS만 사용)
 2. **cycle**: Zone별 대표 BPS를 순환 (Z1 → Z2 → Z3 → Z4 → Z1 ...)
 3. **random**: [min_bps, max_bps] 범위 내 균일 분포 난수 생성
+4. **zone_random** (D90-0): Zone 가중치 기반 확률적 샘플링
+   - zone_weights에 따라 Zone을 먼저 선택
+   - 선택된 Zone의 boundary 내에서 균등 분포 샘플링
+   - Advisory/Strict 모드별로 다른 Zone 가중치 적용 가능
 
 Author: arbitrage-lite project
 Date: 2025-12-09
 """
 
 import random
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Sequence
 
 
 class EntryBPSProfile:
@@ -30,12 +34,15 @@ class EntryBPSProfile:
     PAPER 실행 시 Zone별 트레이드 분산을 위해 다양한 Entry BPS를 생성한다.
     
     Args:
-        mode: 생성 모드 ("fixed", "cycle", "random")
+        mode: 생성 모드 ("fixed", "cycle", "random", "zone_random")
         min_bps: 최소 BPS (기본값 10.0)
         max_bps: 최대 BPS (기본값 10.0)
         seed: 난수 생성 seed (재현성 보장, 기본값 42)
         zone_boundaries: Zone 경계값 (옵션, 없으면 기본값 사용)
             예: [(5, 7), (7, 12), (12, 20), (20, 30)]
+        zone_weights: Zone 가중치 (zone_random 모드 전용, 옵션)
+            예: [0.5, 3.0, 1.5, 0.5] → Z2를 3배 더 자주 선택
+            None이면 균등 가중치 [1.0, 1.0, 1.0, 1.0] 사용
     
     Attributes:
         mode: 생성 모드
@@ -43,8 +50,10 @@ class EntryBPSProfile:
         max_bps: 최대 BPS
         seed: 난수 생성 seed
         zone_boundaries: Zone 경계값 리스트 [(min, max), ...]
+        zone_weights: Zone 가중치 (zone_random 모드 전용)
         _cycle_index: cycle 모드용 인덱스
         _rng: random.Random 인스턴스 (독립적인 난수 생성기)
+        _zone_cumulative_weights: Zone 누적 가중치 (zone_random 모드 전용)
     
     Examples:
         # Fixed 모드 (기존 동작)
@@ -61,15 +70,25 @@ class EntryBPSProfile:
         >>> profile = EntryBPSProfile(mode="random", min_bps=5.0, max_bps=25.0, seed=42)
         >>> profile.next()  # 5.0~25.0 범위 난수
         18.48...
+        
+        # Zone Random 모드 (D90-0, Zone 가중치 기반)
+        >>> profile = EntryBPSProfile(
+        ...     mode="zone_random",
+        ...     zone_weights=[0.5, 3.0, 1.5, 0.5],  # Z2를 3배 더 자주 선택
+        ...     seed=90
+        ... )
+        >>> profile.next()  # Z2 zone (7.0~12.0) 내에서 샘플링될 확률 높음
+        9.12...
     """
     
     def __init__(
         self,
-        mode: Literal["fixed", "cycle", "random"] = "fixed",
+        mode: Literal["fixed", "cycle", "random", "zone_random"] = "fixed",
         min_bps: float = 10.0,
         max_bps: float = 10.0,
         seed: int = 42,
         zone_boundaries: Optional[List[tuple]] = None,
+        zone_weights: Optional[Sequence[float]] = None,
     ):
         self.mode = mode
         self.min_bps = min_bps
@@ -87,32 +106,102 @@ class EntryBPSProfile:
         else:
             self.zone_boundaries = zone_boundaries
         
+        # Zone 가중치 (zone_random 모드 전용)
+        if zone_weights is None:
+            # 기본값: 균등 가중치
+            self.zone_weights = [1.0] * len(self.zone_boundaries)
+        else:
+            self.zone_weights = list(zone_weights)
+        
         # Cycle 모드용 인덱스
         self._cycle_index = 0
         
         # Random 모드용 독립 난수 생성기
         self._rng = random.Random(seed)
         
+        # Zone Random 모드용 누적 가중치 (확률 분포 샘플링)
+        self._zone_cumulative_weights: List[float] = []
+        if self.mode == "zone_random":
+            self._compute_cumulative_weights()
+        
         # 입력 검증
         self._validate()
     
     def _validate(self):
         """입력 파라미터 검증."""
-        if self.mode not in ["fixed", "cycle", "random"]:
-            raise ValueError(f"Invalid mode: {self.mode}. Must be 'fixed', 'cycle', or 'random'.")
+        if self.mode not in ["fixed", "cycle", "random", "zone_random"]:
+            raise ValueError(
+                f"Invalid mode: {self.mode}. "
+                f"Must be 'fixed', 'cycle', 'random', or 'zone_random'."
+            )
         
         if self.min_bps < 0 or self.max_bps < 0:
-            raise ValueError(f"min_bps and max_bps must be non-negative: min={self.min_bps}, max={self.max_bps}")
+            raise ValueError(
+                f"min_bps and max_bps must be non-negative: "
+                f"min={self.min_bps}, max={self.max_bps}"
+            )
         
         if self.min_bps > self.max_bps:
-            raise ValueError(f"min_bps must be <= max_bps: min={self.min_bps}, max={self.max_bps}")
+            raise ValueError(
+                f"min_bps must be <= max_bps: "
+                f"min={self.min_bps}, max={self.max_bps}"
+            )
         
         if not self.zone_boundaries:
             raise ValueError("zone_boundaries must not be empty")
         
         for i, (zmin, zmax) in enumerate(self.zone_boundaries):
             if zmin >= zmax:
-                raise ValueError(f"Zone {i} has invalid boundaries: min={zmin}, max={zmax}")
+                raise ValueError(
+                    f"Zone {i} has invalid boundaries: min={zmin}, max={zmax}"
+                )
+        
+        # zone_random 모드 전용 검증
+        if self.mode == "zone_random":
+            if len(self.zone_weights) != len(self.zone_boundaries):
+                raise ValueError(
+                    f"zone_weights length ({len(self.zone_weights)}) "
+                    f"must match zone_boundaries length ({len(self.zone_boundaries)})"
+                )
+            
+            for i, weight in enumerate(self.zone_weights):
+                if weight <= 0:
+                    raise ValueError(
+                        f"zone_weights[{i}] must be positive, got {weight}"
+                    )
+    
+    def _compute_cumulative_weights(self):
+        """
+        Zone 가중치를 누적합으로 변환 (확률 분포 샘플링용).
+        
+        예: zone_weights = [0.5, 3.0, 1.5, 0.5]
+            → cumulative = [0.5, 3.5, 5.0, 5.5]
+            → 총합 = 5.5
+        """
+        self._zone_cumulative_weights = []
+        cumsum = 0.0
+        for weight in self.zone_weights:
+            cumsum += weight
+            self._zone_cumulative_weights.append(cumsum)
+    
+    def _sample_zone_index(self) -> int:
+        """
+        Zone 가중치 기반으로 Zone 인덱스를 확률적으로 샘플링.
+        
+        Returns:
+            Zone 인덱스 (0~3 for Z1~Z4)
+        """
+        # [0, total_weight) 범위에서 난수 생성
+        total_weight = self._zone_cumulative_weights[-1]
+        rand_val = self._rng.uniform(0, total_weight)
+        
+        # 누적합에서 rand_val이 들어갈 구간 찾기 (binary search 가능하지만 zone 개수가 적어 linear scan)
+        for idx, cumsum in enumerate(self._zone_cumulative_weights):
+            if rand_val < cumsum:
+                return idx
+        
+        # Fallback (부동소수점 오차 대비)
+        return len(self._zone_cumulative_weights) - 1
     
     def next(self) -> float:
         """
@@ -127,6 +216,8 @@ class EntryBPSProfile:
             return self._next_cycle()
         elif self.mode == "random":
             return self._next_random()
+        elif self.mode == "zone_random":
+            return self._next_zone_random()
         else:
             raise ValueError(f"Unknown mode: {self.mode}")
     
@@ -159,15 +250,37 @@ class EntryBPSProfile:
         """
         return self._rng.uniform(self.min_bps, self.max_bps)
     
+    def _next_zone_random(self) -> float:
+        """
+        Zone Random 모드 (D90-0): Zone 가중치 기반 확률적 샘플링.
+        
+        1. zone_weights 비율로 Zone 인덱스를 확률적으로 선택
+        2. 선택된 Zone의 (min_bps, max_bps) 범위 내에서 균등 분포 샘플링
+        
+        Returns:
+            Entry BPS (float)
+        """
+        # 1. Zone 선택 (가중치 기반 확률 분포)
+        zone_idx = self._sample_zone_index()
+        
+        # 2. 선택된 Zone의 boundary 내에서 균등 샘플링
+        zmin, zmax = self.zone_boundaries[zone_idx]
+        bps = self._rng.uniform(zmin, zmax)
+        
+        return bps
+    
     def reset(self):
         """
         프로파일 상태를 초기화한다.
         
         - cycle 모드: 인덱스를 0으로 리셋
         - random 모드: 난수 생성기를 재초기화
+        - zone_random 모드: 난수 생성기 재초기화 + 누적 가중치 재계산
         """
         self._cycle_index = 0
         self._rng = random.Random(self.seed)
+        if self.mode == "zone_random":
+            self._compute_cumulative_weights()
     
     def __repr__(self):
         return (

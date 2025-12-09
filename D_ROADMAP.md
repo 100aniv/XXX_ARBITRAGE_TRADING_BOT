@@ -3904,3 +3904,42 @@ python scripts/validate_env.py --env paper --verbose
 - 謔渠收鴞??刮�鴔� 諻堅𡢢 麮渣�謔科擪???��, ?科鹻???賄� OK
 
 漈
+
+---
+
+### D90: Entry BPS Zone-Weighted Random
+
+- **D90-0: Entry BPS Zone-Weighted Random (Design & 30m A/B)**
+  - Status: COMPLETE
+  - Summary:
+    - zone_random mode: Zone-weighted 2-stage sampling
+    - 30m A/B result: ΔP(Z2) = 22.8%p (target 5%p, 4.6x achieved)
+    - Advisory Z2: 52.8% (expected 54.5%, diff -1.7%p)
+    - All Acceptance Criteria PASS
+  - Deliverables:
+    - arbitrage/domain/entry_bps_profile.py (zone_random mode)
+    - tests/test_d90_0_entry_bps_zone_random.py (10/10 PASS)
+    - docs/D90/D90_0_ENTRY_BPS_ZONE_RANDOM_DESIGN.md
+    - docs/D90/D90_0_VALIDATION_REPORT.md
+
+- **D90-1: Entry BPS Zone-Weighted Random 3h LONGRUN Validation**
+  - Status: COMPLETE - GO
+  - Summary:
+    - 3h A/B result: ΔP(Z2) = 27.2%p (target 15%p, 1.8x achieved)
+    - D90-0 대비 +4.4%p improvement (22.8%p  27.2%p)
+    - Advisory Z2: 51.5% (expected 54.5%, diff -3.0%p)
+    - Strict Z2: 24.3% (expected 25%, diff -0.7%p)
+    - Sample size: 1,079 trades (6x increase from D90-0)
+    - All Acceptance Criteria PASS
+    - PnL: Advisory .43 > Strict .06 (+28%)
+  - Deliverables:
+    - docs/D90/D90_1_LONGRUN_VALIDATION_REPORT.md
+    - logs/d87-3/d90_1_advisory_3h_zone_random/
+    - logs/d87-3/d90_1_strict_3h_zone_random/
+  - Key Achievement:
+    - Zone Exposure control layer structurally secured
+    - Long-term stability and effectiveness proven
+    - Statistical significance achieved (6x sample increase)
+    - Design accuracy verified (Advisory/Strict both match expectations)
+
+

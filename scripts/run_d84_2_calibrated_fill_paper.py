@@ -177,6 +177,7 @@ def run_calibrated_fill_paper(
     entry_bps_min: float = 10.0,
     entry_bps_max: float = 10.0,
     entry_bps_seed: int = 42,
+    entry_bps_zone_weights: str = None,
 ) -> Dict[str, Any]:
     """
     CalibratedFillModel + FillModelIntegration 장기 PAPER 실행
@@ -187,10 +188,11 @@ def run_calibrated_fill_paper(
         l2_source: L2 Source (mock/real/upbit/binance/multi)
         fillmodel_mode: FillModel Mode (none/advisory/strict)
         session_tag: 세션 태그 (로그 디렉토리 구분용)
-        entry_bps_mode: Entry BPS 생성 모드 (fixed/cycle/random)
+        entry_bps_mode: Entry BPS 생성 모드 (fixed/cycle/random/zone_random)
         entry_bps_min: Entry BPS 최소값
         entry_bps_max: Entry BPS 최대값
         entry_bps_seed: Entry BPS 난수 생성 seed
+        entry_bps_zone_weights: Zone 가중치 (zone_random 모드 전용, 쉼표 구분 문자열)
     
     Returns:
         실행 KPI (dict)
@@ -338,15 +340,23 @@ def run_calibrated_fill_paper(
     # TP는 고정 (12.0bps)
     tp_bps = 12.0
     
-    # D88-0: Entry BPS Profile 생성
+    # D88-0/D90-0: Entry BPS Profile 생성
     # Calibration에서 zone_boundaries 추출
     zone_boundaries = [(z['entry_min'], z['entry_max']) for z in calibration.zones]
+    
+    # D90-0: zone_weights 파싱 (zone_random 모드 전용)
+    zone_weights = None
+    if entry_bps_zone_weights:
+        zone_weights = [float(w.strip()) for w in entry_bps_zone_weights.split(',')]
+        logger.info(f"[D90-0] Zone weights parsed: {zone_weights}")
+    
     entry_bps_profile = EntryBPSProfile(
         mode=entry_bps_mode,
         min_bps=entry_bps_min,
         max_bps=entry_bps_max,
         seed=entry_bps_seed,
         zone_boundaries=zone_boundaries,
+        zone_weights=zone_weights,
     )
     
     # 초기 Entry BPS 생성
@@ -627,9 +637,9 @@ def main():
     parser.add_argument(
         "--entry-bps-mode",
         type=str,
-        choices=["fixed", "cycle", "random"],
+        choices=["fixed", "cycle", "random", "zone_random"],
         default="fixed",
-        help="D88-0: Entry BPS 생성 모드 (fixed/cycle/random, 기본값: fixed)"
+        help="D88-0/D90-0: Entry BPS 생성 모드 (fixed/cycle/random/zone_random, 기본값: fixed)"
     )
     parser.add_argument(
         "--entry-bps-min",
@@ -648,6 +658,12 @@ def main():
         type=int,
         default=42,
         help="D88-0: Entry BPS 난수 생성 seed (재현성 보장, 기본값: 42)"
+    )
+    parser.add_argument(
+        "--entry-bps-zone-weights",
+        type=str,
+        default=None,
+        help="D90-0: Zone 가중치 (zone_random 모드 전용, 쉼표 구분, 예: 0.5,3.0,1.5,0.5)"
     )
     
     args = parser.parse_args()
@@ -682,6 +698,7 @@ def main():
         entry_bps_min=args.entry_bps_min,
         entry_bps_max=args.entry_bps_max,
         entry_bps_seed=args.entry_bps_seed,
+        entry_bps_zone_weights=args.entry_bps_zone_weights,
     )
     
     # 요약 출력
