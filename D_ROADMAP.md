@@ -3264,95 +3264,68 @@ D83~D86에서 구축한 **Real L2 WebSocket + CalibratedFillModel**을 Multi-Exc
 
 **Final Decision:** ✅ **COMPLETE** - Entry BPS Diversification 인프라 구축 완료
 
----
+**목표:** Entry BPS Diversification (cycle 모드)를 장시간 PAPER 실행 환경에서 검증하고, 인프라 안정성과 Zone 분산 효과를 확인한다.
 
-### D88-1: LONGRUN PAPER Validation (Cycle Mode) (✅ COMPLETED)
+**실행 시나리오:**
+- Short A/B: Advisory 30m + Strict 30m
+- Long A/B: Advisory 3h + Strict 3h
+- Entry BPS: cycle 모드 (5.0~25.0 bps, Z1→Z2→Z3→Z4 순환)
+- Calibration: logs/d86-1/calibration_20251207_123906.json
 
-**작성일:** 2025-12-09  
-**상태:** ✅ **COMPLETE**
-**목표:** D83-1 Upbit 패턴을 재사용하여 Binance L2 WebSocket Provider 구현 및 검증
+**핵심 결과:**
+
+| Session | Duration | Entry Trades | Fill Events | Total PnL | Zone Distribution |
+|---------|----------|--------------|-------------|-----------|-------------------|
+| Advisory 30m | 1800.97s (+0.97s) | 180 | 360 | $6.28 | Z1~Z4 각 25% |
+| Strict 30m | 1800.94s (+0.94s) | 180 | 360 | $6.08 | Z1~Z4 각 25% |
+| Advisory 3h | 10800.97s (+0.97s) | 1079 | 2158 | $37.23 | Z1~Z4 각 24.9~25% |
+| Strict 3h | 10800.12s (+0.12s) | 1079 | 2158 | $37.38 | Z1~Z4 각 24.9~25% |
+
+**Acceptance Criteria: 6/6 PASS**
+- ✅ **C1: Duration Accuracy** - ±1초 (목표: ±30초)
+- ✅ **C2: Fill Events Generation** - 360~2158개 (목표: ≥100개)
+- ✅ **C3: All Zones Covered** - Z1~Z4 각 269~270개
+- ✅ **C4: No Z2 Dominance** - Z2 = 25% (목표: <90%)
+- ✅ **C5: Low Unmatched Rate** - 0% (목표: <5%)
+- ✅ **C6: Fatal Error** - 0건
 
 **핵심 성과:**
-1. **BinanceWebSocketAdapter** (arbitrage/exchanges/binance_ws_adapter.py, 245 lines)
-   - Binance Spot WebSocket 연결 (`wss://stream.binance.com:9443/stream`)
-   - Combined stream depth subscription (`btcusdt@depth20@100ms`)
-   - 메시지 파싱 (`bids`/`asks` vs `b`/`a` 둘 다 지원)
-   - Timestamp 처리 (depth snapshot은 `E` 없음, `time.time()` 사용)
+1. **Z2 100% 편중 문제 완전 해소**
+   - D87-6 문제: 모든 트레이드가 Z2에만 집중 (100%)
+   - D88-1 결과: Z1~Z4 각 25% 균등 분포 (cycle 모드 효과)
+   - 장시간 안정성: 30분 → 3시간까지 분포 유지
 
-2. **BinanceL2WebSocketProvider** (arbitrage/exchanges/binance_l2_ws_provider.py, 307 lines)
-   - MarketDataProvider 인터페이스 완전 준수
-   - 별도 스레드 + asyncio event loop (D83-1과 동일)
-   - 자동 재연결 (exponential backoff, 최대 5회)
-   - 심볼 매핑 (BTCUSDT ↔ BTC)
+2. **인프라 상용급 안정성 검증**
+   - Duration Guard: 목표 대비 ±1초 오차 (목표: ±30초)
+   - Fill Events: 2158개/3시간 (평균 0.6개/초) 안정 생성
+   - Fatal Error: 0건 (총 실행 시간 6시간 30분)
+   - PnL 정합성: Advisory ≈ Strict (차이 < $1)
 
-3. **D84-2 Runner 통합** (scripts/run_d84_2_calibrated_fill_paper.py)
-   - `--l2-source` 확장: mock, real, upbit, binance
-   - 하위 호환성 유지 (real → upbit alias)
+3. **재현 가능한 테스트 환경 구축**
+   - cycle 모드로 동일한 Entry BPS 시퀀스 보장
+   - Zone 분포 예측 가능 (Z1~Z4 각 25%)
+   - 회귀 테스트용 기준선 확보
 
-4. **유닛 테스트** (tests/test_d83_2_binance_l2_provider.py, 280 lines)
-   - FakeBinanceWebSocketAdapter 기반 테스트
-   - 6 passed, 2 skipped
-
-**독립 디버그 스크립트 검증:**
-- 30초 독립 테스트: 298개 메시지 수신, 10.03 msg/s
-- Top Bid: 89473.67, Top Ask: 89473.68
-- ✅ SUCCESS
-
-**5분 PAPER 스모크 테스트 결과:**
-- Duration: 305.2s ✅, Fill Events: 60 ✅
-- BUY std/mean: **0.942** ✅ (> 0.1)
-- SELL std/mean: **0.512** ✅ (> 0.1)
-- WebSocket Reconnect: 0 ✅, Fatal Exceptions: 0 ✅
-- **ALL ACCEPTANCE CRITERIA PASS** ✅
+**발견된 한계:**
+- ⚠️ **Advisory vs Strict Zone 분포 완전히 동일** (각 25%)
+- ⚠️ **cycle 모드 특성:** 고정된 시퀀스로 인해 Advisory/Strict 모두 동일한 Entry BPS 흐름
+- ⚠️ **Zone Selection (D87-4) 효과 미관측:** Entry BPS가 이미 Zone을 결정하므로, Fill Model의 Zone Preference 로직이 작동할 여지 없음
+- ⚠️ **Zone Preference 효과 검증 불가:** D88-2에서 random 모드로 재검증 필요
 
 **산출물:**
-- arbitrage/exchanges/binance_ws_adapter.py (245 lines)
-- arbitrage/exchanges/binance_l2_ws_provider.py (307 lines)
-- tests/test_d83_2_binance_l2_provider.py (280 lines, 6/6 PASS)
-- scripts/debug/d83_2_binance_ws_debug.py (240 lines)
-- docs/D83/D83-2_BINANCE_L2_WEBSOCKET_DESIGN.md
-- docs/D83/D83-2_BINANCE_L2_WEBSOCKET_REPORT.md
+- docs/D88/D88_1_LONGRUN_PAPER_REPORT.md (완전한 검증 리포트)
+- logs/d87-3/d88_1_advisory_30m/* (KPI, Fill Events, Zone Analysis)
+- logs/d87-3/d88_1_strict_30m/* (KPI, Fill Events, Zone Analysis)
+- logs/d87-3/d88_1_advisory_3h/* (KPI, Fill Events, Zone Analysis)
+- logs/d87-3/d88_1_strict_3h/* (KPI, Fill Events, Zone Analysis)
 
-**60초 PAPER 스모크 테스트 결과:**
-- Duration: 65.1s 
-- Entry Trades: 6 
-- Fill Events: 12 
-- Total PnL: $0.15 
-- Upbit L2 WebSocket: Connected 
-- Binance L2 WebSocket: Connected 
-- Aggregator: 정상 동작 
-- 에러 없이 정상 종료 
+**Final Decision:** ✅ **COMPLETE** - 인프라/Zone 분산 PASS, Zone Preference 효과는 D88-2에서 재검증 예정
 
-**산출물:**
-- arbitrage/exchanges/multi_exchange_l2_provider.py (473 lines)
-- tests/test_d83_3_multi_exchange_l2_provider.py (414 lines, 11/11 PASS)
-- docs/D83/D83-3_MULTI_EXCHANGE_L2_AGGREGATION_DESIGN.md (800+ lines)
-- docs/D83/D83-3_MULTI_EXCHANGE_L2_AGGREGATION_REPORT.md (검증 리포트)
-
-**설계 특징:**
-- D80 Multi-source FX Aggregation 패턴 일관성 유지
-- Composition over Inheritance (기존 Provider 재사용)
-- DO-NOT-TOUCH 원칙 준수 (기존 Upbit/Binance Provider 코드 수정 없음)
-- Single Responsibility (Aggregator = 집계 로직, Provider = 인터페이스 + 라이프사이클)
-
-**성능 지표:**
-- `get_latest_snapshot()` latency: 0.1~0.3ms (< 1ms 목표 달성)
-- WebSocket 업데이트 반영: 1~5ms (< 10ms 목표 달성)
-
-**알려진 이슈:**
-- asyncio generator close 경고 (기능 영향 없음, 향후 개선 예정)
-
-**Final Decision:**  **COMPLETE** - Multi-exchange L2 Aggregation 정상 작동, D84-2+ Long-run PAPER 준비 완료
-
-**Next Steps:**
-- D84-2+: Long-run PAPER (20분+, 100+ fill events, Multi L2 기반)
-- D84-3: Mock vs Real L2 (Upbit/Binance/Multi) fill distribution 비교
-- D85-X: Cross-exchange Slippage Model (Multi L2 depth 활용)
+**Summary:** 인프라 관점에서는 완벽한 안정성 확인. Zone Selection 효과 검증은 random 모드 필요.
 
 ---
 
-### D82-11: TP/Entry PAPER Validation Pipeline (10m/20m/60m) 
-**Final Decision:**  **COMPLETE** - TP/Entry PAPER Validation Pipeline 완료
+### D88-2: RANDOM Mode A/B Longrun Validation (📋 PLANNED)
 - `scripts/setup_env.py` (~450 lines)
 - `scripts/validate_env.py` (~250 lines)
 - `tests/test_d78_env_setup.py` (~320 lines, 11 tests)
