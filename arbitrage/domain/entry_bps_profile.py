@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D88-0 / D90-0: Entry BPS Profile
+D88-0 / D90-0 / D90-2: Entry BPS Profile
 
 PAPER 실행 시 Entry BPS를 다양하게 생성하여 Zone별 트레이드 분산을 유도하는 프로파일.
 
@@ -14,17 +14,60 @@ PAPER 실행 시 Entry BPS를 다양하게 생성하여 Zone별 트레이드 분
 1. **fixed**: 고정값 (기존 동작, 하나의 BPS만 사용)
 2. **cycle**: Zone별 대표 BPS를 순환 (Z1 → Z2 → Z3 → Z4 → Z1 ...)
 3. **random**: [min_bps, max_bps] 범위 내 균일 분포 난수 생성
-4. **zone_random** (D90-0): Zone 가중치 기반 확률적 샘플링
+4. **zone_random** (D90-0/2): Zone 가중치 기반 확률적 샘플링
    - zone_weights에 따라 Zone을 먼저 선택
    - 선택된 Zone의 boundary 내에서 균등 분포 샘플링
    - Advisory/Strict 모드별로 다른 Zone 가중치 적용 가능
+   - D90-2: Zone Profile 개념 도입 (명명된 프로파일로 가중치 관리)
 
 Author: arbitrage-lite project
-Date: 2025-12-09
+Date: 2025-12-09 (D90-0), 2025-12-10 (D90-2)
 """
 
 import random
-from typing import List, Literal, Optional, Sequence
+from dataclasses import dataclass
+from typing import Dict, List, Literal, Optional, Sequence, Tuple
+
+
+@dataclass(frozen=True)
+class ZoneProfile:
+    """
+    Zone 가중치 프로파일 (D90-2).
+    
+    zone_random 모드에서 사용할 Zone 가중치를 명명된 프로파일로 정의.
+    
+    Attributes:
+        name: 프로파일 이름 (예: "strict_uniform", "advisory_z2_focus")
+        description: 프로파일 설명
+        zone_weights: Zone 가중치 (Z1, Z2, Z3, Z4 순서)
+    
+    Examples:
+        >>> strict = ZoneProfile(
+        ...     name="strict_uniform",
+        ...     description="Uniform zone distribution",
+        ...     zone_weights=(1.0, 1.0, 1.0, 1.0),
+        ... )
+        >>> strict.zone_weights
+        (1.0, 1.0, 1.0, 1.0)
+    """
+    name: str
+    description: str
+    zone_weights: Tuple[float, float, float, float]
+
+
+# D90-2: 기본 Zone Profile 정의
+ZONE_PROFILES: Dict[str, ZoneProfile] = {
+    "strict_uniform": ZoneProfile(
+        name="strict_uniform",
+        description="Uniform zone distribution for strict mode (Z1~Z4 ≈ 25%)",
+        zone_weights=(1.0, 1.0, 1.0, 1.0),
+    ),
+    "advisory_z2_focus": ZoneProfile(
+        name="advisory_z2_focus",
+        description="Z2-focused profile matching D90-0/1 calibration (Z2 ≈ 50%+)",
+        zone_weights=(0.5, 3.0, 1.5, 0.5),
+    ),
+}
 
 
 class EntryBPSProfile:
@@ -89,6 +132,7 @@ class EntryBPSProfile:
         seed: int = 42,
         zone_boundaries: Optional[List[tuple]] = None,
         zone_weights: Optional[Sequence[float]] = None,
+        zone_profile_name: Optional[str] = None,  # D90-2: 신규 파라미터
     ):
         self.mode = mode
         self.min_bps = min_bps
@@ -106,12 +150,31 @@ class EntryBPSProfile:
         else:
             self.zone_boundaries = zone_boundaries
         
-        # Zone 가중치 (zone_random 모드 전용)
-        if zone_weights is None:
-            # 기본값: 균등 가중치
-            self.zone_weights = [1.0] * len(self.zone_boundaries)
+        # D90-2: Zone 가중치 결정 (우선순위: zone_profile_name > zone_weights > 기본값)
+        if self.mode == "zone_random":
+            if zone_profile_name:
+                # 프로파일 이름으로 조회
+                profile = ZONE_PROFILES.get(zone_profile_name)
+                if not profile:
+                    available = list(ZONE_PROFILES.keys())
+                    raise ValueError(
+                        f"Unknown zone_profile_name: '{zone_profile_name}'. "
+                        f"Available profiles: {available}"
+                    )
+                self.zone_weights = list(profile.zone_weights)
+                self.zone_profile_name = zone_profile_name
+            elif zone_weights is not None:
+                # 직접 가중치 지정 (backward compatibility)
+                self.zone_weights = list(zone_weights)
+                self.zone_profile_name = None
+            else:
+                # 기본값: 균등 가중치
+                self.zone_weights = [1.0] * len(self.zone_boundaries)
+                self.zone_profile_name = None
         else:
-            self.zone_weights = list(zone_weights)
+            # zone_random 모드가 아니면 무시
+            self.zone_weights = [1.0] * len(self.zone_boundaries)
+            self.zone_profile_name = None
         
         # Cycle 모드용 인덱스
         self._cycle_index = 0

@@ -3943,3 +3943,27 @@ python scripts/validate_env.py --env paper --verbose
     - Design accuracy verified (Advisory/Strict both match expectations)
 
 
+
+- **D90-2: Zone Profile Config & 20m A/B Validation**
+  - Status: COMPLETE - PASS
+  - Summary:
+    - Zone Profile \ucd94\uc0c1\ud654: ZoneProfile dataclass + ZONE_PROFILES dict
+    - \uae30\ubcf8 \ud504\ub85c\ud30c\uc77c 2\uac1c: strict_uniform, advisory_z2_focus
+    - CLI \uc5f0\ub3d9: --entry-bps-zone-profile \uc635\uc158 \ucd94\uac00
+    - 20m A/B \uacb0\uacfc: \u0394P(Z2) = 23.3%p (\ubaa9\ud45c \u226515%p\uc758 1.6\ubc30 \ub2ec\uc131)
+    - Strict Z2: 26.7% (expected 25%, diff +1.7%p)
+    - Advisory Z2: 50.0% (expected 54.5%, diff -4.5%p)
+    - PnL: Advisory .30 > Strict .27 (+24%)
+    - All Acceptance Criteria PASS (9/9)
+  - Deliverables:
+    - arbitrage/domain/entry_bps_profile.py (ZoneProfile, ZONE_PROFILES)
+    - scripts/run_d84_2_calibrated_fill_paper.py (CLI \uc5f0\ub3d9)
+    - tests/test_d90_2_zone_profile_config.py (15/15 PASS)
+    - docs/D90/D90_2_ZONE_PROFILE_CONFIG_DESIGN.md
+    - docs/D90/D90_2_VALIDATION_REPORT.md
+  - Key Achievement:
+    - SSOT \uad6c\uc870 \ud655\ub9bd (\ud504\ub85c\ud30c\uc77c \uc815\uc758 \uc911\uc559\ud654)
+    - Backward compatibility 100% \uc720\uc9c0 (D90-0 tests 10/10 PASS)
+    - \ud5a5\ud6c4 YAML \uc678\ubd80\ud654/TopN \ud1b5\ud569 \ub300\ube44
+
+

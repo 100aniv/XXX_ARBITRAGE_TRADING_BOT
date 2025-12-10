@@ -178,6 +178,7 @@ def run_calibrated_fill_paper(
     entry_bps_max: float = 10.0,
     entry_bps_seed: int = 42,
     entry_bps_zone_weights: str = None,
+    entry_bps_zone_profile: str = None,  # D90-2
 ) -> Dict[str, Any]:
     """
     CalibratedFillModel + FillModelIntegration 장기 PAPER 실행
@@ -193,6 +194,7 @@ def run_calibrated_fill_paper(
         entry_bps_max: Entry BPS 최대값
         entry_bps_seed: Entry BPS 난수 생성 seed
         entry_bps_zone_weights: Zone 가중치 (zone_random 모드 전용, 쉼표 구분 문자열)
+        entry_bps_zone_profile: Zone profile name (D90-2, zone_random 모드 전용)
     
     Returns:
         실행 KPI (dict)
@@ -340,15 +342,31 @@ def run_calibrated_fill_paper(
     # TP는 고정 (12.0bps)
     tp_bps = 12.0
     
-    # D88-0/D90-0: Entry BPS Profile 생성
+    # D88-0/D90-0/D90-2: Entry BPS Profile 생성
     # Calibration에서 zone_boundaries 추출
     zone_boundaries = [(z['entry_min'], z['entry_max']) for z in calibration.zones]
     
-    # D90-0: zone_weights 파싱 (zone_random 모드 전용)
+    # D90-2: Zone profile 기본값 로직
+    zone_profile_name = entry_bps_zone_profile
+    if entry_bps_mode == "zone_random" and not zone_profile_name:
+        # zone_profile 미지정 시 fillmodel_mode에 따라 기본값 선택
+        if fillmodel_mode == "strict":
+            zone_profile_name = "strict_uniform"
+            logger.info("[D90-2] Zone profile auto-selected: strict_uniform (Strict mode default)")
+        elif fillmodel_mode == "advisory":
+            zone_profile_name = "advisory_z2_focus"
+            logger.info("[D90-2] Zone profile auto-selected: advisory_z2_focus (Advisory mode default)")
+        else:
+            zone_profile_name = "strict_uniform"
+            logger.info("[D90-2] Zone profile auto-selected: strict_uniform (fallback)")
+    elif zone_profile_name:
+        logger.info(f"[D90-2] Zone profile specified: {zone_profile_name}")
+    
+    # D90-0: zone_weights 파싱 (zone_random 모드 전용, backward compatibility)
     zone_weights = None
     if entry_bps_zone_weights:
         zone_weights = [float(w.strip()) for w in entry_bps_zone_weights.split(',')]
-        logger.info(f"[D90-0] Zone weights parsed: {zone_weights}")
+        logger.info(f"[D90-0] Zone weights parsed (backward compat): {zone_weights}")
     
     entry_bps_profile = EntryBPSProfile(
         mode=entry_bps_mode,
@@ -356,7 +374,8 @@ def run_calibrated_fill_paper(
         max_bps=entry_bps_max,
         seed=entry_bps_seed,
         zone_boundaries=zone_boundaries,
-        zone_weights=zone_weights,
+        zone_weights=zone_weights,  # backward compatibility
+        zone_profile_name=zone_profile_name,  # D90-2
     )
     
     # 초기 Entry BPS 생성
@@ -665,6 +684,12 @@ def main():
         default=None,
         help="D90-0: Zone 가중치 (zone_random 모드 전용, 쉼표 구분, 예: 0.5,3.0,1.5,0.5)"
     )
+    parser.add_argument(
+        "--entry-bps-zone-profile",
+        type=str,
+        default=None,
+        help="D90-2: Zone profile name for zone_random mode (e.g., 'strict_uniform', 'advisory_z2_focus')"
+    )
     
     args = parser.parse_args()
     
@@ -699,6 +724,7 @@ def main():
         entry_bps_max=args.entry_bps_max,
         entry_bps_seed=args.entry_bps_seed,
         entry_bps_zone_weights=args.entry_bps_zone_weights,
+        entry_bps_zone_profile=args.entry_bps_zone_profile,  # D90-2
     )
     
     # 요약 출력
