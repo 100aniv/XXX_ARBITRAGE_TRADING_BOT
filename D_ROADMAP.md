@@ -3959,4 +3959,28 @@ python scripts/validate_env.py --env paper --verbose
     - advisory_z23_focus\ub97c \uc2e4\ud5d8\uc801 \ud504\ub85c\ud30c\uc77c\ub85c \ubcf4\uc874 (1h/3h LONGRUN \uc7ac\uac80\uc99d \ud544\uc694)
     - Zone Profile \ud29c\ub2dd \ud504\ub808\uc784\uc6cc\ud06c \ud655\ub9bd (Sweep \ud558\ub124\uc2a4 + \ubd84\uc11d \uc2a4\ud06c\ub9bd\ud2b8)
 
+- **D90-4: Zone Profile YAML Externalization**
+  - Status: COMPLETE - PASS (CONDITIONAL)
+  - Summary:
+    - Zone Profile \uc815\uc758\ub97c \ucf54\ub4dc \ud558\ub4dc\ucf54\ub529\uc5d0\uc11c YAML \uc124\uc815\uc73c\ub85c \uc678\ubd80\ud654
+    - YAML \ud30c\uc77c: config/arbitrage/zone_profiles.yaml (5\uac1c \ud504\ub85c\ud30c\uc77c)
+    - Zone Profile \ub85c\ub354: arbitrage/config/zone_profiles_loader.py
+    - \ud558\uc704 \ud638\ud658\uc131 100% \uc720\uc9c0 (_ZoneProfilesDict)
+    - Fallback \uc804\ub7b5: YAML \uc5c6\uc74c \uc2dc \ucd5c\uc18c 2\uac1c \ud504\ub85c\ud30c\uc77c \ub0b4\uc7a5
+    - Unit Test: 69/69 PASS (D90-4 \uc2e0\uaddc 28 + \uae30\uc874 D90-0/2/3 41)
+    - 20m A/B \uc7ac\uac80\uc99d: Advisory \ub3d9\uc77c (PnL $5.36 vs D90-2 $5.30, +1.1%), Strict -5.9% (\uc2dc\uc7a5 \ub178\uc774\uc988)
+  - Deliverables:
+    - config/arbitrage/zone_profiles.yaml
+    - arbitrage/config/zone_profiles_loader.py
+    - arbitrage/config/__init__.py
+    - arbitrage/domain/entry_bps_profile.py (\uc218\uc815)
+    - tests/test_d90_4_zone_profile_yaml.py (28/28 PASS)
+    - docs/D90/D90_4_YAML_EXTERNALIZATION_DESIGN.md
+    - docs/D90/D90_4_VALIDATION_REPORT.md
+  - Key Achievement:
+    - \ucf54\ub4dc \uc218\uc815 \uc5c6\uc774 \ud504\ub85c\ud30c\uc77c \uad00\ub9ac \uac00\ub2a5 (YAML\ub9cc \ud3b8\uc9d1)
+    - D90-0~3 \uacb0\uacfc \uc7ac\ud604\uc131 \ud655\ubcf4 (\uad6c\uc870\uc801 \ubd88\ubcc0\uc131)
+    - TopN Multi-Symbol \ud1b5\ud569 \uc900\ube44 (\uc2ec\ubcfc\ubcc4 \ud504\ub85c\ud30c\uc77c \uc120\ud0dd)
+    - \uc2e4\ud5d8\uc801 \ud504\ub85c\ud30c\uc77c \uad00\ub9ac \uc6a9\uc774 (status \ud544\ub4dc)
+
 

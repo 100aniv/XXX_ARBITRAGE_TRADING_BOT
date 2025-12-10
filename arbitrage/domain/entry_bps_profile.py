@@ -55,37 +55,111 @@ class ZoneProfile:
     zone_weights: Tuple[float, float, float, float]
 
 
-# D90-2/3: Zone Profile 정의
-ZONE_PROFILES: Dict[str, ZoneProfile] = {
-    # D90-2: Baseline profiles
-    "strict_uniform": ZoneProfile(
-        name="strict_uniform",
-        description="Uniform zone distribution for strict mode (Z1~Z4 ≈ 25%)",
-        zone_weights=(1.0, 1.0, 1.0, 1.0),
-    ),
-    "advisory_z2_focus": ZoneProfile(
-        name="advisory_z2_focus",
-        description="Z2-focused profile matching D90-0/1 calibration (Z2 ≈ 50%+)",
-        zone_weights=(0.5, 3.0, 1.5, 0.5),
-    ),
+# D90-2/3/4: Zone Profile 정의 (YAML 기반 로딩)
+# 
+# D90-4에서 YAML 외부화:
+# - 프로파일 정의는 config/arbitrage/zone_profiles.yaml에 있음
+# - load_zone_profiles_with_fallback()를 통해 로드
+# - YAML 파일 없음/로드 실패 시 fallback으로 최소 2개 프로파일 내장
+#
+# 하위 호환성:
+# - 기존 코드에서 ZONE_PROFILES['strict_uniform'] 형태로 접근 가능
+# - get_zone_profile(name) 함수로 접근 권장 (YAML 재로드 지원)
+
+# Zone Profile 로더 임포트 (지연 로딩)
+_ZONE_PROFILES_CACHE: Optional[Dict[str, ZoneProfile]] = None
+
+
+def load_zone_profiles(force_reload: bool = False) -> Dict[str, ZoneProfile]:
+    """
+    Zone Profile YAML 파일 로드 (캐싱).
     
-    # D90-3: Tuning candidates
-    "advisory_z2_balanced": ZoneProfile(
-        name="advisory_z2_balanced",
-        description="Balanced Z2/Z3 profile with increased tail coverage (Z2 ≈ 42%, Z3 ≈ 33%)",
-        zone_weights=(0.7, 2.5, 2.0, 0.8),
-    ),
-    "advisory_z23_focus": ZoneProfile(
-        name="advisory_z23_focus",
-        description="Z2+Z3 focused profile for mid-risk/mid-reward optimization (Z2 ≈ 50%, Z3 ≈ 39%)",
-        zone_weights=(0.3, 2.8, 2.2, 0.3),
-    ),
-    "advisory_z2_conservative": ZoneProfile(
-        name="advisory_z2_conservative",
-        description="Conservative profile with broader zone distribution (Z2 ≈ 35%, all zones ≥ 17%)",
-        zone_weights=(1.0, 2.0, 1.8, 1.0),
-    ),
-}
+    Args:
+        force_reload: True면 캐시 무시하고 재로드
+    
+    Returns:
+        {profile_name: ZoneProfile} dict
+    
+    Examples:
+        >>> profiles = load_zone_profiles()
+        >>> profiles['strict_uniform'].zone_weights
+        (1.0, 1.0, 1.0, 1.0)
+    """
+    global _ZONE_PROFILES_CACHE
+    
+    if _ZONE_PROFILES_CACHE is None or force_reload:
+        # YAML 로더 지연 임포트 (순환 참조 방지)
+        from arbitrage.config.zone_profiles_loader import load_zone_profiles_with_fallback
+        _ZONE_PROFILES_CACHE = load_zone_profiles_with_fallback()
+    
+    return _ZONE_PROFILES_CACHE
+
+
+def get_zone_profile(name: str) -> ZoneProfile:
+    """
+    프로파일 이름으로 ZoneProfile 인스턴스 반환.
+    
+    Args:
+        name: 프로파일 이름
+    
+    Returns:
+        ZoneProfile 인스턴스
+    
+    Raises:
+        KeyError: 프로파일 없음
+    
+    Examples:
+        >>> profile = get_zone_profile('advisory_z2_focus')
+        >>> profile.zone_weights
+        (0.5, 3.0, 1.5, 0.5)
+    """
+    profiles = load_zone_profiles()
+    
+    if name not in profiles:
+        available = list(profiles.keys())
+        raise KeyError(
+            f"Zone profile '{name}' not found. "
+            f"Available profiles: {available}"
+        )
+    
+    return profiles[name]
+
+
+# ZONE_PROFILES: 하위 호환성을 위한 dict-like 접근 (lazy loading)
+class _ZoneProfilesDict:
+    """
+    ZONE_PROFILES dict-like 래퍼 (lazy loading).
+    
+    기존 코드에서 ZONE_PROFILES['name'] 형태로 접근 가능하도록 하위 호환성 제공.
+    """
+    
+    def __getitem__(self, key: str) -> ZoneProfile:
+        return get_zone_profile(key)
+    
+    def __contains__(self, key: str) -> bool:
+        profiles = load_zone_profiles()
+        return key in profiles
+    
+    def keys(self):
+        profiles = load_zone_profiles()
+        return profiles.keys()
+    
+    def values(self):
+        profiles = load_zone_profiles()
+        return profiles.values()
+    
+    def items(self):
+        profiles = load_zone_profiles()
+        return profiles.items()
+    
+    def get(self, key: str, default=None):
+        try:
+            return get_zone_profile(key)
+        except KeyError:
+            return default
+
+
+ZONE_PROFILES = _ZoneProfilesDict()
 
 
 class EntryBPSProfile:

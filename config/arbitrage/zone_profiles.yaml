@@ -1,0 +1,101 @@
+# D90-4: Zone Profile Configuration (YAML Externalization)
+#
+# Entry BPS Zone Profile 정의를 코드에서 YAML로 외부화.
+# 각 프로파일은 Zone 가중치를 정의하며, zone_random 모드에서 사용됨.
+#
+# Zone 구조:
+#   - Z1: Low-risk zone (낮은 Entry BPS, 낮은 Spread)
+#   - Z2: Sweet-spot zone (중간 Entry BPS, 최적 Spread/Risk 비율)
+#   - Z3: Mid-risk zone (높은 Entry BPS, 높은 Spread)
+#   - Z4: High-risk zone (매우 높은 Entry BPS, 매우 높은 Spread)
+#
+# Weights 해석:
+#   - 각 Zone의 상대적 확률 가중치
+#   - 정규화됨 (예: [1, 2, 1, 1] → Z2가 40% 확률)
+#   - 균등 분포: [1.0, 1.0, 1.0, 1.0] → 각 Zone 25%
+#   - Z2 집중: [0.5, 3.0, 1.5, 0.5] → Z2 약 54.5%
+#
+# Author: arbitrage-lite project
+# Date: 2025-12-10 (D90-4)
+
+profiles:
+  # ===== PRODUCTION BASELINES =====
+  # D90-2에서 검증된 프로덕션 기본 프로파일
+  
+  strict_uniform:
+    description: "Baseline uniform profile used for strict mode (Z1~Z4 ≈ 25%)"
+    weights: [1.0, 1.0, 1.0, 1.0]
+    # Expected distribution: Z1=25%, Z2=25%, Z3=25%, Z4=25%
+    # D90-2 Validation: Z2=26.7% (±1.7%p)
+    # PnL: $4.27 (20m, 120 trades)
+    status: production
+    
+  advisory_z2_focus:
+    description: "Production baseline advisory profile with strong Z2 emphasis"
+    weights: [0.5, 3.0, 1.5, 0.5]
+    # Expected distribution: Z1=9.1%, Z2=54.5%, Z3=27.3%, Z4=9.1%
+    # D90-2 Validation: Z2=50.0% (-4.5%p)
+    # D90-3 Validation: Z2=50.8%, PnL $5.29 (Best among 4 profiles)
+    # PnL: $5.30 (20m, 120 trades)
+    # ΔP(Z2): +23.3%p vs strict_uniform
+    status: production
+  
+  # ===== EXPERIMENTAL PROFILES =====
+  # D90-3에서 Runner-up으로 선정된 실험적 프로파일
+  
+  advisory_z23_focus:
+    description: "Experimental advisory profile focusing on Z2+Z3 (Runner-up in D90-3)"
+    weights: [0.3, 2.8, 2.2, 0.3]
+    # Expected distribution: Z1=5.3%, Z2=49.1%, Z3=38.6%, Z4=5.3%
+    # D90-3 Validation: Z2=46.2%, Z3=46.7%, PnL $5.12 (-3.2% vs advisory_z2_focus)
+    # ΔP(Z2): +19.5%p vs strict_uniform
+    # Note: -3.2% PnL difference has low statistical significance (std 0.02)
+    #       1h/3h LONGRUN validation recommended before production use
+    status: experimental
+  
+  # ===== DEPRECATED PROFILES =====
+  # D90-3 튜닝에서 성능 미달로 제거 예정, 하위 호환성을 위해 유지
+  
+  advisory_z2_balanced:
+    description: "DEPRECATED: Balanced Z2/Z3 profile with increased tail coverage"
+    weights: [0.7, 2.5, 2.0, 0.8]
+    # Expected distribution: Z1=11.7%, Z2=41.7%, Z3=33.3%, Z4=13.3%
+    # D90-3 Validation: Z2=37.9%, PnL $4.76 (-10.0% vs advisory_z2_focus)
+    # ΔP(Z2): +11.2%p vs strict_uniform (FAIL, < 15%p threshold)
+    # Reason for deprecation: Both PnL and ΔP(Z2) underperformed
+    status: deprecated
+  
+  advisory_z2_conservative:
+    description: "DEPRECATED: Conservative profile with broader zone distribution"
+    weights: [1.0, 2.0, 1.8, 1.0]
+    # Expected distribution: Z1=17.5%, Z2=35.1%, Z3=31.6%, Z4=17.5%
+    # D90-3 Validation: Z2=35.0%, PnL $4.62 (-12.7% vs advisory_z2_focus)
+    # ΔP(Z2): +8.3%p vs strict_uniform (FAIL, < 15%p threshold)
+    # Reason for deprecation: Lowest PnL, failed ΔP(Z2) threshold
+    status: deprecated
+
+# ===== METADATA =====
+# YAML 스키마 버전 및 호환성 정보
+
+metadata:
+  schema_version: "1.0.0"
+  compatible_with:
+    - "D90-0: zone_random mode"
+    - "D90-1: LONGRUN validation"
+    - "D90-2: Zone Profile Config"
+    - "D90-3: Zone Profile Tuning v1"
+    - "D90-4: YAML Externalization"
+  
+  validation_status:
+    strict_uniform: "PASS (D90-2, ΔP(Z2) baseline)"
+    advisory_z2_focus: "PASS (D90-2/3, Best PnL, production baseline)"
+    advisory_z23_focus: "CONDITIONAL (D90-3, Runner-up, experimental)"
+    advisory_z2_balanced: "FAIL (D90-3, PnL -10%, ΔP(Z2) < 15%p)"
+    advisory_z2_conservative: "FAIL (D90-3, PnL -12.7%, ΔP(Z2) < 15%p)"
+  
+  notes:
+    - "All weights must be exactly [Z1, Z2, Z3, Z4] order"
+    - "Weights are normalized internally (sum doesn't need to be 1.0)"
+    - "Minimum 4 floats required, negative values not allowed"
+    - "Production profiles must maintain ΔP(Z2) ≥ 15%p vs strict_uniform"
+    - "PnL validation: 20m SHORT PAPER with 120 trades baseline"
