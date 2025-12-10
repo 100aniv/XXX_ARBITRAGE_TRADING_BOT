@@ -55,8 +55,9 @@ class ZoneProfile:
     zone_weights: Tuple[float, float, float, float]
 
 
-# D90-2: 기본 Zone Profile 정의
+# D90-2/3: Zone Profile 정의
 ZONE_PROFILES: Dict[str, ZoneProfile] = {
+    # D90-2: Baseline profiles
     "strict_uniform": ZoneProfile(
         name="strict_uniform",
         description="Uniform zone distribution for strict mode (Z1~Z4 ≈ 25%)",
@@ -66,6 +67,23 @@ ZONE_PROFILES: Dict[str, ZoneProfile] = {
         name="advisory_z2_focus",
         description="Z2-focused profile matching D90-0/1 calibration (Z2 ≈ 50%+)",
         zone_weights=(0.5, 3.0, 1.5, 0.5),
+    ),
+    
+    # D90-3: Tuning candidates
+    "advisory_z2_balanced": ZoneProfile(
+        name="advisory_z2_balanced",
+        description="Balanced Z2/Z3 profile with increased tail coverage (Z2 ≈ 42%, Z3 ≈ 33%)",
+        zone_weights=(0.7, 2.5, 2.0, 0.8),
+    ),
+    "advisory_z23_focus": ZoneProfile(
+        name="advisory_z23_focus",
+        description="Z2+Z3 focused profile for mid-risk/mid-reward optimization (Z2 ≈ 50%, Z3 ≈ 39%)",
+        zone_weights=(0.3, 2.8, 2.2, 0.3),
+    ),
+    "advisory_z2_conservative": ZoneProfile(
+        name="advisory_z2_conservative",
+        description="Conservative profile with broader zone distribution (Z2 ≈ 35%, all zones ≥ 17%)",
+        zone_weights=(1.0, 2.0, 1.8, 1.0),
     ),
 }
 

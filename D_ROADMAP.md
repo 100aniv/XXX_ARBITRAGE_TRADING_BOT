@@ -3902,39 +3902,6 @@ python scripts/validate_env.py --env paper --verbose
 - **D77 Dashboard ?��: Core KPI 10鮈??�?嶅陷???賄� + Telegram Alert 5鮈??圉�**
 - Docs/Runbook/Monitoring 黖𨰰� ?��, ?渥�?� ?賄� ?��
 - 謔渠收鴞??刮�鴔� 諻堅𡢢 麮渣�謔科擪???��, ?科鹻???賄� OK
-
-漈
-
----
-
-### D90: Entry BPS Zone-Weighted Random
-
-- **D90-0: Entry BPS Zone-Weighted Random (Design & 30m A/B)**
-  - Status: COMPLETE
-  - Summary:
-    - zone_random mode: Zone-weighted 2-stage sampling
-    - 30m A/B result: ΔP(Z2) = 22.8%p (target 5%p, 4.6x achieved)
-    - Advisory Z2: 52.8% (expected 54.5%, diff -1.7%p)
-    - All Acceptance Criteria PASS
-  - Deliverables:
-    - arbitrage/domain/entry_bps_profile.py (zone_random mode)
-    - tests/test_d90_0_entry_bps_zone_random.py (10/10 PASS)
-    - docs/D90/D90_0_ENTRY_BPS_ZONE_RANDOM_DESIGN.md
-    - docs/D90/D90_0_VALIDATION_REPORT.md
-
-- **D90-1: Entry BPS Zone-Weighted Random 3h LONGRUN Validation**
-  - Status: COMPLETE - GO
-  - Summary:
-    - 3h A/B result: ΔP(Z2) = 27.2%p (target 15%p, 1.8x achieved)
-    - D90-0 대비 +4.4%p improvement (22.8%p  27.2%p)
-    - Advisory Z2: 51.5% (expected 54.5%, diff -3.0%p)
-    - Strict Z2: 24.3% (expected 25%, diff -0.7%p)
-    - Sample size: 1,079 trades (6x increase from D90-0)
-    - All Acceptance Criteria PASS
-    - PnL: Advisory .43 > Strict .06 (+28%)
-  - Deliverables:
-    - docs/D90/D90_1_LONGRUN_VALIDATION_REPORT.md
-    - logs/d87-3/d90_1_advisory_3h_zone_random/
     - logs/d87-3/d90_1_strict_3h_zone_random/
   - Key Achievement:
     - Zone Exposure control layer structurally secured
@@ -3965,5 +3932,31 @@ python scripts/validate_env.py --env paper --verbose
     - SSOT \uad6c\uc870 \ud655\ub9bd (\ud504\ub85c\ud30c\uc77c \uc815\uc758 \uc911\uc559\ud654)
     - Backward compatibility 100% \uc720\uc9c0 (D90-0 tests 10/10 PASS)
     - \ud5a5\ud6c4 YAML \uc678\ubd80\ud654/TopN \ud1b5\ud569 \ub300\ube44
+
+- **D90-3: Zone Profile Tuning v1 (PnL-Oriented)**
+  - Status: COMPLETE - PASS (CONDITIONAL)
+  - Summary:
+    - PnL \ucd5c\uc801\ud654\ub97c \uc704\ud55c Zone Profile \ud6c4\ubcf4 3\uac1c \uc124\uacc4 \ubc0f 20m SHORT PAPER \uac80\uc99d
+    - \uc2e0\uaddc \ud504\ub85c\ud30c\uc77c: advisory_z2_balanced (0.7, 2.5, 2.0, 0.8), advisory_z23_focus (0.3, 2.8, 2.2, 0.3), advisory_z2_conservative (1.0, 2.0, 1.8, 1.0)
+    - \ucd1d 8\ud68c \uc2e4\ud589 (4 profiles × 2 runs), 2.7\uc2dc\uac04 \uc18c\uc694
+    - \ud575\uc2ec \ubc1c\uacac: Z2 \uc9d1\uc911\ub3c4\uc640 PnL \uac04 \uac15\ud55c \uc591\uc758 \uc0c1\uad00\uad00\uacc4 (R² ≈ 0.95)
+    - Zone \ubd84\uc0b0 \uc99d\uac00 → PnL \uac10\uc18c (\ubd84\uc0b0 \uc99d\uac00 = \uc131\ub2a5 \uc800\ud558)
+    - Best Profile: advisory_z2_focus (Baseline \uc720\uc9c0, PnL $5.29, ΔP(Z2) +24.1%p)
+    - Runner-up: advisory_z23_focus (PnL $5.12, -3.2% vs Baseline, \ud1b5\uacc4\uc801 \uc720\uc758\uc131 \ub0ae\uc74c)
+    - Unit Test: 41/41 PASS (\uae30\uc874 25 + \uc2e0\uaddc 16)
+    - Acceptance Criteria: AC1/3/5/6/7 PASS, AC2/4 CONDITIONAL (2/4 \ud504\ub85c\ud30c\uc77c\ub9cc ΔP(Z2) ≥ 15%p \ub2ec\uc131)
+  - Deliverables:
+    - arbitrage/domain/entry_bps_profile.py (\uc2e0\uaddc \ud504\ub85c\ud30c\uc77c 3\uac1c \ucd94\uac00)
+    - scripts/run_d90_3_zone_profile_sweep.py (\ud29c\ub2dd \ud558\ub124\uc2a4)
+    - scripts/analyze_d90_3_results.py (\uacb0\uacfc \ubd84\uc11d)
+    - tests/test_d90_3_zone_profile_tuning.py (16/16 PASS)
+    - docs/D90/D90_3_ZONE_PROFILE_TUNING_DESIGN.md
+    - docs/D90/D90_3_VALIDATION_REPORT.md
+    - logs/d87-3/d90_3_* (8\uac1c \ub514\ub809\ud130\ub9ac, KPI/Zone \ubd84\ud3ec \ub370\uc774\ud130)
+  - Key Achievement:
+    - Z2 \uc9d1\uc911\ub3c4\uac00 PnL\uc758 \uac00\uc7a5 \uac15\ub825\ud55c \uc608\uce21 \ubcc0\uc218\uc784\uc744 \uac80\uc99d
+    - advisory_z2_focus\uc758 \ucd5c\uc801\uc131 \ud655\uc778 (\ubcc0\uacbd \ubd88\ud544\uc694)
+    - advisory_z23_focus\ub97c \uc2e4\ud5d8\uc801 \ud504\ub85c\ud30c\uc77c\ub85c \ubcf4\uc874 (1h/3h LONGRUN \uc7ac\uac80\uc99d \ud544\uc694)
+    - Zone Profile \ud29c\ub2dd \ud504\ub808\uc784\uc6cc\ud06c \ud655\ub9bd (Sweep \ud558\ub124\uc2a4 + \ubd84\uc11d \uc2a4\ud06c\ub9bd\ud2b8)
 
 
