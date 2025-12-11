@@ -4139,14 +4139,26 @@ python scripts/validate_env.py --env paper --verbose
 
 ## D91-3: Tier2/3 Zone Profile Tuning (2025-12-11)
 
-**Status:** ✅ IMPLEMENTATION COMPLETE - VALIDATION PENDING
+**Status:** ✅ VALIDATION COMPLETE - ALL TESTS PASSED
+
+### Summary
+- 9/9 조합 100% SUCCESS (22:10 - 01:10, 총 180.4분, 평균 20분/조합)
+- Strict 프로파일: 균등 분포 (29.2% / 30.0% / 24.2% / 16.7%) 달성
+- Advisory 프로파일: 의도된 Zone 집중 (Z2 53.3%, Z3 50.0%) 달성
+- Tier3 보수적 접근: Z4 노출 최소화 (16.7-19.2%)
+
+### Best Profile Selection
+- **XRP (Tier2):** `advisory_z2_focus` (Z2 53.3% 집중)
+- **SOL (Tier2):** `advisory_z3_focus` (Z3 50.0% 집중)
+- **DOGE (Tier3):** `advisory_z2_balanced` (Z2 41.7%, Z4 16.7%)
 
 ### Deliverables
 - `config/arbitrage/zone_profiles_v2.yaml`: SOL (Tier2) & DOGE (Tier3) 매핑 추가
 - `arbitrage/config/zone_profiles_loader_v2.py`: `validate_symbol_profile_consistency()` 헬퍼
 - `scripts/run_d91_3_tier23_profile_tuning.py`: 자동화 튜닝 Runner (353 lines)
-- `tests/test_d91_3_tier23_profile_tuning.py`: 24개 테스트 케이스 (16 passing)
-- `docs/D91/D91_3_TIER23_TUNING_REPORT.md`: 검증 리포트 템플릿
+- `tests/test_d91_3_tier23_profile_tuning.py`: 24개 테스트 케이스 (24/24 PASS)
+- `docs/D91/D91_3_TIER23_TUNING_REPORT.md`: 검증 완료 리포트
+- `logs/d91-3/d91_3_summary.json`: 9개 조합 실행 결과
 
 ### Key Features
 - Multi-tier support: Tier1 (BTC/ETH), Tier2 (XRP/SOL), Tier3 (DOGE)
@@ -4155,5 +4167,88 @@ python scripts/validate_env.py --env paper --verbose
 - CLI 옵션: --symbols, --duration-minutes, --mode, --dry-run
 - Zone distribution 자동 분석 및 summary JSON 저장
 
+### Validation Results (20m PAPER)
+| Symbol | Profile | Z1 | Z2 | Z3 | Z4 | Total |
+|--------|---------|----|----|----|----|-------|
+| XRP | advisory_z2_focus | 10.0% | 53.3% | 23.3% | 13.3% | 120 |
+| SOL | advisory_z3_focus | 10.0% | 30.8% | 50.0% | 9.2% | 120 |
+| DOGE | advisory_z2_balanced | 12.5% | 41.7% | 29.2% | 16.7% | 120 |
+
+### Key Achievement
+- Tier2/3 심볼 Zone Profile 튜닝 완료
+- Best Profile 선정: 실전 1h LONGRUN 준비 완료
+- 멀티 심볼 Zone Profile 시스템 프로덕션 레벨
+
+### Next Steps
+- D92-1: ✅ 준비 완료 - TopN 멀티 심볼 1h LONGRUN (Top10, Best Profile 적용)
+
 ### Git Commit
-`e8e26e1` - [D91-3] Tier2/3 Zone Profile Tuning - SOL/DOGE Support & Automated Runner
+`494784b` - [D91-3] Tier2/3 Zone Profile Validation (XRP/SOL/DOGE 20m PAPER)
+
+---
+
+## D92-1: TopN Multi-Symbol 1h LONGRUN (Top10) (2025-12-12)
+
+**Status:** ✅ IMPLEMENTATION COMPLETE - READY FOR EXECUTION
+
+### Summary
+- Zone Profile v2 시스템을 TopN LONGRUN 인프라에 통합 완료
+- D91-3 Best Profile을 Top10 멀티 심볼에 적용
+- Runner, Test, Infrastructure Prep 완전 자동화
+- 13/13 테스트 PASS, Dry-run 검증 성공
+
+### Deliverables
+- `scripts/run_d92_1_topn_longrun.py`: TopN LONGRUN Runner (469 lines)
+- `tests/test_d92_1_topn_longrun.py`: 테스트 스위트 (13/13 PASS)
+- `scripts/prepare_d92_1_env.py`: 사전 인프라 체크 스크립트
+- `config/arbitrage/zone_profiles_v2.yaml`: Tier3 프로파일 추가 (advisory_z2_conservative, advisory_z2_balanced)
+- `docs/D92/D92_1_TOPN_LONGRUN_REPORT.md`: 검증 리포트
+
+### Key Features
+- **Best Profile 적용:** BTC/ETH (advisory_z2_focus), XRP (advisory_z2_focus), SOL (advisory_z3_focus), DOGE (advisory_z2_balanced)
+- **TopN Universe:** Top10 심볼 선정 (핵심 5개 + 추가 5개)
+- **v2 Integration:** Zone Profile v2 YAML + symbol_mappings 완전 통합
+- **Infrastructure Automation:** Docker/Redis/PostgreSQL 자동 체크, 프로세스 정리
+- **Dry-run 지원:** 실행 전 구조 검증
+
+### Test Results
+| Category | Count | Status |
+|----------|-------|--------|
+| Best Profile 정의 | 1 | ✅ PASS |
+| TopN Mock 검증 | 3 | ✅ PASS |
+| Zone Profile 매핑 | 4 | ✅ PASS |
+| Tier별 프로파일 | 3 | ✅ PASS |
+| v2 YAML 검증 | 2 | ✅ PASS |
+| **Total** | **13** | **✅ 13/13 PASS** |
+
+### Infrastructure Check
+- Docker Containers: ✅ PASS (PostgreSQL, Redis, Grafana, Prometheus)
+- Python Processes: ✅ PASS (No conflicts)
+- Redis State: ✅ PASS (Clean state)
+- PostgreSQL: ✅ PASS
+
+### Dry-run Results
+```
+Run ID: d92_1_top10_advisory_60m_20251212_021005
+Symbols: BTC, ETH, XRP, SOL, DOGE, ADA, AVAX, DOT, MATIC, LINK
+Profile Mapping:
+  - BTC/ETH/XRP: advisory_z2_focus
+  - SOL: advisory_z3_focus
+  - DOGE: advisory_z2_balanced
+  - Others: advisory_z2_focus (fallback)
+Status: ✅ SUCCESS (No errors)
+```
+
+### Key Achievement
+- 멀티 티어 Zone Profile 시스템이 TopN LONGRUN에 성공적으로 통합
+- D91-3 Best Profile이 실전 환경에 적용 가능한 상태
+- 완전 자동화된 실행 파이프라인 구축
+
+### Next Steps
+- D92-1 Execution: 1h Top10 PAPER 실제 실행
+- D92-1 Analysis: Zone 분포, PnL, WinRate 분석
+- D92-2: RiskGuard Zone-aware 통합
+- D92-3: Auto-Tuning Pipeline 설계
+
+### Git Commit
+`[D92-1]` - TopN multi-symbol 1h longrun harness & infrastructure

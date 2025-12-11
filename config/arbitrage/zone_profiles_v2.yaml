@@ -44,6 +44,18 @@ profiles:
     weights: [0.5, 2.0, 3.0, 0.5]
     status: experimental
     applicable_to: ["tier2"]
+  
+  advisory_z2_conservative:
+    description: "Conservative Z2 profile for tier3 symbols (reduced Z4 exposure)"
+    weights: [1.0, 2.5, 2.0, 1.5]
+    status: experimental
+    applicable_to: ["tier3"]
+  
+  advisory_z2_balanced:
+    description: "Balanced Z2 profile for tier3 symbols (D91-3 DOGE Best)"
+    weights: [0.75, 3.0, 2.0, 1.0]
+    status: experimental
+    applicable_to: ["tier3"]
 
 # ===== SYMBOL MAPPINGS =====
 # 심볼별 기본 프로파일 매핑 (BTC/ETH/XRP/SOL/DOGE)
@@ -116,7 +128,7 @@ symbol_mappings:
     type: spot
     default_profiles:
       strict: strict_uniform_light
-      advisory: advisory_z2_conservative
+      advisory: advisory_z2_balanced
     zone_boundaries:
       - [5.0, 10.0]
       - [10.0, 20.0]
@@ -124,7 +136,7 @@ symbol_mappings:
       - [30.0, 40.0]
     liquidity_tier: tier3
     spread_characteristics: wide
-    notes: "D91-3 Tier3 신규 심볼 - Zone boundaries 더 확대, 보수적 프로파일 적용"
+    notes: "D91-3 Tier3 신규 심볼 - Zone boundaries 더 확대, D92-1 Best Profile (advisory_z2_balanced) 적용"
 
 # ===== METADATA =====
 # YAML 스키마 버전 및 호환성 정보
