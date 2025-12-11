@@ -275,6 +275,12 @@ def run_topn_longrun(
         json.dump(run_config, f, indent=2)
     logger.info(f"[D92-1] Run config saved: {config_path}")
     
+    # D92-1-FIX: Zone Profile 매핑을 별도 JSON 파일로 저장 (run_d77_0로 전달)
+    zone_profile_json_path = log_dir / "symbol_profiles.json"
+    with open(zone_profile_json_path, 'w') as f:
+        json.dump(symbol_profile_map, f, indent=2)
+    logger.info(f"[D92-1-FIX] Zone Profiles saved: {zone_profile_json_path}")
+    
     if dry_run:
         logger.info("=" * 80)
         logger.info("[D92-1] DRY-RUN mode - skipping actual execution")
@@ -302,14 +308,15 @@ def run_topn_longrun(
             "run_id": run_id,
         }
     
-    # run_d77_0 실행 명령어
+    # D92-1-FIX: run_d77_0 실행 명령어 (Zone Profile 전달)
     cmd = [
         sys.executable,
         str(runner_script),
-        "--universe", f"top{top_n}",
+        "--topn-size", str(top_n),  # D92-1-FIX: Use --topn-size instead of --universe
         "--duration-minutes", str(duration_minutes),
         "--data-source", "real",
         "--monitoring-enabled",
+        "--zone-profile-file", str(zone_profile_json_path),  # D92-1-FIX
     ]
     
     logger.info(f"[D92-1] Command: {' '.join(cmd)}")

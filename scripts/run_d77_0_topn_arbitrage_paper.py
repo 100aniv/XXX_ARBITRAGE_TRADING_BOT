@@ -286,6 +286,7 @@ class D77PAPERRunner:
         monitoring_enabled: bool = False,
         monitoring_port: int = 9100,
         kpi_output_path: str = None,  # D77-4: Custom KPI output path
+        zone_profile_applier: Optional[ZoneProfileApplier] = None,  # D92-1-FIX
     ):
         """
         Args:
@@ -293,10 +294,12 @@ class D77PAPERRunner:
             duration_minutes: 실행 시간 (분)
             config_path: Config 파일 경로
             data_source: "mock" | "real" (D77-0-RM)
+            zone_profile_applier: D92-1-FIX: Zone Profile 적용기 (optional)
         """
         self.universe_mode = universe_mode
         self.duration_minutes = duration_minutes
         self.config_path = config_path
+        self.zone_profile_applier = zone_profile_applier
         self.data_source = data_source
         self.monitoring_enabled = monitoring_enabled
         self.monitoring_port = monitoring_port
@@ -553,8 +556,15 @@ class D77PAPERRunner:
                     logger.warning(f"[D82-1] No spread data for {symbol_a}, skipping entry check")
                     continue
                 
+                # D92-1-FIX: Zone Profile 기반 threshold override
+                if self.zone_profile_applier and self.zone_profile_applier.has_profile(symbol_a):
+                    entry_threshold_decimal = self.zone_profile_applier.get_entry_threshold(symbol_a)
+                    entry_threshold_bps = entry_threshold_decimal * 10000.0
+                else:
+                    entry_threshold_bps = entry_config.entry_min_spread_bps
+                
                 # Entry 조건 체크
-                if spread_snapshot.spread_bps < entry_config.entry_min_spread_bps:
+                if spread_snapshot.spread_bps < entry_threshold_bps:
                     continue
                 
                 # Entry Trade
@@ -863,12 +873,35 @@ def parse_args() -> argparse.Namespace:
         default="topn_research",
         help="D80-4: Validation profile (none|fill_model|topn_research, default: topn_research)",
     )
+    parser.add_argument(
+        "--symbol-profiles-json",
+        type=str,
+        default=None,
+        help="D92-1-FIX: Symbol-specific Zone Profiles (JSON string)",
+    )
+    parser.add_argument(
+        "--zone-profile-file",
+        type=str,
+        default=None,
+        help="D92-1-FIX: Symbol-specific Zone Profiles (JSON file path)",
+    )
     return parser.parse_args()
 
 
 async def main():
     """메인 실행"""
     args = parse_args()
+    
+    # D92-1-FIX: Zone Profile Applier 초기화
+    zone_profile_applier = None
+    if args.symbol_profiles_json:
+        logger.info("[D92-1-FIX] Loading Zone Profiles from JSON string")
+        zone_profile_applier = ZoneProfileApplier.from_json(args.symbol_profiles_json)
+    elif args.zone_profile_file:
+        logger.info(f"[D92-1-FIX] Loading Zone Profiles from file: {args.zone_profile_file}")
+        zone_profile_applier = ZoneProfileApplier.from_file(args.zone_profile_file)
+    else:
+        logger.warning("[D92-1-FIX] No Zone Profiles provided - using default entry thresholds")
     
     # D77-4: --topn-size 우선, 없으면 --universe 사용
     if args.topn_size:
@@ -904,6 +937,7 @@ async def main():
         monitoring_enabled=args.monitoring_enabled,
         monitoring_port=args.monitoring_port,
         kpi_output_path=args.kpi_output_path,  # D77-4
+        zone_profile_applier=zone_profile_applier,  # D92-1-FIX
     )
     
     try:
