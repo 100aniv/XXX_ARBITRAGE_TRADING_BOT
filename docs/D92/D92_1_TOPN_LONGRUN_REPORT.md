@@ -130,7 +130,12 @@ BEST_PROFILES = {
 
 ### 4.1 Execution Summary
 
-**Status:** ✅ READY FOR EXECUTION
+**Status:** ⚠️ EXECUTION COMPLETED WITH LIMITATIONS
+
+**Date:** 2025-12-12  
+**Duration:** 30 minutes (stopped early due to 0 trades pattern)  
+**Mode:** Advisory (intended), Real market data  
+**Universe:** Top10 (BTC, ETH, BNB, SOL, XRP, ADA, DOGE, MATIC, DOT, AVAX)
 
 **Pre-flight Checks:**
 - [x] Runner script implemented
@@ -139,11 +144,17 @@ BEST_PROFILES = {
 - [x] v2 YAML extended with new profiles
 - [x] Dry-run execution: SUCCESS
 
-**Pending:**
-- [ ] Actual 1h Top10 PAPER execution
-- [ ] Zone distribution analysis
-- [ ] PnL and WinRate validation
-- [ ] Performance metrics collection
+**Execution Results:**
+- [x] Top10 PAPER execution attempted (30 min)
+- [x] Infrastructure monitoring: PASS
+- [x] Loop latency: 13-15ms (normal)
+- [⚠️] **Total trades: 0** (market spread below entry threshold)
+- [⚠️] **Zone Profile application: NOT APPLIED** (structural limitation)
+
+**Critical Findings:**
+1. **Zone Profile Integration Gap**: `run_d92_1_topn_longrun.py` prepares Zone Profile mappings but D77-0 Runner does not accept Zone Profile CLI arguments. Zone Profiles were configured but not applied to actual PAPER execution.
+2. **Zero Trades Pattern**: 30-minute execution with 0 trades. Historical logs show repeated 0-trade pattern with real market data, indicating market spread consistently below entry threshold.
+3. **Infrastructure Stable**: Docker containers, Redis, PostgreSQL, and monitoring (Prometheus/Grafana) all operational.
 
 ### 4.2 Test Coverage
 
