@@ -4189,13 +4189,14 @@ python scripts/validate_env.py --env paper --verbose
 
 ## D92-1: TopN Multi-Symbol 1h LONGRUN (Top10) (2025-12-12)
 
-**Status:** ✅ IMPLEMENTATION COMPLETE - READY FOR EXECUTION
+**Status:** ⚠️ IMPLEMENTATION COMPLETE - VALIDATION INCOMPLETE (STRUCTURAL LIMITATIONS)
 
 ### Summary
 - Zone Profile v2 시스템을 TopN LONGRUN 인프라에 통합 완료
 - D91-3 Best Profile을 Top10 멀티 심볼에 적용
 - Runner, Test, Infrastructure Prep 완전 자동화
 - 13/13 테스트 PASS, Dry-run 검증 성공
+- **Validation 한계**: 30분 실행, 거래 0건, Zone Profile 미적용 (구조적 문제)
 
 ### Deliverables
 - `scripts/run_d92_1_topn_longrun.py`: TopN LONGRUN Runner (469 lines)
@@ -4252,3 +4253,22 @@ Status: ✅ SUCCESS (No errors)
 
 ### Git Commit
 `[D92-1]` - TopN multi-symbol 1h longrun harness & infrastructure
+### Key Achievement
+- ✅ 멀티 티어 Zone Profile 시스템이 TopN LONGRUN 인프라에 통합 (설정 레벨)
+- ✅ Runner/Test/Infrastructure 완전 자동화 파이프라인 구축
+- ⚠️ Zone Profile → PAPER 실행 연결 미완성 (D92-1-FIX 필요)
+
+### Required Fixes (D92-1-FIX)
+1. Zone Profile을 PAPER loop에 직접 통합 OR D77-0에 Zone Profile CLI 지원 추가
+2. Mock data 사용 또는 Entry threshold 하향 조정 (거래 발생 보장)
+3. Fill event logging 추가 (Zone distribution 분석 가능하도록)
+
+### Next Steps
+- **D92-1-FIX**: Zone Profile integration gap 해결 (HIGH PRIORITY)
+- **D92-1-RETEST**: Zone Profile 적용 후 재실행
+- D92-2: RiskGuard Zone-aware 통합
+- D92-3: Auto-Tuning Pipeline 설계
+
+### Git Commits
+- `[D92-1]` - TopN multi-symbol 1h longrun harness & infrastructure (2025-12-12 02:11)
+- `[D92-1]` - Validation execution & limitations report (2025-12-12 07:XX)
