@@ -3960,27 +3960,57 @@ python scripts/validate_env.py --env paper --verbose
     - Zone Profile \ud29c\ub2dd \ud504\ub808\uc784\uc6cc\ud06c \ud655\ub9bd (Sweep \ud558\ub124\uc2a4 + \ubd84\uc11d \uc2a4\ud06c\ub9bd\ud2b8)
 
 - **D90-4: Zone Profile YAML Externalization**
-  - Status: COMPLETE - PASS (CONDITIONAL)
+  - Status: COMPLETE - GO (D90-5에서 CONDITIONAL PASS → GO 승격)
   - Summary:
-    - Zone Profile \uc815\uc758\ub97c \ucf54\ub4dc \ud558\ub4dc\ucf54\ub529\uc5d0\uc11c YAML \uc124\uc815\uc73c\ub85c \uc678\ubd80\ud654
-    - YAML \ud30c\uc77c: config/arbitrage/zone_profiles.yaml (5\uac1c \ud504\ub85c\ud30c\uc77c)
-    - Zone Profile \ub85c\ub354: arbitrage/config/zone_profiles_loader.py
-    - \ud558\uc704 \ud638\ud658\uc131 100% \uc720\uc9c0 (_ZoneProfilesDict)
-    - Fallback \uc804\ub7b5: YAML \uc5c6\uc74c \uc2dc \ucd5c\uc18c 2\uac1c \ud504\ub85c\ud30c\uc77c \ub0b4\uc7a5
-    - Unit Test: 69/69 PASS (D90-4 \uc2e0\uaddc 28 + \uae30\uc874 D90-0/2/3 41)
-    - 20m A/B \uc7ac\uac80\uc99d: Advisory \ub3d9\uc77c (PnL $5.36 vs D90-2 $5.30, +1.1%), Strict -5.9% (\uc2dc\uc7a5 \ub178\uc774\uc988)
+    - Zone Profile 정의를 코드 하드코딩에서 YAML 설정으로 외부화
+    - YAML 파일: config/arbitrage/zone_profiles.yaml (5개 프로파일)
+    - Zone Profile 로더: arbitrage/config/zone_profiles_loader.py
+    - 하위 호환성 100% 유지 (_ZoneProfilesDict)
+    - Fallback 전략: YAML 없음 시 최소 2개 프로파일 내장
+    - Unit Test: 69/69 PASS (D90-4 신규 28 + 기존 D90-0/2/3 41)
+    - 20m A/B 재검증: Advisory 동일 (PnL $5.36 vs D90-2 $5.30, +1.1%), Strict -5.9% (시장 노이즈)
   - Deliverables:
     - config/arbitrage/zone_profiles.yaml
     - arbitrage/config/zone_profiles_loader.py
     - arbitrage/config/__init__.py
-    - arbitrage/domain/entry_bps_profile.py (\uc218\uc815)
+    - arbitrage/domain/entry_bps_profile.py (수정)
     - tests/test_d90_4_zone_profile_yaml.py (28/28 PASS)
     - docs/D90/D90_4_YAML_EXTERNALIZATION_DESIGN.md
     - docs/D90/D90_4_VALIDATION_REPORT.md
   - Key Achievement:
-    - \ucf54\ub4dc \uc218\uc815 \uc5c6\uc774 \ud504\ub85c\ud30c\uc77c \uad00\ub9ac \uac00\ub2a5 (YAML\ub9cc \ud3b8\uc9d1)
-    - D90-0~3 \uacb0\uacfc \uc7ac\ud604\uc131 \ud655\ubcf4 (\uad6c\uc870\uc801 \ubd88\ubcc0\uc131)
-    - TopN Multi-Symbol \ud1b5\ud569 \uc900\ube44 (\uc2ec\ubcfc\ubcc4 \ud504\ub85c\ud30c\uc77c \uc120\ud0dd)
-    - \uc2e4\ud5d8\uc801 \ud504\ub85c\ud30c\uc77c \uad00\ub9ac \uc6a9\uc774 (status \ud544\ub4dc)
+    - 코드 수정 없이 프로파일 관리 가능 (YAML만 편집)
+    - D90-0~3 결과 재현성 확보 (구조적 불변성)
+    - TopN Multi-Symbol 통합 준비 (심볼별 프로파일 선택)
+    - 실험적 프로파일 관리 용이 (status 필드)
 
-
+- **D90-5: YAML Zone Profile 1h/3h LONGRUN Validation**
+  - Status: COMPLETE - GO
+  - Summary:
+    - D90-4 YAML 외부화의 1h/3h LONGRUN PAPER 검증
+    - 목적: 20m A/B Strict -5.9% 차이가 시장 노이즈인지 구조적 문제인지 확인
+    - 실행: Strict 1h/3h, Advisory 1h (seed=91, real L2)
+    - 결과: 모든 Acceptance Criteria PASS, D90-4 CONDITIONAL PASS → GO 승격
+  - Test Results:
+    - Strict 1h: PnL $11.98, Z2 21.4% (경계선), Duration ±0.8s
+    - Advisory 1h: PnL $15.71, Z2 50.7% (PASS), Duration ±0.7s
+    - Strict 3h: PnL $37.35, Z2 24.6% (PASS), Duration ±0.1s
+    - PnL 선형성: 3h/1h = 3.12배 (이론값 3.0배 대비 +4%)
+  - Acceptance Criteria:
+    - AC1 (Duration): PASS (±5초 이내)
+    - AC2 (Zone Distribution): PASS (Strict 3h Z2 24.6%, 기준 22~32%)
+    - AC3 (PnL Stability): PASS (3h ≥ 1h × 2.5)
+    - AC4 (Structural Equivalence): PASS (YAML 로딩 경로 동일)
+    - AC5 (Fatal Errors): PASS (0건)
+    - AC6 (Logging): PASS (2158 fill events)
+  - Deliverables:
+    - tests/test_d90_5_zone_profile_longrun_config.py (16/16 PASS)
+    - docs/D90/D90_5_LONGRUN_YAML_VALIDATION_PLAN.md
+    - docs/D90/D90_5_VALIDATION_REPORT.md
+    - logs/d87-3/d90_5_strict_1h_yaml/ (718 events)
+    - logs/d87-3/d90_5_advisory_1h_yaml/ (718 events)
+    - logs/d87-3/d90_5_strict_3h_yaml/ (2158 events)
+  - Key Achievement:
+    - D90-4 -5.9% PnL 차이는 시장 노이즈로 확인 (3h에서 구조적 동등성 입증)
+    - YAML 기반 Zone Profile 프로덕션 승인
+    - D90-1 Hardcoded 대비 동등/우수 성능 (3h PnL $37.35 vs $36.50, +2.3%)
+    - Regression Test: D90-0~5 전체 85/85 PASS
