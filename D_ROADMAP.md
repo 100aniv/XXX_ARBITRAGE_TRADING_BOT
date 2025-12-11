@@ -4014,3 +4014,33 @@ python scripts/validate_env.py --env paper --verbose
     - YAML 기반 Zone Profile 프로덕션 승인
     - D90-1 Hardcoded 대비 동등/우수 성능 (3h PnL $37.35 vs $36.50, +2.3%)
     - Regression Test: D90-0~5 전체 85/85 PASS
+
+- **D91-0: Symbol-Specific Zone Profile TO-BE Design**
+  - Status: COMPLETE - DESIGN ONLY (코드 변경 없음)
+  - Summary:
+    - D90-5 프로덕션 승인 YAML Zone Profile을 TopN 멀티 심볼/멀티 마켓 확장 가능한 구조적 스펙으로 승격
+    - 목적: BTC 단일 심볼 → Upbit Top50 + Binance 헷지 구조 설계
+    - 설계 전용 단계 (실제 구현은 D91-1 이후)
+  - Design Scope:
+    - 5차원 분류: Market, Symbol, Type, Liquidity Tier, Spread Characteristics
+    - YAML v2.0.0 스키마 설계 (symbol_mappings 섹션 추가)
+    - Tier별 Zone Profile 전략 (Tier1~4 각각 다른 후보군)
+    - RiskGuard/FillModel 연계 방향 (Zone-Aware Risk Limits, Fill Rate Monitoring)
+    - 단계적 구현 로드맵 (D91-1: PoC → D91-2: 검증 → D92-X: 확장 → D93-X: 프로덕션)
+  - Symbol Mapping Strategy:
+    - Tier1 (BTC, ETH): strict_uniform, advisory_z2_focus (공격적)
+    - Tier2 (XRP, SOL): strict_uniform_light, advisory_z2_focus (Z4 축소)
+    - Tier3 (DOGE, MATIC): strict_conservative, advisory_z2_conservative (보수적)
+    - Tier4 (기타): strict_minimal, advisory_z1_only (초보수적)
+  - Backward Compatibility:
+    - D90-0~5 테스트 85개 보존 (YAML v1.0.0 유지)
+    - symbol_mappings 없으면 글로벌 프로파일 Fallback
+    - 기존 ZONE_PROFILES['name'] 접근 방식 100% 호환
+  - Deliverables:
+    - docs/D91/D91_0_SYMBOL_ZONE_PROFILE_TOBE_DESIGN.md
+    - D_ROADMAP.md 업데이트 (이 섹션)
+  - Key Achievement:
+    - TopN 멀티 심볼 확장 설계 완료 (과도한 인프라 추가 없이 최소 단위로 설계)
+    - RiskGuard/FillModel 연계 방향 수립 (Zone-Aware 전략)
+    - 1조급 상용 기준 로드맵 (D91-1~D93-X 단계별 구현 계획)
+    - 코드 변경 없음 (설계 문서만 생성)
