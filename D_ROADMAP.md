@@ -4044,3 +4044,49 @@ python scripts/validate_env.py --env paper --verbose
     - RiskGuard/FillModel 연계 방향 수립 (Zone-Aware 전략)
     - 1조급 상용 기준 로드맵 (D91-1~D93-X 단계별 구현 계획)
     - 코드 변경 없음 (설계 문서만 생성)
+
+- **D91-1: Symbol Mapping YAML v2 PoC (BTC/ETH/XRP Upbit)**
+  - Status: ✅ COMPLETE - IMPLEMENTATION & VALIDATION PASS
+  - Summary:
+    - D91-0 설계 기반 YAML v2.0.0 스키마 구현 (symbol_mappings 섹션)
+    - BTC/ETH/XRP (Upbit) 3개 심볼 PoC 완료
+    - v1/v2 하위 호환성 보장 (104/104 테스트 PASS)
+    - Tier2 프로파일 후보 2개 설계 (strict_uniform_light, advisory_z3_focus)
+  - Implementation Scope:
+    - config/arbitrage/zone_profiles_v2.yaml 생성 (153 lines)
+    - arbitrage/config/zone_profiles_loader_v2.py 구현 (457 lines)
+    - tests/test_d91_1_symbol_mapping.py 작성 (19 tests, 500+ lines)
+  - v2 YAML Schema:
+    - profiles: 글로벌 프로파일 4개 (strict_uniform, advisory_z2_focus, strict_uniform_light, advisory_z3_focus)
+    - symbol_mappings: BTC/ETH (Tier1), XRP (Tier2) 매핑 정의
+    - metadata: schema_version = "2.0.0", 호환성/마이그레이션 노트
+  - Loader v2 핵심 기능:
+    - load_zone_profiles_v2_from_yaml(): v2 YAML 로딩 및 검증
+    - load_zone_profiles_v2_with_fallback(): v2 → v1 → 내장 Fallback (3단계)
+    - select_profile_for_symbol(): 심볼/마켓/모드별 프로파일 선택 로직
+    - get_zone_boundaries_for_symbol(): 심볼별 Zone boundaries 반환
+  - Test Results:
+    - 신규 D91-1: 19/19 PASS (목표 15개 초과 달성)
+    - 전체 회귀: 104/104 PASS (85 D90 + 19 D91-1, 에러 0건)
+    - 실행 시간: 0.62s (신규 테스트 추가에도 성능 영향 없음)
+  - Acceptance Criteria:
+    - AC1 (YAML v2 파일): PASS (BTC/ETH/XRP 매핑 완료)
+    - AC2 (v2 로더): PASS (심볼별 선택 로직 구현)
+    - AC3 (신규 테스트): PASS (19/19, 목표 15개 초과)
+    - AC4 (전체 회귀): PASS (104/104, 에러 0건)
+    - AC5 (하위 호환성): PASS (D90-0~5 85개 전부 PASS)
+  - Deliverables:
+    - config/arbitrage/zone_profiles_v2.yaml
+    - arbitrage/config/zone_profiles_loader_v2.py
+    - tests/test_d91_1_symbol_mapping.py (19 tests)
+    - docs/D91/D91_1_SYMBOL_MAPPING_POC_REPORT.md
+    - D_ROADMAP.md 업데이트 (이 섹션)
+  - Key Achievement:
+    - v1/v2 병행 전략: 기존 v1을 보존하며 v2 안전 도입
+    - 3단계 Fallback: 프로덕션 안정성 확보 (v2 실패해도 서비스 중단 없음)
+    - Tier2 프로파일 설계: strict_uniform_light (Z4 가중치 50% 축소)
+    - 멀티 심볼 기반 마련: BTC/ETH/XRP PoC → TopN 확장 준비 완료
+  - Next Steps:
+    - D91-2: BTC/ETH/XRP 각각 20m SHORT PAPER 실행 (Zone 분포 검증)
+    - D91-3: Tier2/3 프로파일 튜닝 (SOL/DOGE 추가)
+    - D92-1: TopN 멀티 심볼 1h LONGRUN (Top10)
