@@ -45,6 +45,60 @@ else:
 logger = logging.getLogger(__name__)
 
 
+def validate_symbol_profile_consistency(
+    symbol: str,
+    market: str,
+    mode: str,
+    v2_data: Dict[str, Any],
+    zone_profiles_dict: Any
+) -> Tuple[bool, str]:
+    """
+    D91-3: 심볼/마켓/모드에 대한 프로파일 일관성 검증.
+    
+    Args:
+        symbol: 심볼 이름
+        market: 마켓 이름
+        mode: "strict" or "advisory"
+        v2_data: v2 YAML 전체 데이터
+        zone_profiles_dict: entry_bps_profile.ZONE_PROFILES
+    
+    Returns:
+        (is_valid, error_message)
+    """
+    # 1. symbol_mappings에서 해당 심볼 찾기
+    symbol_mappings = v2_data.get("symbol_mappings", {})
+    if symbol not in symbol_mappings:
+        return False, f"Symbol '{symbol}' not found in symbol_mappings"
+    
+    mapping = symbol_mappings[symbol]
+    
+    # 2. market 일치 확인
+    if mapping.get("market") != market:
+        return False, f"Symbol '{symbol}' market mismatch: expected {mapping.get('market')}, got {market}"
+    
+    # 3. default_profiles에서 profile_name 추출
+    default_profiles = mapping.get("default_profiles", {})
+    profile_name = default_profiles.get(mode)
+    
+    if not profile_name:
+        return False, f"Symbol '{symbol}' mode '{mode}' not found in default_profiles"
+    
+    # 4. profile_name이 ZONE_PROFILES에 존재하는지 확인
+    if profile_name not in zone_profiles_dict:
+        available = list(zone_profiles_dict.keys())
+        return False, f"Profile '{profile_name}' not found in ZONE_PROFILES. Available: {available}"
+    
+    # 5. zone_boundaries 존재 확인
+    if "zone_boundaries" not in mapping:
+        return False, f"Symbol '{symbol}' missing zone_boundaries"
+    
+    zone_boundaries = mapping["zone_boundaries"]
+    if not isinstance(zone_boundaries, list) or len(zone_boundaries) != 4:
+        return False, f"Symbol '{symbol}' zone_boundaries must be list of 4 tuples, got {len(zone_boundaries)}"
+    
+    return True, ""
+
+
 def get_zone_profiles_v2_yaml_path() -> Path:
     """
     Zone Profile YAML v2 파일 경로 반환.
