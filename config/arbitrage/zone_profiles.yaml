@@ -73,6 +73,21 @@ profiles:
     # ΔP(Z2): +8.3%p vs strict_uniform (FAIL, < 15%p threshold)
     # Reason for deprecation: Lowest PnL, failed ΔP(Z2) threshold
     status: deprecated
+  
+  # D91-1/2: Tier2 심볼용 프로파일 (XRP, SOL 등)
+  strict_uniform_light:
+    description: "Lighter strict profile for tier2 symbols (reduced Z4 exposure)"
+    weights: [1.2, 1.0, 1.0, 0.5]
+    status: experimental
+    applicable_to: ["tier2", "tier3"]
+    d91_1_notes: "Z4 가중치 50% 축소 (1.0 → 0.5), Tier2 스프레드 특성 반영"
+  
+  advisory_z3_focus:
+    description: "Z3-focused profile for mid-liquidity symbols"
+    weights: [0.5, 2.0, 3.0, 0.5]
+    status: experimental
+    applicable_to: ["tier2"]
+    d91_1_notes: "Z3 집중 (50% 목표), 중유동성 심볼 최적화"
 
 # ===== METADATA =====
 # YAML 스키마 버전 및 호환성 정보

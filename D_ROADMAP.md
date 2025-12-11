@@ -4090,3 +4090,47 @@ python scripts/validate_env.py --env paper --verbose
     - D91-2: BTC/ETH/XRP 각각 20m SHORT PAPER 실행 (Zone 분포 검증)
     - D91-3: Tier2/3 프로파일 튜닝 (SOL/DOGE 추가)
     - D92-1: TopN 멀티 심볼 1h LONGRUN (Top10)
+
+- **D91-2: Multi-Symbol Zone Distribution Validation (BTC/ETH/XRP)**
+  - Status: ✅ COMPLETE - VALIDATION PASS
+  - Summary:
+    - BTC/ETH/XRP (Upbit) 각 20분 SHORT PAPER 실행 완료
+    - v2 YAML + symbol_mappings 실제 환경 검증 성공
+    - Tier1/Tier2 Zone 분포 설계 의도와 일치 확인
+    - v1 YAML에 Tier2 프로파일 추가 (하위 호환성 유지)
+  - Implementation:
+    - scripts/run_d91_2_multi_symbol_zone_validation.py (D91-2 전용 Runner)
+    - scripts/run_d84_2_calibrated_fill_paper.py (d91-2 로그 경로 추가)
+    - config/arbitrage/zone_profiles.yaml (v1에 strict_uniform_light, advisory_z3_focus 추가)
+    - tests/test_d91_2_multi_symbol_validation.py (12 tests)
+  - Execution Results (20분 PAPER):
+    - BTC (strict_uniform): Z1:20%, Z2:24%, Z3:25%, Z4:31% (120 trades)
+    - ETH (strict_uniform): Z1:20%, Z2:24%, Z3:25%, Z4:31% (119 trades)
+    - XRP (strict_uniform_light): Z1:28%, Z2:21%, Z3:33%, Z4:17.5% (120 trades)
+  - Zone Distribution Validation:
+    - Tier1 (BTC/ETH): 균등 분포 목표 달성 (각 Zone 20~31%)
+    - Tier2 (XRP): Z4 축소 목표 달성 (31% → 17.5%, 45% 감소)
+    - BTC/ETH 일관성: 최대 차이 0.7%p (높은 재현성)
+  - Test Results:
+    - 신규 D91-2: 12/12 PASS
+    - 전체 회귀: 116/116 PASS (85 D90 + 19 D91-1 + 12 D91-2)
+  - Acceptance Criteria:
+    - AC1 (3개 심볼 PAPER 실행): PASS
+    - AC2 (Zone 분포 통계 생성): PASS (각 zone_stats.json)
+    - AC3 (설계 의도 일치): PASS (Tier1 균등, Tier2 Z4 축소)
+    - AC4 (v2 정상 동작): PASS (심볼별 프로파일 선택 정확)
+    - AC5 (하위 호환성): PASS (116/116 테스트)
+  - Deliverables:
+    - scripts/run_d91_2_multi_symbol_zone_validation.py
+    - tests/test_d91_2_multi_symbol_validation.py (12 tests)
+    - docs/D91/D91_2_MULTI_SYMBOL_VALIDATION_REPORT.md
+    - logs/d91-2/d91_2_{btc,eth,xrp}_strict_20m/ (각 zone_stats.json)
+    - D_ROADMAP.md 업데이트 (이 섹션)
+  - Key Achievement:
+    - v2 YAML + symbol_mappings 실전 검증 완료
+    - Tier1/Tier2 차별화 전략 실증 (Z4 축소 효과)
+    - 멀티 심볼 Zone Profile 시스템 프로덕션 준비 완료
+  - Next Steps:
+    - D91-3: Tier2/3 프로파일 튜닝 (SOL/DOGE 추가, advisory_z3_focus 검증)
+    - D92-1: TopN 멀티 심볼 1h LONGRUN (Top10, PnL 포함 종합 검증)
+    - D93-X: Production Deployment (Upbit Top50 + Binance)

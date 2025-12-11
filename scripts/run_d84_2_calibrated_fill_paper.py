@@ -202,13 +202,15 @@ def run_calibrated_fill_paper(
     # 0. 세션 ID 및 출력 경로 설정
     session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
-    # D87-3/D87-5: session_tag가 있으면 해당 디렉토리 사용
+    # D87-3/D87-5/D91-2: session_tag가 있으면 해당 디렉토리 사용
     if session_tag:
-        # D87-5-FIX: session_tag prefix에 따라 로그 디렉토리 결정
+        # session_tag prefix에 따라 로그 디렉토리 결정
         if session_tag.startswith("d87_5"):
             base_log_dir = "d87-5"
         elif session_tag.startswith("d87_3"):
             base_log_dir = "d87-3"
+        elif session_tag.startswith("d91_2"):
+            base_log_dir = "d91-2"
         else:
             base_log_dir = "d87-3"  # 기본값 (backward compatibility)
         output_dir = Path(__file__).parent.parent / "logs" / base_log_dir / session_tag
