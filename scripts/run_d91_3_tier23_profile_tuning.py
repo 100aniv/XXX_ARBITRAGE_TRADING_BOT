@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 # ===== 심볼별 프로파일 후보군 정의 =====
-SYMBOL_PROFILE_CANDIDATES = {
+PROFILE_CANDIDATES = {
     "XRP": {
         "strict": ["strict_uniform_light"],  # D91-2 검증 완료, 재확인
         "advisory": ["advisory_z2_focus", "advisory_z3_focus"],  # Z2 vs Z3 집중 비교
@@ -69,6 +69,9 @@ SYMBOL_PROFILE_CANDIDATES = {
         "advisory": ["advisory_z2_conservative", "advisory_z2_balanced"],  # 보수적 후보군
     },
 }
+
+# Backward compatibility alias
+SYMBOL_PROFILE_CANDIDATES = PROFILE_CANDIDATES
 
 # 기본 설정
 DEFAULT_DURATION_MINUTES = 20

@@ -443,7 +443,14 @@ def select_profile_for_symbol(
                         f"[SELECT] Symbol '{symbol}' ({market}, {mode}) → profile '{profile_name}' "
                         f"(symbol-specific mapping)"
                     )
-                    return profiles[profile_name]
+                    profile_data = profiles[profile_name]
+                    return ZoneProfile(name=profile_name, zone_weights=profile_data['weights'])
+                elif profile_name in zone_profiles_dict:
+                    logger.debug(
+                        f"[SELECT] Symbol '{symbol}' ({market}, {mode}) → profile '{profile_name}' "
+                        f"(v1 Zone Profile)"
+                    )
+                    return zone_profiles_dict.get(profile_name)
                 else:
                     logger.warning(
                         f"[SELECT] Symbol mapping '{symbol}' references non-existent profile "
