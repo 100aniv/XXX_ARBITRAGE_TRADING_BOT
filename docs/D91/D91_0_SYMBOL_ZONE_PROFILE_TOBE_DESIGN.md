@@ -199,7 +199,7 @@ D90-4의 -5.9% 차이는 **20분 짧은 실행 시간으로 인한 시장 노이
 | ETH | upbit | spot | tier1 | tight | strict_uniform, advisory_z2_focus |
 | XRP | upbit | spot | tier2 | moderate | strict_uniform_light, advisory_z2_focus |
 | SOL | upbit | spot | tier2 | moderate | strict_uniform_light, advisory_z3_focus |
-| DOGE | upbit | spot | tier3 | wide | strict_conservative, advisory_z2_conservative |
+| DOGE | upbit | spot | tier3 | wide | strict_uniform_light, advisory_z2_conservative |
 
 **⚠️ 주의:** 위 분류는 예시이며, 실제 구현은 D91-1 이후 단계에서 진행됩니다.
 
@@ -614,10 +614,11 @@ class ZoneProfileTuner:
 - **Rationale:** 고유동성이나 스프레드 약간 넓음 → Z4 노출 축소
 
 **Tier3 (MATIC, DOGE, AVAX):**
-- **Strict:** `strict_conservative` (모든 Zone 보수적)
+- **Strict:** `strict_uniform_light` (Z4 가중치 축소 + Zone boundaries 확대)
 - **Advisory:** `advisory_z2_conservative` (Z2 집중도 낮춤)
 - **Zone Boundaries:** [5.0, 10.0], [10.0, 20.0], [20.0, 30.0], [30.0, 40.0]
-- **Rationale:** 중유동성, 넓은 스프레드 → 보수적 접근
+- **Rationale:** 중유동성, 넓은 스프레드 → Zone boundaries 확대 + Z4 축소로 보수적 접근
+- **D91-3 설계 변경:** 당초 `strict_conservative` 계획했으나, weights 미정의 상태에서 `strict_uniform_light` [1.2, 1.0, 1.0, 0.5]가 Z4 축소로 보수적 효과 제공. Zone boundaries 확대와 함께 Tier3 보수 전략 충분히 구현됨.
 
 **Tier4 (기타 알트코인):**
 - **Strict:** `strict_minimal` (Z1~Z2만 사용)

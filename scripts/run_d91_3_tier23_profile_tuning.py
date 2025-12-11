@@ -183,12 +183,17 @@ def run_single_profile_paper(
     
     logger.info(f"Command: {' '.join(cmd)}")
     
+    # 콘솔 로그를 파일로 리다이렉트 (HANG 방지)
+    console_log = output_dir / "console.log"
+    
     try:
         start_time = time.time()
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        with open(console_log, 'w', encoding='utf-8') as f:
+            result = subprocess.run(cmd, check=True, stdout=f, stderr=subprocess.STDOUT, text=True)
         elapsed = time.time() - start_time
         
         logger.info(f"[D91-3] Completed in {elapsed:.1f}s")
+        logger.info(f"[D91-3] Console log: {console_log}")
         
         # Zone 분포 계산
         fill_events_path = list(output_dir.glob("fill_events_*.jsonl"))
@@ -233,8 +238,18 @@ def run_single_profile_paper(
         return True, result_summary
         
     except subprocess.CalledProcessError as e:
-        logger.error(f"[D91-3] FAILED: {e}")
-        logger.error(f"STDERR: {e.stderr}")
+        logger.error(f"[D91-3] FAILED: {symbol} {mode} {profile_name}")
+        logger.error(f"Error: {e}")
+        return False, {
+            'symbol': symbol,
+            'mode': mode,
+            'profile': profile_name,
+            'success': False,
+            'error': str(e),
+        }
+    except Exception as e:
+        logger.error(f"[D91-3] FAILED: {symbol} {mode} {profile_name}")
+        logger.error(f"Unexpected error: {e}")
         return False, {
             'symbol': symbol,
             'mode': mode,
