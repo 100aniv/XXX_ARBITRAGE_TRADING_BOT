@@ -924,12 +924,12 @@ class D77PAPERRunner:
     
     def _save_metrics(self) -> None:
         """Metrics를 JSON 파일로 저장"""
-        # D77-4: Custom KPI output path
+        # D92-5-4: KPI SSOT
         if self.kpi_output_path:
             output_path = Path(self.kpi_output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
         else:
-            output_path = Path(f"logs/d77-0/{self.metrics['session_id']}_kpi_summary.json")
+            output_path = Path(self.run_paths["kpi_summary"])
         
         # D92-2: Telemetry JSON 저장
         telemetry_dir = Path("logs/d92-2") / self.metrics['session_id']
