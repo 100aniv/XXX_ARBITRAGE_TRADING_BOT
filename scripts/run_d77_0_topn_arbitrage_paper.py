@@ -430,6 +430,13 @@ class D77PAPERRunner:
             "avg_sell_fill_ratio": 1.0,
             "partial_fills_count": 0,
             "failed_fills_count": 0,
+            # D92-5: Zone Profiles 로드 증거
+            "zone_profiles_loaded": {
+                "path": None,
+                "sha256": None,
+                "mtime": None,
+                "profiles_applied": {},
+            },
         }
         
         self.loop_latencies: List[float] = []
