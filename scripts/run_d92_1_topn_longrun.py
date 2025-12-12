@@ -167,6 +167,7 @@ def run_topn_longrun(
     calibration_path: Path,
     market: str = "upbit",
     dry_run: bool = False,
+    stage_id: str = "d92-1",
 ) -> Dict[str, Any]:
     """
     TopN 멀티 심볼 1h LONGRUN 실행.
@@ -335,21 +336,21 @@ def run_topn_longrun(
     universe_mode = topn_mode_map[top_n]
     
     # run_d77_0 임포트 및 실행
-    from scripts.run_d77_0_topn_arbitrage_paper import D77PAPERRunner
+    from scripts.run_d77_0_topn_arbitrage_paper import PaperRunner
     
     start_time = time.time()
     
     try:
-        # D77PAPERRunner 초기화
-        runner = D77PAPERRunner(
+        # PaperRunner 초기화 (D92-5-2: stage_id 지원)
+        runner = PaperRunner(
             universe_mode=universe_mode,
-            data_source="real",
             duration_minutes=duration_minutes,
             config_path="configs/paper/topn_arb_baseline.yaml",
             monitoring_enabled=True,
             monitoring_port=9100,
             kpi_output_path=None,
             zone_profile_applier=zone_profile_applier,  # D92-1-FIX
+            stage_id=stage_id,  # D92-5-2: SSOT 경로
         )
         
         logger.info(f"[D92-1-FIX] D77PAPERRunner initialized with Zone Profiles")
@@ -363,6 +364,24 @@ def run_topn_longrun(
         elapsed_time = time.time() - start_time
         returncode = 0
         elapsed_min = elapsed_time / 60
+        
+        # D92-5-2: KPI 파일을 stage_id 경로로 이동
+        import shutil
+        import glob
+        if stage_id != "d92-1":
+            source_pattern = Path("logs/d77-0/*_kpi_summary.json")
+            target_dir = Path(f"logs/{stage_id}")
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            kpi_files = sorted(glob.glob(str(source_pattern)), key=lambda x: Path(x).stat().st_mtime, reverse=True)
+            if kpi_files:
+                latest_kpi = Path(kpi_files[0])
+                session_id = latest_kpi.stem.replace("_kpi_summary", "")
+                target_run_dir = target_dir / session_id
+                target_run_dir.mkdir(parents=True, exist_ok=True)
+                
+                shutil.move(str(latest_kpi), str(target_run_dir / latest_kpi.name))
+                logger.info(f"[D92-5-2] Moved KPI to: {target_run_dir / latest_kpi.name}")
         
         if returncode == 0:
             logger.info("=" * 80)
@@ -474,6 +493,12 @@ def main():
         action="store_true",
         help="실행 계획만 출력 (실제 실행 없음)",
     )
+    parser.add_argument(
+        "--stage-id",
+        type=str,
+        default="d92-1",
+        help="Stage ID for SSOT artifact paths (default: d92-1)",
+    )
     
     args = parser.parse_args()
     
@@ -486,6 +511,7 @@ def main():
         calibration_path=calibration_path,
         market=args.market,
         dry_run=args.dry_run,
+        stage_id=args.stage_id,
     )
     
     logger.info("=" * 80)

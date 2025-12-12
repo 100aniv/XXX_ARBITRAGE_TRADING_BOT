@@ -314,6 +314,7 @@ class D77PAPERRunner:
         self.monitoring_port = monitoring_port
         self.kpi_output_path = kpi_output_path
         self.zone_profile_applier = zone_profile_applier
+        self.stage_id = stage_id  # D92-5-2: Stage ID
         
         # D92-1-FIX: Zone Profile 적용 로그 (팩트 증명)
         logger.info(f"[DEBUG] zone_profile_applier received: {zone_profile_applier}")
@@ -360,8 +361,8 @@ class D77PAPERRunner:
         
         # D82-0: TradeLogger 초기화
         self.trade_logger = TradeLogger(
-            base_dir=Path("logs/d82-0/trades"),
-            run_id=f"d82-0-{universe_mode.name.lower()}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            base_dir=Path("logs/d82-0/trades"),  # 레거시 경로 유지
+            run_id=self.run_paths["run_id"],  # D92-5-2: SSOT run_id
             universe_mode=universe_mode.name,
         )
         logger.info(f"[D82-0] TradeLogger initialized: {self.trade_logger.log_file}")
