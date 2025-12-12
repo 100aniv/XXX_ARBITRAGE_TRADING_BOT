@@ -87,6 +87,7 @@ class ZoneProfileApplier:
                 # 가중치가 가장 높은 Zone 찾기
                 max_weight_idx = zone_weights.index(max(zone_weights))
                 zone_min, zone_max = zone_boundaries[max_weight_idx]
+                logger.info(f"[D92-2-DEBUG] {symbol}: max_weight_idx={max_weight_idx}, zone=({zone_min}, {zone_max})")
                 # Zone 중간값을 threshold로 사용
                 threshold_bps = (zone_min + zone_max) / 2.0
             else:  # strict

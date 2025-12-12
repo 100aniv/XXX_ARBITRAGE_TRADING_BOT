@@ -336,6 +336,9 @@ class D77PAPERRunner:
         
         # D82-0: Settings 로드 (ARBITRAGE_ENV=paper)
         self.settings = Settings.from_env()
+        
+        # D92-2: Telemetry - spread 분포/ge_rate 수치화
+        self.spread_telemetry: Dict[str, Dict[str, Any]] = {}  # symbol → telemetry data
         logger.info(f"[D82-0] Settings loaded: fill_model_enabled={self.settings.fill_model.enable_fill_model}")
         
         # D82-0: ExecutorFactory + PaperExecutor 초기화
@@ -586,19 +589,36 @@ class D77PAPERRunner:
                     continue
                 
                 # D92-1-FIX: Zone Profile 기반 threshold override
+                # D92-2: 심볼 이름 정규화 (BTC/KRW → BTC)
+                symbol_normalized = symbol_a.split("/")[0] if "/" in symbol_a else symbol_a
+                
                 logger.info(f"[DEBUG] Checking entry for {symbol_a}: spread={spread_snapshot.spread_bps:.2f} bps")
                 
-                if self.zone_profile_applier and self.zone_profile_applier.has_profile(symbol_a):
-                    entry_threshold_decimal = self.zone_profile_applier.get_entry_threshold(symbol_a)
+                if self.zone_profile_applier and self.zone_profile_applier.has_profile(symbol_normalized):
+                    entry_threshold_decimal = self.zone_profile_applier.get_entry_threshold(symbol_normalized)
                     entry_threshold_bps = entry_threshold_decimal * 10000.0
-                    logger.info(f"[ZONE_THRESHOLD] {symbol_a}: {entry_threshold_bps:.2f} bps (Zone Profile)")
+                    logger.info(f"[ZONE_THRESHOLD] {symbol_a} ({symbol_normalized}): {entry_threshold_bps:.2f} bps (Zone Profile)")
                 else:
                     entry_threshold_bps = entry_config.entry_min_spread_bps
                     logger.info(f"[ZONE_THRESHOLD] {symbol_a}: {entry_threshold_bps:.2f} bps (Default)")
                 
-                # Entry 조건 체크
+                # D92-2: Telemetry - spread 샘플 수집
+                if symbol_a not in self.spread_telemetry:
+                    self.spread_telemetry[symbol_a] = {
+                        "spread_samples": [],
+                        "threshold_bps": entry_threshold_bps,
+                        "count_ge_threshold": 0,
+                        "count_lt_threshold": 0,
+                    }
+                
+                self.spread_telemetry[symbol_a]["spread_samples"].append(spread_snapshot.spread_bps)
+                
+                # Entry 조건 체크 + Telemetry 카운트
                 if spread_snapshot.spread_bps < entry_threshold_bps:
+                    self.spread_telemetry[symbol_a]["count_lt_threshold"] += 1
                     continue
+                else:
+                    self.spread_telemetry[symbol_a]["count_ge_threshold"] += 1
                 
                 # Entry Trade
                 position_id = self.metrics["entry_trades"]
@@ -745,6 +765,54 @@ class D77PAPERRunner:
         self.metrics["actual_duration_seconds"] = actual_duration_seconds
         self.metrics["actual_duration_minutes"] = actual_duration_seconds / 60.0
         
+        # D92-2: Telemetry - spread 통계 계산 및 로그 출력
+        logger.info("=" * 80)
+        logger.info("[D92-2-TELEMETRY] Spread Distribution Report")
+        logger.info("=" * 80)
+        
+        total_entry_checks = 0
+        total_ge_threshold = 0
+        
+        for symbol, data in self.spread_telemetry.items():
+            samples = data["spread_samples"]
+            if len(samples) == 0:
+                continue
+            
+            # Percentile 계산
+            samples_sorted = sorted(samples)
+            n = len(samples)
+            p50 = samples_sorted[int(n * 0.50)] if n > 0 else 0.0
+            p90 = samples_sorted[int(n * 0.90)] if n > 1 else samples_sorted[-1]
+            p95 = samples_sorted[int(n * 0.95)] if n > 1 else samples_sorted[-1]
+            max_spread = max(samples)
+            
+            count_ge = data["count_ge_threshold"]
+            count_lt = data["count_lt_threshold"]
+            total_checks = count_ge + count_lt
+            ge_rate = count_ge / total_checks if total_checks > 0 else 0.0
+            
+            total_entry_checks += total_checks
+            total_ge_threshold += count_ge
+            
+            # Telemetry 데이터 업데이트
+            data["p50"] = p50
+            data["p90"] = p90
+            data["p95"] = p95
+            data["max"] = max_spread
+            data["total_checks"] = total_checks
+            data["ge_rate"] = ge_rate
+            
+            logger.info(
+                f"  {symbol:6s}: p50={p50:6.2f}, p90={p90:6.2f}, p95={p95:6.2f}, "
+                f"max={max_spread:6.2f}, threshold={data['threshold_bps']:6.2f}, "
+                f"ge_rate={ge_rate:5.1%} ({count_ge}/{total_checks})"
+            )
+        
+        global_ge_rate = total_ge_threshold / total_entry_checks if total_entry_checks > 0 else 0.0
+        logger.info("=" * 80)
+        logger.info(f"[D92-2-TELEMETRY] Global: total_checks={total_entry_checks}, ge_rate={global_ge_rate:.1%}")
+        logger.info("=" * 80)
+        
         # Win rate
         total_exits = self.metrics["wins"] + self.metrics["losses"]
         if total_exits > 0:
@@ -828,6 +896,37 @@ class D77PAPERRunner:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         else:
             output_path = Path(f"logs/d77-0/{self.metrics['session_id']}_kpi_summary.json")
+        
+        # D92-2: Telemetry JSON 저장
+        telemetry_dir = Path("logs/d92-2") / self.metrics['session_id']
+        telemetry_dir.mkdir(parents=True, exist_ok=True)
+        
+        telemetry_report = {
+            "session_id": self.metrics['session_id'],
+            "duration_minutes": self.metrics.get('actual_duration_minutes', self.metrics['duration_minutes']),
+            "universe_mode": self.metrics['universe_mode'],
+            "total_trades": self.metrics['total_trades'],
+            "symbols": {},
+        }
+        
+        for symbol, data in self.spread_telemetry.items():
+            telemetry_report["symbols"][symbol] = {
+                "threshold_bps": data["threshold_bps"],
+                "p50": data.get("p50", 0.0),
+                "p90": data.get("p90", 0.0),
+                "p95": data.get("p95", 0.0),
+                "max": data.get("max", 0.0),
+                "total_checks": data.get("total_checks", 0),
+                "count_ge_threshold": data["count_ge_threshold"],
+                "count_lt_threshold": data["count_lt_threshold"],
+                "ge_rate": data.get("ge_rate", 0.0),
+            }
+        
+        telemetry_path = telemetry_dir / "d92_2_spread_report.json"
+        with open(telemetry_path, "w") as f:
+            json.dump(telemetry_report, f, indent=2)
+        
+        logger.info(f"[D92-2] Telemetry report saved: {telemetry_path}")
         
         with open(output_path, "w") as f:
             json.dump(self.metrics, f, indent=2)

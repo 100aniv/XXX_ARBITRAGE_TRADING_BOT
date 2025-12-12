@@ -1,66 +1,66 @@
-# D91-1: Zone Profile Configuration v2.0.0 (Symbol Mapping PoC + D91-3 Extension)
-#
-# Multi-symbol Zone Profile 매핑 시스템.
-# D91-0 설계 기반으로 symbol_mappings 섹션을 도입하여 심볼별 Zone Profile 선택 지원.
-#
-# D91-3 Extension: SOL (Tier2), DOGE (Tier3) 추가
-#
-# Fallback 전략:
-#   - v2 파일 없음/로드 실패 → v1 YAML 로드
-#   - v1도 실패 → 내장 Fallback (strict_uniform, advisory_z2_focus)
-#
-# Author: arbitrage-lite project
-# Date: 2025-12-11 (D91-1, D91-3)
-
-# ===== GLOBAL PROFILES =====
-# 모든 심볼에서 사용 가능한 기본 프로파일
 profiles:
-  # --- PRODUCTION BASELINES ---
-  # D90-5 프로덕션 승인 프로파일
-  
   strict_uniform:
-    description: "Baseline uniform profile for strict mode (Z1~Z4 ≈ 25%)"
-    weights: [1.0, 1.0, 1.0, 1.0]
+    description: Baseline uniform profile for strict mode (Z1~Z4 ≈ 25%)
+    weights:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
     status: production
-    applicable_to: ["all"]
-  
+    applicable_to:
+    - all
   advisory_z2_focus:
-    description: "Production baseline advisory profile with strong Z2 emphasis"
-    weights: [0.5, 3.0, 1.5, 0.5]
+    description: Production baseline advisory profile with strong Z2 emphasis
+    weights:
+    - 0.5
+    - 3.0
+    - 1.5
+    - 0.5
     status: production
-    applicable_to: ["all"]
-  
-  # --- EXPERIMENTAL PROFILES ---
-  # D91-1 PoC용 Tier2/3 심볼 후보 프로파일
-  
+    applicable_to:
+    - all
   strict_uniform_light:
-    description: "Lighter strict profile for tier2 symbols (reduced Z4 exposure)"
-    weights: [1.2, 1.0, 1.0, 0.5]
+    description: Lighter strict profile for tier2 symbols (reduced Z4 exposure)
+    weights:
+    - 1.2
+    - 1.0
+    - 1.0
+    - 0.5
     status: experimental
-    applicable_to: ["tier2", "tier3"]
-  
+    applicable_to:
+    - tier2
+    - tier3
   advisory_z3_focus:
-    description: "Z3-focused profile for mid-liquidity symbols"
-    weights: [0.5, 2.0, 3.0, 0.5]
+    description: Z3-focused profile for mid-liquidity symbols
+    weights:
+    - 0.5
+    - 2.0
+    - 3.0
+    - 0.5
     status: experimental
-    applicable_to: ["tier2"]
-  
+    applicable_to:
+    - tier2
   advisory_z2_conservative:
-    description: "Conservative Z2 profile for tier3 symbols (reduced Z4 exposure)"
-    weights: [1.0, 2.5, 2.0, 1.5]
+    description: Conservative Z2 profile for tier3 symbols (reduced Z4 exposure)
+    weights:
+    - 1.0
+    - 2.5
+    - 2.0
+    - 1.5
     status: experimental
-    applicable_to: ["tier3"]
-  
+    applicable_to:
+    - tier3
   advisory_z2_balanced:
-    description: "Balanced Z2 profile for tier3 symbols (D91-3 DOGE Best)"
-    weights: [0.75, 3.0, 2.0, 1.0]
+    description: Zone 2에 집중 배분 (advisory 모드 테스트용)
+    weights:
+    - 0.5
+    - 3.0
+    - 1.5
+    - 0.5
     status: experimental
-    applicable_to: ["tier3"]
-
-# ===== SYMBOL MAPPINGS =====
-# 심볼별 기본 프로파일 매핑 (BTC/ETH/XRP/SOL/DOGE)
+    applicable_to:
+    - tier3
 symbol_mappings:
-  # --- Tier1 (초고유동성) ---
   BTC:
     market: upbit
     type: spot
@@ -68,14 +68,17 @@ symbol_mappings:
       strict: strict_uniform
       advisory: advisory_z2_focus
     zone_boundaries:
-      - [5.0, 7.0]
-      - [7.0, 12.0]
-      - [12.0, 20.0]
-      - [20.0, 25.0]
+    - - 2.0
+      - 4.0
+    - - 4.0
+      - 8.0
+    - - 8.0
+      - 12.0
+    - - 12.0
+      - 20.0
     liquidity_tier: tier1
     spread_characteristics: tight
-    notes: "D90-5 프로덕션 승인 기준 심볼"
-  
+    notes: D92-2 Re-calibrated - Real-time p95=5.8 bps, Zone 2 lowered to 4.0-8.0 bps (threshold=6.0 bps)
   ETH:
     market: upbit
     type: spot
@@ -83,15 +86,17 @@ symbol_mappings:
       strict: strict_uniform
       advisory: advisory_z2_focus
     zone_boundaries:
-      - [5.0, 7.0]
-      - [7.0, 12.0]
-      - [12.0, 20.0]
-      - [20.0, 25.0]
+    - - 5.0
+      - 7.0
+    - - 7.0
+      - 12.0
+    - - 12.0
+      - 20.0
+    - - 20.0
+      - 25.0
     liquidity_tier: tier1
     spread_characteristics: tight
-    notes: "BTC와 동일한 Tier1 전략 (초고유동성, 좁은 스프레드)"
-  
-  # --- Tier2 (고유동성) ---
+    notes: BTC와 동일한 Tier1 전략 (초고유동성, 좁은 스프레드)
   XRP:
     market: upbit
     type: spot
@@ -99,14 +104,17 @@ symbol_mappings:
       strict: strict_uniform_light
       advisory: advisory_z2_focus
     zone_boundaries:
-      - [5.0, 8.0]
-      - [8.0, 15.0]
-      - [15.0, 25.0]
-      - [25.0, 30.0]
+    - - 5.0
+      - 8.0
+    - - 8.0
+      - 15.0
+    - - 15.0
+      - 25.0
+    - - 25.0
+      - 30.0
     liquidity_tier: tier2
     spread_characteristics: moderate
-    notes: "Tier2 심볼 - Z4 노출 축소 (strict_uniform_light), Zone boundaries 확대"
-  
+    notes: Tier2 심볼 - Z4 노출 축소 (strict_uniform_light), Zone boundaries 확대
   SOL:
     market: upbit
     type: spot
@@ -114,15 +122,17 @@ symbol_mappings:
       strict: strict_uniform_light
       advisory: advisory_z3_focus
     zone_boundaries:
-      - [5.0, 8.0]
-      - [8.0, 15.0]
-      - [15.0, 25.0]
-      - [25.0, 30.0]
+    - - 5.0
+      - 8.0
+    - - 8.0
+      - 15.0
+    - - 15.0
+      - 25.0
+    - - 25.0
+      - 30.0
     liquidity_tier: tier2
     spread_characteristics: moderate
-    notes: "D91-3 Tier2 신규 심볼 - XRP와 동일한 Zone 설정, advisory는 Z3 집중 후보"
-  
-  # --- Tier3 (중유동성) ---
+    notes: D91-3 Tier2 신규 심볼 - XRP와 동일한 Zone 설정, advisory는 Z3 집중 후보
   DOGE:
     market: upbit
     type: spot
@@ -130,57 +140,72 @@ symbol_mappings:
       strict: strict_uniform_light
       advisory: advisory_z2_balanced
     zone_boundaries:
-      - [5.0, 10.0]
-      - [10.0, 20.0]
-      - [20.0, 30.0]
-      - [30.0, 40.0]
+    - - 5.0
+      - 10.0
+    - - 10.0
+      - 20.0
+    - - 20.0
+      - 30.0
+    - - 30.0
+      - 40.0
     liquidity_tier: tier3
     spread_characteristics: wide
-    notes: "D91-3 Tier3 신규 심볼 - Zone boundaries 더 확대, D92-1 Best Profile (advisory_z2_balanced) 적용"
-
-# ===== METADATA =====
-# YAML 스키마 버전 및 호환성 정보
+    notes: D91-3 Tier3 신규 심볼 - Zone boundaries 더 확대, D92-1 Best Profile (advisory_z2_balanced)
+      적용
 metadata:
-  schema_version: "2.0.0"
-  
+  schema_version: 2.0.0
   compatible_with:
-    - "D90-0~5: Single-symbol BTC baseline (v1.0.0 backward compatible)"
-    - "D91-0: Symbol-Specific Zone Profile TO-BE Design"
-    - "D91-1: Symbol Mapping PoC (BTC/ETH/XRP Upbit)"
-  
+  - 'D90-0~5: Single-symbol BTC baseline (v1.0.0 backward compatible)'
+  - 'D91-0: Symbol-Specific Zone Profile TO-BE Design'
+  - 'D91-1: Symbol Mapping PoC (BTC/ETH/XRP Upbit)'
   migration_notes:
-    - "v1.0.0 profiles are fully backward compatible"
-    - "symbol_mappings is optional - if absent or symbol not found, fallback to global profiles"
-    - "zone_boundaries can be symbol-specific (default: BTC baseline [5,7,12,20,25])"
-    - "v2 파일 없음/로드 실패 시 v1 YAML로 Fallback"
-    - "v1도 없으면 내장 Fallback (strict_uniform, advisory_z2_focus)"
-  
+  - v1.0.0 profiles are fully backward compatible
+  - symbol_mappings is optional - if absent or symbol not found, fallback to global
+    profiles
+  - 'zone_boundaries can be symbol-specific (default: BTC baseline [5,7,12,20,25])'
+  - v2 파일 없음/로드 실패 시 v1 YAML로 Fallback
+  - v1도 없으면 내장 Fallback (strict_uniform, advisory_z2_focus)
   validation_status:
-    strict_uniform: "PRODUCTION (D90-5 GO)"
-    advisory_z2_focus: "PRODUCTION (D90-5 GO)"
-    strict_uniform_light: "EXPERIMENTAL (D91-1 PoC, D91-2 검증 완료)"
-    advisory_z3_focus: "EXPERIMENTAL (D91-1 PoC, D91-3 튜닝 대상)"
-  
+    strict_uniform: PRODUCTION (D90-5 GO)
+    advisory_z2_focus: PRODUCTION (D90-5 GO)
+    strict_uniform_light: EXPERIMENTAL (D91-1 PoC, D91-2 검증 완료)
+    advisory_z3_focus: EXPERIMENTAL (D91-1 PoC, D91-3 튜닝 대상)
   d91_2_validation:
-    symbols: ["BTC", "ETH", "XRP"]
-    status: "COMPLETE"
-    result: "Tier1 균등 분포, Tier2 Z4 축소 검증 완료"
-  
+    symbols:
+    - BTC
+    - ETH
+    - XRP
+    status: COMPLETE
+    result: Tier1 균등 분포, Tier2 Z4 축소 검증 완료
   d91_3_scope:
-    symbols: ["XRP", "SOL", "DOGE"]
-    markets: ["upbit"]
-    tiers: ["tier2", "tier3"]
+    symbols:
+    - XRP
+    - SOL
+    - DOGE
+    markets:
+    - upbit
+    tiers:
+    - tier2
+    - tier3
     tuning_targets:
-      XRP: ["strict_uniform_light", "advisory_z2_focus", "advisory_z3_focus"]
-      SOL: ["strict_uniform_light", "advisory_z2_focus", "advisory_z3_focus"]
-      DOGE: ["strict_uniform_light", "advisory_z2_conservative", "advisory_z2_balanced"]
+      XRP:
+      - strict_uniform_light
+      - advisory_z2_focus
+      - advisory_z3_focus
+      SOL:
+      - strict_uniform_light
+      - advisory_z2_focus
+      - advisory_z3_focus
+      DOGE:
+      - strict_uniform_light
+      - advisory_z2_conservative
+      - advisory_z2_balanced
     next_steps:
-      - "D91-3: XRP/SOL/DOGE 각 심볼별 20m 프로파일 튜닝 (strict/advisory 후보 비교)"
-      - "D92-1: TopN 멀티 심볼 1h LONGRUN (Top10, Best Profile 적용)"
-  
+    - 'D91-3: XRP/SOL/DOGE 각 심볼별 20m 프로파일 튜닝 (strict/advisory 후보 비교)'
+    - 'D92-1: TopN 멀티 심볼 1h LONGRUN (Top10, Best Profile 적용)'
   notes:
-    - "All weights must be exactly [Z1, Z2, Z3, Z4] order"
-    - "Weights are normalized internally (sum doesn't need to be 1.0)"
-    - "Minimum 4 floats required, negative values not allowed"
-    - "symbol_mappings.{symbol}.market 일치 여부로 프로파일 선택"
-    - "market 불일치 또는 심볼 없음 → 글로벌 기본 또는 Fallback"
+  - All weights must be exactly [Z1, Z2, Z3, Z4] order
+  - Weights are normalized internally (sum doesn't need to be 1.0)
+  - Minimum 4 floats required, negative values not allowed
+  - symbol_mappings.{symbol}.market 일치 여부로 프로파일 선택
+  - market 불일치 또는 심볼 없음 → 글로벌 기본 또는 Fallback
