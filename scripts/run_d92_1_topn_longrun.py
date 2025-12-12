@@ -188,6 +188,8 @@ def run_topn_longrun(
     log_dir = Path(f"logs/d92-1/{run_id}")
     log_dir.mkdir(parents=True, exist_ok=True)
     
+    _purge_pycache()
+    
     logger.info("=" * 80)
     logger.info(f"[D92-1] TopN Multi-Symbol {duration_minutes}m LONGRUN")
     logger.info("=" * 80)
