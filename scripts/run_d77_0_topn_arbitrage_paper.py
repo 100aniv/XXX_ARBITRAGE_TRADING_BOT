@@ -884,7 +884,9 @@ class D77PAPERRunner:
         logger.info(f"  Round Trips: {self.metrics['round_trips_completed']}")
         logger.info("")
         logger.info("PnL:")
-        logger.info(f"  Total PnL: ${self.metrics['total_pnl_usd']:.2f}")
+        logger.info(f"  Total PnL (USD): ${self.metrics['total_pnl_usd']:.2f}")
+        if "total_pnl_krw" in self.metrics:
+            logger.info(f"  Total PnL (KRW): ₩{self.metrics['total_pnl_krw']:.0f}")
         logger.info(f"  Wins: {self.metrics['wins']}")
         logger.info(f"  Losses: {self.metrics['losses']}")
         logger.info(f"  Win Rate: {self.metrics['win_rate_pct']:.1f}%")

@@ -71,7 +71,9 @@ class ZoneProfileApplier:
         """
         Zone Profile에서 entry threshold를 계산.
         
-        Advisory 모드:
+        D92-4: YAML에 명시된 threshold_bps가 있으면 우선 사용
+        
+        Advisory 모드 (threshold_bps 없을 때):
         - Zone 가중치가 높은 Zone의 중간값을 threshold로 사용
         - 예: advisory_z2_focus → Z2(7-12 bps) 중간값 = 9.5 bps
         
@@ -83,7 +85,11 @@ class ZoneProfileApplier:
             zone_weights = profile["profile_weights"]
             mode = profile["mode"]
             
-            if mode == "advisory":
+            # D92-4: YAML에 threshold_bps가 명시되어 있으면 우선 사용
+            if "threshold_bps" in profile:
+                threshold_bps = profile["threshold_bps"]
+                logger.info(f"[D92-4] {symbol}: Using explicit threshold_bps={threshold_bps:.2f} from YAML")
+            elif mode == "advisory":
                 # 가중치가 가장 높은 Zone 찾기
                 max_weight_idx = zone_weights.index(max(zone_weights))
                 zone_min, zone_max = zone_boundaries[max_weight_idx]

@@ -249,12 +249,23 @@ def run_topn_longrun(
             symbol_mappings=symbol_mappings
         )
         
+        # D92-4: threshold_bps 추출
+        threshold_bps = None
+        if symbol in symbol_mappings:
+            mapping = symbol_mappings[symbol]
+            if market == mapping.get("market"):
+                threshold_bps = mapping.get("threshold_bps", None)
+        
         symbol_profile_map[symbol] = {
             "profile_name": profile.name,
             "profile_weights": profile.zone_weights,
             "zone_boundaries": zone_boundaries,
             "mode": profile_mode,
         }
+        
+        # D92-4: threshold_bps가 있으면 추가
+        if threshold_bps is not None:
+            symbol_profile_map[symbol]["threshold_bps"] = threshold_bps
         
         logger.info(f"    → Profile: {profile.name}, Weights: {profile.zone_weights}")
     
