@@ -4272,3 +4272,62 @@ Status: ✅ SUCCESS (No errors)
 ### Git Commits
 - `[D92-1]` - TopN multi-symbol 1h longrun harness & infrastructure (2025-12-12 02:11)
 - `[D92-1]` - Validation execution & limitations report (2025-12-12 07:XX)
+
+---
+
+## D92-4: Parameter Sweep (Threshold 5.0/4.8/4.5 bps) (2025-12-13)
+
+**Status:** ⚠️ COMPLETE - 근본 원인 발견 (Exit 로직 문제, Threshold는 정상)
+
+### 목표
+- Parameter Sweep (5.0/4.8/4.5 bps) 전체 실행
+- 최적 threshold 선정
+- ge_rate 목표 구간(3~7%) 달성 검증
+
+### 실행 결과
+
+| Candidate | Threshold | Duration | RT | Win/Loss | PnL (USD) | Exit Reasons |
+|-----------|-----------|----------|----|----|-----------|-------------|
+| C1 | 5.0 bps | 60m | 2 | 0W/2L | -$10.31 | TIME_LIMIT: 100% |
+| C2 (10m) | 4.8 bps | 10m | 1 | 0W/1L | -$4.5K | TIME_LIMIT: 100% |
+| C2 (60m) | 4.8 bps | 60m | 7 | 0W/7L | -$11.0K | TIME_LIMIT: 100% |
+| C3 (10m) | 4.5 bps | 10m | 2 | 0W/2L | -$8.9K | TIME_LIMIT: 100% |
+| C3 (60m) | 4.5 bps | 12m (중단) | 4 | 0W/4L | -$17.8K | TIME_LIMIT: 100% |
+
+### 핵심 발견
+
+**1. Threshold는 정상 작동**
+- 5.0 bps: 2 RT (60분)
+- 4.8 bps: 7 RT (60분)
+- 4.5 bps: 4 RT (12분)
+→ Threshold 낮추면 거래 증가 ✓
+
+**2. 진짜 문제: Exit 로직**
+- ✗ Win rate: 0% (모든 거래 손실)
+- ✗ TP/SL 트리거: 0회 (한 번도 발생 안 함)
+- ✗ Exit reason: TIME_LIMIT 100%
+- ✗ 수수료/슬리피지 > 스프레드 이익
+
+**3. 중단 결정**
+- C3 60m을 12분만에 중단 (RT당 -$4.5K 손실)
+- 더 진행해도 동일 패턴만 반복
+- 시간/리소스 낭비 방지
+
+### 결론
+
+**Winner 선정 불가:**
+- 모든 후보가 동일한 실패 패턴
+- Threshold 조정으로는 근본 문제 해결 불가
+- Exit 조건(TP/SL) 재설계 필요
+
+### Deliverables
+- `docs/D92/D92_4_SESSION_SUMMARY.md`: 스윕 결과 및 근본 원인 분석
+- `docs/D92/D92_5_EXIT_LOGIC_REDESIGN.md`: 다음 단계 계획
+- `config/arbitrage/zone_profiles_v2.yaml`: Threshold 4.5 bps 설정 (명시적 `threshold_bps` 추가)
+
+### Next Steps
+- **D92-5**: Exit 로직 재설계 (TP/SL + TIME_LIMIT 청산 로직)
+- **D92-6**: 수수료/슬리피지 모델 검증 및 조정
+
+### Git Commit
+`[D92-4]` - Parameter sweep 완료 및 근본 원인 분석 (Exit 로직 문제)

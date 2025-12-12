@@ -67,18 +67,19 @@ symbol_mappings:
     default_profiles:
       strict: strict_uniform
       advisory: advisory_z2_focus
+    threshold_bps: 4.5
     zone_boundaries:
     - - 2.0
-      - 4.0
-    - - 4.0
-      - 6.0
-    - - 6.0
+      - 4.5
+    - - 4.5
+      - 6.3
+    - - 6.3
       - 10.0
     - - 10.0
       - 20.0
     liquidity_tier: tier1
     spread_characteristics: tight
-    notes: D92-4 Parameter Sweep - Z2 adjusted to (4.0-6.0) → threshold=5.0 bps (Candidate 1/3)
+    notes: D92-4 Parameter Sweep - threshold=4.5 bps 명시 (Candidate 3/3)
   ETH:
     market: upbit
     type: spot
