@@ -254,11 +254,8 @@ class MockTrade:
         """명목가 계산 (quantity * price)"""
         return self.quantity * max(self.buy_price, self.sell_price)
 
-# logs/ 디렉토리 생성
-Path("logs/d77-0").mkdir(parents=True, exist_ok=True)
-
 # D92-1-FIX: 로깅 설정 (직접 함수 호출 시 루트 로거 사용)
-log_filename = f'logs/d77-0/paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+log_filename = f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 
 # 루트 로거에 핸들러 추가 (모든 자식 로거에 propagate됨)
 root_logger = logging.getLogger()
@@ -289,13 +286,14 @@ class D77PAPERRunner:
     def __init__(
         self,
         universe_mode: TopNMode,
-        data_source: str,  # D77-0-RM: "mock" | "real"
+        data_source: str = "real",  # D77-0-RM: "mock" | "real"
         duration_minutes: float = 60.0,
         config_path: str = "configs/paper/topn_arb_baseline.yaml",
         monitoring_enabled: bool = False,
         monitoring_port: int = 9100,
         kpi_output_path: Optional[str] = None,  # D77-4
         zone_profile_applier: Optional[Any] = None,  # D92-1-FIX
+        stage_id: str = "d77-0",  # D92-5: SSOT stage_id
     ):
         """
         Args:
@@ -308,13 +306,23 @@ class D77PAPERRunner:
         self.universe_mode = universe_mode
         self.duration_minutes = duration_minutes
         self.config_path = config_path
-        self.zone_profile_applier = zone_profile_applier
         self.data_source = data_source
         self.monitoring_enabled = monitoring_enabled
         self.monitoring_port = monitoring_port
         self.kpi_output_path = kpi_output_path
         self.zone_profile_applier = zone_profile_applier
-        self.stage_id = stage_id  # D92-5-2: Stage ID
+        self.stage_id = stage_id
+        
+        # D92-5: run_paths SSOT 초기화
+        from arbitrage.common.run_paths import resolve_run_paths
+        self.run_paths = resolve_run_paths(
+            stage_id=self.stage_id,
+            universe_mode=self.universe_mode.name.lower(),
+            create_dirs=True,
+        )
+        
+        # D92-5: 로거 초기화 (run_dir 확정 후)
+        self._setup_logger()
         
         # D92-1-FIX: Zone Profile 적용 로그 (팩트 증명)
         logger.info(f"[DEBUG] zone_profile_applier received: {zone_profile_applier}")
@@ -325,15 +333,35 @@ class D77PAPERRunner:
             logger.info("=" * 80)
             logger.info("[D92-1-FIX] ZONE PROFILE INTEGRATION ACTIVE")
             logger.info("=" * 80)
+            
+            # D92-5: zone_profiles_loaded 정보 수집
+            from pathlib import Path
+            import hashlib
+            yaml_path = Path("arbitrage/config/zone_profiles_v2.yaml")
+            if yaml_path.exists():
+                with open(yaml_path, 'rb') as f:
+                    yaml_sha256 = hashlib.sha256(f.read()).hexdigest()
+                yaml_mtime = yaml_path.stat().st_mtime
+            else:
+                yaml_sha256 = None
+                yaml_mtime = None
+            
+            profiles_applied = {}
             for symbol in ["BTC", "ETH", "XRP", "SOL", "DOGE"]:
                 if self.zone_profile_applier.has_profile(symbol):
                     threshold = self.zone_profile_applier.get_entry_threshold(symbol)
                     threshold_bps = threshold * 10000.0
                     profile_name = self.zone_profile_applier.symbol_profiles[symbol]["profile_name"]
+                    profiles_applied[symbol] = profile_name
                     logger.info(f"[ZONE_PROFILE_APPLIED] {symbol} → {profile_name} (threshold={threshold_bps:.1f} bps)")
+            
             logger.info("=" * 80)
         else:
             logger.warning("[D92-1-FIX] ⚠️ Zone Profile Applier is None - using default thresholds")
+            yaml_path = None
+            yaml_sha256 = None
+            yaml_mtime = None
+            profiles_applied = {}
         
         # D82-0: Settings 로드 (ARBITRAGE_ENV=paper)
         self.settings = Settings.from_env()
@@ -399,7 +427,7 @@ class D77PAPERRunner:
         
         # Metrics
         self.metrics: Dict[str, Any] = {
-            "session_id": f"d82-0-{universe_mode.name.lower()}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "session_id": self.run_paths["run_id"],
             "start_time": time.time(),
             "end_time": 0.0,
             "duration_minutes": duration_minutes,
@@ -411,7 +439,9 @@ class D77PAPERRunner:
             "wins": 0,
             "losses": 0,
             "win_rate_pct": 0.0,
+            "total_pnl_krw": 0.0,  # D92-5
             "total_pnl_usd": 0.0,
+            "fx_rate": 1300.0,  # D92-5
             "loop_latency_avg_ms": 0.0,
             "loop_latency_p99_ms": 0.0,
             "guard_triggers": 0,
@@ -433,14 +463,34 @@ class D77PAPERRunner:
             "failed_fills_count": 0,
             # D92-5: Zone Profiles 로드 증거
             "zone_profiles_loaded": {
-                "path": None,
-                "sha256": None,
-                "mtime": None,
-                "profiles_applied": {},
+                "path": str(yaml_path) if yaml_path else None,
+                "sha256": yaml_sha256,
+                "mtime": yaml_mtime,
+                "profiles_applied": profiles_applied,
             },
         }
         
         self.loop_latencies: List[float] = []
+    
+    def _setup_logger(self) -> None:
+        """로거 파일 핸들러 설정 (run_dir 확정 후)"""
+        log_file = self.run_paths["run_dir"] / "runner.log"
+        
+        # 중복 핸들러 방지
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                if hasattr(handler, 'baseFilename') and str(log_file) in handler.baseFilename:
+                    return  # 이미 설정됨
+        
+        # 파일 핸들러 추가
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s')
+        )
+        root_logger.addHandler(file_handler)
+        logger.info(f"[D92-5] Logger file handler added: {log_file}")
     
     async def run(self) -> Dict[str, Any]:
         """
@@ -775,6 +825,7 @@ class D77PAPERRunner:
                     # PnL calculation
                     pnl = exit_result.pnl
                     self.metrics["total_pnl_usd"] += pnl
+                    self.metrics["total_pnl_krw"] += pnl * self.metrics["fx_rate"]  # D92-5
                     
                     if pnl > 0:
                         self.metrics["wins"] += 1

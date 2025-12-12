@@ -53,6 +53,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def purge_pycache() -> None:
+    """Python 캐시 제거 (D92-5)"""
+    import shutil
+    import importlib
+    repo_root = Path(__file__).parent.parent
+    for d in [repo_root / "scripts", repo_root / "arbitrage"]:
+        if d.exists():
+            for p in d.rglob("__pycache__"):
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+    importlib.invalidate_caches()
+    logger.info("[PYCACHE_PURGE] Done")
+
+
 # ===== D91-3 Best Profile 정의 =====
 BEST_PROFILES = {
     "BTC": {"mode": "advisory", "profile": "advisory_z2_focus"},  # Tier1
@@ -188,7 +202,7 @@ def run_topn_longrun(
     log_dir = Path(f"logs/d92-1/{run_id}")
     log_dir.mkdir(parents=True, exist_ok=True)
     
-    _purge_pycache()
+    purge_pycache()
     
     logger.info("=" * 80)
     logger.info(f"[D92-1] TopN Multi-Symbol {duration_minutes}m LONGRUN")
@@ -338,21 +352,22 @@ def run_topn_longrun(
     universe_mode = topn_mode_map[top_n]
     
     # run_d77_0 임포트 및 실행
-    from scripts.run_d77_0_topn_arbitrage_paper import PaperRunner
+    from scripts.run_d77_0_topn_arbitrage_paper import D77PAPERRunner
     
     start_time = time.time()
     
     try:
-        # PaperRunner 초기화 (D92-5-2: stage_id 지원)
-        runner = PaperRunner(
+        # D77PAPERRunner 초기화 (D92-5: stage_id 지원)
+        runner = D77PAPERRunner(
             universe_mode=universe_mode,
+            data_source="real",  # D92-5
             duration_minutes=duration_minutes,
             config_path="configs/paper/topn_arb_baseline.yaml",
             monitoring_enabled=True,
             monitoring_port=9100,
             kpi_output_path=None,
             zone_profile_applier=zone_profile_applier,  # D92-1-FIX
-            stage_id=stage_id,  # D92-5-2: SSOT 경로
+            stage_id=stage_id,  # D92-5: SSOT 경로
         )
         
         logger.info(f"[D92-1-FIX] D77PAPERRunner initialized with Zone Profiles")

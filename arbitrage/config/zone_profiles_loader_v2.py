@@ -340,17 +340,11 @@ def load_zone_profiles_v2_from_yaml(yaml_path: Optional[Path] = None) -> Dict[st
         f"{len(symbol_mappings)} symbol mappings from {yaml_path}"
     )
     
-    result = {
+    return {
         "profiles": profiles,
         "symbol_mappings": symbol_mappings,
         "metadata": metadata,
     }
-    
-    # D92-4: threshold_bps가 있으면 추가
-    if "threshold_bps" in data:
-        result["threshold_bps"] = data["threshold_bps"]
-    
-    return result
 
 
 def load_zone_profiles_v2_with_fallback(yaml_path: Optional[Path] = None) -> Dict[str, Any]:
