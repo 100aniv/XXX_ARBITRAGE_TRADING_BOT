@@ -441,6 +441,13 @@ class D77PAPERRunner:
         Returns:
             최종 metrics
         """
+        # D92-3: 팩트 고정 - 실행 시작 시각 명확히 로깅
+        start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("=" * 80)
+        logger.info(f"[D92-3] EXECUTION START TIMESTAMP: {start_timestamp}")
+        logger.info(f"[D92-3] CONFIGURED DURATION: {self.duration_minutes:.1f} minutes ({self.duration_minutes * 60:.0f} seconds)")
+        logger.info("=" * 80)
+        
         logger.info(f"[D77-0] Starting PAPER Runner")
         logger.info(f"  Universe: {self.universe_mode.name} ({self.universe_mode.value} symbols)")
         logger.info(f"  Duration: {self.duration_minutes:.1f} minutes")
@@ -474,6 +481,11 @@ class D77PAPERRunner:
         # Wall-clock based timing (monotonic, unaffected by system clock changes)
         start_time = time.time()
         end_time = start_time + (self.duration_minutes * 60)
+        
+        # D92-3: 팩트 고정 - 종료 예정 시각 로깅
+        expected_end_timestamp = datetime.fromtimestamp(end_time).strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(f"[D92-3] EXPECTED END TIMESTAMP: {expected_end_timestamp}")
+        logger.info(f"[D92-3] TARGET ITERATIONS: ~{int(self.duration_minutes * 60 / 1.5)} (1.5s per loop)")
         
         iteration = 0
         while time.time() < end_time:
@@ -518,6 +530,18 @@ class D77PAPERRunner:
         
         # 3. 종료 및 최종 metrics 계산
         self.metrics["end_time"] = time.time()
+        actual_duration_seconds = self.metrics["end_time"] - self.metrics["start_time"]
+        actual_duration_minutes = actual_duration_seconds / 60.0
+        
+        # D92-3: 팩트 고정 - 종료 시각 및 실제 실행 시간 로깅
+        end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("=" * 80)
+        logger.info(f"[D92-3] EXECUTION END TIMESTAMP: {end_timestamp}")
+        logger.info(f"[D92-3] ACTUAL DURATION: {actual_duration_minutes:.2f} minutes ({actual_duration_seconds:.1f} seconds)")
+        logger.info(f"[D92-3] CONFIGURED DURATION: {self.duration_minutes:.1f} minutes")
+        logger.info(f"[D92-3] COMPLETION RATE: {(actual_duration_minutes / self.duration_minutes * 100):.1f}%")
+        logger.info("=" * 80)
+        
         self._calculate_final_metrics()
         
         logger.info("[D77-0] PAPER run completed")
