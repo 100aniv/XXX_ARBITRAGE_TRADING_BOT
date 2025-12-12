@@ -25,9 +25,9 @@ Date: 2025-12-12 (D92-1)
 """
 
 import argparse
+import asyncio
 import json
 import logging
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -42,6 +42,8 @@ from arbitrage.config.zone_profiles_loader_v2 import (
     select_profile_for_symbol,
     get_zone_boundaries_for_symbol,
 )
+from arbitrage.core.zone_profile_applier import ZoneProfileApplier
+from arbitrage.domain.topn_provider import TopNMode
 
 logging.basicConfig(
     level=logging.INFO,
@@ -293,67 +295,62 @@ def run_topn_longrun(
             "symbol_profile_map": symbol_profile_map,
         }
     
-    # 실제 PAPER 실행 (run_d77_0_topn_arbitrage_paper.py 재사용)
+    # D92-1-FIX: 직접 함수 호출 (subprocess 제거)
     logger.info("=" * 80)
-    logger.info(f"[D92-1] Starting PAPER execution...")
+    logger.info(f"[D92-1-FIX] Starting PAPER execution (direct function call)...")
     logger.info("=" * 80)
     
-    runner_script = Path(__file__).parent / "run_d77_0_topn_arbitrage_paper.py"
+    # ZoneProfileApplier 초기화
+    zone_profile_applier = ZoneProfileApplier(symbol_profile_map)
+    logger.info(f"[D92-1-FIX] ZoneProfileApplier initialized for {len(symbol_profile_map)} symbols")
     
-    if not runner_script.exists():
-        logger.error(f"[D92-1] Runner script not found: {runner_script}")
+    # TopN mode 매핑
+    topn_mode_map = {
+        5: TopNMode.TOP_10,  # TOP_5 없음, TOP_10 사용
+        10: TopNMode.TOP_10,
+        20: TopNMode.TOP_20,
+        50: TopNMode.TOP_50,
+        100: TopNMode.TOP_100,
+    }
+    
+    if top_n not in topn_mode_map:
+        logger.error(f"[D92-1-FIX] Invalid top_n: {top_n}")
         return {
             "status": "error",
-            "error": f"Runner script not found: {runner_script}",
+            "error": f"Invalid top_n: {top_n}",
             "run_id": run_id,
         }
     
-    # D92-1-FIX: run_d77_0 실행 명령어 (Zone Profile 전달)
-    cmd = [
-        sys.executable,
-        str(runner_script),
-        "--topn-size", str(top_n),  # D92-1-FIX: Use --topn-size instead of --universe
-        "--duration-minutes", str(duration_minutes),
-        "--data-source", "real",
-        "--monitoring-enabled",
-        "--zone-profile-file", str(zone_profile_json_path),  # D92-1-FIX
-    ]
+    universe_mode = topn_mode_map[top_n]
     
-    logger.info(f"[D92-1] Command: {' '.join(cmd)}")
+    # run_d77_0 임포트 및 실행
+    from scripts.run_d77_0_topn_arbitrage_paper import D77PAPERRunner
     
     start_time = time.time()
     
     try:
-        # 로그 파일로 stdout 리다이렉트
-        log_file = log_dir / "full_execution.log"
-        with open(log_file, 'w') as f:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            
-            logger.info(f"[D92-1] PAPER execution started (PID: {proc.pid})")
-            logger.info(f"[D92-1] Logs: {log_file}")
-            logger.info(f"[D92-1] Expected duration: {duration_minutes} minutes")
-            logger.info(f"[D92-1] Monitoring logs...")
-            
-            # 주기적 모니터링 (10분 단위)
-            monitor_interval = 600  # 10분
-            next_monitor = time.time() + monitor_interval
-            
-            while proc.poll() is None:
-                if time.time() >= next_monitor:
-                    elapsed_min = (time.time() - start_time) / 60
-                    logger.info(f"[D92-1] Still running... ({elapsed_min:.1f} min elapsed)")
-                    next_monitor = time.time() + monitor_interval
-                
-                time.sleep(5)
-            
-            returncode = proc.returncode
+        # D77PAPERRunner 초기화
+        runner = D77PAPERRunner(
+            universe_mode=universe_mode,
+            data_source="real",
+            duration_minutes=duration_minutes,
+            config_path="configs/paper/topn_arb_baseline.yaml",
+            monitoring_enabled=True,
+            monitoring_port=9100,
+            kpi_output_path=None,
+            zone_profile_applier=zone_profile_applier,  # D92-1-FIX
+        )
+        
+        logger.info(f"[D92-1-FIX] D77PAPERRunner initialized with Zone Profiles")
+        logger.info(f"[D92-1-FIX] Starting {duration_minutes}-minute execution...")
+        
+        # 비동기 실행
+        logger.info("[D92-1-FIX] Runner.run() starting...")
+        metrics = asyncio.run(runner.run())
+        logger.info(f"[D92-1-FIX] Runner.run() completed. Metrics: {metrics}")
         
         elapsed_time = time.time() - start_time
+        returncode = 0
         elapsed_min = elapsed_time / 60
         
         if returncode == 0:

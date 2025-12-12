@@ -257,17 +257,26 @@ class MockTrade:
 # logs/ 디렉토리 생성
 Path("logs/d77-0").mkdir(parents=True, exist_ok=True)
 
-# 로깅 설정
+# D92-1-FIX: 로깅 설정 (직접 함수 호출 시 루트 로거 사용)
 log_filename = f'logs/d77-0/paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
-    handlers=[
-        logging.FileHandler(log_filename),
-        logging.StreamHandler()
-    ]
-)
+
+# 루트 로거에 핸들러 추가 (모든 자식 로거에 propagate됨)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+
+# FileHandler 추가 (중복 체크)
+file_handler_exists = any(isinstance(h, logging.FileHandler) and 'paper_session' in str(h.baseFilename) for h in root_logger.handlers)
+if not file_handler_exists:
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s')
+    )
+    root_logger.addHandler(file_handler)
+
+# 모듈 로거 (루트 로거로 propagate)
 logger = logging.getLogger(__name__)
+logger.info(f"[D92-1-FIX] Logger initialized with file: {log_filename}")
 
 
 class D77PAPERRunner:
@@ -280,13 +289,13 @@ class D77PAPERRunner:
     def __init__(
         self,
         universe_mode: TopNMode,
-        duration_minutes: float,
-        config_path: str,
-        data_source: str = "mock",  # D77-0-RM: "mock" | "real"
+        data_source: str,  # D77-0-RM: "mock" | "real"
+        duration_minutes: float = 60.0,
+        config_path: str = "configs/paper/topn_arb_baseline.yaml",
         monitoring_enabled: bool = False,
         monitoring_port: int = 9100,
-        kpi_output_path: str = None,  # D77-4: Custom KPI output path
-        zone_profile_applier: Optional[ZoneProfileApplier] = None,  # D92-1-FIX
+        kpi_output_path: Optional[str] = None,  # D77-4
+        zone_profile_applier: Optional[Any] = None,  # D92-1-FIX
     ):
         """
         Args:
@@ -303,7 +312,27 @@ class D77PAPERRunner:
         self.data_source = data_source
         self.monitoring_enabled = monitoring_enabled
         self.monitoring_port = monitoring_port
-        self.kpi_output_path = kpi_output_path  # D77-4
+        self.kpi_output_path = kpi_output_path
+        self.zone_profile_applier = zone_profile_applier
+        
+        # D92-1-FIX: Zone Profile 적용 로그 (팩트 증명)
+        logger.info(f"[DEBUG] zone_profile_applier received: {zone_profile_applier}")
+        logger.info(f"[DEBUG] zone_profile_applier type: {type(zone_profile_applier)}")
+        logger.info(f"[DEBUG] zone_profile_applier is None: {zone_profile_applier is None}")
+        
+        if self.zone_profile_applier:
+            logger.info("=" * 80)
+            logger.info("[D92-1-FIX] ZONE PROFILE INTEGRATION ACTIVE")
+            logger.info("=" * 80)
+            for symbol in ["BTC", "ETH", "XRP", "SOL", "DOGE"]:
+                if self.zone_profile_applier.has_profile(symbol):
+                    threshold = self.zone_profile_applier.get_entry_threshold(symbol)
+                    threshold_bps = threshold * 10000.0
+                    profile_name = self.zone_profile_applier.symbol_profiles[symbol]["profile_name"]
+                    logger.info(f"[ZONE_PROFILE_APPLIED] {symbol} → {profile_name} (threshold={threshold_bps:.1f} bps)")
+            logger.info("=" * 80)
+        else:
+            logger.warning("[D92-1-FIX] ⚠️ Zone Profile Applier is None - using default thresholds")
         
         # D82-0: Settings 로드 (ARBITRAGE_ENV=paper)
         self.settings = Settings.from_env()
@@ -557,11 +586,15 @@ class D77PAPERRunner:
                     continue
                 
                 # D92-1-FIX: Zone Profile 기반 threshold override
+                logger.info(f"[DEBUG] Checking entry for {symbol_a}: spread={spread_snapshot.spread_bps:.2f} bps")
+                
                 if self.zone_profile_applier and self.zone_profile_applier.has_profile(symbol_a):
                     entry_threshold_decimal = self.zone_profile_applier.get_entry_threshold(symbol_a)
                     entry_threshold_bps = entry_threshold_decimal * 10000.0
+                    logger.info(f"[ZONE_THRESHOLD] {symbol_a}: {entry_threshold_bps:.2f} bps (Zone Profile)")
                 else:
                     entry_threshold_bps = entry_config.entry_min_spread_bps
+                    logger.info(f"[ZONE_THRESHOLD] {symbol_a}: {entry_threshold_bps:.2f} bps (Default)")
                 
                 # Entry 조건 체크
                 if spread_snapshot.spread_bps < entry_threshold_bps:
