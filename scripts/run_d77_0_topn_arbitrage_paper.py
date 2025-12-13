@@ -387,10 +387,10 @@ class D77PAPERRunner:
         # Symbol별 Executor 맵 (lazy initialization)
         self.executors: Dict[str, Any] = {}
         
-        # D82-0: TradeLogger 초기화
+        # D82-0: TradeLogger 초기화 (D92-5: SSOT 경로)
         self.trade_logger = TradeLogger(
-            base_dir=Path("logs/d82-0/trades"),  # 레거시 경로 유지
-            run_id=self.run_paths["run_id"],  # D92-5-2: SSOT run_id
+            base_dir=self.run_paths["run_dir"] / "trades",  # D92-5: SSOT 경로
+            run_id=self.run_paths["run_id"],  # D92-5: SSOT run_id
             universe_mode=universe_mode.name,
         )
         logger.info(f"[D82-0] TradeLogger initialized: {self.trade_logger.log_file}")

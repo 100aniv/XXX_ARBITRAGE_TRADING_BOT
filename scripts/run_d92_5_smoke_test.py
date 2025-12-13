@@ -1,14 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-D92-5: 10분 스모크 테스트 자동 실행 및 AC 자동 판정
-
-목적:
-- 10분 스모크 테스트를 자동으로 실행
-- 종료 후 KPI를 자동으로 파싱
-- AC 기준으로 PASS/FAIL 자동 판정
-- 사용자 개입 0
-"""
+"""D92-5: 10분 스모크 테스트 + AC 자동 판정"""
 
 import json
 import os
@@ -17,30 +9,42 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
+
+
+def find_latest_run_dir(stage_id: str) -> Optional[Path]:
+    """최신 run_dir 탐지 (stage_id prefix 우선)"""
+    stage_dir = Path(f"logs/{stage_id}")
+    if not stage_dir.exists():
+        return None
+    
+    # stage_id prefix를 가진 디렉토리 우선 탐지
+    matching_dirs = [d for d in stage_dir.iterdir() if d.is_dir() and d.name.startswith(f"{stage_id}-")]
+    
+    if matching_dirs:
+        return sorted(matching_dirs, key=lambda x: x.stat().st_mtime, reverse=True)[0]
+    
+    # fallback: 모든 디렉토리 중 최신
+    run_dirs = sorted(
+        [d for d in stage_dir.iterdir() if d.is_dir()],
+        key=lambda x: x.stat().st_mtime,
+        reverse=True
+    )
+    
+    return run_dirs[0] if run_dirs else None
 
 
 def run_smoke_test(stage_id: str = "d92-5", duration_minutes: int = 10) -> dict:
-    """
-    10분 스모크 테스트 실행
-    
-    Args:
-        stage_id: Stage ID
-        duration_minutes: 실행 시간 (분)
-    
-    Returns:
-        실행 결과 딕셔너리
-    """
+    """10분 스모크 테스트 실행"""
     print("=" * 80)
     print(f"[D92-5] 10분 스모크 테스트 시작")
     print(f"  Stage ID: {stage_id}")
     print(f"  Duration: {duration_minutes} minutes")
     print("=" * 80)
     
-    # 환경 변수 설정
     env = os.environ.copy()
     env["ARBITRAGE_ENV"] = "paper"
     
-    # 실행 명령어
     cmd = [
         "python",
         "scripts/run_d92_1_topn_longrun.py",
@@ -56,14 +60,13 @@ def run_smoke_test(stage_id: str = "d92-5", duration_minutes: int = 10) -> dict:
     start_time = time.time()
     
     try:
-        # 실행
         result = subprocess.run(
             cmd,
             cwd=Path(__file__).parent.parent,
             env=env,
             capture_output=True,
             text=True,
-            timeout=(duration_minutes + 2) * 60,  # 2분 버퍼
+            timeout=(duration_minutes + 2) * 60,
         )
         
         elapsed = time.time() - start_time
@@ -74,68 +77,41 @@ def run_smoke_test(stage_id: str = "d92-5", duration_minutes: int = 10) -> dict:
         
         if result.returncode != 0:
             print("\n[ERROR] 스모크 테스트 실행 실패:")
-            print(result.stderr[-2000:])  # 마지막 2000자
+            print(result.stderr[-2000:])
             return {
                 "status": "failed",
                 "error": "execution_failed",
                 "exit_code": result.returncode,
-                "stderr": result.stderr[-2000:],
             }
         
         return {
             "status": "success",
             "elapsed_seconds": elapsed,
-            "stdout": result.stdout[-2000:],
-            "stderr": result.stderr[-500:],
         }
         
     except subprocess.TimeoutExpired:
         print(f"\n[ERROR] 스모크 테스트 타임아웃 ({duration_minutes + 2}분)")
-        return {
-            "status": "failed",
-            "error": "timeout",
-        }
+        return {"status": "failed", "error": "timeout"}
     except Exception as e:
         print(f"\n[ERROR] 스모크 테스트 예외: {e}")
-        return {
-            "status": "failed",
-            "error": str(e),
-        }
+        return {"status": "failed", "error": str(e)}
 
 
 def verify_acceptance_criteria(stage_id: str = "d92-5") -> dict:
-    """
-    Acceptance Criteria 자동 검증
-    
-    Args:
-        stage_id: Stage ID
-    
-    Returns:
-        검증 결과 딕셔너리
-    """
+    """Acceptance Criteria 자동 검증"""
     print("\n" + "=" * 80)
     print("[D92-5] Acceptance Criteria 자동 검증")
     print("=" * 80)
     
-    stage_dir = Path(f"logs/{stage_id}")
+    latest_run_dir = find_latest_run_dir(stage_id)
     
-    # 최신 run_dir 찾기
-    if not stage_dir.exists():
+    if not latest_run_dir:
         return {
             "status": "failed",
-            "error": f"Stage directory not found: {stage_dir}",
+            "error": f"No run directories found in logs/{stage_id}",
             "ac_results": {},
         }
     
-    run_dirs = [d for d in stage_dir.iterdir() if d.is_dir()]
-    if not run_dirs:
-        return {
-            "status": "failed",
-            "error": f"No run directories found in {stage_dir}",
-            "ac_results": {},
-        }
-    
-    latest_run_dir = max(run_dirs, key=lambda d: d.stat().st_mtime)
     print(f"[D92-5] 최신 run_dir: {latest_run_dir}")
     
     # KPI 파일 찾기
@@ -167,7 +143,7 @@ def verify_acceptance_criteria(stage_id: str = "d92-5") -> dict:
     # AC-2: 경로 SSOT 검증
     ac_results["AC-2"] = {
         "description": "KPI/Telemetry/Trades가 logs/{stage_id}/{run_id}/ 아래에 생성",
-        "passed": str(latest_run_dir).startswith(f"logs\\{stage_id}"),
+        "passed": str(latest_run_dir).startswith(f"logs{os.sep}{stage_id}"),
         "evidence": str(latest_run_dir),
     }
     
@@ -180,9 +156,9 @@ def verify_acceptance_criteria(stage_id: str = "d92-5") -> dict:
     }
     
     # AC-5: KPI에 total_pnl_krw/usd/fx_rate 존재
-    has_pnl_krw = "total_pnl_krw" in kpi
+    has_pnl_krw = "total_pnl_krw" in kpi and kpi["total_pnl_krw"] is not None
     has_pnl_usd = "total_pnl_usd" in kpi
-    has_fx_rate = "fx_rate" in kpi
+    has_fx_rate = "fx_rate" in kpi and kpi["fx_rate"] is not None
     
     ac_results["AC-5"] = {
         "description": "KPI에 total_pnl_krw/usd/fx_rate 존재",
@@ -213,7 +189,7 @@ def verify_acceptance_criteria(stage_id: str = "d92-5") -> dict:
     
     print(f"\n[D92-5] AC 검증 결과:")
     for ac_id, ac_data in ac_results.items():
-        status = "✅ PASS" if ac_data["passed"] else "❌ FAIL"
+        status = "[PASS]" if ac_data["passed"] else "[FAIL]"
         print(f"  {ac_id}: {status} - {ac_data['description']}")
     
     return {
@@ -243,20 +219,20 @@ def main():
     smoke_result = run_smoke_test(stage_id="d92-5", duration_minutes=10)
     
     if smoke_result["status"] != "success":
-        print(f"\n❌ 스모크 테스트 실패: {smoke_result.get('error')}")
+        print(f"\n[FAIL] 스모크 테스트 실패: {smoke_result.get('error')}")
         sys.exit(1)
     
-    print(f"\n✅ 스모크 테스트 완료 ({smoke_result['elapsed_seconds']/60:.1f}분)")
+    print(f"\n[OK] 스모크 테스트 완료 ({smoke_result['elapsed_seconds']/60:.1f}분)")
     
     # 2. AC 검증
     ac_result = verify_acceptance_criteria(stage_id="d92-5")
     
     if ac_result["status"] != "passed":
-        print(f"\n❌ AC 검증 실패")
+        print(f"\n[FAIL] AC 검증 실패")
         print(json.dumps(ac_result, indent=2, ensure_ascii=False))
         sys.exit(1)
     
-    print(f"\n✅ AC 검증 완료 (PASS)")
+    print(f"\n[OK] AC 검증 완료 (PASS)")
     
     # 3. 최종 결과 출력
     print("\n" + "=" * 80)
@@ -268,7 +244,7 @@ def main():
     for key, value in ac_result['kpi_summary'].items():
         print(f"  {key}: {value}")
     
-    print("\n✅ D92-5 스모크 테스트 + AC 검증 완료")
+    print("\n[OK] D92-5 스모크 테스트 + AC 검증 완료")
     sys.exit(0)
 
 
