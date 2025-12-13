@@ -516,6 +516,12 @@ def main():
         default="d92-1",
         help="Stage ID for SSOT artifact paths (default: d92-1)",
     )
+    parser.add_argument(
+        "--threshold-bps",
+        type=float,
+        default=None,
+        help="D92-6: Entry threshold in basis points (optional, for threshold sweep)",
+    )
     
     args = parser.parse_args()
     

@@ -32,6 +32,19 @@ class ExitConfig:
     sl_threshold_pct: float = 0.5  # 0.5% SL
     max_hold_time_seconds: float = 180.0  # 3 minutes
     spread_reversal_threshold_bps: float = -10.0  # -10 bps (spread turned negative)
+    
+    def __post_init__(self):
+        """D92-6: TP/SL 기본값 검증 (0이면 에러)"""
+        if self.tp_threshold_pct == 0:
+            raise ValueError(
+                "[D92-6_EXIT] TP threshold cannot be 0 (意図しない 'TP off' 방지). "
+                "Set a positive value or use a different exit condition."
+            )
+        if self.sl_threshold_pct == 0:
+            raise ValueError(
+                "[D92-6_EXIT] SL threshold cannot be 0 (意図しない 'SL off' 방지). "
+                "Set a positive value or use a different exit condition."
+            )
 
 
 @dataclass
@@ -67,6 +80,8 @@ class ExitStrategy:
     Exit Strategy Manager.
     
     TP/SL/Time-based/Spread reversal 조건 체크.
+    
+    D92-6: Exit 평가 카운트 추가 (DecisionTrace 유사)
     """
     
     def __init__(self, config: ExitConfig):
@@ -78,6 +93,14 @@ class ExitStrategy:
         
         # Position tracking
         self._positions: Dict[int, PositionState] = {}
+        
+        # D92-6: Exit 평가 카운트
+        self.exit_eval_counts = {
+            "tp_hit": 0,
+            "sl_hit": 0,
+            "time_limit_hit": 0,
+            "none": 0,
+        }
     
     def register_position(
         self,
@@ -150,6 +173,7 @@ class ExitStrategy:
         
         # 1. Take Profit
         if current_pnl_pct >= self.config.tp_threshold_pct:
+            self.exit_eval_counts["tp_hit"] += 1
             return ExitDecision(
                 should_exit=True,
                 reason=ExitReason.TAKE_PROFIT,
@@ -161,6 +185,7 @@ class ExitStrategy:
         
         # 2. Stop Loss
         if current_pnl_pct <= -self.config.sl_threshold_pct:
+            self.exit_eval_counts["sl_hit"] += 1
             return ExitDecision(
                 should_exit=True,
                 reason=ExitReason.STOP_LOSS,
@@ -172,6 +197,7 @@ class ExitStrategy:
         
         # 3. Time Limit
         if time_held >= self.config.max_hold_time_seconds:
+            self.exit_eval_counts["time_limit_hit"] += 1
             return ExitDecision(
                 should_exit=True,
                 reason=ExitReason.TIME_LIMIT,
@@ -193,6 +219,7 @@ class ExitStrategy:
             )
         
         # Hold position
+        self.exit_eval_counts["none"] += 1
         return ExitDecision(
             should_exit=False,
             reason=ExitReason.NONE,

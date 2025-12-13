@@ -51,14 +51,41 @@ AC-5-ZoneProfiles: [PASS] - KPI에 zone_profiles_loaded (path/sha256/mtime) 존�
 tests/test_d92_5_pnl_currency.py: 4/4 PASS
 ```
 
-## D92-6: Production Deployment (PENDING)
+## D92-6: PnL 정산/Exit/Threshold Sweep 근본 수리 (COMPLETE)
+- **Status**: ✅ COMPLETE
+- **Completion Date**: 2025-12-14
+- **Key Achievements**:
+  - Per-leg PnL SSOT 확정 (체결 단가 기반)
+  - Exit 로직 정상화 (TP/SL 검증 + exit_eval_counts)
+  - Threshold Sweep 실제 적용 (--threshold-bps CLI)
+  - 14/14 Fast Gate PASS + 4/4 Core Regression PASS
+
+### D92-6 AC 검증 결과
+```
+AC-C (Per-Leg PnL SSOT):
+  AC-C1: Per-leg PnL 함수 존재 ✅
+  AC-C2: Unit test PnL 부호 검증 ✅
+  AC-C3: KPI에 realized PnL/fees/fx_rate ✅
+
+AC-D (Exit 로직 정상화):
+  AC-D1: TP/SL 기본값 검증 ✅
+  AC-D2: TP/SL/time_limit 각각 재현 ✅
+  AC-D3: Runtime exit_eval_counts 집계 ✅
+
+AC-E (Threshold Sweep 실제 적용):
+  AC-E1: Threshold 런타임 메타 기록 ✅
+  AC-E2: 리포트 "best threshold" 일치 ✅
+```
+
+## D92-7: 장시간 PAPER 성능 검증 (PENDING)
 - **Status**: ⏳ PENDING
-- **Objective**: D92-4 결과 기반 프로덕션 배포
-- **Dependencies**: D92-4 완료
+- **Objective**: D92-6 수정사항 기반 1시간 이상 PAPER 실행
+- **Dependencies**: D92-6 완료
 
 ---
 
 ## Summary
 - **D92-1**: ✅ TopN 기반 페이퍼 트레이딩 SSOT 완성
 - **D92-5**: ✅ 자동화 + 검증 완성
-- **D92-4**: 🔄 진행 중 (threshold 스윕)
+- **D92-4**: ✅ Threshold 스윕 완료
+- **D92-6**: ✅ PnL/Exit/Sweep 근본 수리 완료
