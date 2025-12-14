@@ -9,9 +9,9 @@ services:
   # ==========================================================================
   # Redis Service
   # ==========================================================================
-  redis:
+  XXX_ARBITRAGE_TRADING_BOT:
     image: redis:7-alpine
-    container_name: XXX_ARBITRAGE_TRADING_BOT-redis
+    container_name: arbitrage-redis
     restart: unless-stopped
     ports:
       - "6380:6379"  # Changed from default to avoid conflicts
@@ -35,9 +35,9 @@ services:
   # ==========================================================================
   # PostgreSQL Service
   # ==========================================================================
-  postgres:
+  XXX_ARBITRAGE_TRADING_BOT-db:
     image: timescale/timescaledb:latest-pg16
-    container_name: XXX_ARBITRAGE_TRADING_BOT-postgres
+    container_name: arbitrage-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: arbitrage
@@ -61,24 +61,24 @@ services:
   # ==========================================================================
   # Arbitrage Engine Service
   # ==========================================================================
-  arbitrage-engine:
+  XXX_ARBITRAGE_TRADING_BOT-engine:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: arbitrage-engine:latest
-    container_name: XXX_ARBITRAGE_TRADING_BOT-engine
+    container_name: arbitrage-engine
     restart: unless-stopped
     environment:
       # Environment
       ENV: production
       
       # Redis
-      REDIS_HOST: redis
+      REDIS_HOST: XXX_ARBITRAGE_TRADING_BOT
       REDIS_PORT: 6379
       REDIS_DB: 0
       
       # PostgreSQL
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: XXX_ARBITRAGE_TRADING_BOT-db
       POSTGRES_PORT: 5432
       POSTGRES_DB: arbitrage
       POSTGRES_USER: arbitrage
@@ -96,9 +96,9 @@ services:
       UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY:-}
       UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY:-}
     depends_on:
-      redis:
+      XXX_ARBITRAGE_TRADING_BOT:
         condition: service_healthy
-      postgres:
+      XXX_ARBITRAGE_TRADING_BOT-db:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
