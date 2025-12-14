@@ -238,6 +238,7 @@ class Settings:
         cls,
         overrides: Optional[Dict[str, Any]] = None,
         secrets_provider: Optional["SecretsProviderBase"] = None,
+        fail_fast_real_paper: bool = False,
     ) -> "Settings":
         """
         Load settings from environment variables
@@ -245,14 +246,13 @@ class Settings:
         Args:
             overrides: Optional dict to override specific settings (for testing)
             secrets_provider: Optional SecretsProvider (D78-2)
-                            If None, uses environment variables (backward compatible)
+            fail_fast_real_paper: D92-7-2 REAL PAPER mode ENV validation
         
         Returns:
             Settings instance
         """
         # D78-2: Auto-select secrets provider if not provided
         if secrets_provider is None:
-            # Default: EnvSecretsProvider (backward compatible)
             from arbitrage.config.secrets_providers import EnvSecretsProvider
             secrets_provider = EnvSecretsProvider()
         
@@ -271,6 +271,13 @@ class Settings:
         except ValueError:
             print(f"Warning: Invalid ARBITRAGE_ENV '{env_str}', defaulting to local_dev")
             env = RuntimeEnv.LOCAL_DEV
+        
+        # D92-7-2: REAL PAPER fail-fast validation
+        if fail_fast_real_paper and env != RuntimeEnv.PAPER:
+            raise ValueError(
+                f"[D92-7-2] REAL PAPER mode requires ARBITRAGE_ENV=paper, got: {env_str}. "
+                f"Check .env.paper file and ensure ARBITRAGE_ENV variable is set correctly."
+            )
         
         # Upbit (use secrets provider)
         upbit_access_key = get_value("UPBIT_ACCESS_KEY")
