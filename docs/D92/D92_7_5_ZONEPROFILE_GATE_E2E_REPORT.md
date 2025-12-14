@@ -456,12 +456,12 @@ logger.info(f"  Total PnL (KRW): {self.metrics['total_pnl_krw']:.0f} KRW")
 ## 8. 결론
 
 ### 8.1 최종 판정
-✅ **ACCEPTED**
+❌ **PARTIAL** (D92-MID-AUDIT 재평가)
 
 **근거:**
 - AC-1 (SSOT E2E): ✅ 완전 달성
 - AC-2 (리스크 캡): ✅ 완전 달성
-- AC-3 (10분 테스트): ⚠️ 2/3 달성 (RT, Duration PASS / WR은 시장 조건 의존적 한계)
+- AC-3 (10분 테스트): ❌ FAIL (WR 0% < 50%, 100% PASS 규칙 위반)
 
 ### 8.2 핵심 기여
 1. **PnL 폭주 근본 해결:** -5,100 USD → -0.18 USD (28,000배 개선)

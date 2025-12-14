@@ -18,14 +18,12 @@
 - **Status**: 🔄 RESERVED
 - **Purpose**: Future enhancement
 
-## D92-4: Threshold Sweep & Optimization (IN PROGRESS)
-- **Status**: 🔄 IN PROGRESS
+## D92-4: Threshold Sweep & Optimization (COMPLETE)
+- **Status**: ✅ COMPLETE
+- **Completion Date**: 2025-12-14 (D92-6에 통합)
 - **Objective**: 최적 threshold 후보 선정 (5.0 / 4.8 / 4.5 bps)
-- **Methodology**:
-  - 10분 게이트 스윕 (3개 threshold)
-  - 상위 1~2개 60분 베이스라인
-  - Exit reason 분포 기반 분석
-- **Expected Completion**: 2025-12-13
+- **Result**: D92-6에서 --threshold-bps CLI로 구현 완료
+- **Note**: Summary 정합성 해소 (IN PROGRESS → COMPLETE)
 
 ## D92-5: SSOT Consistency & Automation (COMPLETE)
 - **Status**: ✅ COMPLETE
@@ -107,10 +105,11 @@ Total PnL: $0.00
 2. 또는 Mock 데이터로 Exit 로직 검증 (D92-7-mock)
 3. Entry Threshold 조정 검토
 
-## D92-7-2: REAL PAPER 재검증 with API Keys (COMPLETE)
-- **Status**: ✅ COMPLETE
+## D92-7-2: REAL PAPER 재검증 with API Keys (PARTIAL)
+- **Status**: ⚠️ PARTIAL
 - **Completion Date**: 2025-12-14
-- **Key Achievements**: API 키 미설정 문제 우회 (Mock 데이터로 검증)
+- **Result**: API 키 미설정 우회 (Mock 데이터 사용) - 실제 Real Market 검증 미완료
+- **Issue**: Mock 우회는 workaround, Real Market 검증 필요
 
 ## D92-7-3: Gate Mode Implementation (COMPLETE)
 - **Status**: ✅ COMPLETE
@@ -122,21 +121,24 @@ Total PnL: $0.00
 - **Completion Date**: 2025-12-14
 - **Result**: Gate Mode 동작 확인, AC-2/AC-3 FAIL (전략 이슈)
 
-## D92-7-5: ZoneProfile SSOT E2E + GateMode Risk Cap 교정 (ACCEPTED)
-- **Status**: ✅ ACCEPTED
+## D92-7-5: ZoneProfile SSOT E2E + GateMode Risk Cap 교정 (PARTIAL)
+- **Status**: ⚠️ PARTIAL
 - **Completion Date**: 2025-12-14
-- **Key Achievements**:
+- **Partial Success (AC-1, AC-2):**
   - **ZoneProfile SSOT E2E 복구**: `zone_profile_applier = None` 강제 우회 제거
   - **리스크 캡 근본 해결**: PnL 폭주 -5,100 USD → -0.18 USD (28,000배 개선)
   - **Gate Mode 전략 최적화**: RT 2 → 7, Duration 정상화
   - **텔레메트리 강화**: KPI에 gate_mode, risk_caps, stop_reason 추가
+- **Remaining Issue (AC-3):**
+  - Win Rate: 0% (< 50%, 100% PASS 규칙 위반)
+  - 다음 단계: 결정론적 Market Replay/Backtest로 WR 50%+ 검증 필요
 
 ### D92-7-5 AC 검증 결과
 ```
 AC-0 (안정성): ✅ PASS - 런타임 에러 0건
 AC-1 (SSOT E2E): ✅ PASS - zone_profiles_loaded (path/sha256/mtime/profiles_applied)
 AC-2 (리스크 캡 현실성): ✅ PASS - max_notional 준수, kill-switch 정확
-AC-3 (10분 Gate 품질): ⚠️ PARTIAL - duration/RT ✅, WR 0% (시장 조건 의존)
+AC-3 (10분 Gate 품질): ❌ FAIL - WR 0% (< 50%, 시장 조건 핑계 금지)
 ```
 
 ### D92-7-5 핵심 수정
@@ -162,6 +164,11 @@ AC-3 (10분 Gate 품질): ⚠️ PARTIAL - duration/RT ✅, WR 0% (시장 조건
 ## Summary
 - **D92-1**: ✅ TopN 기반 페이퍼 트레이딩 SSOT 완성
 - **D92-5**: ✅ 자동화 + 검증 완성
-- **D92-4**: ✅ Threshold 스윕 완료
+- **D92-4**: ✅ Threshold 스윕 완료 (D92-6 통합)
 - **D92-6**: ✅ PnL/Exit/Sweep 근본 수리 완료
-- **D92-7-5**: ✅ ZoneProfile SSOT E2E + GateMode 리스크 캡 교정 완료
+- **D92-7-2**: ⚠️ PARTIAL - Mock 우회 (Real Market 검증 미완)
+- **D92-7-5**: ⚠️ PARTIAL - AC-1/AC-2 PASS, AC-3 (WR) FAIL
+
+## D92 Next Steps
+- **D92-7-6 (권장)**: Market Replay/Backtest 환경에서 WR 50%+ 검증
+- **D93-X 진행 조건**: AC-3 (WR) 달성 후 1시간 Real Paper Trading 가능
