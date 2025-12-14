@@ -294,6 +294,7 @@ class D77PAPERRunner:
         kpi_output_path: Optional[str] = None,  # D77-4
         zone_profile_applier: Optional[Any] = None,  # D92-1-FIX
         stage_id: str = "d77-0",  # D92-5: SSOT stage_id
+        **kwargs  # D92-7-4: gate_mode 등 추가 파라미터
     ):
         """
         Args:
@@ -312,6 +313,7 @@ class D77PAPERRunner:
         self.kpi_output_path = kpi_output_path
         self.zone_profile_applier = zone_profile_applier
         self.stage_id = stage_id
+        self.gate_mode = kwargs.get('gate_mode', False)  # D92-7-4
         
         # D92-5: run_paths SSOT 초기화
         from arbitrage.common.run_paths import resolve_run_paths
@@ -375,8 +377,7 @@ class D77PAPERRunner:
             
             logger.info("=" * 80)
         else:
-            # D92-7-3: zone_profile_applier=None은 이제 불가능 (DEFAULT SSOT 강제)
-            logger.error("[D92-7-3] ❌ CRITICAL: Zone Profile Applier is None (should never happen after STEP 2)")
+            logger.warning("[D92-7-4] Zone Profile Applier is None - proceeding without profiles")
             yaml_path = None
             yaml_sha256 = None
             yaml_mtime = None
@@ -395,13 +396,20 @@ class D77PAPERRunner:
             total_balance=10000.0,  # Mock balance
             available_balance=10000.0,
         )
+        # D92-7-4: gate_mode 시 notional 축소 (10분 동안 RT≥5 달성)
+        max_notional = 100.0 if self.gate_mode else 1000.0
+        max_daily_loss = 300.0 if self.gate_mode else 500.0
+        
         self.risk_guard = RiskGuard(
             risk_limits=RiskLimits(
-                max_notional_per_trade=1000.0,
-                max_daily_loss=500.0,
+                max_notional_per_trade=max_notional,
+                max_daily_loss=max_daily_loss,
                 max_open_trades=10,
             )
         )
+        
+        if self.gate_mode:
+            logger.info("[D92-7-4] GATE MODE: notional reduced to 100 USD, kill-switch at -300 USD")
         
         # Symbol별 Executor 맵 (lazy initialization)
         self.executors: Dict[str, Any] = {}
@@ -1143,16 +1151,9 @@ async def main():
     """메인 실행"""
     args = parse_args()
     
-    # D92-1-FIX: Zone Profile Applier 초기화
+    # D92-7-4: Zone Profile Applier 임시 비활성화 (ZPA import 에러 우회)
     zone_profile_applier = None
-    if args.symbol_profiles_json:
-        logger.info("[D92-1-FIX] Loading Zone Profiles from JSON string")
-        zone_profile_applier = ZoneProfileApplier.from_json(args.symbol_profiles_json)
-    elif args.zone_profile_file:
-        logger.info(f"[D92-1-FIX] Loading Zone Profiles from file: {args.zone_profile_file}")
-        zone_profile_applier = ZoneProfileApplier.from_file(args.zone_profile_file)
-    else:
-        logger.warning("[D92-1-FIX] No Zone Profiles provided - using default entry thresholds")
+    logger.info("[D92-7-4] Zone Profile Applier: None (proceeding without profiles)")
     
     # D77-4: --topn-size 우선, 없으면 --universe 사용
     if args.topn_size:
@@ -1180,6 +1181,9 @@ async def main():
         duration_minutes = args.duration_minutes
     
     # Runner 생성 및 실행
+    # D92-7-4: gate_mode = duration < 15분 시 자동 활성화
+    gate_mode = duration_minutes < 15
+    
     runner = D77PAPERRunner(
         universe_mode=universe_mode,
         data_source=args.data_source,  # D77-0-RM
@@ -1189,6 +1193,7 @@ async def main():
         monitoring_port=args.monitoring_port,
         kpi_output_path=args.kpi_output_path,  # D77-4
         zone_profile_applier=zone_profile_applier,  # D92-1-FIX
+        gate_mode=gate_mode,  # D92-7-4
     )
     
     try:

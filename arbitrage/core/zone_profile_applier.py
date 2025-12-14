@@ -166,47 +166,133 @@ class ZoneProfileApplier:
     @classmethod
     def from_file(cls, yaml_path: str) -> "ZoneProfileApplier":
         """
-        YAML 파일에서 Zone Profile을 로드.
+        D92-7-4: YAML 파일에서 Zone Profile을 로드 (정규화 + FAIL-FAST).
+        
+        지원 스키마:
+        1. symbol_mappings: { "BTC": {threshold_bps, zone_boundaries, default_profiles, ...}, ... }
+        2. symbols: { "BTC": {profile_name, profile_weights, zone_boundaries, mode, ...}, ... }
+        3. symbol_profiles: (symbols와 동일)
+        
+        내부 정규화:
+        - 모든 입력을 단일 dict 구조로 변환
+        - threshold_bps 누락/None → default threshold (0.70 bps) 사용 + 카운터 기록
+        - 필수 필드 검증: zone_boundaries, profile_weights 등
+        
+        FAIL-FAST:
+        - 파싱/검증 실패 시 즉시 예외 발생 (조용히 진행 금지)
+        - 에러 메시지: 어떤 심볼/필드에서 실패했는지 명확히
         
         Args:
             yaml_path: Zone Profile YAML 파일 경로
         
         Returns:
             ZoneProfileApplier 인스턴스
+        
+        Raises:
+            FileNotFoundError: YAML 파일 없음
+            ValueError: 파싱/검증 실패
         """
         import yaml
+        from pathlib import Path
         
-        with open(yaml_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+        yaml_path_obj = Path(yaml_path)
+        if not yaml_path_obj.exists():
+            raise FileNotFoundError(f"[D92-7-4] Zone Profile YAML not found: {yaml_path}")
         
-        # D92-7-3: symbol_mappings 또는 symbols 지원
+        try:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+        except Exception as e:
+            raise ValueError(f"[D92-7-4] Failed to parse YAML {yaml_path}: {e}")
+        
+        if not isinstance(data, dict):
+            raise ValueError(f"[D92-7-4] YAML root must be dict, got {type(data)}")
+        
+        # D92-7-4: 스키마 정규화 (symbol_mappings → symbol_profiles)
         symbol_mappings = data.get("symbol_mappings", {})
-        symbol_profiles_direct = data.get("symbols", {})
+        symbol_profiles_direct = data.get("symbols") or data.get("symbol_profiles", {})
+        profiles_dict = data.get("profiles", {})
+        
+        symbol_profiles = {}
+        fallback_threshold_count = 0
         
         if symbol_mappings:
-            # symbol_mappings 구조를 symbol_profiles로 변환
-            symbol_profiles = {}
-            profiles_dict = data.get("profiles", {})
-            
+            # symbol_mappings 구조 정규화
             for symbol, mapping in symbol_mappings.items():
-                # advisory profile 선택 (default)
-                profile_name = mapping.get("default_profiles", {}).get("advisory", "advisory_z2_focus")
-                profile_def = profiles_dict.get(profile_name, {})
+                if not isinstance(mapping, dict):
+                    raise ValueError(f"[D92-7-4] symbol_mappings[{symbol}] must be dict, got {type(mapping)}")
+                
+                # Profile 선택 (advisory 우선, 없으면 strict)
+                default_profiles = mapping.get("default_profiles", {})
+                profile_name = default_profiles.get("advisory") or default_profiles.get("strict") or "advisory_z2_focus"
+                
+                if profile_name not in profiles_dict:
+                    logger.warning(f"[D92-7-4] Profile '{profile_name}' not found for {symbol}, using default weights")
+                    profile_weights = [1.0, 1.0, 1.0, 1.0]
+                else:
+                    profile_weights = profiles_dict[profile_name].get("weights", [1.0, 1.0, 1.0, 1.0])
+                
+                # Zone boundaries 검증
+                zone_boundaries = mapping.get("zone_boundaries")
+                if not zone_boundaries:
+                    raise ValueError(f"[D92-7-4] Missing zone_boundaries for symbol {symbol}")
+                if not isinstance(zone_boundaries, list) or len(zone_boundaries) < 1:
+                    raise ValueError(f"[D92-7-4] zone_boundaries for {symbol} must be non-empty list, got {zone_boundaries}")
+                
+                # threshold_bps 처리 (None/누락 → fallback)
+                threshold_bps = mapping.get("threshold_bps")
+                if threshold_bps is None:
+                    threshold_bps = 0.70  # Default fallback threshold
+                    fallback_threshold_count += 1
+                    logger.info(f"[D92-7-4] {symbol}: threshold_bps=None, using fallback {threshold_bps} bps")
                 
                 symbol_profiles[symbol] = {
                     "profile_name": profile_name,
-                    "profile_weights": profile_def.get("weights", [1.0, 1.0, 1.0, 1.0]),
-                    "zone_boundaries": mapping.get("zone_boundaries", [(5.0, 10.0), (10.0, 20.0), (20.0, 30.0), (30.0, 50.0)]),
+                    "profile_weights": profile_weights,
+                    "zone_boundaries": zone_boundaries,
                     "mode": "advisory",
-                    "threshold_bps": mapping.get("threshold_bps", None),
+                    "threshold_bps": threshold_bps,
                 }
-        elif symbol_profiles_direct:
-            symbol_profiles = symbol_profiles_direct
-        else:
-            symbol_profiles = {}
-            logger.warning(f"[ZONE_PROFILE_APPLIER] No symbols or symbol_mappings found in {yaml_path}")
         
+        elif symbol_profiles_direct:
+            # symbols/symbol_profiles 구조 (이미 정규화됨)
+            for symbol, profile in symbol_profiles_direct.items():
+                if not isinstance(profile, dict):
+                    raise ValueError(f"[D92-7-4] symbols[{symbol}] must be dict, got {type(profile)}")
+                
+                # 필수 필드 검증
+                if "zone_boundaries" not in profile:
+                    raise ValueError(f"[D92-7-4] Missing zone_boundaries for symbol {symbol}")
+                
+                profile_weights = profile.get("profile_weights", [1.0, 1.0, 1.0, 1.0])
+                threshold_bps = profile.get("threshold_bps")
+                
+                if threshold_bps is None:
+                    threshold_bps = 0.70
+                    fallback_threshold_count += 1
+                    logger.info(f"[D92-7-4] {symbol}: threshold_bps=None, using fallback {threshold_bps} bps")
+                
+                symbol_profiles[symbol] = {
+                    "profile_name": profile.get("profile_name", "default"),
+                    "profile_weights": profile_weights,
+                    "zone_boundaries": profile["zone_boundaries"],
+                    "mode": profile.get("mode", "advisory"),
+                    "threshold_bps": threshold_bps,
+                }
+        
+        else:
+            raise ValueError(f"[D92-7-4] No symbol_mappings or symbols found in {yaml_path}")
+        
+        if not symbol_profiles:
+            raise ValueError(f"[D92-7-4] No symbols loaded from {yaml_path}")
+        
+        # 인스턴스 생성
         instance = cls(symbol_profiles=symbol_profiles)
-        # D92-7-3: 경로 저장 (KPI 기록용)
+        
+        # D92-7-4: 메타데이터 저장
         instance._yaml_path = yaml_path
+        instance._fallback_threshold_count = fallback_threshold_count
+        
+        logger.info(f"[D92-7-4] Zone Profile loaded: {len(symbol_profiles)} symbols, {fallback_threshold_count} fallback thresholds")
+        
         return instance
