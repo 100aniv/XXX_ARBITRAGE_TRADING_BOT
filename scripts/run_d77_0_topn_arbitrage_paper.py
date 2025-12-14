@@ -1199,14 +1199,17 @@ async def main():
     project_root = Path(__file__).parent.parent
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    logger.info("[D92-MID-AUDIT] 인프라 선행조건 체크 시작")
+    logger.info("[D92-HOTFIX] 인프라 선행조건 체크 시작 (FAIL-FAST)")
     env_checker = D77EnvChecker(project_root, run_id)
     env_ok, env_result = env_checker.check_all()
     
     if not env_ok:
-        logger.warning("[D92-MID-AUDIT] 인프라 체크 일부 실패 (계속 진행)")
+        logger.error("[D92-HOTFIX] 인프라 체크 실패 - PAPER 실행 불가")
+        logger.error(f"[D92-HOTFIX] 실패 상세: {env_result}")
+        logger.error(f"[D92-HOTFIX] 로그 확인: logs/d77-4/{run_id}/env_checker.log")
+        sys.exit(2)
     else:
-        logger.info("[D92-MID-AUDIT] 인프라 체크 완료 - Docker/Redis/Postgres 준비됨")
+        logger.info("[D92-HOTFIX] 인프라 체크 완료 - Docker/Redis/Postgres 준비됨")
     
     # D92-7-5: Zone Profile SSOT 로드 (E2E 복구)
     from arbitrage.core.zone_profile_applier import ZoneProfileApplier

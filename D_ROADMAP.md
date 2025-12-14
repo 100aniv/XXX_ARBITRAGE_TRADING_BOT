@@ -4399,3 +4399,97 @@ Status: ✅ SUCCESS (No errors)
 
 ### Git Commit
 `[D92-5]` - 아티팩트 SSOT/PnL 통화 SSOT/Exit 로직 v1 재설계
+
+---
+
+## D92-7-2: REAL PAPER 재검증 with API Keys (PARTIAL)
+- **Status**: ⚠️ PARTIAL
+- **Completion Date**: 2025-12-14
+- **Result**: API 키 미설정 우회 (Mock 데이터 사용) - 실제 Real Market 검증 미완료
+- **Issue**: Mock 우회는 workaround, Real Market 검증 필요
+
+---
+
+## D92-7-5: ZoneProfile SSOT E2E + GateMode Risk Cap 교정 (PARTIAL)
+- **Status**: ⚠️ PARTIAL
+- **Completion Date**: 2025-12-14
+- **Partial Success (AC-1, AC-2):**
+  - **ZoneProfile SSOT E2E 복구**: `zone_profile_applier = None` 강제 우회 제거
+  - **리스크 캡 근본 해결**: PnL 폭주 -5,100 USD → -0.18 USD (28,000배 개선)
+  - **Gate Mode 전략 최적화**: RT 2 → 7, Duration 정상화
+  - **텔레메트리 강화**: KPI에 gate_mode, risk_caps, stop_reason 추가
+- **Remaining Issue (AC-3):**
+  - Win Rate: 0% (< 50%, 100% PASS 규칙 위반)
+  - 다음 단계: 결정론적 Market Replay/Backtest로 WR 50%+ 검증 필요
+
+### D92-7-5 AC 검증 결과
+```
+AC-0 (안정성): ✅ PASS - 런타임 에러 0건
+AC-1 (SSOT E2E): ✅ PASS - zone_profiles_loaded (path/sha256/mtime/profiles_applied)
+AC-2 (리스크 캡 현실성): ✅ PASS - max_notional 준수, kill-switch 정확
+AC-3 (10분 Gate 품질): ❌ FAIL - WR 0% (< 50%, 시장 조건 핑계 금지)
+```
+
+### D92-7-5 핵심 수정
+1. **scripts/run_d77_0_topn_arbitrage_paper.py**:
+   - Zone Profile SSOT 로드 복구 (FAIL-FAST)
+   - 주문 수량을 RiskGuard max_notional 기반으로 계산
+   - Gate Mode 전략 파라미터 최적화 (max_hold_time 60s, threshold 50% 완화)
+   - KPI 메트릭 추가 (gate_mode, risk_caps, stop_reason, kill_switch_triggered)
+   - Unicode 에러 수정 (₩ → KRW)
+   - **인프라 체크 통합**: d77_4_env_checker (Docker/Redis/Postgres 자동 확인)
+
+### D92-7-5 테스트 결과
+**Before Fix:**
+- PnL: -5,100 USD ❌
+- RT: 2, Duration: 7.18분 (kill-switch 조기 종료)
+
+**After Fix:**
+- PnL: -0.18 USD ✅ (100 USD 대비 0.18%)
+- RT: 7 ✅, Duration: 10.02분 ✅
+- Win Rate: 0% (모든 exit가 time_limit, 시장 조건 의존)
+
+---
+
+---
+
+## D92-MID-AUDIT: SSOT/Infra Hotfix (COMPLETE)
+- **Status**: ✅ COMPLETE
+- **Completion Date**: 2025-12-15
+- **Objective**: D92 로드맵 단일화 + 인프라 체크 FAIL-FAST + Docker ON Gate 증거화
+
+### Hotfix 완료 내역
+1. **SSOT 단일화**: `docs/D_ROADMAP.md` 삭제, `/D_ROADMAP.md` 단일 마스터화 ✅
+2. **인프라 FAIL-FAST**: `env_ok == False` 시 `sys.exit(2)` 즉시 종료 ✅
+3. **Docker ON Gate**: 10분 테스트 (RT=7, PnL=-$0.21, 인프라 활성화 증거) ✅
+4. **Core Regression**: `test_d92_5_pnl_currency.py` 4/4 PASS ✅
+
+### Hotfix AC 검증
+```
+AC-1 (ROADMAP 단일화): ✅ PASS - docs/D_ROADMAP.md 삭제 완료
+AC-2 (인프라 FAIL-FAST): ✅ PASS - sys.exit(2) on env_ok=False
+AC-3 (Docker ON 증거): ✅ PASS - env_checker.log + KPI JSON
+AC-4 (Regression 100%): ✅ PASS - 4/4 테스트 통과
+AC-5 (문서 업데이트): ✅ PASS - D92_MID_AUDIT_HOTFIX_REPORT.md
+```
+
+### 핵심 아티팩트
+- **Master SSOT**: `/D_ROADMAP.md`
+- **KPI JSON**: `logs/d92-ssot-infra-hotfix/gate-10m-kpi.json`
+- **Env Log**: `logs/d77-4/20251215_011039/env_checker.log`
+- **Hotfix Report**: `docs/D92/D92_MID_AUDIT_HOTFIX_REPORT.md`
+
+---
+
+## D92 Summary
+- **D92-1**: ✅ TopN 기반 페이퍼 트레이딩 SSOT 완성
+- **D92-5**: ✅ 자동화 + 검증 완성
+- **D92-4**: ✅ Threshold 스윕 완료 (D92-6 통합)
+- **D92-6**: ✅ PnL/Exit/Sweep 근본 수리 완료
+- **D92-7-2**: ⚠️ PARTIAL - Mock 우회 (Real Market 검증 미완)
+- **D92-7-5**: ⚠️ PARTIAL - AC-1/AC-2 PASS, AC-3 (WR) FAIL
+- **D92-MID-AUDIT**: ✅ COMPLETE - SSOT/Infra Hotfix 완료
+
+## D92 Next Steps
+- **D92-7-6 (권장)**: Market Replay/Backtest 환경에서 WR 50%+ 검증
+- **D93-X 진행 조건**: AC-3 (WR) 달성 후 1시간 Real Paper Trading 가능
