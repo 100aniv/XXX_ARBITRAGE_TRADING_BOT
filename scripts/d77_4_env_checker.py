@@ -253,13 +253,26 @@ class D77EnvChecker:
         """PostgreSQL alert 관련 테이블 정리
         
         Returns:
-            성공 여부
+            성공 여부 (테이블이 없는 경우 생성 후 True)
         """
         try:
-            sql = "TRUNCATE TABLE alerts, alert_deliveries CASCADE;"
-            result = subprocess.run(
+            # alert_history 테이블 생성 (없으면 생성, 있으면 무시)
+            create_sql = """
+            CREATE TABLE IF NOT EXISTS alert_history (
+                id SERIAL PRIMARY KEY,
+                severity VARCHAR(10) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                metadata JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            
+            create_result = subprocess.run(
                 ["docker", "exec", "arbitrage-postgres", 
-                 "psql", "-U", "arbitrage", "-d", "arbitrage", "-c", sql],
+                 "psql", "-U", "arbitrage", "-d", "arbitrage", "-c", create_sql],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
@@ -267,13 +280,29 @@ class D77EnvChecker:
                 timeout=10
             )
             
-            if result.returncode == 0:
-                logger.info("PostgreSQL alert 테이블 정리 성공")
+            if create_result.returncode != 0:
+                logger.warning(f"PostgreSQL 테이블 생성 실패: {create_result.stderr}")
+                return False
+            
+            # TRUNCATE로 데이터 정리
+            truncate_sql = "TRUNCATE TABLE alert_history CASCADE;"
+            truncate_result = subprocess.run(
+                ["docker", "exec", "arbitrage-postgres", 
+                 "psql", "-U", "arbitrage", "-d", "arbitrage", "-c", truncate_sql],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=10
+            )
+            
+            if truncate_result.returncode == 0:
+                logger.info("PostgreSQL alert_history 초기화 완료 (테이블 생성/정리)")
                 return True
             else:
-                # 테이블이 없을 수 있음 (경고 처리)
-                logger.warning(f"PostgreSQL 정리 실패 (테이블 없을 수 있음): {result.stderr}")
+                logger.warning(f"PostgreSQL TRUNCATE 실패: {truncate_result.stderr}")
                 return False
+                
         except Exception as e:
             logger.warning(f"PostgreSQL 초기화 예외: {e}")
             return False
