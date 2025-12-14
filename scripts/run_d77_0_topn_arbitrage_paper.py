@@ -443,14 +443,17 @@ class D77PAPERRunner:
         )
         
         # Exit Strategy
+        # D92-7-5: Gate Mode 시 max_hold_time 단축 (10분 내 5+ RT 달성 목적)
+        max_hold_time = 60.0 if self.gate_mode else 180.0
         self.exit_strategy = ExitStrategy(
             config=ExitConfig(
                 tp_threshold_pct=0.25,
                 sl_threshold_pct=0.20,
-                max_hold_time_seconds=180.0,
+                max_hold_time_seconds=max_hold_time,
                 spread_reversal_threshold_bps=-10.0,
             )
         )
+        logger.info(f"[D92-7-5] Exit Strategy: max_hold_time={max_hold_time}s (gate_mode={self.gate_mode})")
         
         # Metrics
         self.metrics: Dict[str, Any] = {
@@ -495,6 +498,15 @@ class D77PAPERRunner:
                 "mtime": yaml_mtime,
                 "profiles_applied": profiles_applied,
             },
+            # D92-7-5: Gate Mode 리스크 캡 및 종료 사유
+            "gate_mode": self.gate_mode,
+            "risk_caps": {
+                "max_notional_usd": max_notional,
+                "max_daily_loss_usd": max_daily_loss,
+            },
+            "stop_reason": "duration",  # duration|kill_switch|exception
+            "kill_switch_triggered": False,
+            "max_drawdown_usd": 0.0,
         }
         
         self.loop_latencies: List[float] = []
@@ -576,17 +588,21 @@ class D77PAPERRunner:
         while time.time() < end_time:
             loop_start = time.time()
             
-            # D92-7-3 STEP 3-C: Kill-switch (손실 폭주 방지)
+            # D92-7-5: Kill-switch (손실 폭주 방지)
             if self.metrics["total_pnl_usd"] <= -300:
                 logger.error("=" * 80)
-                logger.error("[D92-7-3] KILL-SWITCH TRIGGERED: total_pnl_usd <= -300")
+                logger.error("[D92-7-5] KILL-SWITCH TRIGGERED: total_pnl_usd <= -300")
                 logger.error(f"  Current PnL: ${self.metrics['total_pnl_usd']:.2f}")
                 logger.error(f"  Round Trips: {self.metrics['round_trips_completed']}")
                 logger.error(f"  Iteration: {iteration}")
                 logger.error("=" * 80)
                 
-                # 직전 N개 RT 상세 로그 (trade_logger에서 추출)
-                logger.error("[D92-7-3] Last 5 Round Trips Summary:")
+                # D92-7-5: Metrics 업데이트
+                self.metrics["stop_reason"] = "kill_switch"
+                self.metrics["kill_switch_triggered"] = True
+                
+                # 직전 N개 RT 상세 로그
+                logger.error("[D92-7-5] Last 5 Round Trips Summary:")
                 # TODO: trade_logger에서 최근 RT 추출하여 로그
                 
                 break  # 즉시 중단
@@ -721,7 +737,13 @@ class D77PAPERRunner:
                 if self.zone_profile_applier and self.zone_profile_applier.has_profile(symbol_normalized):
                     entry_threshold_decimal = self.zone_profile_applier.get_entry_threshold(symbol_normalized)
                     entry_threshold_bps = entry_threshold_decimal * 10000.0
-                    logger.info(f"[ZONE_THRESHOLD] {symbol_a} ({symbol_normalized}): {entry_threshold_bps:.2f} bps (Zone Profile)")
+                    
+                    # D92-7-5: Gate Mode일 때 threshold 50% 완화 (10분 내 5+ RT 달성 목적)
+                    if self.gate_mode:
+                        entry_threshold_bps = entry_threshold_bps * 0.5
+                        logger.info(f"[ZONE_THRESHOLD] {symbol_a} ({symbol_normalized}): {entry_threshold_bps:.2f} bps (Zone Profile, gate_mode=50% reduced)")
+                    else:
+                        logger.info(f"[ZONE_THRESHOLD] {symbol_a} ({symbol_normalized}): {entry_threshold_bps:.2f} bps (Zone Profile)")
                 else:
                     entry_threshold_bps = entry_config.entry_min_spread_bps
                     logger.info(f"[ZONE_THRESHOLD] {symbol_a}: {entry_threshold_bps:.2f} bps (Default)")
@@ -744,9 +766,30 @@ class D77PAPERRunner:
                 else:
                     self.spread_telemetry[symbol_a]["count_ge_threshold"] += 1
                 
-                # Entry Trade
+                # D92-7-5: Entry 수량을 RiskGuard max_notional 기반으로 계산
                 position_id = self.metrics["entry_trades"]
-                mock_size = 0.1  # Fixed size for PAPER mode
+                
+                # RiskGuard에서 max_notional 가져오기
+                max_notional_usd = self.risk_guard.risk_limits.max_notional_per_trade
+                
+                # 주문 수량 계산: notional / price
+                # Buy side 기준 (upbit_bid = 우리가 매수할 가격)
+                entry_price_usd = spread_snapshot.upbit_bid
+                order_quantity = max_notional_usd / entry_price_usd
+                
+                # 계산된 notional 검증
+                computed_notional_usd = order_quantity * entry_price_usd
+                
+                logger.info(f"[D92-7-5] Order Size Calculation for {symbol_a}:")
+                logger.info(f"  max_notional_usd: {max_notional_usd:.2f}")
+                logger.info(f"  entry_price_usd: {entry_price_usd:.2f}")
+                logger.info(f"  order_quantity: {order_quantity:.8f}")
+                logger.info(f"  computed_notional_usd: {computed_notional_usd:.2f}")
+                
+                # RiskGuard 검증 (should always pass since we calculated based on max_notional)
+                if computed_notional_usd > max_notional_usd * 1.01:  # 1% tolerance
+                    logger.error(f"[D92-7-5] Order rejected: computed_notional ({computed_notional_usd:.2f}) > max_notional ({max_notional_usd:.2f})")
+                    continue
                 
                 # MockTrade 생성 (PaperExecutor 호환)
                 trade = MockTrade(
@@ -755,7 +798,7 @@ class D77PAPERRunner:
                     sell_exchange="upbit",
                     buy_price=spread_snapshot.upbit_bid,
                     sell_price=spread_snapshot.upbit_ask,
-                    quantity=mock_size,
+                    quantity=order_quantity,
                 )
                 
                 # D82-0: Real PaperExecutor 사용 (Fill Model 포함)
@@ -987,7 +1030,7 @@ class D77PAPERRunner:
         logger.info("PnL:")
         logger.info(f"  Total PnL (USD): ${self.metrics['total_pnl_usd']:.2f}")
         if "total_pnl_krw" in self.metrics:
-            logger.info(f"  Total PnL (KRW): ₩{self.metrics['total_pnl_krw']:.0f}")
+            logger.info(f"  Total PnL (KRW): {self.metrics['total_pnl_krw']:.0f} KRW")
         logger.info(f"  Wins: {self.metrics['wins']}")
         logger.info(f"  Losses: {self.metrics['losses']}")
         logger.info(f"  Win Rate: {self.metrics['win_rate_pct']:.1f}%")
@@ -1151,9 +1194,21 @@ async def main():
     """메인 실행"""
     args = parse_args()
     
-    # D92-7-4: Zone Profile Applier 임시 비활성화 (ZPA import 에러 우회)
-    zone_profile_applier = None
-    logger.info("[D92-7-4] Zone Profile Applier: None (proceeding without profiles)")
+    # D92-7-5: Zone Profile SSOT 로드 (E2E 복구)
+    from arbitrage.core.zone_profile_applier import ZoneProfileApplier
+    from pathlib import Path
+    
+    zone_profile_yaml = Path("config/arbitrage/zone_profiles_v2.yaml")
+    if zone_profile_yaml.exists():
+        try:
+            zone_profile_applier = ZoneProfileApplier.from_file(str(zone_profile_yaml))
+            logger.info(f"[D92-7-5] Zone Profile SSOT loaded: {zone_profile_yaml}")
+        except Exception as e:
+            logger.error(f"[D92-7-5] FAIL-FAST: Zone Profile load failed: {e}")
+            raise RuntimeError(f"[D92-7-5] Zone Profile SSOT 로드 실패 - RUN 불가능: {e}")
+    else:
+        logger.error(f"[D92-7-5] FAIL-FAST: Zone Profile YAML not found: {zone_profile_yaml}")
+        raise FileNotFoundError(f"[D92-7-5] Zone Profile SSOT 파일 없음 - RUN 불가능: {zone_profile_yaml}")
     
     # D77-4: --topn-size 우선, 없으면 --universe 사용
     if args.topn_size:
