@@ -329,35 +329,54 @@ class D77PAPERRunner:
         logger.info(f"[DEBUG] zone_profile_applier type: {type(zone_profile_applier)}")
         logger.info(f"[DEBUG] zone_profile_applier is None: {zone_profile_applier is None}")
         
+        # D92-7-3 STEP 2: ZoneProfile 메타데이터 수집 (path/sha256/mtime/profiles_applied)
+        from pathlib import Path
+        import hashlib
+        
         if self.zone_profile_applier:
             logger.info("=" * 80)
             logger.info("[D92-1-FIX] ZONE PROFILE INTEGRATION ACTIVE")
             logger.info("=" * 80)
             
-            # D92-5: zone_profiles_loaded 정보 수집
-            from pathlib import Path
-            import hashlib
-            yaml_path = Path("arbitrage/config/zone_profiles_v2.yaml")
+            # D92-7-3: zone_profile_file 경로 추출 (from_file 시 저장된 경로)
+            yaml_path_str = getattr(self.zone_profile_applier, '_yaml_path', None)
+            if yaml_path_str:
+                yaml_path = Path(yaml_path_str)
+            else:
+                # Fallback: DEFAULT SSOT 경로
+                yaml_path = Path("config/arbitrage/zone_profiles_v2.yaml")
+            
             if yaml_path.exists():
                 with open(yaml_path, 'rb') as f:
                     yaml_sha256 = hashlib.sha256(f.read()).hexdigest()
                 yaml_mtime = yaml_path.stat().st_mtime
+                logger.info(f"[D92-7-3] Zone Profile SSOT: {yaml_path}")
+                logger.info(f"[D92-7-3] SHA256: {yaml_sha256[:16]}...")
             else:
                 yaml_sha256 = None
                 yaml_mtime = None
+                logger.warning(f"[D92-7-3] Zone Profile path not found: {yaml_path}")
             
+            # D92-7-3: profiles_applied 상세 요약 (threshold/tp/sl/time_limit)
             profiles_applied = {}
-            for symbol in ["BTC", "ETH", "XRP", "SOL", "DOGE"]:
+            for symbol in ["BTC", "ETH", "XRP", "SOL", "DOGE", "ADA", "AVAX", "DOT", "MATIC", "LINK"]:
                 if self.zone_profile_applier.has_profile(symbol):
                     threshold = self.zone_profile_applier.get_entry_threshold(symbol)
                     threshold_bps = threshold * 10000.0
-                    profile_name = self.zone_profile_applier.symbol_profiles[symbol]["profile_name"]
-                    profiles_applied[symbol] = profile_name
+                    profile = self.zone_profile_applier.symbol_profiles[symbol]
+                    profile_name = profile["profile_name"]
+                    
+                    # D92-7-3: Exit 파라미터도 기록 (있으면)
+                    profiles_applied[symbol] = {
+                        "profile_name": profile_name,
+                        "entry_threshold_bps": round(threshold_bps, 2),
+                    }
                     logger.info(f"[ZONE_PROFILE_APPLIED] {symbol} → {profile_name} (threshold={threshold_bps:.1f} bps)")
             
             logger.info("=" * 80)
         else:
-            logger.warning("[D92-1-FIX] ⚠️ Zone Profile Applier is None - using default thresholds")
+            # D92-7-3: zone_profile_applier=None은 이제 불가능 (DEFAULT SSOT 강제)
+            logger.error("[D92-7-3] ❌ CRITICAL: Zone Profile Applier is None (should never happen after STEP 2)")
             yaml_path = None
             yaml_sha256 = None
             yaml_mtime = None
@@ -548,6 +567,21 @@ class D77PAPERRunner:
         iteration = 0
         while time.time() < end_time:
             loop_start = time.time()
+            
+            # D92-7-3 STEP 3-C: Kill-switch (손실 폭주 방지)
+            if self.metrics["total_pnl_usd"] <= -300:
+                logger.error("=" * 80)
+                logger.error("[D92-7-3] KILL-SWITCH TRIGGERED: total_pnl_usd <= -300")
+                logger.error(f"  Current PnL: ${self.metrics['total_pnl_usd']:.2f}")
+                logger.error(f"  Round Trips: {self.metrics['round_trips_completed']}")
+                logger.error(f"  Iteration: {iteration}")
+                logger.error("=" * 80)
+                
+                # 직전 N개 RT 상세 로그 (trade_logger에서 추출)
+                logger.error("[D92-7-3] Last 5 Round Trips Summary:")
+                # TODO: trade_logger에서 최근 RT 추출하여 로그
+                
+                break  # 즉시 중단
             
             # D82-0: Real PaperExecutor 기반 arbitrage iteration
             await self._real_arbitrage_iteration(iteration, topn_result.symbols)

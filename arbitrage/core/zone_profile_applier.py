@@ -86,7 +86,7 @@ class ZoneProfileApplier:
             mode = profile["mode"]
             
             # D92-4: YAML에 threshold_bps가 명시되어 있으면 우선 사용
-            if "threshold_bps" in profile:
+            if "threshold_bps" in profile and profile["threshold_bps"] is not None:
                 threshold_bps = profile["threshold_bps"]
                 logger.info(f"[D92-4] {symbol}: Using explicit threshold_bps={threshold_bps:.2f} from YAML")
             elif mode == "advisory":
@@ -164,16 +164,49 @@ class ZoneProfileApplier:
         return cls(symbol_profiles)
     
     @classmethod
-    def from_file(cls, file_path: str) -> "ZoneProfileApplier":
+    def from_file(cls, yaml_path: str) -> "ZoneProfileApplier":
         """
-        JSON 파일에서 ZoneProfileApplier 생성.
+        YAML 파일에서 Zone Profile을 로드.
         
         Args:
-            file_path: Symbol profiles JSON 파일 경로
+            yaml_path: Zone Profile YAML 파일 경로
         
         Returns:
-            ZoneProfileApplier instance
+            ZoneProfileApplier 인스턴스
         """
-        with open(file_path, 'r') as f:
-            symbol_profiles = json.load(f)
-        return cls(symbol_profiles)
+        import yaml
+        
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        # D92-7-3: symbol_mappings 또는 symbols 지원
+        symbol_mappings = data.get("symbol_mappings", {})
+        symbol_profiles_direct = data.get("symbols", {})
+        
+        if symbol_mappings:
+            # symbol_mappings 구조를 symbol_profiles로 변환
+            symbol_profiles = {}
+            profiles_dict = data.get("profiles", {})
+            
+            for symbol, mapping in symbol_mappings.items():
+                # advisory profile 선택 (default)
+                profile_name = mapping.get("default_profiles", {}).get("advisory", "advisory_z2_focus")
+                profile_def = profiles_dict.get(profile_name, {})
+                
+                symbol_profiles[symbol] = {
+                    "profile_name": profile_name,
+                    "profile_weights": profile_def.get("weights", [1.0, 1.0, 1.0, 1.0]),
+                    "zone_boundaries": mapping.get("zone_boundaries", [(5.0, 10.0), (10.0, 20.0), (20.0, 30.0), (30.0, 50.0)]),
+                    "mode": "advisory",
+                    "threshold_bps": mapping.get("threshold_bps", None),
+                }
+        elif symbol_profiles_direct:
+            symbol_profiles = symbol_profiles_direct
+        else:
+            symbol_profiles = {}
+            logger.warning(f"[ZONE_PROFILE_APPLIER] No symbols or symbol_mappings found in {yaml_path}")
+        
+        instance = cls(symbol_profiles=symbol_profiles)
+        # D92-7-3: 경로 저장 (KPI 기록용)
+        instance._yaml_path = yaml_path
+        return instance
