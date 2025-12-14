@@ -11,7 +11,7 @@ services:
   # ==========================================================================
   redis:
     image: redis:7-alpine
-    container_name: arbitrage-redis
+    container_name: XXX_ARBITRAGE_TRADING_BOT-redis
     restart: unless-stopped
     ports:
       - "6380:6379"  # Changed from default to avoid conflicts
@@ -37,7 +37,7 @@ services:
   # ==========================================================================
   postgres:
     image: timescale/timescaledb:latest-pg16
-    container_name: arbitrage-postgres
+    container_name: XXX_ARBITRAGE_TRADING_BOT-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: arbitrage
@@ -66,7 +66,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     image: arbitrage-engine:latest
-    container_name: arbitrage-engine
+    container_name: XXX_ARBITRAGE_TRADING_BOT-engine
     restart: unless-stopped
     environment:
       # Environment
