@@ -1172,12 +1172,14 @@ async def main():
             result = evaluate_validation(metrics, validation_profile)
             
             for reason in result.reasons:
-                if reason.startswith("✅"):
-                    logger.info(reason)
-                elif reason.startswith("❌"):
-                    logger.error(reason)
+                # D92-7: Remove emoji to prevent UnicodeEncodeError
+                reason_safe = reason.replace("✅", "[PASS]").replace("❌", "[FAIL]")
+                if "[PASS]" in reason_safe:
+                    logger.info(reason_safe)
+                elif "[FAIL]" in reason_safe:
+                    logger.error(reason_safe)
                 else:
-                    logger.info(reason)
+                    logger.info(reason_safe)
             
             logger.info("=" * 80)
             

@@ -77,10 +77,40 @@ AC-E (Threshold Sweep 실제 적용):
   AC-E2: 리포트 "best threshold" 일치 ✅
 ```
 
-## D92-7: 장시간 PAPER 성능 검증 (PENDING)
+## D92-7: REAL PAPER 1h 재검증 (FAIL - Zero Trades)
+- **Status**: ❌ FAIL
+- **Completion Date**: 2025-12-14
+- **Objective**: D92-6 이후 Exit 분포/PnL/비용 개선 여부 수치 확정
+- **Result**: Zero Trades (환경 문제로 검증 불가능)
+
+### D92-7 실행 결과
+```
+Duration: 10.02 minutes
+Total Trades: 0
+Round Trips: 0
+Exit Reasons: N/A (거래 없음)
+Total PnL: $0.00
+```
+
+### FAIL 원인
+- Root Cause: 실시장 API 키 미설정 (UPBIT_ACCESS_KEY, BINANCE_API_KEY not set)
+- data-source=real이지만 실제 데이터 접근 실패
+- D92-5도 동일 증상 (Zero Trades)
+
+### AC 판정
+- AC-A (Exit 정상화): ❌ N/A (거래 0건)
+- AC-B (PnL/비용 계측): ❌ N/A (거래 0건)
+- AC-C (Kill-switch): ❌ N/A (거래 0건)
+
+### 다음 단계
+1. API 키 설정 후 재실행 (D92-7-2)
+2. 또는 Mock 데이터로 Exit 로직 검증 (D92-7-mock)
+3. Entry Threshold 조정 검토
+
+## D92-7-2: REAL PAPER 재검증 with API Keys (PENDING)
 - **Status**: ⏳ PENDING
-- **Objective**: D92-6 수정사항 기반 1시간 이상 PAPER 실행
-- **Dependencies**: D92-6 완료
+- **Objective**: D92-7 FAIL 원인 해결 후 재실행
+- **Dependencies**: API 키 설정 또는 Mock 데이터 준비
 
 ---
 
