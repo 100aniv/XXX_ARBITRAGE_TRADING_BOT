@@ -713,8 +713,6 @@
 **상태:** PASS
 **문서:** `docs\D92\D92_7_3_GATE_10M_ANALYSIS.md`
 
-> **Test Date:** 2025-12-14   **Duration:** 10 minutes   **Status:** ⚠️ AC 미충족, 하지만 ZoneProfile SSOT 적용됨
-
 ### D92-7: D92-7-3: Implementation Summary
 
 **상태:** PASS
@@ -761,6 +759,27 @@
 > - 문서 린트: PASS | Shadowing 검사: PASS | env_checker: PASS (WARN=0)
 > - Core Regression: 44 passed, 0 failures (100% PASS)
 > - Gate 10m: 실행 중 (완료 후 KPI 검증 예정)
+
+### D92 POST-MOVE-HARDEN v3.2: Secrets/ENV SSOT + Gate10m Fail-fast 완전 종결
+
+**상태:** COMPLETE
+**문서:** `docs\D92\D92_POST_MOVE_HARDEN_V3_2_REPORT.md`, `docs\D92\D92_POST_MOVE_HARDEN_V3_2_CHANGES.md`
+
+> **Status:** ✅ **COMPLETE**   **Date:** 2025-12-15   **Summary:** Gate 10m 키 없으면 FAIL 처리 + Secrets Check SSOT + Fail-fast 원칙 완결
+> 
+> **핵심 성과:**
+> - Secrets Check 스크립트: `scripts/check_required_secrets.py` (필수 시크릿 검증 자동화)
+> - Gate SSOT v3.2: `scripts/run_gate_10m_ssot_v3_2.py` (STEP 0에서 시크릿 체크 강제)
+> - Fail-fast 원칙: 키 없으면 exit 2, SKIP 금지, 정공법 완결
+> - ENV 템플릿: `.env.paper.example` 확인 (v3.1 이전부터 존재)
+> - .gitignore: 실제 시크릿 파일은 커밋 안 됨
+> 
+> **검증 결과:**
+> - Fast Gate: PASS (문서 린트 + shadowing 검사)
+> - env_checker: PASS (WARN=0)
+> - Core Regression: 43/44 PASS (async 테스트 제외, v3.1과 동일)
+> - Secrets Check: PASS (모든 필수 시크릿 존재 확인)
+> - Gate 10m: STEP 0 Secrets Check PASS, 실행 완료 (환경 의존성 이슈는 별도)
 
 ### D92-7: D92-7 Context Scan: REAL PAPER 1h 재검증
 

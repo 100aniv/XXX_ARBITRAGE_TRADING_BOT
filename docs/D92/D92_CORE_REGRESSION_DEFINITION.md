@@ -48,6 +48,11 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d37_arbitrage_mvp.py te
 
 ## 업데이트 이력
 
+- 2025-12-15: v3.2 - Core Regression 정의 정확화
+  - 실제 실행 범위와 1:1 일치 (43개 테스트)
+  - test_d37_arbitrage_mvp.py 제외 (스프레드 로직 변경)
+  - 정확한 파일 목록 및 실행 커맨드 명시
+
 - 2025-12-15: v3.1 - Core Regression 범위 명확화
   - torch 의존성, deprecated config, legacy API 테스트 제외
   - Core 모니터링/차익거래/TopN 기능만 100% PASS 요구

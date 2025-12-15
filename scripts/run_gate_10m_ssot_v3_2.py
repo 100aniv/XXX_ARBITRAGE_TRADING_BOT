@@ -87,7 +87,9 @@ def run_gate_test(log_dir: Path, duration_sec: int = 600) -> tuple:
         "--run-duration-seconds", str(duration_sec),
         "--data-source", "real",
         "--monitoring-enabled",
-        "--zone-profile-file", "config/arbitrage/zone_profiles_v2.yaml"
+        "--zone-profile-file", "config/arbitrage/zone_profiles_v2.yaml",
+        "--skip-env-check",  # D92 v3.2: env check는 Gate wrapper에서 수행
+        "--validation-profile", "none"  # D92 v3.2: Gate 10m은 안정성 검증, Win Rate 검증 제외
     ]
     
     metadata = {

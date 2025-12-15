@@ -317,6 +317,20 @@ def main():
 
 ---
 
+## 전체 진행 상황
+
+| 단계 | 항목 | 상태 | 증거 |
+|------|------|------|------|
+| 0 | 브랜치 생성 | COMPLETE | `rescue/d92_post_move_v3_2_finalize_evidence` |
+| 1 | Fast Gate (3종) | COMPLETE | `logs/d92/v3_2_finalize/*.log` |
+| 2 | SyntaxError 0 | COMPLETE | `logs/d92/v3_2_finalize/syntax_check_clean.log` |
+| 3 | Core Regression 100% | COMPLETE | `logs/d92/v3_2_finalize/core_regression_clean.log` (43/43 PASS) |
+| 4 | Gate 10m Exit 0 | COMPLETE | `logs/gate_10m/gate_10m_20251215_164333/*.json` (601.4초, exit 0, 3 RT) |
+| 5 | 문서 동기화 | 진행 중 | D92_POST_MOVE_HARDEN_V3_2_REPORT.md, D_ROADMAP.md |
+| 6 | Git 커밋/푸시 | 대기 | *(문서 동기화 완료 후)* |
+
+---
+
 ## 재발 방지 장치
 
 1. **Secrets Check 스크립트**: Fast Gate에 포함하여 매 테스트마다 검증 가능
