@@ -85,7 +85,7 @@ def run_gate_10m(run_id: int, base_log_dir: Path) -> Tuple[int, Path, Path]:
 
 def compare_kpi_json(kpi1_path: Path, kpi2_path: Path) -> Dict[str, Any]:
     """
-    두 KPI JSON 비교
+    두 KPI JSON 비교 (재현성 검증)
     
     Args:
         kpi1_path: Run 1 KPI JSON 경로
@@ -102,8 +102,16 @@ def compare_kpi_json(kpi1_path: Path, kpi2_path: Path) -> Dict[str, Any]:
             "kpi2_exists": kpi2_path.exists()
         }
     
-    kpi1 = json.loads(kpi1_path.read_text(encoding="utf-8"))
-    kpi2 = json.loads(kpi2_path.read_text(encoding="utf-8"))
+    try:
+        kpi1 = json.loads(kpi1_path.read_text(encoding="utf-8"))
+        kpi2 = json.loads(kpi2_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {
+            "status": "FAIL",
+            "reason": f"KPI JSON 파싱 오류: {e}",
+            "kpi1_exists": kpi1_path.exists(),
+            "kpi2_exists": kpi2_path.exists()
+        }
     
     # 필드 일치 검증
     kpi1_keys = set(kpi1.keys())
@@ -117,29 +125,83 @@ def compare_kpi_json(kpi1_path: Path, kpi2_path: Path) -> Dict[str, Any]:
             "only_in_run2": list(kpi2_keys - kpi1_keys)
         }
     
-    # 수치 비교 (허용 오차 있음)
-    differences = {}
+    # 재현성 검증 핵심 필드
+    critical_fields = {
+        "exit_code": {"type": "exact", "tolerance": 0},
+        "actual_duration_sec": {"type": "range", "tolerance": 10},  # ±10초 허용
+    }
+    
+    # 변동 허용 필드
+    variable_fields = {
+        "pnl_usd": {"type": "range", "tolerance": 5.0},  # ±5 USD 허용 (시장 변동)
+        "round_trips_count": {"type": "range", "tolerance": 2},  # ±2 RT 허용
+    }
+    
+    critical_differences = {}
+    variable_differences = {}
+    other_differences = {}
+    
     for key in kpi1_keys:
         val1 = kpi1[key]
         val2 = kpi2[key]
         
-        # 수치형 필드는 허용 오차 범위 내 검증
-        if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
-            if abs(val1 - val2) > 1e-6:  # 부동소수점 오차 허용
-                differences[key] = {"run1": val1, "run2": val2}
-        elif val1 != val2:
-            differences[key] = {"run1": val1, "run2": val2}
+        # 중첩 객체는 문자열 비교
+        if isinstance(val1, (dict, list)) or isinstance(val2, (dict, list)):
+            if json.dumps(val1, sort_keys=True) != json.dumps(val2, sort_keys=True):
+                other_differences[key] = {"run1": val1, "run2": val2}
+            continue
+        
+        # Critical 필드 검증
+        if key in critical_fields:
+            check = critical_fields[key]
+            if check["type"] == "exact":
+                if val1 != val2:
+                    critical_differences[key] = {"run1": val1, "run2": val2, "tolerance": check["tolerance"]}
+            elif check["type"] == "range":
+                if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                    if abs(val1 - val2) > check["tolerance"]:
+                        critical_differences[key] = {"run1": val1, "run2": val2, "tolerance": check["tolerance"], "diff": abs(val1 - val2)}
+        
+        # Variable 필드 검증
+        elif key in variable_fields:
+            check = variable_fields[key]
+            if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                if abs(val1 - val2) > check["tolerance"]:
+                    variable_differences[key] = {"run1": val1, "run2": val2, "tolerance": check["tolerance"], "diff": abs(val1 - val2)}
+        
+        # 기타 필드
+        else:
+            if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                if abs(val1 - val2) > 1e-6:  # 부동소수점 오차
+                    other_differences[key] = {"run1": val1, "run2": val2}
+            elif val1 != val2:
+                other_differences[key] = {"run1": val1, "run2": val2}
     
-    if differences:
+    # 재현성 판정
+    if critical_differences:
+        return {
+            "status": "FAIL",
+            "reason": "Critical 필드 재현성 실패",
+            "critical_differences": critical_differences,
+            "variable_differences": variable_differences,
+            "other_differences": other_differences
+        }
+    
+    if variable_differences or other_differences:
         return {
             "status": "PARTIAL",
-            "reason": "일부 필드 값 차이 (허용 가능)",
-            "differences": differences
+            "reason": "일부 필드 변동 (허용 가능)",
+            "critical_differences": critical_differences,
+            "variable_differences": variable_differences,
+            "other_differences": other_differences
         }
     
     return {
         "status": "PASS",
-        "reason": "완전 일치"
+        "reason": "완전 재현성 확인",
+        "critical_differences": {},
+        "variable_differences": {},
+        "other_differences": {}
     }
 
 

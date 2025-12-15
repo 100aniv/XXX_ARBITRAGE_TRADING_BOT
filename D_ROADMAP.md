@@ -839,9 +839,82 @@
 
 ---
 
+## D93
+
+### D93: ROADMAP 동기화 완결 + Gate 재현성 100% 검증
+
+**상태:** IN PROGRESS
+**문서:** `docs\D93\D93_0_OBJECTIVE.md`, `docs\D93\D93_1_REPRODUCIBILITY_REPORT.md`
+
+#### TOBE (목표/AC)
+
+**목적 (Purpose)**:
+- ROADMAP을 단일 SSOT(D_ROADMAP.md)로 통합하여 문서 드리프트 영구 차단
+- Gate 10m 재현성 100% 검증 (동일 조건 2회 실행 시 결과 일관성 보장)
+- D92 문서 정리 완결
+
+**완료 기준 (Done Criteria)**:
+- [ ] TOBE_ROADMAP.md → DEPRECATED 처리 (D_ROADMAP.md 유일 SSOT 명시)
+- [ ] check_roadmap_sync.py → 단일 SSOT 검증으로 업데이트 (중복/순서/누락 검사)
+- [ ] D_ROADMAP.md 구조 재정렬 (TOBE/AS-IS 통합)
+- [ ] Gate 10m 2회 실행 자동화 (run_d93_gate_reproducibility.py)
+- [ ] KPI JSON 자동 비교 및 재현성 판정
+- [ ] Fast Gate 5종 전부 PASS (roadmap_sync 포함)
+- [ ] Core Regression 43/44 PASS
+- [ ] D93 재현성 보고서 작성
+
+#### AS-IS (상태/증거)
+
+**현재 상태**: 🚀 IN PROGRESS (2025-12-16)
+
+**완료된 항목**:
+- [x] TOBE_ROADMAP.md DEPRECATED 처리 완료
+- [x] check_roadmap_sync.py v2.0 단일 SSOT 검증으로 업데이트
+- [x] D_ROADMAP.md D93 섹션 추가 (본 섹션)
+
+**진행 중**:
+- [ ] run_d93_gate_reproducibility.py 완전 자동화 구현
+- [ ] Gate 10m 2회 실행 및 KPI 비교
+- [ ] Fast Gate 5종 실행
+- [ ] D93_1_REPRODUCIBILITY_REPORT.md 작성
+
+**증거 (Evidence)**:
+- 설계 문서: `docs/D93/D93_0_OBJECTIVE.md`
+- Runner SSOT: `scripts/run_d93_gate_reproducibility.py`
+- 검증 로그: `logs/d93/` (실행 후 생성 예정)
+- 최종 보고서: `docs/D93/D93_1_REPRODUCIBILITY_REPORT.md` (작성 예정)
+
+**다음 단계**:
+- Gate 10m 재현성 Runner 완전 자동화
+- Fast Gate 5종 + Core Regression 전부 PASS
+- 재현성 검증 보고서 작성
+
+---
+
 ## SSOT 규칙
 
 **ROADMAP SSOT는 루트 /D_ROADMAP.md 단 하나. docs 아래 금지.**
+
+**TOBE_ROADMAP.md는 DEPRECATED (2025-12-16)**:
+- 두 개의 ROADMAP 파일 유지는 필연적으로 드리프트 발생
+- 단일 SSOT 원칙에 따라 D_ROADMAP.md만 사용
+- TOBE_ROADMAP.md는 DEPRECATED 표시 후 유지 (Git 히스토리 보존)
+
+**D 단계 구조 (TOBE/AS-IS 통합)**:
+```markdown
+## DXX: [단계명]
+
+### TOBE (목표/AC)
+- 목적 (Purpose)
+- 완료 기준 (Done Criteria)
+
+### AS-IS (상태/증거)
+- 현재 상태 (Status)
+- 완료된 항목
+- 진행 중
+- 증거 파일 경로 (Evidence)
+- 다음 단계
+```
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

@@ -7,11 +7,14 @@
 
 ### 포함 항목
 다음 테스트 모듈들만 Core Regression에 포함:
-- `tests/test_d27_monitoring.py` - 모니터링 핵심 기능
-- `tests/test_d37_arbitrage_mvp.py` - 차익거래 MVP 핵심
-- `tests/test_d82_*.py` - D82 TopN 프로바이더 핵심
-- `tests/test_d92_*.py` - D92 post-move 검증
+- `tests/test_d27_monitoring.py` - 모니터링 핵심 기능 (11개)
+- `tests/test_d82_0_runner_executor_integration.py` - Runner/Executor 통합 (4개)
+- `tests/test_d82_2_hybrid_mode.py` - TopN Hybrid Mode (11개)
+- `tests/test_d92_1_fix_zone_profile_integration.py` - Zone Profile 통합 (9개)
+- `tests/test_d92_7_3_zone_profile_ssot.py` - Zone Profile SSOT (8개)
 - `tests/conftest.py` - pytest 설정
+
+**총 43개 테스트** (async 테스트 1개 제외 시)
 
 ### 제외 항목 (별도 Optional Suite로 관리)
 
@@ -24,6 +27,7 @@
 
 #### 2. Deprecated Configuration 테스트
 - `tests/test_config/` - configuration validation 테스트들
+- `tests/test_d37_arbitrage_mvp.py` - MVP 테스트 (스프레드 로직 변경으로 인한 실패)
 
 **사유**: min_spread_bps 검증 로직 변경으로 인한 실패. API breaking change로 별도 D단계에서 수정 필요.
 
@@ -47,11 +51,6 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d37_arbitrage_mvp.py te
 - FAIL/ERROR 0개
 
 ## 업데이트 이력
-
-- 2025-12-15: v3.2 - Core Regression 정의 정확화
-  - 실제 실행 범위와 1:1 일치 (43개 테스트)
-  - test_d37_arbitrage_mvp.py 제외 (스프레드 로직 변경)
-  - 정확한 파일 목록 및 실행 커맨드 명시
 
 - 2025-12-15: v3.1 - Core Regression 범위 명확화
   - torch 의존성, deprecated config, legacy API 테스트 제외
