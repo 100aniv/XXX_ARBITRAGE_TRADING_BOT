@@ -12,6 +12,21 @@ from arbitrage.monitoring.cross_exchange_metrics import (
     CrossExecutionResult,
 )
 
+try:
+    from arbitrage.monitoring.status_monitors import (
+        LiveStatusMonitor,
+        TuningStatusMonitor,
+        LiveStatusSnapshot,
+        TuningStatusSnapshot
+    )
+    _has_status_monitors = True
+except ImportError:
+    _has_status_monitors = False
+    LiveStatusMonitor = None
+    TuningStatusMonitor = None
+    LiveStatusSnapshot = None
+    TuningStatusSnapshot = None
+
 __all__ = [
     "MetricsCollector",
     "CrossExchangeMetrics",
@@ -19,3 +34,11 @@ __all__ = [
     "CrossExchangePnLSnapshot",
     "CrossExecutionResult",
 ]
+
+if _has_status_monitors:
+    __all__.extend([
+        "LiveStatusMonitor",
+        "TuningStatusMonitor",
+        "LiveStatusSnapshot",
+        "TuningStatusSnapshot"
+    ])
