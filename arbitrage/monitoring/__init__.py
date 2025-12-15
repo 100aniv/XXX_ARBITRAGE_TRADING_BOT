@@ -17,7 +17,8 @@ try:
         LiveStatusMonitor,
         TuningStatusMonitor,
         LiveStatusSnapshot,
-        TuningStatusSnapshot
+        TuningStatusSnapshot,
+        StateManager
     )
     _has_status_monitors = True
 except ImportError:
@@ -26,6 +27,7 @@ except ImportError:
     TuningStatusMonitor = None
     LiveStatusSnapshot = None
     TuningStatusSnapshot = None
+    StateManager = None
 
 __all__ = [
     "MetricsCollector",
@@ -40,5 +42,6 @@ if _has_status_monitors:
         "LiveStatusMonitor",
         "TuningStatusMonitor",
         "LiveStatusSnapshot",
-        "TuningStatusSnapshot"
+        "TuningStatusSnapshot",
+        "StateManager"
     ])

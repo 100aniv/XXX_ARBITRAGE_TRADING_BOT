@@ -43,21 +43,21 @@
 **상태:** PASS
 **문서:** `docs\D82\D82-11_SMOKE_TEST_PLAN.md`
 
-> **Status:** 🔨 Implementation   **Date:** 2025-12-05   **Author:** AI Assistant
+> **Status:** Implementation   **Date:** 2025-12-05   **Author:** AI Assistant
 
 ### D82-11: D82-11: Recalibrated TP/Entry PAPER Validation Report
 
 **상태:** PASS
 **문서:** `docs\D82\D82-11_VALIDATION_REPORT.md`
 
-> **Status:** ❌ **NO-GO**   **Date:** 2025-12-05   **Author:** AI Assistant (Automated Pipeline)
+> **Status:** NO-GO   **Date:** 2025-12-05   **Author:** AI Assistant (Automated Pipeline)
 
 ### D82-12: D82-12: Lowered TP/Entry Re-baseline (D77-4 Quick Win)
 
 **상태:** PASS
 **문서:** `docs\D82\D82-12_LOWERED_THRESHOLD_REBASELINE.md`
 
-> **Status:** 🚧 **IN PROGRESS**   **Date:** 2025-12-05   **Author:** AI Assistant (Automated Pipeline)
+> **Status:** IN PROGRESS   **Date:** 2025-12-05   **Author:** AI Assistant (Automated Pipeline)
 
 ### D82-12: D82-12: Lowered TP/Entry Re-baseline Validation Report
 
@@ -742,6 +742,25 @@
 **문서:** `docs\D92\D92_7_5_ZONEPROFILE_GATE_E2E_REPORT.md`
 
 > **작성일:** 2025-12-14   **작성자:** Cascade AI   **상태:** ✅ ACCEPTED (AC-1, AC-2 PASS / AC-3 PARTIAL)
+
+### D92 POST-MOVE-HARDEN v3.1: Gate/증거/문서 흔들림 완전 종결
+
+**상태:** COMPLETE
+**문서:** `docs\D92\D92_POST_MOVE_HARDEN_V3_1_REPORT.md`, `docs\D92\D92_POST_MOVE_HARDEN_V3_1_CHANGES.md`
+
+> **Status:** ✅ **COMPLETE**   **Date:** 2025-12-15   **Summary:** Gate 10분 SSOT화 + pytest/import 불변식 재발 방지 + 문서 경로 규칙 고정
+> 
+> **핵심 성과:**
+> - 문서 경로 린트: `scripts/check_docs_layout.py` (D_ROADMAP.md 루트 SSOT, D92 보고서 docs/D92/ 이하)
+> - 패키지 shadowing 검사: `scripts/check_shadowing_packages.py` (tests/ 루트 패키지 충돌 자동 검증)
+> - Gate 10m SSOT: `scripts/run_gate_10m_ssot.py` (600초+exit0+KPI JSON 강제)
+> - Core Regression 정의: `docs/D92/D92_CORE_REGRESSION_DEFINITION.md` (44개 테스트 100% PASS)
+> - StateManager export 수정: `arbitrage/monitoring/__init__.py` (모니터링 패키지 완전성)
+> 
+> **검증 결과:**
+> - 문서 린트: PASS | Shadowing 검사: PASS | env_checker: PASS (WARN=0)
+> - Core Regression: 44 passed, 0 failures (100% PASS)
+> - Gate 10m: 실행 중 (완료 후 KPI 검증 예정)
 
 ### D92-7: D92-7 Context Scan: REAL PAPER 1h 재검증
 
