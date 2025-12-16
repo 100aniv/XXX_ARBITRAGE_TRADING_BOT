@@ -1,0 +1,200 @@
+﻿2025-12-16 14:28:47,646 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:49,171 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:28:49,171 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:50,694 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:28:50,694 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:52,215 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:28:52,216 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:53,729 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:28:53,730 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:55,253 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.55 bps
+2025-12-16 14:28:55,253 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:56,768 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:28:56,768 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:58,293 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:28:58,294 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:28:59,816 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:28:59,816 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:01,340 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:29:01,340 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:02,858 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:29:02,859 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:04,377 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:29:04,377 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:05,901 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:29:05,901 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:07,420 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:07,420 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:08,932 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.78 bps
+2025-12-16 14:29:08,933 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:10,457 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.78 bps
+2025-12-16 14:29:10,458 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:10,458 [__main__] INFO: [D77-0] Iteration 2200: Round trips=7, PnL=$-0.31, Latency=15.3ms
+2025-12-16 14:29:11,974 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=3.83 bps
+2025-12-16 14:29:11,974 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:13,500 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:13,500 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:15,030 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:15,030 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:16,556 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:16,556 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:18,074 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:18,075 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:19,595 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.08 bps
+2025-12-16 14:29:19,595 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:21,116 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.41 bps
+2025-12-16 14:29:21,116 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:22,632 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:29:22,632 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:24,144 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=5.47 bps
+2025-12-16 14:29:24,144 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:29:24,144 [__main__] INFO: [D92-7-5] Order Size Calculation for BTC/KRW:
+2025-12-16 14:29:24,144 [__main__] INFO:   max_notional_usd: 1000.00
+2025-12-16 14:29:24,144 [__main__] INFO:   entry_price_usd: 127900000.00
+2025-12-16 14:29:24,145 [__main__] INFO:   order_quantity: 0.00000782
+2025-12-16 14:29:24,145 [__main__] INFO:   computed_notional_usd: 1000.00
+2025-12-16 14:29:24,145 [arbitrage.execution.executor] INFO: [D80-4_FILL_MODEL] Trade executed for BTC/KRW: order_qty=0.0000, filled_qty=0.0000, buy_price=127900000.00??27927315.78 (slippage=2.14bps), sell_price=127970000.00??27942672.18 (slippage=2.14bps), pnl=0.03, status=partial
+2025-12-16 14:29:24,146 [__main__] INFO: [D82-1] Entry: BTC/KRW @ spread=5.47 bps
+2025-12-16 14:31:42,647 [__main__] INFO: [D77-0] Iteration 2300: Round trips=7, PnL=$-0.31, Latency=12.1ms
+2025-12-16 14:32:25,268 [arbitrage.execution.executor] INFO: [D80-4_FILL_MODEL] Trade executed for BTC/KRW: order_qty=0.0000, filled_qty=0.0000, buy_price=128050000.00??28077347.82 (slippage=2.14bps), sell_price=128037000.00??28009657.87 (slippage=2.14bps), pnl=-0.04, status=partial
+2025-12-16 14:32:25,268 [__main__] INFO: [D82-1] Exit: BTC/KRW @ spread=1.02 bps, reason=TIME_LIMIT
+2025-12-16 14:32:26,789 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:26,789 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:28,309 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.94 bps
+2025-12-16 14:32:28,309 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:29,829 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.94 bps
+2025-12-16 14:32:29,829 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:31,355 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.94 bps
+2025-12-16 14:32:31,355 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:32,875 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.94 bps
+2025-12-16 14:32:32,875 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:34,393 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:34,394 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:35,913 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.94 bps
+2025-12-16 14:32:35,913 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:37,437 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:37,437 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:38,958 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:38,958 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:40,469 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:40,469 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:41,995 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:41,995 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:43,518 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.02 bps
+2025-12-16 14:32:43,518 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:45,036 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.31 bps
+2025-12-16 14:32:45,036 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:46,567 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.78 bps
+2025-12-16 14:32:46,567 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:48,087 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:32:48,087 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:49,603 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:32:49,604 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:51,129 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:32:51,129 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:52,643 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:32:52,644 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:54,163 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.70 bps
+2025-12-16 14:32:54,163 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:55,687 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:32:55,687 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:57,199 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:32:57,200 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:32:58,721 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:32:58,721 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:00,239 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:00,240 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:01,755 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:01,755 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:03,272 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:03,272 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:04,796 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.55 bps
+2025-12-16 14:33:04,796 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:06,328 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.55 bps
+2025-12-16 14:33:06,328 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:07,854 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.55 bps
+2025-12-16 14:33:07,855 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:09,368 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.55 bps
+2025-12-16 14:33:09,369 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:10,892 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=0.47 bps
+2025-12-16 14:33:10,893 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:12,416 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:33:12,417 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:13,946 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:13,946 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:15,478 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:15,478 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:17,006 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:17,006 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:18,528 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:18,529 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:20,052 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:20,052 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:21,566 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.33 bps
+2025-12-16 14:33:21,566 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:23,096 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:33:23,096 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:24,623 [__main__] INFO: [DEBUG] Checking entry for BTC/KRW: spread=1.25 bps
+2025-12-16 14:33:24,623 [__main__] INFO: [ZONE_THRESHOLD] BTC/KRW (BTC): 4.50 bps (Zone Profile)
+2025-12-16 14:33:26,134 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,134 [__main__] INFO: [D92-3] EXECUTION END TIMESTAMP: 2025-12-16 14:33:26
+2025-12-16 14:33:26,134 [__main__] INFO: [D92-3] ACTUAL DURATION: 60.02 minutes (3601.4 seconds)
+2025-12-16 14:33:26,135 [__main__] INFO: [D92-3] CONFIGURED DURATION: 60.0 minutes
+2025-12-16 14:33:26,135 [__main__] INFO: [D92-3] COMPLETION RATE: 100.0%
+2025-12-16 14:33:26,135 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,135 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,135 [__main__] INFO: [D92-2-TELEMETRY] Spread Distribution Report
+2025-12-16 14:33:26,136 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,136 [__main__] INFO:   BTC/KRW: p50=  0.23, p90=  2.66, p95=  3.13, max=  9.15, threshold=  4.50, ge_rate= 0.6% (8/1416)
+2025-12-16 14:33:26,136 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,136 [__main__] INFO: [D92-2-TELEMETRY] Global: total_checks=1416, ge_rate=0.6%
+2025-12-16 14:33:26,136 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,137 [__main__] INFO: [D82-1] Fill Model KPI aggregated from TradeLogger: avg_buy_slippage=2.14 bps, avg_sell_slippage=2.14 bps, partial_fills=8
+2025-12-16 14:33:26,137 [__main__] INFO: [D77-0] PAPER run completed
+2025-12-16 14:33:26,137 [__main__] INFO: 
+2025-12-16 14:33:26,138 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,138 [__main__] INFO: [D77-0] PAPER Run Summary
+2025-12-16 14:33:26,138 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,138 [__main__] INFO: Session ID: d77-0-top20-20251216_133324
+2025-12-16 14:33:26,138 [__main__] INFO: Universe: TOP_20
+2025-12-16 14:33:26,139 [__main__] INFO: Duration: 60.0 minutes (actual elapsed)
+2025-12-16 14:33:26,139 [__main__] INFO: 
+2025-12-16 14:33:26,139 [__main__] INFO: Trades:
+2025-12-16 14:33:26,139 [__main__] INFO:   Total Trades: 16
+2025-12-16 14:33:26,139 [__main__] INFO:   Entry Trades: 8
+2025-12-16 14:33:26,139 [__main__] INFO:   Exit Trades: 8
+2025-12-16 14:33:26,140 [__main__] INFO:   Round Trips: 8
+2025-12-16 14:33:26,140 [__main__] INFO: 
+2025-12-16 14:33:26,140 [__main__] INFO: PnL:
+2025-12-16 14:33:26,140 [__main__] INFO:   Total PnL (USD): $-0.35
+2025-12-16 14:33:26,140 [__main__] INFO:   Total PnL (KRW): -449 KRW
+2025-12-16 14:33:26,140 [__main__] INFO:   Wins: 0
+2025-12-16 14:33:26,141 [__main__] INFO:   Losses: 8
+2025-12-16 14:33:26,141 [__main__] INFO:   Win Rate: 0.0%
+2025-12-16 14:33:26,141 [__main__] INFO: 
+2025-12-16 14:33:26,141 [__main__] INFO: Exit Reasons:
+2025-12-16 14:33:26,141 [__main__] INFO:   take_profit: 0
+2025-12-16 14:33:26,141 [__main__] INFO:   stop_loss: 0
+2025-12-16 14:33:26,142 [__main__] INFO:   time_limit: 8
+2025-12-16 14:33:26,142 [__main__] INFO:   spread_reversal: 0
+2025-12-16 14:33:26,142 [__main__] INFO: 
+2025-12-16 14:33:26,142 [__main__] INFO: Performance:
+2025-12-16 14:33:26,142 [__main__] INFO:   Loop Latency (avg): 13.8ms
+2025-12-16 14:33:26,142 [__main__] INFO:   Loop Latency (p99): 21.4ms
+2025-12-16 14:33:26,143 [__main__] INFO:   Memory Usage: 150.0MB
+2025-12-16 14:33:26,143 [__main__] INFO:   CPU Usage: 35.0%
+2025-12-16 14:33:26,143 [__main__] INFO: 
+2025-12-16 14:33:26,143 [__main__] INFO: Fill Model (D82-0):
+2025-12-16 14:33:26,143 [__main__] INFO:   Partial Fills: 8
+2025-12-16 14:33:26,144 [__main__] INFO:   Failed Fills: 0
+2025-12-16 14:33:26,144 [__main__] INFO:   Avg Buy Slippage: 2.14 bps
+2025-12-16 14:33:26,144 [__main__] INFO:   Avg Sell Slippage: 2.14 bps
+2025-12-16 14:33:26,144 [__main__] INFO:   Avg Buy Fill Ratio: 26.15%
+2025-12-16 14:33:26,144 [__main__] INFO:   Avg Sell Fill Ratio: 100.00%
+2025-12-16 14:33:26,144 [__main__] INFO: ================================================================================
+2025-12-16 14:33:26,145 [__main__] INFO: 
+2025-12-16 14:33:26,145 [__main__] INFO: [D82-0] TradeLogger file: logs\d77-0\d77-0-top20-20251216_133324\trades\d77-0-top20-20251216_133324\top20_trade_log.jsonl
+2025-12-16 14:33:26,145 [__main__] INFO: [D82-0] Check trade_log.jsonl for detailed slippage/fill_ratio data
+2025-12-16 14:33:26,146 [__main__] INFO: [D92-2] Telemetry report saved: logs\d92-2\d77-0-top20-20251216_133324\d92_2_spread_report.json
+2025-12-16 14:33:26,147 [__main__] INFO: [D77-0] Metrics saved to: logs\d77-0\d77-0-top20-20251216_133324\d77-0-top20-20251216_133324_kpi_summary.json
+2025-12-16 14:33:26,147 [__main__] INFO: [Validation] Profile: none (validation skipped)

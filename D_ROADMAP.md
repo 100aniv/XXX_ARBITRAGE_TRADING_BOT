@@ -900,26 +900,56 @@ python scripts/run_d93_gate_reproducibility.py
 
 ---
 
-## SSOT 규칙
+## D94: 1h+ Long-run PAPER 안정성 Gate
 
-**ROADMAP SSOT는 루트 /D_ROADMAP.md 단 하나. docs 아래 금지.**
+**Status**: ✅ **COMPLETED** (2025-12-16 14:33 KST)
 
-**TOBE_ROADMAP.md는 DEPRECATED (2025-12-16)**:
-- 두 개의 ROADMAP 파일 유지는 필연적으로 드리프트 발생
-- 단일 SSOT 원칙에 따라 D_ROADMAP.md만 사용
-- TOBE_ROADMAP.md는 DEPRECATED 표시 후 유지 (Git 히스토리 보존)
+**Objective**: 1시간 이상 PAPER 모드 안정성 검증 및 재현 가능한 증거 생성
 
-**D 단계 구조 (TOBE/AS-IS 통합)**:
-```markdown
-## DXX: [단계명]
+**AS-IS (Before D94)**:
+- Gate 10m 테스트만 존재 (D92 SSOT)
+- Long-run 안정성 검증 없음
+- Smoke/Baseline 계단식 실행 패턴 없음
 
-### TOBE (목표/AC)
-- 목적 (Purpose)
-- 완료 기준 (Done Criteria)
+**TOBE (After D94)**:
+- ✅ 1h+ PAPER 안정성 검증 완료
+- ✅ Evidence 3종 생성 (KPI, decision, log tail)
+- ✅ 상용급 판정 로직 (Critical/Semi-Critical/Variable)
+- ✅ Git 커밋 가능한 재현성 확보
 
-### AS-IS (상태/증거)
-- 현재 상태 (Status)
-- 완료된 항목
+**Deliverables**:
+1. ✅ Runner Script: `scripts/run_d94_longrun_paper_gate.py` (작성 완료, subprocess 이슈로 direct execution 사용)
+2. ✅ Evidence: `docs/D94/evidence/` (3 files - KPI JSON, decision JSON, log tail)
+3. ✅ Report: `docs/D94/D94_1_LONGRUN_PAPER_REPORT.md`
+4. ✅ Objective: `docs/D94/D94_0_OBJECTIVE.md`
+
+**Acceptance Criteria**:
+- ✅ Baseline 1h+ PAPER 실행 성공 (exit_code=0, duration=60.02min)
+- ✅ Round trips = 8 (>= 1 요구사항 충족)
+- ✅ ERROR count = 0
+- ✅ Evidence 파일 3종 생성 완료
+- ✅ Git 커밋 + raw URLs 제공
+
+**Dependencies**:
+- D92 (Gate 10m SSOT)
+- D93 (재현성 검증 패턴)
+
+**Risks (Resolved)**:
+- ~~시장 조건에 따라 round trips 발생하지 않을 수 있음~~ → 실제 RT=8 발생 ✅
+- ~~subprocess 실행 문제~~ → Direct execution으로 회피 ✅
+
+**Execution Log**:
+- 2025-12-16 08:00-13:00: D94 준비 (Fast Gate 5/5 PASS, Core Regression 44/44 PASS)
+- 2025-12-16 13:33-14:33: 1h Baseline 실행 성공 (RT=8, PnL=$-0.35, exit_code=0)
+- 2025-12-16 14:33: Evidence 생성 완료, 문서 동기화
+
+**Result**: **PASS_WITH_WARNINGS** - 안정성 검증 완료, Round trips 발생 확인
+
+**완료된 항목**:
+- 브랜치 생성 및 git clean 확인
+- 루트 스캔 수행 (재사용 설계 확정)
+- D94 섹션 추가
+- D_ROADMAP.md D94 섹션 추가
 - 진행 중
 - 증거 파일 경로 (Evidence)
 - 다음 단계
