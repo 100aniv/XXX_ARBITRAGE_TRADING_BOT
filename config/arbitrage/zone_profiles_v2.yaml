@@ -67,19 +67,19 @@ symbol_mappings:
     default_profiles:
       strict: strict_uniform
       advisory: advisory_z2_focus
-    threshold_bps: 1.5
+    threshold_bps: 8.0
     zone_boundaries:
-    - - 2.0
-      - 4.5
-    - - 4.5
-      - 6.3
-    - - 6.3
-      - 10.0
-    - - 10.0
+    - - 8.0
+      - 12.0
+    - - 12.0
+      - 16.0
+    - - 16.0
       - 20.0
+    - - 20.0
+      - 30.0
     liquidity_tier: tier1
     spread_characteristics: tight
-    notes: D95 Performance Gate - threshold=1.5 bps (D94 4.5bps에서 하향, 거래 발생 목표)
+    notes: D95-2 Performance Gate - threshold=8.0 bps (비용 커버를 위해 상향)
   ETH:
     market: upbit
     type: spot

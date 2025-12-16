@@ -388,6 +388,9 @@ class D77PAPERRunner:
         
         # D92-2: Telemetry - spread 분포/ge_rate 수치화
         self.spread_telemetry: Dict[str, Dict[str, Any]] = {}  # symbol → telemetry data
+        
+        # D95-2: Entry PnL 추적 (round trip PnL = entry_pnl + exit_pnl)
+        self.entry_pnls: Dict[int, float] = {}  # position_id → entry_pnl
         logger.info(f"[D82-0] Settings loaded: fill_model_enabled={self.settings.fill_model.enable_fill_model}")
         
         # D82-0: ExecutorFactory + PaperExecutor 초기화
@@ -868,6 +871,9 @@ class D77PAPERRunner:
                         if self.monitoring_enabled:
                             record_trade("entry")
                         
+                        # D95-2: Entry PnL 저장 (round trip 계산용)
+                        self.entry_pnls[position_id] = result.pnl
+                        
                         logger.info(f"[D82-1] Entry: {symbol_a} @ spread={spread_snapshot.spread_bps:.2f} bps")
                         break  # 1개만 Entry 하고 나오기
                     elif result.status == "failed":
@@ -929,15 +935,21 @@ class D77PAPERRunner:
                     reason_key = exit_signal.reason.name.lower()
                     self.metrics["exit_reasons"][reason_key] += 1
                     
-                    # PnL calculation
-                    pnl = exit_result.pnl
-                    self.metrics["total_pnl_usd"] += pnl
-                    self.metrics["total_pnl_krw"] += pnl * self.metrics["fx_rate"]  # D92-5
+                    # D95-2: Round trip PnL = Entry PnL + Exit PnL
+                    entry_pnl = self.entry_pnls.pop(position_id, 0.0)
+                    exit_pnl = exit_result.pnl
+                    round_trip_pnl = entry_pnl + exit_pnl
                     
-                    if pnl > 0:
+                    self.metrics["total_pnl_usd"] += round_trip_pnl
+                    self.metrics["total_pnl_krw"] += round_trip_pnl * self.metrics["fx_rate"]  # D92-5
+                    
+                    # D95-2: wins/losses는 round trip 전체 PnL 기준
+                    if round_trip_pnl > 0:
                         self.metrics["wins"] += 1
                     else:
                         self.metrics["losses"] += 1
+                    
+                    logger.debug(f"[D95-2] Round trip PnL: entry={entry_pnl:.2f} + exit={exit_pnl:.2f} = {round_trip_pnl:.2f}")
                     
                     # D77-1: Record exit trade, round trip, PnL, exit reason
                     if self.monitoring_enabled:
