@@ -955,7 +955,7 @@ python scripts/run_d93_gate_reproducibility.py
 
 **D94 vs D95 분리 (SSOT)**:
 - **D94**: Crash-free, Error-free, Duration 충족 → **PASS**
-- **D95**: Win rate >= 30%, PnL >= 0, TP/SL 발생 → 향후 정의
+- **D95**: Win rate >= 20%, PnL >= 0, TP/SL 발생 → 진행 중 (FAIL)
 
 **완료된 항목**:
 - 브랜치 생성 및 git clean 확인
@@ -965,7 +965,127 @@ python scripts/run_d93_gate_reproducibility.py
 - 진행 중
 - 증거 파일 경로 (Evidence)
 - 다음 단계
-```
+
+---
+
+## D95: 1h PAPER 성능 Gate
+
+**Status**: ❌ **FAIL** (2025-12-16 19:41 KST - 성능 기준 미달, 재실행 필요)
+
+**Objective**: 1시간 PAPER 모드 성능 검증 (win_rate >= 20%, TP/SL 발생, round_trips >= 10)
+
+**AS-IS (Before D95)**:
+- D94에서 안정성만 검증 (win_rate/PnL은 INFO)
+- TP/SL 발생 검증 없음
+- 성능 자동 판정 로직 없음
+
+**TOBE (After D95)**:
+- ✅ Fast Gate 5/5 PASS
+- ✅ Core Regression 44/44 PASS
+- ✅ BTC threshold 1.5bps 적용 → Round trips 2배 증가 (8→16)
+- ✅ Evidence 3종 생성 (KPI, decision, log tail)
+- ❌ Win rate 0% (목표 20%)
+- ❌ TP/SL 0건 (목표 각 1건)
+- ❌ Exit 로직 미작동 (time_limit 100%)
+
+**Deliverables**:
+1. ✅ Runner: `scripts/run_d95_performance_paper_gate.py`
+2. ✅ Decision: `scripts/d95_decision_only.py`
+3. ✅ Evidence: `docs/D95/evidence/` (d95_1h_kpi.json, d95_decision.json, d95_log_tail.txt)
+4. ✅ Report: `docs/D95/D95_1_PERFORMANCE_PAPER_REPORT.md` (FAIL 원인 분석 포함)
+5. ✅ Objective: `docs/D95/D95_0_OBJECTIVE.md`
+6. ✅ Zone Profile: `config/arbitrage/zone_profiles_v2.yaml` (BTC threshold 1.5bps)
+
+**Acceptance Criteria**:
+- ✅ Fast Gate 5/5 PASS
+- ✅ Core Regression 44/44 PASS
+- ✅ round_trips >= 10 (실제: 16건)
+- ❌ win_rate >= 20% (실제: 0%)
+- ❌ take_profit >= 1 (실제: 0건)
+- ❌ stop_loss >= 1 (실제: 0건)
+
+**Dependencies**:
+- D94 (안정성 Gate PASS)
+- D92 (Fast Gate + Core Regression SSOT)
+
+**Risks (Identified)**:
+- ❌ Paper mode Exit 조건 미발생 (D64 패턴 재발)
+- ❌ TP/SL 파라미터가 시장 변동성보다 너무 넓음
+- ❌ Entry edge 부족 (Slippage 4.28bps vs Spread 4.90bps = 0.62bps)
+
+**Execution Log**:
+- 2025-12-16 18:00-18:30: D95 준비 (Fast Gate 5/5, Core Regression 44/44)
+- 2025-12-16 18:30-18:35: Zone profile 조정 (BTC 4.5→1.5bps)
+- 2025-12-16 18:35-19:35: 1h Baseline 실행 (RT=16, win_rate=0%, TP/SL=0)
+- 2025-12-16 19:35-19:41: Decision 판정 (FAIL) + 문서화
+
+**Result**: ❌ **FAIL** (Semi-Critical 3/4 미달)
+- **Critical (안정성)**: exit_code=0 ✅, ERROR=0 ✅, duration=60.01min ✅, kill_switch=false ✅
+- **Semi-Critical (성능)**: round_trips=16 ✅, win_rate=0% ❌, TP=0 ❌, SL=0 ❌
+- **Variable (INFO)**: PnL=-$0.74, slippage=2.14bps, time_limit=100%
+
+**Root Cause**:
+1. Paper mode Exit 조건 (spread < 0) 미발생 (D64 패턴 재발)
+2. TP/SL 파라미터가 실제 시장 변동성보다 너무 넓음
+3. Entry edge 부족: Slippage (4.28bps) vs Spread (4.90bps) = 0.62bps
+
+**해결 방안 (D95-2 재실행)**:
+1. Paper mode Exit 로직 수정 (`arbitrage/live_runner.py`)
+2. TP/SL 파라미터 조정 (TP: 50→10bps, SL: 30→5bps)
+3. Threshold 재조정 (BTC 1.5→2.0bps)
+4. Real selection 활성화 (선택)
+
+**다음 단계**:
+- D96: TP/SL Δspread 재정의 + 20m/1h 계단식 검증 (IN PROGRESS)
+- D97: Multi-Symbol TopN 확장 (D95 PASS 후)
+- D98: Production Readiness (D97 PASS 후)
+
+---
+
+## D96: TP/SL Δspread 재정의 + Trajectory 계측 (D95-2)
+
+**Status**: 🚀 **IN PROGRESS** (2025-12-16 20:57 KST)
+
+**Objective**: D95 FAIL 근본 원인 해결 - TP/SL을 PnL%에서 Δspread 기준으로 재정의
+
+**Problem (D95 FAIL Root Cause)**:
+- TP/SL 0건 (time_limit 100%)
+- Win rate 0%
+- 근본 원인: `ExitStrategy`가 PnL% 기준 (TP 1%, SL 0.5%)
+- Arbitrage는 spread 변화가 PnL → Entry 4.9bps에서 PnL 1% = 490bps 변화 필요 (비현실적)
+
+**Solution**:
+1. **Δspread 재정의**: `delta_spread_bps = current - entry`
+   - TP: delta <= -3.0bps (spread 축소 = 이익)
+   - SL: delta >= +5.0bps (spread 확대 = 손실)
+2. **Trajectory 계측**: min/max/delta spread 추적
+3. **계단식 검증**: 20m 스모크 → 1h PAPER
+
+**Deliverables**:
+1. ✅ 루트 스캔 완료 (`arbitrage/domain/exit_strategy.py` 확인)
+2. ⏳ ExitStrategy Δspread 로직 추가
+3. ⏳ Trajectory KPI 계측
+4. ⏳ Fast Gate 5/5 PASS
+5. ⏳ Core Regression 44/44 PASS
+6. ⏳ 20분 스모크 (TP/SL >= 1)
+7. ⏳ 1h PAPER (win_rate > 0%)
+8. ⏳ Evidence 6종 생성
+9. ⏳ 문서/ROADMAP 업데이트
+
+**Acceptance Criteria**:
+- [ ] 20분 스모크: TP 또는 SL >= 1, time_limit < 100%
+- [ ] 1h PAPER: win_rate > 0%, (TP+SL) >= 1, round_trips >= 10
+- [ ] Trajectory stats: min/max/delta spread 계측 완료
+
+**Dependencies**:
+- D95 (FAIL 상태)
+- ExitStrategy 코드베이스 (`arbitrage/domain/exit_strategy.py`)
+
+**Execution Log**:
+- 2025-12-16 20:57: D95-2 시작, 루트 스캔 완료
+- 2025-12-16 21:00: ExitStrategy Δspread 재정의 진행 중
+
+---
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

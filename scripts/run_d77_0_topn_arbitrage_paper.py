@@ -491,6 +491,17 @@ class D77PAPERRunner:
             "avg_sell_fill_ratio": 1.0,
             "partial_fills_count": 0,
             "failed_fills_count": 0,
+            # D95-2: Trajectory KPI 계측
+            "trajectory_stats": {
+                "avg_entry_spread_bps": 0.0,
+                "avg_exit_spread_bps": 0.0,
+                "avg_min_spread_bps": 0.0,
+                "avg_max_spread_bps": 0.0,
+                "avg_delta_spread_bps": 0.0,
+                "min_delta_bps_observed": float('inf'),
+                "max_delta_bps_observed": float('-inf'),
+                "trajectory_samples": [],
+            },
             # D92-5: Zone Profiles 로드 증거
             "zone_profiles_loaded": {
                 "path": str(yaml_path) if yaml_path else None,
@@ -897,6 +908,17 @@ class D77PAPERRunner:
                 if exit_results and len(exit_results) > 0:
                     exit_result = exit_results[0]
                     
+                    # D95-2: Trajectory 정보 수집 (exit 전)
+                    trajectory_sample = {
+                        "position_id": position_id,
+                        "entry_spread_bps": position.entry_spread_bps,
+                        "exit_spread_bps": spread_snapshot.spread_bps,
+                        "min_spread_bps": position.min_spread_bps,
+                        "max_spread_bps": position.max_spread_bps,
+                        "delta_spread_bps": spread_snapshot.spread_bps - position.entry_spread_bps,
+                    }
+                    self.metrics["trajectory_stats"]["trajectory_samples"].append(trajectory_sample)
+                    
                     # Exit Strategy 제거
                     self.exit_strategy.unregister_position(position_id)
                     self.metrics["exit_trades"] += 1
@@ -980,6 +1002,25 @@ class D77PAPERRunner:
         logger.info("=" * 80)
         logger.info(f"[D92-2-TELEMETRY] Global: total_checks={total_entry_checks}, ge_rate={global_ge_rate:.1%}")
         logger.info("=" * 80)
+        
+        # D95-2: Trajectory stats 계산
+        trajectory_samples = self.metrics["trajectory_stats"]["trajectory_samples"]
+        if trajectory_samples:
+            entry_spreads = [s["entry_spread_bps"] for s in trajectory_samples]
+            exit_spreads = [s["exit_spread_bps"] for s in trajectory_samples]
+            min_spreads = [s["min_spread_bps"] for s in trajectory_samples if s["min_spread_bps"] != float('inf')]
+            max_spreads = [s["max_spread_bps"] for s in trajectory_samples if s["max_spread_bps"] != float('-inf')]
+            delta_spreads = [s["delta_spread_bps"] for s in trajectory_samples]
+            
+            self.metrics["trajectory_stats"]["avg_entry_spread_bps"] = sum(entry_spreads) / len(entry_spreads)
+            self.metrics["trajectory_stats"]["avg_exit_spread_bps"] = sum(exit_spreads) / len(exit_spreads)
+            if min_spreads:
+                self.metrics["trajectory_stats"]["avg_min_spread_bps"] = sum(min_spreads) / len(min_spreads)
+            if max_spreads:
+                self.metrics["trajectory_stats"]["avg_max_spread_bps"] = sum(max_spreads) / len(max_spreads)
+            self.metrics["trajectory_stats"]["avg_delta_spread_bps"] = sum(delta_spreads) / len(delta_spreads)
+            self.metrics["trajectory_stats"]["min_delta_bps_observed"] = min(delta_spreads)
+            self.metrics["trajectory_stats"]["max_delta_bps_observed"] = max(delta_spreads)
         
         # Win rate
         total_exits = self.metrics["wins"] + self.metrics["losses"]

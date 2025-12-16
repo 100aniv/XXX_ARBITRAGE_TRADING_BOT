@@ -28,8 +28,14 @@ class ExitReason(Enum):
 @dataclass
 class ExitConfig:
     """Exit 설정"""
+    # D95-2: Δspread 기준 TP/SL (arbitrage 전용)
+    take_profit_delta_bps: float = -3.0  # Spread 3bps 축소 시 TP
+    stop_loss_delta_bps: float = 5.0     # Spread 5bps 확대 시 SL
+    
+    # 기존 PnL% 기준 (fallback/호환성)
     tp_threshold_pct: float = 1.0  # 1% TP
     sl_threshold_pct: float = 0.5  # 0.5% SL
+    
     max_hold_time_seconds: float = 180.0  # 3 minutes
     spread_reversal_threshold_bps: float = -10.0  # -10 bps (spread turned negative)
     
@@ -58,6 +64,11 @@ class PositionState:
     entry_price_b: float
     entry_spread_bps: float
     size: float
+    
+    # D95-2: Trajectory 추적
+    min_spread_bps: float = float('inf')
+    max_spread_bps: float = float('-inf')
+    last_spread_bps: float = 0.0
     
     def time_held(self) -> float:
         """Position hold time (seconds)"""
@@ -171,7 +182,25 @@ class ExitStrategy:
         
         time_held = position.time_held()
         
-        # 1. Take Profit
+        # D95-2: Trajectory 업데이트
+        delta_spread_bps = current_spread_bps - position.entry_spread_bps
+        position.last_spread_bps = current_spread_bps
+        position.min_spread_bps = min(position.min_spread_bps, current_spread_bps)
+        position.max_spread_bps = max(position.max_spread_bps, current_spread_bps)
+        
+        # 1a. Take Profit (Δspread 기준 - 우선 체크)
+        if delta_spread_bps <= self.config.take_profit_delta_bps:
+            self.exit_eval_counts["tp_hit"] += 1
+            return ExitDecision(
+                should_exit=True,
+                reason=ExitReason.TAKE_PROFIT,
+                current_pnl_pct=current_pnl_pct,
+                current_spread_bps=current_spread_bps,
+                time_held_seconds=time_held,
+                message=f"TP_DELTA: Δspread {delta_spread_bps:.2f} bps <= {self.config.take_profit_delta_bps:.2f} bps",
+            )
+        
+        # 1b. Take Profit (PnL% 기준 - fallback)
         if current_pnl_pct >= self.config.tp_threshold_pct:
             self.exit_eval_counts["tp_hit"] += 1
             return ExitDecision(
@@ -183,7 +212,19 @@ class ExitStrategy:
                 message=f"TP: PnL {current_pnl_pct:.2f}% >= {self.config.tp_threshold_pct:.2f}%",
             )
         
-        # 2. Stop Loss
+        # 2a. Stop Loss (Δspread 기준 - 우선 체크)
+        if delta_spread_bps >= self.config.stop_loss_delta_bps:
+            self.exit_eval_counts["sl_hit"] += 1
+            return ExitDecision(
+                should_exit=True,
+                reason=ExitReason.STOP_LOSS,
+                current_pnl_pct=current_pnl_pct,
+                current_spread_bps=current_spread_bps,
+                time_held_seconds=time_held,
+                message=f"SL_DELTA: Δspread {delta_spread_bps:.2f} bps >= {self.config.stop_loss_delta_bps:.2f} bps",
+            )
+        
+        # 2b. Stop Loss (PnL% 기준 - fallback)
         if current_pnl_pct <= -self.config.sl_threshold_pct:
             self.exit_eval_counts["sl_hit"] += 1
             return ExitDecision(
