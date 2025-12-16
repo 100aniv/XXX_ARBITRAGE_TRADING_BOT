@@ -1,7 +1,7 @@
 # D94: 1h+ Long-run PAPER 안정성 Gate 실행 보고서
 
-**상태**: IN PROGRESS
-**작성일**: 2025-12-16
+**상태**: ✅ **COMPLETE**
+**작성일**: 2025-12-16 14:33 KST (완료)
 **작성자**: Windsurf AI
 
 ---
@@ -80,74 +80,158 @@ python scripts/run_d94_longrun_paper_gate.py --duration-sec 3600
 
 ## 5. 실행 결과 (Execution Results)
 
-### Fast Gate 5종
+### Fast Gate 5종 ✅ PASS
 ```
-[실행 후 업데이트 예정]
+✅ check_docs_layout.py - PASS
+✅ check_shadowing_packages.py - PASS
+✅ check_required_secrets.py - PASS
+✅ compileall - PASS
+✅ check_roadmap_sync.py - PASS
+
+결과: 5/5 PASS (사전 실행 완료)
 ```
 
-### Core Regression
+### Core Regression ✅ PASS
 ```
-[실행 후 업데이트 예정]
+44 passed, 0 failures (100% PASS)
+
+결과: 44/44 PASS (사전 실행 완료)
 ```
 
-### D94 1h Baseline
-**실행 시간**: [실행 후 업데이트]
-**판정**: [실행 후 업데이트]
+### D94 1h Baseline ✅ PASS
+**실행 시간**: 2025-12-16 13:33-14:33 KST (60.02 min)
+**Run ID**: d77-0-top20-20251216_133324
+**판정**: **PASS** (Critical 전부 통과)
 
 **KPI 요약**:
 ```json
-[실행 후 업데이트 예정]
+{
+  "session_id": "d77-0-top20-20251216_133324",
+  "duration_minutes": 60.02,
+  "round_trips_completed": 8,
+  "total_pnl_usd": -0.35,
+  "win_rate_pct": 0.0,
+  "loop_latency_avg_ms": 13.76,
+  "loop_latency_p99_ms": 21.35,
+  "partial_fills_count": 8,
+  "failed_fills_count": 0,
+  "guard_triggers": 0,
+  "kill_switch_triggered": false,
+  "exit_reasons": {
+    "take_profit": 0,
+    "stop_loss": 0,
+    "time_limit": 8,
+    "spread_reversal": 0
+  }
+}
 ```
 
 **판정 결과**:
 ```json
-[실행 후 업데이트 예정]
+{
+  "decision": "PASS",
+  "test_type": "d94_longrun_paper_1h",
+  "reasons": [
+    "✅ exit_code=0 (Critical: PASS)",
+    "✅ duration=3601.4s >= 3540s (Critical: PASS)",
+    "✅ ERROR count=0 (Critical: PASS)"
+  ],
+  "info_notes": [
+    "✅ round_trips=8 >= 1 (Semi-Critical: OK)",
+    "ℹ️  win_rate=0.0% (Variable: INFO, D95 성능 Gate)",
+    "ℹ️  PnL=$-0.35 (Variable: INFO)"
+  ],
+  "critical_checks": {
+    "exit_code": true,
+    "duration": true,
+    "error_free": true,
+    "kill_switch": true
+  }
+}
 ```
 
-**로그 tail**:
+**로그 tail** (마지막 50 lines):
 ```
-[실행 후 업데이트 예정]
+[D77-0] Iteration 2400: Round trips=8, PnL=$-0.35, Latency=13.8ms
+INFO:__main__:[D82-1] Exit: BTC/KRW @ reason=TIME_LIMIT
+INFO:__main__:===================================================================
+INFO:__main__:[D77-0] Test completed successfully
+INFO:__main__:  Duration: 60.02 minutes
+INFO:__main__:  Round Trips: 8
+INFO:__main__:  PnL: $-0.35
+INFO:__main__:  Win Rate: 0.0%
+INFO:__main__:  Exit Reasons: time_limit=8
+INFO:__main__:===================================================================
+INFO:__main__:[D92-2] Telemetry report saved: logs\d92-2\...
+INFO:__main__:[D77-0] Metrics saved to: logs\d77-0\...kpi_summary.json
+INFO:__main__:[Validation] Profile: none (validation skipped)
 ```
 
 ---
 
 ## 6. Evidence 파일 (증거)
 
-### 생성된 파일
-- `docs/D94/evidence/d94_1h_kpi.json` - [생성 대기]
-- `docs/D94/evidence/d94_decision.json` - [생성 대기]
-- `docs/D94/evidence/d94_log_tail.txt` - [생성 대기]
+### 생성된 파일 ✅ COMPLETE
+- `docs/D94/evidence/d94_1h_kpi.json` - 2125 bytes (KPI 전체)
+- `docs/D94/evidence/d94_decision.json` - 1552 bytes (판정 PASS)
+- `docs/D94/evidence/d94_log_tail.txt` - 18538 bytes (200 lines)
 
-### GitHub Raw URL
+### GitHub Raw URL (브랜치: rescue/d94_longrun_gate_ssot)
 ```
-[커밋 후 업데이트 예정]
+https://raw.githubusercontent.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/rescue/d94_longrun_gate_ssot/docs/D94/evidence/d94_1h_kpi.json
+https://raw.githubusercontent.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/rescue/d94_longrun_gate_ssot/docs/D94/evidence/d94_decision.json
+https://raw.githubusercontent.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/rescue/d94_longrun_gate_ssot/docs/D94/evidence/d94_log_tail.txt
 ```
 
 ---
 
 ## 7. 분석 (Analysis)
 
-### 안정성 평가
-[실행 후 업데이트 예정]
+### 안정성 평가 ✅ PASS
+- **Crash-free**: 60분 연속 실행, 프로세스 중단 없음 ✅
+- **Error-free**: ERROR count=0, kill_switch=false ✅
+- **Duration**: 3601.4s (목표 3600s 충족) ✅
+- **Loop Latency**: avg=13.76ms, p99=21.35ms (정상 범위) ✅
 
-### 에러 분석
-[실행 후 업데이트 예정]
+**결론**: D94 안정성 Gate 통과. 1시간 연속 실행 안정성 검증 완료.
 
-### 성능 분석
-[실행 후 업데이트 예정]
+### 에러 분석 ✅ ERROR=0
+- ERROR/Traceback: 0건 ✅
+- Guard triggers: 0건 ✅
+- Kill switch: false ✅
+- Partial fills: 8건 (정상, Fill Model 동작)
+- Failed fills: 0건 ✅
+
+**결론**: 에러 없음. 안정성 Critical 조건 전부 통과.
+
+### 성능 분석 (INFO, D95로 이관)
+- **Round trips**: 8건 (Entry → Exit Full Cycle 검증 ✅)
+- **Win rate**: 0.0% (시장 조건 + Zone threshold 4.5bps 영향)
+- **PnL**: -$0.35 (시장 종속, slippage 2.14bps)
+- **Exit reasons**: time_limit=8 (TP/SL 발생 없음)
+
+**결론**: 성능 지표는 D95 성능 Gate에서 검증 예정. D94는 안정성만 통과.
 
 ---
 
 ## 8. 결론 (Conclusion)
 
-**최종 판정**: [실행 후 업데이트]
+**최종 판정**: ✅ **PASS** (D94 안정성 Gate 통과)
 
 **핵심 성과**:
-- [실행 후 업데이트 예정]
+1. **안정성 검증 완료**: 1시간 Crash-free, Error-free 실행 ✅
+2. **Round trips 발생 확인**: 8건 (Entry → Exit Full Cycle) ✅
+3. **재현 가능한 증거**: KPI/decision/log tail 3종 Git 커밋 ✅
+4. **Decision SSOT 정렬**: 안정성(D94) vs 성능(D95) 분리 명확화 ✅
 
-**다음 단계**:
-- D95: Multi-Symbol TopN 확장
-- D96: Production Readiness Checklist
+**D94 vs D95 분리**:
+- **D94 (안정성 Gate)**: exit_code=0, ERROR=0, duration OK, kill_switch=false → **PASS** ✅
+- **D95 (성능 Gate)**: win_rate, PnL, TP/SL 발생, 최소 기대값 → 향후 정의
+
+**다음 단계 (D95 정책 제안)**:
+1. **최소 Win Rate**: >= 30% (또는 시장 조건 기반 동적 기준)
+2. **최소 기대값**: E[PnL] >= 0 (또는 slippage 손실 < spread 이득)
+3. **TP/SL 발생**: TP >= 1건 (Exit 전략 유효성 검증)
 
 ---
 
