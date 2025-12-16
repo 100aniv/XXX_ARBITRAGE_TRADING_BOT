@@ -1,0 +1,60 @@
+profiles:
+  d95_performance_baseline:
+    description: D95 성능 Gate용 baseline profile (TP/SL 발생 목표)
+    weights:
+    - 0.5
+    - 3.0
+    - 1.5
+    - 0.5
+    status: experimental
+    applicable_to:
+    - all
+
+symbol_mappings:
+  BTC:
+    profile_name: d95_performance_baseline
+    entry_threshold_bps: 1.5
+    notes: "D94에서 4.5bps로 거래 없음 → D95는 1.5bps로 하향 (수수료+슬리피지 기반)"
+  ETH:
+    profile_name: d95_performance_baseline
+    entry_threshold_bps: 0.7
+    notes: "D94와 동일 유지"
+  XRP:
+    profile_name: d95_performance_baseline
+    entry_threshold_bps: 0.7
+    notes: "D94와 동일 유지"
+  SOL:
+    profile_name: d95_performance_baseline
+    entry_threshold_bps: 0.7
+    notes: "D94와 동일 유지"
+  DOGE:
+    profile_name: d95_performance_baseline
+    entry_threshold_bps: 0.7
+    notes: "D94와 동일 유지"
+
+zone_boundaries:
+  Z1:
+    min_bps: 0.0
+    max_bps: 5.0
+    description: Ultra-tight spread zone (immediate execution)
+  Z2:
+    min_bps: 5.0
+    max_bps: 15.0
+    description: Tight spread zone (primary target)
+  Z3:
+    min_bps: 15.0
+    max_bps: 35.0
+    description: Medium spread zone (secondary target)
+  Z4:
+    min_bps: 35.0
+    max_bps: 1000.0
+    description: Wide spread zone (avoid unless forced)
+
+cost_model:
+  fee_a_bps: 10.0
+  fee_b_bps: 10.0
+  slippage_bps: 10.0
+  min_threshold_formula: "1.5 * (fee_a + fee_b + slippage)"
+  calculated_min_bps: 45.0
+  override_allowed: true
+  override_rationale: "시장 기반 임계값 허용 (단, win_rate >= 20% 달성 필수)"
