@@ -1,4 +1,59 @@
-﻿# arbitrage-lite TO-BE 로드맵 (최종 단계 정의)
+# ⚠️ DEPRECATED - 이 파일은 더 이상 사용되지 않습니다
+
+**Status:** DEPRECATED (2025-12-16)
+**Reason:** 문서 드리프트 방지를 위해 ROADMAP을 단일 SSOT로 통합
+
+---
+
+## 🚫 사용 중단 안내
+
+이 파일(`TOBE_ROADMAP.md`)은 **D_ROADMAP.md와의 동기화 문제**로 인해 사용이 중단되었습니다.
+
+**유일한 ROADMAP SSOT**: `/D_ROADMAP.md`
+
+---
+
+## 이유
+
+1. **문서 드리프트 발생**: 두 개의 ROADMAP 파일을 유지하면 불일치가 필연적으로 발생
+2. **유지보수 비용**: 변경사항을 두 파일에 동시 반영해야 하는 부담
+3. **단일 SSOT 원칙**: 프로젝트의 모든 D 단계 정보는 하나의 파일에서 관리
+
+---
+
+## 마이그레이션
+
+`D_ROADMAP.md`는 이제 다음 구조로 통합 관리됩니다:
+
+```markdown
+## DXX: [단계명]
+
+### TOBE (목표/AC)
+- 목적 (Purpose)
+- 완료 기준 (Done Criteria)
+
+### AS-IS (상태/증거)
+- 현재 상태 (Status)
+- 증거 파일 경로 (Evidence)
+```
+
+---
+
+## ⚠️ 이 파일 삭제 금지
+
+Git 히스토리 보존을 위해 파일은 유지하되, 내용은 DEPRECATED 표시로 대체합니다.
+
+**모든 ROADMAP 참조는 `/D_ROADMAP.md`를 사용하세요.**
+
+---
+
+## 원본 내용 (참고용)
+
+아래는 DEPRECATED 전 원본 내용입니다 (참고만 하세요):
+
+---
+
+# arbitrage-lite TO-BE 로드맵 (최종 단계 정의) [ARCHIVED]
 
 **Last Updated:** 2025-12-15
 **Purpose:** D 단계별 "큰 줄기" 정의 (상세는 각 D문서로)
