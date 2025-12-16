@@ -323,19 +323,65 @@ KPI JSON 비교 중...
 
 ---
 
-## 7. 결론
+## 7. 재현성 검증 실행 결과
+
+### Gate 10m Run #1 (2025-12-16 11:19:00)
+```json
+{
+  "exit_code": 0,
+  "actual_duration_sec": 600.631186,
+  "round_trips_count": 4,
+  "pnl_usd": -0.01,
+  "start_ts": "2025-12-16T02:19:00.277931+00:00",
+  "end_ts": "2025-12-16T02:29:00.909117+00:00",
+  "run_id": "gate_10m_20251216_111900"
+}
+```
+
+### Gate 10m Run #2 (2025-12-16 11:29:11)
+```json
+{
+  "exit_code": 0,
+  "actual_duration_sec": 600.840594,
+  "round_trips_count": 5,
+  "pnl_usd": -0.02,
+  "start_ts": "2025-12-16T02:29:11.009957+00:00",
+  "end_ts": "2025-12-16T02:39:11.850551+00:00",
+  "run_id": "gate_10m_20251216_112911"
+}
+```
+
+### KPI 비교 결과
+- **판정**: ✅ **PASS** (완전 재현성 확인)
+- **Critical 필드**: exit_code 완전 일치 (0 = 0)
+- **Semi-Critical 필드**: 
+  - round_trips_count: 4 vs 5 (차이=1, tolerance=±2) ✅ OK
+  - duration_sec: 600.6s vs 600.8s (차이=0.2s, tolerance=±30s) ✅ OK
+- **Variable 필드**:
+  - pnl_usd: -$0.01 vs -$0.02 (차이=$0.01) - 시장 종속, 참고용
+
+### 증거 파일 (Evidence)
+- `docs/D93/evidence/repro_run1_gate_10m_kpi.json`
+- `docs/D93/evidence/repro_run2_gate_10m_kpi.json`
+- `docs/D93/evidence/kpi_comparison.json`
+
+---
+
+## 8. 결론
 
 D93은 **문서 드리프트 영구 차단**과 **재현성 검증 자동화**를 통해 프로젝트 품질 관리의 새로운 기준을 수립했습니다.
 
 **핵심 원칙**:
 1. **단일 SSOT**: 모든 진실은 하나의 소스에서
 2. **자동화**: 수동 작업은 오류의 근원
-3. **재현성**: 동일 조건, 동일 결과
+3. **재현성**: 동일 조건, 동일 결과 (tolerance 기반 판정)
 
-**최종 상태**: ✅ **COMPLETE**
+**최종 상태**: ✅ **COMPLETE** (2025-12-16)
 
 **증거**:
 - Fast Gate 5종 PASS
 - Core Regression 44/44 PASS
+- Gate 10m 2-run 재현성 검증 PASS
 - ROADMAP 단일 SSOT 통합 완료
-- D93 Runner SSOT 완성
+- D93 Runner SSOT 상용급 완성
+- Evidence 파일 3개 커밋 준비 완료
