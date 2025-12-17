@@ -1152,5 +1152,105 @@ D95 Performance Gate 실패 근본 원인 해결 - TP/SL 조건을 PnL% 대신 �
 
 ---
 
+## D97: Top50 확장 + 부하/안정성 검증
+
+**Status:** 🔜 PENDING (D95 PASS 후 진행)
+
+**Objective**: TopN 확장 (Top20 → Top50) 및 부하/레이트리밋/헬스 기반 안정성 검증
+
+**Acceptance Criteria**:
+- [ ] duration ≥ 20m (smoke), duration ≥ 1h (baseline)
+- [ ] exit_code == 0
+- [ ] round_trips ≥ 10
+- [ ] KPI JSON 생성 (`docs/D97/evidence/d97_top50_kpi.json`)
+- [ ] 레이트리밋/헬스 이벤트 카운트
+
+**Dependencies**: D95 (성능 Gate PASS) ✅
+
+**Evidence Path**: `docs/D97/evidence/`
+
+---
+
+## D98: Production Readiness
+
+**Status:** 🔜 PENDING
+
+**Objective**: 프로덕션 배포 준비 (시크릿 관리, 롤백 정책, 모니터링 완전 가동)
+
+**Acceptance Criteria**:
+- [ ] 시크릿 거버넌스 SSOT 정의
+- [ ] 롤백 정책 문서화
+- [ ] Prometheus/Grafana 완전 가동 증거
+- [ ] 알림 파이프라인 검증 (Telegram/Slack)
+
+**Dependencies**: D97 (Top50 안정성 검증)
+
+---
+
+## 마일스톤 추가 (M7~M9) — ROADMAP 확장
+
+### M7: Multi-Exchange 확장
+**Status:** 📋 PLANNED (구현 미착수)
+
+**Objective**: Upbit-Binance 외 추가 거래소 지원
+
+**Scope**:
+- 거래소 추가 (예: Bybit, OKX, Coinone 등)
+- 인벤토리/리밸런싱 로직
+- 헬스/컴플라이언스 훅
+- API 어댑터 추상화
+
+**D 매핑**: D99~D105 (예정)
+
+---
+
+### M8: Operator UI/Console
+**Status:** 📋 PLANNED (구현 미착수)
+
+**Objective**: 운영자용 UI/콘솔 (Grafana 외 운영 편의 기능)
+
+**Scope**:
+- Run Control (시작/중단/프로파일 선택)
+- 현재 포지션/손익/가드 상태 요약
+- 리포트 링크 모음
+- CLI 기반 운영 도구
+
+**D 매핑**: D106~D110 (예정)
+
+---
+
+### M9: Live Ramp (소액 → 확대)
+**Status:** 📋 PLANNED (구현 미착수)
+
+**Objective**: 실거래 점진적 확대 (소액 검증 → 자본 확대)
+
+**Scope**:
+- 소액 실거래 검증 (1% 자본)
+- 성과 기반 자본 확대 정책
+- 리스크 관리 강화
+- 비상 중단 메커니즘
+
+**D 매핑**: D111~D115 (예정)
+
+---
+
+## Core Regression SSOT 정의 (2025-12-17)
+
+**Core Regression은 항상 100% PASS여야 합니다.**
+
+```bash
+# Core Regression 실행 명령어 (44 tests)
+python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_integration.py tests/test_d82_2_hybrid_mode.py tests/test_d92_1_fix_zone_profile_integration.py tests/test_d92_7_3_zone_profile_ssot.py -v --tb=short
+```
+
+**Optional Suite (환경 의존)**:
+- `test_d15_volatility.py` - ML/torch 의존
+- `test_d19_live_mode.py` - LiveTrader 의존
+- `test_d20_live_arm.py` - LiveTrader 의존
+
+**참조**: `docs/CORE_REGRESSION_SSOT.md`
+
+---
+
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

@@ -7,9 +7,15 @@ LIVE ARM 시스템 검증:
 - ARM 파일 + ARM 토큰 기반의 2단계 무장 시스템
 - Live 모드는 ARM 조건을 모두 만족할 때만 활성화
 - ARM 실패 시 무조건 Shadow Live Mode로 강등
+
+NOTE: This test requires LiveTrader and ML dependencies.
+      Marked as optional_live for Core Regression SSOT.
 """
 
 import pytest
+
+# Mark entire module as optional_live (excluded from Core Regression)
+pytestmark = pytest.mark.optional_live
 import os
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path

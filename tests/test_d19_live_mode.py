@@ -10,9 +10,15 @@ Live Mode 안전 검증:
 
 Note: D20에서 ARM 시스템이 추가되었으므로, 
       Live Mode 테스트에서는 ARM 조건도 만족해야 live_enabled=True가 됨
+
+NOTE: This test requires LiveTrader and ML dependencies.
+      Marked as optional_live for Core Regression SSOT.
 """
 
 import pytest
+
+# Mark entire module as optional_live (excluded from Core Regression)
+pytestmark = pytest.mark.optional_live
 import os
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path

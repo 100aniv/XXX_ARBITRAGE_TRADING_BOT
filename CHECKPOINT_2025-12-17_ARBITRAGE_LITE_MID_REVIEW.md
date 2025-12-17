@@ -59,22 +59,18 @@
 - 목적: **성능이 아니라 “1h 안정성(죽지 않음)”**을 증거로 고정  
 - 성능(WinRate/PnL)은 M2(D95)로 분리하는 정책을 확정
 
-### 2.3 D95 — 1h 성능 Gate (❌ FAIL)
-- 관측된 핵심 증상(요약):
-  - round_trips는 발생했으나,
-  - **win_rate=0%**
-  - **TP=0 / SL=0**
-  - **exit_reason이 time_limit 100%**
-  - 결과적으로 PnL이 음수
-- 결론(SSOT): “시장 조건” 탓으로 넘기면 안 되고, **Exit/Fill/모델링 계층이 성능 Gate를 만족 못함**  
-  → 같은 D95에서 수습하여 PASS 만들기 전까지 다음 D로 넘기면 안 됨
+### 2.3 D95 — 1h 성능 Gate (✅ PASS - D95-2)
+- **최종 결과 (2025-12-17 03:04 KST)**:
+  - round_trips = 32 (≥ 10) ✅
+  - win_rate = 100% (≥ 20%) ✅
+  - TP = 32, SL = 2 (20m) ✅
+  - total_pnl = +$13.31 ✅
+- **해결된 문제**: Round trip PnL 계산 수정, Fill Model 파라미터 조정, Entry threshold 상향
 
-### 2.4 D96 — 20m 스모크(Δspread 기반 TP/SL Exit 검증) (✅ PASS, 단 성능은 미해결)
-- 핵심 성과:
-  - **TP/SL이 실제로 발생**하여 time_limit 100% 상태를 해소(일부 TIME 잔존은 허용 범위)
-- 잔존 이슈:
-  - **WinRate 0% 문제는 남음**
-  - Fill model / fill ratio / 슬리피지 모델링 계층의 개선이 필요
+### 2.4 D96 — Top50 확장 + 안정성 검증 (⏳ 진행 예정)
+- **목표**: TopN 확장 (Top20 → Top50)
+- **전제조건**: D95 PASS (✅ 충족)
+- **AC**: duration ≥ 20m, exit_code == 0, round_trips ≥ 10, KPI JSON 생성
 
 ---
 

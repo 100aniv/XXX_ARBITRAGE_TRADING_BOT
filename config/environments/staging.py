@@ -64,7 +64,7 @@ def get_staging_config() -> ArbitrageConfig:
         ),
         
         trading=TradingConfig(
-            min_spread_bps=25.0,  # 약간 보수적
+            min_spread_bps=50.0,  # Must be > 1.5 * (fees + slippage) = 45.0
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=10.0,  # 실제에 가까운 slippage

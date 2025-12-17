@@ -2,7 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 MODULE D15 High-Performance Volatility Model Tests
+
+NOTE: This test requires PyTorch (torch) which is environment-dependent.
+      Marked as optional_ml for Core Regression SSOT.
 """
+import pytest
+
+# Mark entire module as optional_ml (excluded from Core Regression)
+pytestmark = pytest.mark.optional_ml
 
 import sys
 from pathlib import Path
