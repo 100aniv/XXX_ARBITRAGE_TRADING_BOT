@@ -104,9 +104,33 @@
 - **Branch**: `rescue/d97_kpi_ssot_roi`
 - **Technical Debt Resolved**: KPI JSON output, periodic checkpoints, duration control (모두 완료)
 
+### 2.6 D98 — Production Readiness (✅ PASS - D98-0 완료, 2025-12-18)
+- **목표**: LIVE 모드 실행을 위한 안전장치, 프리플라이트, 런북 구축
+- **Phase: D98-0 (LIVE 준비 인프라)** - PASS:
+  - ✅ LIVE Fail-Closed 안전장치 구현 (15 tests PASS)
+  - ✅ Live Preflight 자동 점검 스크립트 (16 tests PASS, 7/7 checks)
+  - ✅ Production 운영 Runbook 작성 (9개 섹션)
+  - ✅ Secrets SSOT & Git 안전 확보
+  - ✅ Core Regression 44/44 PASS
+- **LIVE Safety 안전장치**:
+  - Fail-Closed 원칙: 실수로 LIVE 실행 불가
+  - 필수 조건: LIVE_ARM_ACK + LIVE_ARM_AT (10분 이내) + LIVE_MAX_NOTIONAL_USD (10~1000)
+- **Live Preflight 점검** (7개 항목):
+  1. 환경 변수, 2. 시크릿 존재, 3. LIVE 안전장치, 4. DB/Redis 연결, 5. 거래소 Health (dry-run), 6. 오픈 포지션/오더 (dry-run), 7. Git 안전
+- **Runbook**: 9개 섹션 (안전 원칙, 사전 준비, LIVE 실행, 모니터링, Kill-Switch, 중단 후 점검, 롤백, 포스트모템, 체크리스트)
+- **증거**: 
+  - `docs/D98/D98_0_OBJECTIVE.md` (AS-IS 스캔)
+  - `docs/D98/D98_1_REPORT.md` (구현 보고서)
+  - `docs/D98/D98_RUNBOOK.md` (운영 Runbook)
+  - `docs/D98/evidence/live_preflight_dryrun.json`
+- **Branch**: `rescue/d97_d98_production_ready`
+- **Implementation**: `arbitrage/config/live_safety.py`, `scripts/d98_live_preflight.py`, tests (31/31 PASS)
+- **Next Steps**: D98-1 (LIVE Preflight 실제 실행), D98-2 (LIVE 소액 테스트), D99+ (LIVE 점진 확대)
+- **Tuning 인프라 현황**: ✅ 완전 구현됨 (D23~D41 완료, 8개 core 모듈, 44개 runner scripts, Optuna 기반)
+
 ---
 
-## 3. D95 성능 FAIL의 “증거 기반” 원인 가설(우선순위)
+## 3. D95 성능 FAIL의 "증거 기반" 원인 가설(우선순위)
 
 > 아래는 “추정”이 아니라, 현재 보고서/증거에서 드러난 패턴을 기반으로 한 **작업 우선순위**입니다.  
 > (정답 확정은 다음 프롬프트에서 Windsurf가 repo 스캔 + 계측으로 확정)

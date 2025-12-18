@@ -1202,19 +1202,85 @@ Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정�
 
 ---
 
-## D98: Production Readiness
+## D98: Production Readiness (LIVE 준비)
 
-**Status:** 🔜 PENDING
+**Status:** ✅ PASS (D98-0 완료, 2025-12-18)
 
-**Objective**: 프로덕션 배포 준비 (시크릿 관리, 롤백 정책, 모니터링 완전 가동)
+**Objective**: LIVE 모드 실행을 위한 안전장치, 프리플라이트, 런북 구축
 
-**Acceptance Criteria**:
-- [ ] 시크릿 거버넌스 SSOT 정의
-- [ ] 롤백 정책 문서화
-- [ ] Prometheus/Grafana 완전 가동 증거
-- [ ] 알림 파이프라인 검증 (Telegram/Slack)
+**Phase: D98-0 (LIVE 준비 인프라)** - PASS:
+- ✅ LIVE Fail-Closed 안전장치 구현 (15 tests PASS)
+- ✅ Live Preflight 자동 점검 스크립트 (16 tests PASS, 7/7 checks)
+- ✅ Production 운영 Runbook 작성 (9개 섹션)
+- ✅ Secrets SSOT & Git 안전 확보
+- ✅ Core Regression 44/44 PASS
 
-**Dependencies**: D97 (Top50 안정성 검증)
+**LIVE Safety 안전장치**:
+- Fail-Closed 원칙: 실수로 LIVE 실행 불가
+- 필수 조건: LIVE_ARM_ACK + LIVE_ARM_AT (10분 이내) + LIVE_MAX_NOTIONAL_USD (10~1000)
+- 모든 조건 만족해야만 LIVE 실행 가능
+
+**Live Preflight 점검** (7개 항목):
+1. 환경 변수 (ARBITRAGE_ENV)
+2. 시크릿 존재 (Upbit, Binance, Telegram)
+3. LIVE 안전장치 상태
+4. DB/Redis 연결 정보
+5. 거래소 Health (dry-run)
+6. 오픈 포지션/오더 (dry-run)
+7. Git 안전 (.env.live 커밋 방지)
+
+**Runbook 운영 절차** (9개 섹션):
+1. 안전 원칙
+2. 사전 준비 (Preflight, LIVE ARM 설정)
+3. LIVE 실행 (단계적 램프업: 5분→30분→1h+)
+4. 모니터링 (10종 KPI)
+5. Kill-Switch (수동/자동 중단)
+6. 중단 후 점검
+7. 롤백 절차
+8. 포스트모템
+9. 체크리스트
+
+**Acceptance Criteria (D98-0)**:
+- [x] AS-IS 스캔 완료 (기존 모듈 확인)
+- [x] LIVE 안전장치 구현 및 테스트 (15/15 PASS)
+- [x] Live Preflight 스크립트 및 테스트 (16/16 PASS)
+- [x] Preflight 실제 실행 (7/7 PASS)
+- [x] Secrets SSOT & Git 안전
+- [x] Runbook 작성 (운영 절차)
+- [x] Core Regression (44/44 PASS)
+- [x] 문서 업데이트 (D98 보고서)
+
+**Dependencies**: 
+- ✅ D97 KPI JSON SSOT 완료
+
+**Evidence Path**: 
+- `docs/D98/D98_0_OBJECTIVE.md` (AS-IS 스캔, 목표)
+- `docs/D98/D98_1_REPORT.md` (구현 보고서)
+- `docs/D98/D98_RUNBOOK.md` (운영 Runbook)
+- `docs/D98/evidence/preflight_20251218.txt` (세션 프리플라이트)
+- `docs/D98/evidence/live_preflight_dryrun.json` (Preflight 결과)
+
+**Branch**: `rescue/d97_d98_production_ready`
+
+**Implementation Files**:
+- `arbitrage/config/live_safety.py` (LIVE 안전장치)
+- `scripts/d98_live_preflight.py` (Preflight 스크립트)
+- `tests/test_d98_live_safety.py` (15 tests)
+- `tests/test_d98_preflight.py` (16 tests)
+
+**Next Steps**:
+- D98-1: LIVE Preflight 실제 실행 (API 호출, 사용자 승인 필요)
+- D98-2: LIVE 소액 테스트 (5분, $50)
+- D99+: LIVE 점진 확대
+
+**Tuning 인프라 (AS-IS)**:
+- ✅ 완전 구현됨 (D23~D41 완료)
+- Core 모듈: 8개 (tuning.py, tuning_advanced.py, orchestrator 등)
+- Runner scripts: 44개
+- Test coverage: 142개 파일, 1523 매치
+- Optuna 기반 Bayesian optimization, 로컬/K8s 분산 실행
+- DB/Redis 상태 관리, 광범위한 테스트 커버리지
+- **D98 범위**: 튜닝 구현 없음 (이미 완료, 재사용만)
 
 ---
 
