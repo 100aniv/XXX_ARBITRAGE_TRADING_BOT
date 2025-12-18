@@ -40,6 +40,7 @@ from arbitrage.exchanges.exceptions import (
     OrderNotFoundError,
 )
 from arbitrage.exchanges.http_client import HTTPClient, RateLimitConfig
+from arbitrage.config.readonly_guard import enforce_readonly
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +261,7 @@ class BinanceFuturesExchange(BaseExchange):
             logger.error(f"[D46_BINANCE] Parse error getting balance: {e}")
             raise NetworkError(f"Failed to parse balance: {e}")
     
+    @enforce_readonly
     def create_order(
         self,
         symbol: str,
@@ -271,6 +273,9 @@ class BinanceFuturesExchange(BaseExchange):
     ) -> OrderResult:
         """
         주문 생성 (D48: 실제 REST API 호출).
+        
+        D98-2: @enforce_readonly 데코레이터 적용
+        READ_ONLY_ENFORCED=true 시 차단됨
         
         Args:
             symbol: 거래 쌍 (예: "BTCUSDT")
@@ -284,6 +289,7 @@ class BinanceFuturesExchange(BaseExchange):
             OrderResult
         
         Raises:
+            ReadOnlyError: READ_ONLY_ENFORCED=true (D98-2)
             RuntimeError: live_enabled=False
             AuthenticationError: API 키 부족
             NetworkError: API 호출 실패
@@ -397,9 +403,13 @@ class BinanceFuturesExchange(BaseExchange):
             logger.error(f"[D48_BINANCE] Parse error: {e}")
             raise NetworkError(f"Binance API response parse failed: {e}")
     
+    @enforce_readonly
     def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> bool:
         """
         주문 취소 (D48: 실제 REST API 호출).
+        
+        D98-2: @enforce_readonly 데코레이터 적용
+        READ_ONLY_ENFORCED=true 시 차단됨
         
         Args:
             order_id: 주문 ID
@@ -409,6 +419,7 @@ class BinanceFuturesExchange(BaseExchange):
             성공 여부
         
         Raises:
+            ReadOnlyError: READ_ONLY_ENFORCED=true (D98-2)
             RuntimeError: live_enabled=False
             AuthenticationError: API 키 부족
             NetworkError: API 호출 실패

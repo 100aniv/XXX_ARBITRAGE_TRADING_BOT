@@ -1,0 +1,23 @@
+D98-2 Preflight Check
+=====================
+Date: 2025-12-18
+Branch: rescue/d98_2_live_exchange_readonly_guard
+Objective: Extend ReadOnlyGuard to Live Exchange Adapters (Upbit, Binance)
+
+Environment Status:
+- Branch: rescue/d98_2_live_exchange_readonly_guard (created)
+- Python processes: None running (clean)
+- Docker containers: RUNNING
+  - arbitrage-postgres (timescaledb) - UP, healthy, port 5432
+  - trading_db_postgres - UP, healthy, port 5433
+  - arbitrage-redis - UP, healthy, port 6380
+  - trading_redis - UP, port 6379
+  - arbitrage-engine - UP, port 8080
+
+Prerequisite Check:
+✅ D98-1 completed (PaperExchange ReadOnlyGuard)
+✅ Docker infrastructure running
+✅ No conflicting Python processes
+✅ Branch created successfully
+
+Next: Scan Live Exchange adapters for state-changing methods

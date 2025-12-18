@@ -119,19 +119,29 @@
   - ✅ 단위 테스트 21/21 PASS (ReadOnlyGuard)
   - ✅ 통합 테스트 17/17 PASS (Preflight ReadOnly)
   - ✅ 실주문 0건 보장 검증 완료
+- **Phase: D98-2 (Live Exchange ReadOnlyGuard Extension)** - ✅ PASS (2025-12-18):
+  - ✅ Live Adapter 스캔 완료 (Upbit/Binance state-changing 진입점)
+  - ✅ `@enforce_readonly` 데코레이터 적용 (create_order, cancel_order)
+  - ✅ 단위 테스트 14/14 PASS (Live adapter blocking)
+  - ✅ 통합 테스트 18/18 PASS (Zero API calls, multi-exchange)
+  - ✅ Core Regression 38/38 PASS (D98-1 no regressions)
+  - ✅ 실주문 0건 보장: HTTP 호출 전 ReadOnlyGuard 차단
 - **ReadOnlyGuard 핵심**:
   - 3층 방어: 환경변수 + 데코레이터 + 예외 발생
   - Fail-Closed: 기본값 true, "false"/"no"/"0"만 허용
-  - Preflight 실행 시 실주문/취소 호출 불가능
+  - Preflight 실행 시 실주문/취소 호출 불가능 (Paper + Live)
   - 조회 함수(get_balance, get_orderbook) 정상 동작
+  - **ReadOnlyGuard > live_enabled > API key check** (우선순위)
 - **증거**: 
-  - `docs/D98/D98_1_AS_IS_SCAN.md` (주문 함수 진입점)
+  - `docs/D98/D98_1_AS_IS_SCAN.md` (Paper 함수 진입점)
   - `docs/D98/D98_1_REPORT.md` (D98-1 구현 보고서)
+  - `docs/D98/D98_2_AS_IS_SCAN.md` (Live 함수 진입점)
+  - `docs/D98/D98_2_REPORT.md` (D98-2 구현 보고서)
   - `docs/D98/D98_RUNBOOK.md` (운영 Runbook)
   - `arbitrage/config/readonly_guard.py` (ReadOnlyGuard 모듈)
-  - tests: 38/38 PASS (21 + 17)
-- **Branch**: `rescue/d98_1_readonly_preflight_guard`
-- **Next Steps**: D98-2 (Live Exchange ReadOnlyGuard), D98-3 (Executor 층 검증), D98-4 (D97 1h PAPER 재실행)
+  - tests: 70/70 PASS (38 core + 14 unit + 18 integration)
+- **Branch**: `feature/d98-readonly-guard`
+- **Next Steps**: D98-3 (Executor 층 검증), D98-4 (D97 1h PAPER 재실행), D98-5 (LIVE Preflight 최종 검증)
 - **Tuning 인프라 현황**: ✅ 완전 구현됨 (D23~D41 완료, 8개 core 모듈, 44개 runner scripts, Optuna 기반)
 
 ---
