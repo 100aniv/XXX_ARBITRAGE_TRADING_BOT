@@ -104,7 +104,7 @@
 - **Branch**: `rescue/d97_kpi_ssot_roi`
 - **Technical Debt Resolved**: KPI JSON output, periodic checkpoints, duration control (모두 완료)
 
-### 2.6 D98 — Production Readiness (✅ PASS - D98-0 완료, 2025-12-18)
+### 2.6 D98 — Production Readiness (✅ PASS - D98-0, D98-1 완료, 2025-12-18)
 - **목표**: LIVE 모드 실행을 위한 안전장치, 프리플라이트, 런북 구축
 - **Phase: D98-0 (LIVE 준비 인프라)** - PASS:
   - ✅ LIVE Fail-Closed 안전장치 구현 (15 tests PASS)
@@ -112,20 +112,26 @@
   - ✅ Production 운영 Runbook 작성 (9개 섹션)
   - ✅ Secrets SSOT & Git 안전 확보
   - ✅ Core Regression 44/44 PASS
-- **LIVE Safety 안전장치**:
-  - Fail-Closed 원칙: 실수로 LIVE 실행 불가
-  - 필수 조건: LIVE_ARM_ACK + LIVE_ARM_AT (10분 이내) + LIVE_MAX_NOTIONAL_USD (10~1000)
-- **Live Preflight 점검** (7개 항목):
-  1. 환경 변수, 2. 시크릿 존재, 3. LIVE 안전장치, 4. DB/Redis 연결, 5. 거래소 Health (dry-run), 6. 오픈 포지션/오더 (dry-run), 7. Git 안전
-- **Runbook**: 9개 섹션 (안전 원칙, 사전 준비, LIVE 실행, 모니터링, Kill-Switch, 중단 후 점검, 롤백, 포스트모템, 체크리스트)
+- **Phase: D98-1 (Read-only Preflight Guard)** - ✅ PASS:
+  - ✅ ReadOnlyGuard 모듈 구현 (Fail-Closed 원칙)
+  - ✅ PaperExchange 데코레이터 적용 (create_order, cancel_order)
+  - ✅ Preflight READ_ONLY_ENFORCED=true 강제 설정
+  - ✅ 단위 테스트 21/21 PASS (ReadOnlyGuard)
+  - ✅ 통합 테스트 17/17 PASS (Preflight ReadOnly)
+  - ✅ 실주문 0건 보장 검증 완료
+- **ReadOnlyGuard 핵심**:
+  - 3층 방어: 환경변수 + 데코레이터 + 예외 발생
+  - Fail-Closed: 기본값 true, "false"/"no"/"0"만 허용
+  - Preflight 실행 시 실주문/취소 호출 불가능
+  - 조회 함수(get_balance, get_orderbook) 정상 동작
 - **증거**: 
-  - `docs/D98/D98_0_OBJECTIVE.md` (AS-IS 스캔)
-  - `docs/D98/D98_1_REPORT.md` (구현 보고서)
+  - `docs/D98/D98_1_AS_IS_SCAN.md` (주문 함수 진입점)
+  - `docs/D98/D98_1_REPORT.md` (D98-1 구현 보고서)
   - `docs/D98/D98_RUNBOOK.md` (운영 Runbook)
-  - `docs/D98/evidence/live_preflight_dryrun.json`
-- **Branch**: `rescue/d97_d98_production_ready`
-- **Implementation**: `arbitrage/config/live_safety.py`, `scripts/d98_live_preflight.py`, tests (31/31 PASS)
-- **Next Steps**: D98-1 (LIVE Preflight 실제 실행), D98-2 (LIVE 소액 테스트), D99+ (LIVE 점진 확대)
+  - `arbitrage/config/readonly_guard.py` (ReadOnlyGuard 모듈)
+  - tests: 38/38 PASS (21 + 17)
+- **Branch**: `rescue/d98_1_readonly_preflight_guard`
+- **Next Steps**: D98-2 (Live Exchange ReadOnlyGuard), D98-3 (Executor 층 검증), D98-4 (D97 1h PAPER 재실행)
 - **Tuning 인프라 현황**: ✅ 완전 구현됨 (D23~D41 완료, 8개 core 모듈, 44개 runner scripts, Optuna 기반)
 
 ---

@@ -3,6 +3,8 @@
 D42 Exchange Adapter Layer - Paper (Mock) Exchange
 
 실제 API 호출 없이 메모리 상에서 주문/체결/포지션을 시뮬레이션.
+
+D98-1: Read-only Guard 적용 (실주문 0건 강제)
 """
 
 import logging
@@ -28,6 +30,7 @@ from arbitrage.exchanges.exceptions import (
     OrderNotFoundError,
     InvalidOrderError,
 )
+from arbitrage.config.readonly_guard import enforce_readonly
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,7 @@ class PaperExchange(BaseExchange):
         """자산 잔고 조회"""
         return dict(self._balance)
     
+    @enforce_readonly
     def create_order(
         self,
         symbol: str,
@@ -116,7 +120,12 @@ class PaperExchange(BaseExchange):
         order_type: OrderType = OrderType.LIMIT,
         time_in_force: TimeInForce = TimeInForce.GTC,
     ) -> OrderResult:
-        """주문 생성"""
+        """
+        주문 생성.
+        
+        D98-1: @enforce_readonly 데코레이터 적용
+        READ_ONLY_ENFORCED=true 시 차단됨
+        """
         if qty <= 0:
             raise InvalidOrderError(f"Invalid quantity: {qty}")
         
@@ -227,8 +236,14 @@ class PaperExchange(BaseExchange):
         
         logger.debug(f"[D42_PAPER] Order filled: {order_id}")
     
+    @enforce_readonly
     def cancel_order(self, order_id: str) -> bool:
-        """주문 취소"""
+        """
+        주문 취소.
+        
+        D98-1: @enforce_readonly 데코레이터 적용
+        READ_ONLY_ENFORCED=true 시 차단됨
+        """
         if order_id not in self._orders:
             raise OrderNotFoundError(f"Order not found: {order_id}")
         

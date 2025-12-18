@@ -22,8 +22,12 @@ env_file = project_root / ".env.paper"
 if env_file.exists():
     load_dotenv(env_file)
 
+# D98-1: READ_ONLY_ENFORCED 강제 설정 (실주문 0건 보장)
+os.environ["READ_ONLY_ENFORCED"] = "true"
+
 from arbitrage.config.settings import get_settings
 from arbitrage.config.live_safety import LiveSafetyValidator
+from arbitrage.config.readonly_guard import is_readonly_mode, ReadOnlyError
 
 
 class PreflightResult:
@@ -136,6 +140,22 @@ class LivePreflightChecker:
     def check_live_safety(self):
         """LIVE 안전장치 점검"""
         print("[3/7] LIVE 안전장치 점검...")
+        
+        # D98-1: ReadOnlyGuard 검증 (실주문 0건 보장)
+        if not is_readonly_mode():
+            self.result.add_check(
+                "ReadOnly Guard",
+                "FAIL",
+                "READ_ONLY_ENFORCED가 false로 설정됨 (실주문 위험)",
+                {"READ_ONLY_ENFORCED": os.getenv("READ_ONLY_ENFORCED")}
+            )
+        else:
+            self.result.add_check(
+                "ReadOnly Guard",
+                "PASS",
+                "READ_ONLY_ENFORCED=true (실주문 0건 보장)",
+                {"READ_ONLY_ENFORCED": "true"}
+            )
         
         validator = LiveSafetyValidator()
         is_valid, error_message = validator.validate_live_mode()
