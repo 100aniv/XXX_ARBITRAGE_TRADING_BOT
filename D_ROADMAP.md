@@ -1103,71 +1103,86 @@ python scripts/run_d93_gate_reproducibility.py
 
 ---
 
-## D96: TP/SL Δspread 재정의 + Trajectory KPI 계측 (D95 Performance Gate Fix - Phase 2)
+## D96: Top50 20m Smoke Test
 
-**Status:** COMPLETED (2025-12-16)  
-**Priority:** P0 (D95 Gate 차단 해소)  
-**Actual Effort:** 3.5h  
+**Status:** ✅ COMPLETED (2025-12-17)
+**Priority:** P1 (TopN 확장 첫 단계)
+**Actual Effort:** 20m test + 문서화
 **Assignee:** AI Agent
 
 **Objective:**
-D95 Performance Gate 실패 근본 원인 해결 - TP/SL 조건을 PnL% 대신 Δspread(entry 대비 spread 변화량) 기준으로 재정의하여 20분 smoke test에서 TP/SL 발생 보장.
-
-**Problem:**
-현재 Exit Strategy는 PnL% 기준 TP/SL 사용 → arbitrage spread 환경에서 trigger 확률 낮음 → D95 gate에서 time_limit 100% 발생.
-
-**Solution Implemented:**
-1. **Exit Strategy Δspread 재정의** 
-   - `ExitConfig`: `take_profit_delta_bps=-3.0`, `stop_loss_delta_bps=5.0` 추가
-   - `PositionState`: `min_spread_bps`, `max_spread_bps`, `last_spread_bps` 추가
-   - `check_exit()`: Δspread 우선 체크 로직 구현, PnL% fallback 유지
-2. **Trajectory KPI 계측** 
-   - KPI JSON `trajectory_stats`: 14 samples 수집
-   - `avg_entry_spread_bps=4.33`, `avg_exit_spread_bps=1.89`, `avg_delta_spread_bps=-2.44`
-   - `min_delta_bps_observed=-5.94`, `max_delta_bps_observed=5.48`
-3. **20분 Smoke Test Results** 
-   - **Entry: 15, Exit: 14, Round Trips: 14**
-   - **Exit Reasons: TP=10 (71.4%), SL=1 (7.1%), TIME=3 (21.4%)**
-   - **Trajectory: Δ범위 -5.94 ~ +5.48 bps (TP/SL threshold 모두 trigger됨)**
-   - **Decision: PASS** - D96 core objectives achieved
-4. **1h PAPER: SKIPPED** 
-   - 핵심 검증 완료, Win Rate 0%는 fill model 이슈로 D96 범위 외
+Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정성을 검증.
 
 **Acceptance Criteria Results:**
-- C1: TP+SL=11 (>= 1 required)
-- C2: TIME%=21.4% (< 100% required)
-- C3: Trajectory samples=14 (> 0 required)
-- C4: Win Rate=0% (fill model issue, not D96 scope)
+- ✅ duration ≥ 20m (실제 20.0m)
+- ✅ exit_code == 0
+- ✅ round_trips ≥ 5 (실제 9)
+- ✅ win_rate ≥ 50% (실제 100%)
+- ✅ total_pnl ≥ 0 (실제 +$4.74)
+- ✅ KPI JSON 생성
+
+**Results Summary:**
+- Universe: TOP_50
+- Round Trips: 9
+- Win Rate: 100.0%
+- Total PnL: +$4.74 USD (+6,163 KRW)
+- Loop Latency (avg): 15.0ms
+- Exit Reasons: TP=9 (100%)
 
 **Evidence:**
-- `docs/D95/evidence/d96_20m_kpi.json`
-- `docs/D95/evidence/d96_20m_decision.json`
-- `logs/d77-0/d77-0-top20-20251216_220533/runner.log`
+- `docs/D96/D96_0_OBJECTIVE.md`
+- `docs/D96/D96_1_REPORT.md`
+- `docs/D96/evidence/d96_top50_20m_kpi.json`
 
 **Dependencies:**
-- D95 (unblocked - D96 validates exit logic works)
-- Modified: `arbitrage/domain/exit_strategy.py`, `scripts/run_d77_0_topn_arbitrage_paper.py`
-- 2025-12-16 20:57: D95-2 시작, 루트 스캔 완료
-- 2025-12-16 21:00: ExitStrategy Δspread 재정의 진행 중
+- ✅ D95 성능 Gate PASS (2025-12-17 03:04 KST)
+- ✅ Core Regression 44/44 PASS
+- ✅ Fast Gate 5/5 PASS
 
 ---
 
-## D97: Top50 확장 + 부하/안정성 검증
+## D97: Top50 1h Baseline Test
 
-**Status:** 🔜 PENDING (D95 PASS 후 진행)
+**Status:** ✅ CONDITIONAL PASS (2025-12-18)
 
-**Objective**: TopN 확장 (Top20 → Top50) 및 부하/레이트리밋/헬스 기반 안정성 검증
+**Objective**: Top50 환경에서 1시간 baseline test로 장기 안정성/성능 검증
+
+**Results (2025-12-18 ~19:00-20:20 KST)**:
+- round_trips = 24 (≥ 20) ✅
+- win_rate = ~100% (≥ 50%) ✅
+- total_pnl = $9.92 (≥ 0) ✅
+- duration = 80+ minutes (≥ 1h) ✅
+- exit_code = Manual termination ⚠️
+- loop_latency = ~13.5ms (< 50ms) ✅
+
+**Issues Identified**:
+- ❌ KPI JSON 파일 생성 실패 (runner script 이슈)
+- ⚠️ 수동 종료 (80분, 60분 목표 초과)
 
 **Acceptance Criteria**:
-- [ ] duration ≥ 20m (smoke), duration ≥ 1h (baseline)
-- [ ] exit_code == 0
-- [ ] round_trips ≥ 10
-- [ ] KPI JSON 생성 (`docs/D97/evidence/d97_top50_kpi.json`)
-- [ ] 레이트리밋/헬스 이벤트 카운트
+- [x] duration ≥ 1h
+- [~] exit_code == 0 (manual termination)
+- [x] round_trips ≥ 20 (24 RT)
+- [x] win_rate ≥ 50% (~100%)
+- [x] total_pnl ≥ 0 ($9.92)
+- [ ] KPI JSON 생성 (FAILED - technical issue)
+- [x] CPU < 50% (평균), Memory < 300MB
+- [x] Loop latency (avg) < 50ms (~13.5ms)
+- [x] 레이트리밋/헬스 이벤트 카운트 (정상)
 
-**Dependencies**: D95 (성능 Gate PASS) ✅
+**Dependencies**: 
+- ✅ D95 성능 Gate PASS (2025-12-17 03:04 KST)
+- ✅ D96 Top50 20m smoke PASS (2025-12-17 17:27 KST)
 
-**Evidence Path**: `docs/D97/evidence/`
+**Evidence Path**: 
+- `docs/D97/evidence/d97_top50_1h_summary.txt`
+- `docs/D97/D97_1_REPORT.md`
+- Console logs (Command ID 27254)
+
+**Technical Debt**:
+- HIGH: Fix KPI JSON output in runner script
+- MEDIUM: Add periodic KPI checkpoint writes
+- LOW: Automated duration enforcement
 
 ---
 
