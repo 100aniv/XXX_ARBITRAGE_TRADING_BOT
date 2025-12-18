@@ -23,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -315,6 +316,15 @@ class D77PAPERRunner:
         self.stage_id = stage_id
         self.gate_mode = kwargs.get('gate_mode', False)  # D92-7-4
         
+        # D97: Graceful shutdown flag
+        self.shutdown_requested = False
+        self.last_checkpoint_time = 0.0
+        self.checkpoint_interval_seconds = 60.0  # D97: 60초마다 체크포인트
+        
+        # D97: Register signal handlers for graceful shutdown
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        
         # D92-5: run_paths SSOT 초기화
         from arbitrage.common.run_paths import resolve_run_paths
         self.run_paths = resolve_run_paths(
@@ -325,6 +335,8 @@ class D77PAPERRunner:
         
         # D92-5: 로거 초기화 (run_dir 확정 후)
         self._setup_logger()
+        
+        logger.info("[D97] Signal handlers registered (SIGTERM, SIGINT)")
         
         # D92-1-FIX: Zone Profile 적용 로그 (팩트 증명)
         logger.info(f"[DEBUG] zone_profile_applier received: {zone_profile_applier}")
@@ -525,6 +537,68 @@ class D77PAPERRunner:
         
         self.loop_latencies: List[float] = []
     
+    def _signal_handler(self, signum, frame):
+        """
+        D97: Signal handler for graceful shutdown (SIGTERM, SIGINT).
+        
+        Sets shutdown flag to exit main loop gracefully.
+        """
+        signal_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
+        logger.warning(f"[D97] Received {signal_name}, initiating graceful shutdown...")
+        self.shutdown_requested = True
+    
+    def _save_checkpoint(self) -> None:
+        """
+        D97: Save KPI metrics to JSON file (periodic checkpoint).
+        
+        Called every 60 seconds during execution for fault tolerance.
+        """
+        try:
+            # Calculate current metrics snapshot
+            current_time = time.time()
+            duration_seconds = current_time - self.metrics["start_time"]
+            
+            # Win rate
+            total_rt = self.metrics["round_trips_completed"]
+            win_rate = (self.metrics["wins"] / total_rt * 100.0) if total_rt > 0 else 0.0
+            
+            # Loop latency stats
+            avg_latency_ms = sum(self.loop_latencies) / len(self.loop_latencies) if self.loop_latencies else 0.0
+            
+            checkpoint_metrics = {
+                "run_id": self.metrics["session_id"],
+                "start_time": self.metrics["start_time"],
+                "start_timestamp": datetime.fromtimestamp(self.metrics["start_time"]).isoformat(),
+                "checkpoint_time": current_time,
+                "checkpoint_timestamp": datetime.fromtimestamp(current_time).isoformat(),
+                "duration_seconds": duration_seconds,
+                "universe_mode": self.metrics["universe_mode"],
+                "environment": "paper",
+                "round_trips_completed": self.metrics["round_trips_completed"],
+                "wins": self.metrics["wins"],
+                "losses": self.metrics["losses"],
+                "win_rate": win_rate,
+                "total_pnl_usd": self.metrics["total_pnl_usd"],
+                "total_pnl_krw": self.metrics["total_pnl_krw"],
+                "avg_loop_latency_ms": avg_latency_ms,
+                "checkpoint": True,
+            }
+            
+            # Save to KPI output path
+            if self.kpi_output_path:
+                output_path = Path(self.kpi_output_path)
+            else:
+                output_path = Path(self.run_paths["kpi_summary"])
+            
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(output_path, "w") as f:
+                json.dump(checkpoint_metrics, f, indent=2)
+            
+            logger.debug(f"[D97] Checkpoint saved: {output_path}")
+        except Exception as e:
+            logger.error(f"[D97] Failed to save checkpoint: {e}")
+    
     def _setup_logger(self) -> None:
         """로거 파일 핸들러 설정 (run_dir 확정 후)"""
         log_file = self.run_paths["run_dir"] / "runner.log"
@@ -599,7 +673,9 @@ class D77PAPERRunner:
         logger.info(f"[D92-3] TARGET ITERATIONS: ~{int(self.duration_minutes * 60 / 1.5)} (1.5s per loop)")
         
         iteration = 0
-        while time.time() < end_time:
+        self.last_checkpoint_time = start_time  # D97: 체크포인트 타이머 초기화
+        
+        while time.time() < end_time and not self.shutdown_requested:
             loop_start = time.time()
             
             # D92-7-5: Kill-switch (손실 폭주 방지)
@@ -652,6 +728,13 @@ class D77PAPERRunner:
                     except Exception as e:
                         logger.debug(f"[D77-1] Failed to update periodic metrics: {e}")
             
+            # D97: Periodic checkpoint (60초마다 KPI JSON 저장)
+            current_time = time.time()
+            if current_time - self.last_checkpoint_time >= self.checkpoint_interval_seconds:
+                logger.info(f"[D97] Checkpoint: Saving KPI JSON (iteration {iteration})...")
+                self._save_checkpoint()
+                self.last_checkpoint_time = current_time
+            
             # D82-2: Respect loop interval (increased for rate limit safety)
             # 1.5s loop → ~4 req/sec (6 calls per loop: 1 entry + 5 exit)
             # Provides 60% margin under Upbit 10 req/sec limit
@@ -662,6 +745,15 @@ class D77PAPERRunner:
         self.metrics["end_time"] = time.time()
         actual_duration_seconds = self.metrics["end_time"] - self.metrics["start_time"]
         actual_duration_minutes = actual_duration_seconds / 60.0
+        
+        # D97: Exit code 설정
+        if self.shutdown_requested:
+            self.metrics["exit_code"] = 0  # Graceful shutdown
+            logger.info("[D97] Graceful shutdown completed (SIGTERM/SIGINT)")
+        elif self.metrics.get("kill_switch_triggered", False):
+            self.metrics["exit_code"] = 1  # Kill switch triggered
+        else:
+            self.metrics["exit_code"] = 0  # Normal completion
         
         # D92-3: 팩트 고정 - 종료 시각 및 실제 실행 시간 로깅
         end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -966,6 +1058,24 @@ class D77PAPERRunner:
         actual_duration_seconds = self.metrics["end_time"] - self.metrics["start_time"]
         self.metrics["actual_duration_seconds"] = actual_duration_seconds
         self.metrics["actual_duration_minutes"] = actual_duration_seconds / 60.0
+        self.metrics["duration_seconds"] = actual_duration_seconds  # D97: SSOT 필드
+        
+        # D97: ROI 계산 (원금 & 최종 자산)
+        # Initial equity from PortfolioState (PAPER 모드 초기 available_balance)
+        initial_equity_usd = self.portfolio_state.available_balance
+        # Final equity = initial + PnL
+        final_equity_usd = initial_equity_usd + self.metrics["total_pnl_usd"]
+        roi_pct = (final_equity_usd - initial_equity_usd) / initial_equity_usd * 100.0 if initial_equity_usd > 0 else 0.0
+        
+        self.metrics["initial_equity_usd"] = initial_equity_usd
+        self.metrics["final_equity_usd"] = final_equity_usd
+        self.metrics["roi_pct"] = roi_pct
+        
+        logger.info(f"[D97] ROI Calculation:")
+        logger.info(f"  Initial Equity: ${initial_equity_usd:,.2f}")
+        logger.info(f"  Final Equity: ${final_equity_usd:,.2f}")
+        logger.info(f"  Total PnL: ${self.metrics['total_pnl_usd']:,.2f}")
+        logger.info(f"  ROI: {roi_pct:.4f}%")
         
         # D92-2: Telemetry - spread 통계 계산 및 로그 출력
         logger.info("=" * 80)
@@ -1038,6 +1148,10 @@ class D77PAPERRunner:
         total_exits = self.metrics["wins"] + self.metrics["losses"]
         if total_exits > 0:
             self.metrics["win_rate_pct"] = (self.metrics["wins"] / total_exits) * 100.0
+            self.metrics["win_rate"] = self.metrics["win_rate_pct"] / 100.0  # D97: 0-1 범위
+        else:
+            self.metrics["win_rate_pct"] = 0.0
+            self.metrics["win_rate"] = 0.0
         
         # Loop latency
         if self.loop_latencies:
@@ -1076,25 +1190,22 @@ class D77PAPERRunner:
         logger.info("")
         logger.info("Trades:")
         logger.info(f"  Total Trades: {self.metrics['total_trades']}")
-        logger.info(f"  Entry Trades: {self.metrics['entry_trades']}")
-        logger.info(f"  Exit Trades: {self.metrics['exit_trades']}")
+        logger.info(f"  Entry: {self.metrics['entry_trades']}, Exit: {self.metrics['exit_trades']}")
         logger.info(f"  Round Trips: {self.metrics['round_trips_completed']}")
-        logger.info("")
-        logger.info("PnL:")
-        logger.info(f"  Total PnL (USD): ${self.metrics['total_pnl_usd']:.2f}")
-        if "total_pnl_krw" in self.metrics:
-            logger.info(f"  Total PnL (KRW): {self.metrics['total_pnl_krw']:.0f} KRW")
-        logger.info(f"  Wins: {self.metrics['wins']}")
-        logger.info(f"  Losses: {self.metrics['losses']}")
+        logger.info(f"  Wins: {self.metrics['wins']}, Losses: {self.metrics['losses']}")
         logger.info(f"  Win Rate: {self.metrics['win_rate_pct']:.1f}%")
+        logger.info(f"  Total PnL: ${self.metrics['total_pnl_usd']:.2f} USD (₩{self.metrics['total_pnl_krw']:.0f} KRW)")
+        logger.info(f"  ROI: {self.metrics.get('roi_pct', 0.0):.4f}%")
+        logger.info(f"  Exit Code: {self.metrics.get('exit_code', -1)}")
         logger.info("")
         logger.info("Exit Reasons:")
         for reason, count in self.metrics["exit_reasons"].items():
             logger.info(f"  {reason}: {count}")
         logger.info("")
         logger.info("Performance:")
-        logger.info(f"  Loop Latency (avg): {self.metrics['loop_latency_avg_ms']:.1f}ms")
-        logger.info(f"  Loop Latency (p99): {self.metrics['loop_latency_p99_ms']:.1f}ms")
+        logger.info(f"Loop Latency (avg): {self.metrics['loop_latency_avg_ms']:.1f} ms")
+        logger.info(f"Loop Latency (p99): {self.metrics['loop_latency_p99_ms']:.1f} ms")
+        logger.info(f"Duration: {self.metrics.get('duration_seconds', 0):.1f} seconds")
         logger.info(f"  Memory Usage: {self.metrics['memory_usage_mb']:.1f}MB")
         logger.info(f"  CPU Usage: {self.metrics['cpu_usage_pct']:.1f}%")
         logger.info("")
@@ -1110,6 +1221,19 @@ class D77PAPERRunner:
         logger.info("")
         logger.info(f"[D82-0] TradeLogger file: {self.trade_logger.log_file}")
         logger.info("[D82-0] Check trade_log.jsonl for detailed slippage/fill_ratio data")
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("[D97] KPI JSON SSOT Fields:")
+        logger.info(f"  run_id: {self.metrics.get('session_id', 'N/A')}")
+        logger.info(f"  duration_seconds: {self.metrics.get('duration_seconds', 0):.1f}")
+        logger.info(f"  exit_code: {self.metrics.get('exit_code', -1)}")
+        logger.info(f"  round_trips_completed: {self.metrics.get('round_trips_completed', 0)}")
+        logger.info(f"  win_rate: {self.metrics.get('win_rate', 0.0):.4f}")
+        logger.info(f"  total_pnl_usd: ${self.metrics.get('total_pnl_usd', 0.0):.2f}")
+        logger.info(f"  initial_equity_usd: ${self.metrics.get('initial_equity_usd', 0.0):.2f}")
+        logger.info(f"  final_equity_usd: ${self.metrics.get('final_equity_usd', 0.0):.2f}")
+        logger.info(f"  roi_pct: {self.metrics.get('roi_pct', 0.0):.4f}%")
+        logger.info("=" * 80)
     
     def _save_metrics(self) -> None:
         """Metrics를 JSON 파일로 저장"""
@@ -1150,6 +1274,19 @@ class D77PAPERRunner:
             json.dump(telemetry_report, f, indent=2)
         
         logger.info(f"[D92-2] Telemetry report saved: {telemetry_path}")
+        
+        # D97: Add final timestamps and config digest
+        self.metrics["start_timestamp"] = datetime.fromtimestamp(self.metrics["start_time"]).isoformat()
+        self.metrics["end_timestamp"] = datetime.fromtimestamp(self.metrics["end_time"]).isoformat()
+        
+        # D97: Config digest (zone profile version)
+        zone_profiles_info = self.metrics.get("zone_profiles_loaded", {})
+        if zone_profiles_info.get("sha256"):
+            config_digest = f"zone_profile_v2_{zone_profiles_info['sha256'][:8]}"
+        else:
+            config_digest = "default_config"
+        self.metrics["config_digest"] = config_digest
+        self.metrics["environment"] = "paper"
         
         with open(output_path, "w") as f:
             json.dump(self.metrics, f, indent=2)
