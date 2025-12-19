@@ -23,6 +23,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 
 from arbitrage.live_api import LiveAPIBase, OrderRequest, OrderResponse, TickerData
+from arbitrage.config.readonly_guard import enforce_readonly
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +177,18 @@ class UpbitLiveAPI(LiveAPIBase):
             self.logger.error(f"[UpbitLiveAPI] Ticker fetch failed: {e}")
             return None
     
+    @enforce_readonly
     def place_order(self, order: OrderRequest) -> Optional[OrderResponse]:
-        """주문 실행
+        """주문 실행 (D98-3: ReadOnlyGuard 추가)
         
         Args:
             order: OrderRequest 객체
         
         Returns:
             OrderResponse 또는 None
+        
+        Raises:
+            ReadOnlyError: READ_ONLY_ENFORCED=true 시 발생
         """
         if self.mock_mode:
             return OrderResponse(
@@ -237,14 +242,18 @@ class UpbitLiveAPI(LiveAPIBase):
             self.logger.error(f"[UpbitLiveAPI] Order placement failed: {e}")
             return None
     
+    @enforce_readonly
     def cancel_order(self, order_id: str) -> bool:
-        """주문 취소
+        """주문 취소 (D98-3: ReadOnlyGuard 추가)
         
         Args:
             order_id: 주문 ID
         
         Returns:
             취소 성공 여부
+        
+        Raises:
+            ReadOnlyError: READ_ONLY_ENFORCED=true 시 발생
         """
         if self.mock_mode:
             self.logger.info(f"[UpbitLiveAPI] Order cancelled (mock): {order_id}")

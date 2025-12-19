@@ -1,0 +1,68 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\work\XXX_ARBITRAGE_TRADING_BOT\abt_bot_env\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\work\XXX_ARBITRAGE_TRADING_BOT
+configfile: pytest.ini
+plugins: anyio-4.11.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 46 items
+
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_live_executor_blocks_when_readonly_true PASSED [  2%]
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_live_executor_allows_when_readonly_false_dry_run_true PASSED [  4%]
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_readonly_guard_precedence_over_dry_run PASSED [  6%]
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_multiple_trades_all_blocked_when_readonly_true PASSED [  8%]
+tests/test_d98_3_executor_guard.py::TestUpbitLiveAPIReadOnlyGuard::test_upbit_live_api_place_order_blocks_when_readonly_true PASSED [ 10%]
+tests/test_d98_3_executor_guard.py::TestUpbitLiveAPIReadOnlyGuard::test_upbit_live_api_cancel_order_blocks_when_readonly_true PASSED [ 13%]
+tests/test_d98_3_executor_guard.py::TestBinanceLiveAPIReadOnlyGuard::test_binance_live_api_place_order_blocks_when_readonly_true PASSED [ 15%]
+tests/test_d98_3_executor_guard.py::TestBinanceLiveAPIReadOnlyGuard::test_binance_live_api_cancel_order_blocks_when_readonly_true PASSED [ 17%]
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_full_stack_zero_api_calls_when_readonly_upbit_only PASSED [ 19%]
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_full_stack_zero_api_calls_when_readonly_binance_only PASSED [ 21%]
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_full_stack_zero_api_calls_cross_exchange PASSED [ 23%]
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_defense_in_depth_api_level_fallback PASSED [ 26%]
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_readonly_false_with_dry_run_safe_execution PASSED [ 28%]
+tests/test_d98_3_integration_zero_orders.py::TestMultiTradeStressTest::test_100_trades_all_blocked_single_gate PASSED [ 30%]
+tests/test_d98_2_live_adapters_readonly.py::TestUpbitSpotReadOnlyGuard::test_upbit_create_order_blocked_when_readonly_true PASSED [ 32%]
+tests/test_d98_2_live_adapters_readonly.py::TestUpbitSpotReadOnlyGuard::test_upbit_cancel_order_blocked_when_readonly_true PASSED [ 34%]
+tests/test_d98_2_live_adapters_readonly.py::TestUpbitSpotReadOnlyGuard::test_upbit_get_balance_allowed_when_readonly_true PASSED [ 36%]
+tests/test_d98_2_live_adapters_readonly.py::TestUpbitSpotReadOnlyGuard::test_upbit_get_orderbook_allowed_when_readonly_true PASSED [ 39%]
+tests/test_d98_2_live_adapters_readonly.py::TestUpbitSpotReadOnlyGuard::test_upbit_create_order_allowed_when_readonly_false PASSED [ 41%]
+tests/test_d98_2_live_adapters_readonly.py::TestBinanceFuturesReadOnlyGuard::test_binance_create_order_blocked_when_readonly_true PASSED [ 43%]
+tests/test_d98_2_live_adapters_readonly.py::TestBinanceFuturesReadOnlyGuard::test_binance_cancel_order_blocked_when_readonly_true PASSED [ 45%]
+tests/test_d98_2_live_adapters_readonly.py::TestBinanceFuturesReadOnlyGuard::test_binance_get_balance_allowed_when_readonly_true PASSED [ 47%]
+tests/test_d98_2_live_adapters_readonly.py::TestBinanceFuturesReadOnlyGuard::test_binance_get_orderbook_allowed_when_readonly_true PASSED [ 50%]
+tests/test_d98_2_live_adapters_readonly.py::TestBinanceFuturesReadOnlyGuard::test_binance_create_order_allowed_when_readonly_false PASSED [ 52%]
+tests/test_d98_2_live_adapters_readonly.py::TestLiveAdaptersReadOnlyGuardConsistency::test_all_live_adapters_block_orders_when_readonly_true PASSED [ 54%]
+tests/test_d98_2_live_adapters_readonly.py::TestLiveAdaptersReadOnlyGuardConsistency::test_readonly_guard_takes_precedence_over_live_enabled PASSED [ 56%]
+tests/test_d98_2_live_adapters_readonly.py::TestLiveAdaptersReadOnlyGuardEnvironment::test_environment_variable_controls_readonly_mode PASSED [ 58%]
+tests/test_d98_2_live_adapters_readonly.py::TestLiveAdaptersReadOnlyGuardEnvironment::test_fail_closed_principle PASSED [ 60%]
+tests/test_d98_2_integration_readonly.py::TestPreflightReadOnlyEnforcement::test_preflight_environment_forces_readonly_mode PASSED [ 63%]
+tests/test_d98_2_integration_readonly.py::TestPreflightReadOnlyEnforcement::test_preflight_allows_query_operations PASSED [ 65%]
+tests/test_d98_2_integration_readonly.py::TestZeroTradingCallsVerification::test_upbit_zero_api_calls_when_readonly PASSED [ 67%]
+tests/test_d98_2_integration_readonly.py::TestZeroTradingCallsVerification::test_binance_zero_api_calls_when_readonly PASSED [ 69%]
+tests/test_d98_2_integration_readonly.py::TestZeroTradingCallsVerification::test_paper_exchange_zero_real_orders_when_readonly PASSED [ 71%]
+tests/test_d98_2_integration_readonly.py::TestMultiExchangeReadOnlyConsistency::test_multiple_exchanges_consistent_readonly_behavior PASSED [ 73%]
+tests/test_d98_2_integration_readonly.py::TestMultiExchangeReadOnlyConsistency::test_readonly_state_persists_across_function_calls PASSED [ 76%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardErrorHandling::test_readonly_error_is_catchable PASSED [ 78%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardErrorHandling::test_readonly_error_provides_context PASSED [ 80%]
+tests/test_d98_2_integration_readonly.py::TestPreflightScriptIntegration::test_preflight_script_sets_readonly_environment PASSED [ 82%]
+tests/test_d98_2_integration_readonly.py::TestPreflightScriptIntegration::test_preflight_prevents_accidental_live_orders PASSED [ 84%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardDefenseLayers::test_defense_layer_1_environment_variable PASSED [ 86%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardDefenseLayers::test_defense_layer_2_decorator PASSED [ 89%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardDefenseLayers::test_defense_layer_3_exception PASSED [ 91%]
+tests/test_d98_2_integration_readonly.py::TestReadOnlyGuardDefenseLayers::test_defense_layer_4_live_enabled_secondary PASSED [ 93%]
+tests/test_d98_2_integration_readonly.py::TestEdgeCases::test_readonly_mode_toggle PASSED [ 95%]
+tests/test_d98_2_integration_readonly.py::TestEdgeCases::test_invalid_environment_variable_treated_as_true PASSED [ 97%]
+tests/test_d98_2_integration_readonly.py::TestEdgeCases::test_empty_environment_variable_treated_as_true PASSED [100%]
+
+============================== warnings summary ===============================
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_live_executor_allows_when_readonly_false_dry_run_true
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_readonly_false_with_dry_run_safe_execution
+  C:\work\XXX_ARBITRAGE_TRADING_BOT\arbitrage\execution\executor.py:1014: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp=datetime.utcnow(),
+
+tests/test_d98_3_executor_guard.py::TestLiveExecutorReadOnlyGuard::test_live_executor_allows_when_readonly_false_dry_run_true
+tests/test_d98_3_integration_zero_orders.py::TestLiveExecutorIntegrationZeroOrders::test_readonly_false_with_dry_run_safe_execution
+  <string>:12: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 46 passed, 4 warnings in 0.40s ========================

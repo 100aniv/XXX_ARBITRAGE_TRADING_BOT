@@ -3,6 +3,7 @@
 D61: Multi-Symbol Paper Execution — Executor Base Classes
 
 거래 실행 엔진의 추상 클래스 및 Paper Executor 구현.
+D98-3: LiveExecutor ReadOnlyGuard 추가
 """
 
 import logging
@@ -25,6 +26,7 @@ from arbitrage.execution.fill_model import (
     BaseFillModel,
     create_default_fill_model,
 )
+from arbitrage.config.readonly_guard import get_readonly_guard, ReadOnlyError
 
 if TYPE_CHECKING:
     from arbitrage.arbitrage_core import ArbitrageTrade
@@ -796,13 +798,29 @@ class LiveExecutor(BaseExecutor):
     def execute_trades(self, trades: List) -> List[ExecutionResult]:
         """
         D64: 거래 실행 (Live Mode)
+        D98-3: ReadOnlyGuard 추가 (Executor 레벨 차단)
         
         Args:
             trades: 실행할 거래 목록 (ArbitrageTrade)
         
         Returns:
             실행 결과 목록
+        
+        Raises:
+            ReadOnlyError: READ_ONLY_ENFORCED=true 시 발생
         """
+        # D98-3: 중앙 차단 게이트 (Defense-in-depth Layer 2)
+        guard = get_readonly_guard()
+        if guard.is_read_only:
+            logger.error(
+                "[D98-3_EXECUTOR_GUARD] Live order execution blocked in READ_ONLY mode. "
+                f"Attempted to execute {len(trades)} trades for {self.symbol}."
+            )
+            raise ReadOnlyError(
+                "[D98-3_EXECUTOR_GUARD] Cannot execute live trades when READ_ONLY_ENFORCED=true. "
+                "Set READ_ONLY_ENFORCED=false to enable live trading (use with extreme caution)."
+            )
+        
         results = []
         
         for trade in trades:

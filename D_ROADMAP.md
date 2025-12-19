@@ -1202,11 +1202,15 @@ Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정�
 
 ---
 
-## D98: Production Readiness (LIVE 준비)
+## D98: Production Readiness (LIVE Safety + Observability/Runbook)
 
-**Status:** ✅ PASS (D98-0 완료, 2025-12-18)
+**Status:** 🚧 IN PROGRESS (D98-0~3 완료, D98-4 진행 예정, 2025-12-19)
 
-**Objective**: LIVE 모드 실행을 위한 안전장치, 프리플라이트, 런북 구축
+**Objective**: LIVE 모드 실행을 위한 다층 안전장치, 프리플라이트, 운영 관측성, 런북 구축
+
+**범위 확장 (2025-12-18~19)**:
+- **Live Safety (D98-1~4)**: ReadOnlyGuard 다층 방어, LiveEnabled 제어, Live Key 가드
+- **Observability/Runbook (D98-0, D98-5+)**: 프리플라이트, 모니터링, 알림, 런북, 롤백 절차
 
 **Phase: D98-0 (LIVE 준비 인프라)** - PASS:
 - ✅ LIVE Fail-Closed 안전장치 구현 (15 tests PASS)
@@ -1268,9 +1272,39 @@ Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정�
 - `tests/test_d98_live_safety.py` (15 tests)
 - `tests/test_d98_preflight.py` (16 tests)
 
+**Phase: D98-1 (PaperExchange ReadOnlyGuard)** - ✅ COMPLETE (2025-12-18):
+- ✅ PaperExchange에 `@enforce_readonly` 데코레이터 적용
+- ✅ READ_ONLY_ENFORCED 환경 변수 기반 제어
+- ✅ 10개 테스트 PASS (adapter + integration)
+- Evidence: `docs/D98/D98_1_REPORT.md`
+
+**Phase: D98-2 (Live Exchange Adapters ReadOnlyGuard)** - ✅ COMPLETE (2025-12-18):
+- ✅ UpbitLiveAPI/BinanceLiveAPI에 `@enforce_readonly` 적용
+- ✅ UpbitSpotExchange/BinanceFuturesExchange에 `@enforce_readonly` 적용
+- ✅ Defense-in-depth: Adapter + API 레벨 이중 방어
+- ✅ 32개 테스트 PASS (10 adapter + 22 integration)
+- Evidence: `docs/D98/D98_2_REPORT.md`
+
+**Phase: D98-3 (Executor-Level ReadOnlyGuard)** - ✅ COMPLETE (2025-12-19):
+- ✅ LiveExecutor.execute_trades()에 중앙 게이트 추가
+- ✅ Defense-in-depth 3층 구조 완성 (Executor → Adapter → API)
+- ✅ 모든 우회 경로 차단 검증 (단일 게이트 O(1) 효율)
+- ✅ 46개 테스트 PASS (14 new + 32 regression)
+- ✅ D97 PAPER 재검증 평가 완료 (재실행 불필요 결론)
+- Evidence: `docs/D98/D98_3_REPORT.md`, `docs/D98/D98_3_PAPER_MODE_VALIDATION.md`
+- Branch: `rescue/d98_3_exec_guard_and_d97_1h_paper`
+
+**Defense-in-Depth Architecture (D98-1~3 완성)**:
+```
+Layer 1 (D98-3): LiveExecutor.execute_trades() - 중앙 게이트 (모든 주문 일괄 차단)
+Layer 2 (D98-2): Exchange Adapters - @enforce_readonly (개별 API 호출 차단)
+Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
+```
+
 **Next Steps**:
-- D98-1: LIVE Preflight 실제 실행 (API 호출, 사용자 승인 필요)
-- D98-2: LIVE 소액 테스트 (5분, $50)
+- D98-4: Live Key Guard (실키 오사용 방지, 테스트/로컬 환경 차단)
+- D98-5: Live Preflight 강화 (READ_ONLY 상태 검증 추가)
+- D98-6+: Observability 강화 (Prometheus/Grafana KPI, Telegram 알림)
 - D99+: LIVE 점진 확대
 
 **Tuning 인프라 (AS-IS)**:

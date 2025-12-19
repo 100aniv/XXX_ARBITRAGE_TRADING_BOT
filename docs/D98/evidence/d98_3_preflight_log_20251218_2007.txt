@@ -1,0 +1,16 @@
+﻿[D98-3 Preflight] 20251218_2007
+
+1. Branch: rescue/d98_3_exec_guard_and_d97_1h_paper
+2. Working Tree: Clean
+3. Python Processes: Killed (none running)
+4. Docker Status:
+   - arbitrage-postgres: Up 3 days (healthy) :5432
+   - arbitrage-redis: Up 3 days (healthy) :6380
+   - trading_db_postgres: Up 3 days (healthy) :5433
+   - trading_redis: Up 3 days :6379
+5. Redis: FLUSHALL executed (OK)
+6. Virtual Env: abt_bot_env activated
+7. Safety Check: READ_ONLY_ENFORCED default=true (Fail-Closed)
+8. Target: Executor Guard + D97 1h PAPER (PaperExchange only)
+
+Ready for STEP 1: Root Scan

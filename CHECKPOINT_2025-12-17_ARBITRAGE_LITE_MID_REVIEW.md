@@ -126,6 +126,20 @@
   - ✅ 통합 테스트 18/18 PASS (Zero API calls, multi-exchange)
   - ✅ Core Regression 38/38 PASS (D98-1 no regressions)
   - ✅ 실주문 0건 보장: HTTP 호출 전 ReadOnlyGuard 차단
+- **Phase: D98-3 (Executor-Level ReadOnlyGuard)** - ✅ COMPLETE (2025-12-19):
+  - ✅ Root Scan 완료 (14+ order entry point 목록화)
+  - ✅ LiveExecutor.execute_trades()에 중앙 게이트 구현 (Defense-in-depth Layer 1)
+  - ✅ 단일 O(1) 게이트로 모든 우회 경로 차단 (100 trades stress test)
+  - ✅ 단위 테스트 8/8 PASS (Executor guard unit tests)
+  - ✅ 통합 테스트 6/6 PASS (Zero orders, multi-exchange bypass attempts)
+  - ✅ Regression 테스트 32/32 PASS (D98-2 no regressions)
+  - ✅ 전체 테스트 46/46 PASS (14 new + 32 regression)
+  - ✅ D97 PAPER 재검증 평가 완료 (재실행 불필요 - 안전성 기 검증)
+  - ✅ READ_ONLY_ENFORCED 정책 문서화 (LIVE: true 필수, PAPER: false 허용)
+- **Defense-in-Depth Architecture (D98-1~3 완성)**:
+  - Layer 1 (D98-3): LiveExecutor.execute_trades() - 중앙 게이트 (모든 주문 일괄 차단)
+  - Layer 2 (D98-2): Exchange Adapters - @enforce_readonly (개별 API 호출 차단)
+  - Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - **ReadOnlyGuard 핵심**:
   - 3층 방어: 환경변수 + 데코레이터 + 예외 발생
   - Fail-Closed: 기본값 true, "false"/"no"/"0"만 허용
@@ -137,11 +151,17 @@
   - `docs/D98/D98_1_REPORT.md` (D98-1 구현 보고서)
   - `docs/D98/D98_2_AS_IS_SCAN.md` (Live 함수 진입점)
   - `docs/D98/D98_2_REPORT.md` (D98-2 구현 보고서)
+  - `docs/D98/D98_3_AS_IS_SCAN.md` (Root scan 결과)
+  - `docs/D98/D98_3_REPORT.md` (D98-3 구현 보고서)
+  - `docs/D98/D98_3_PAPER_MODE_VALIDATION.md` (D97 재검증 평가)
   - `docs/D98/D98_RUNBOOK.md` (운영 Runbook)
+  - `docs/D98/evidence/d98_3_preflight_log_20251218_2007.txt`
+  - `docs/D98/evidence/d98_3_test_results_20251218_204048.txt`
   - `arbitrage/config/readonly_guard.py` (ReadOnlyGuard 모듈)
-  - tests: 70/70 PASS (38 core + 14 unit + 18 integration)
-- **Branch**: `feature/d98-readonly-guard`
-- **Next Steps**: D98-3 (Executor 층 검증), D98-4 (D97 1h PAPER 재실행), D98-5 (LIVE Preflight 최종 검증)
+  - `arbitrage/execution/executor.py` (LiveExecutor guard)
+  - tests: 46/46 PASS (14 new + 32 regression)
+- **Branch**: `rescue/d98_3_exec_guard_and_d97_1h_paper`
+- **Next Steps**: D98-4 (Live Key Guard), D98-5 (Live Preflight 강화), D98-6+ (Observability/Alerting)
 - **Tuning 인프라 현황**: ✅ 완전 구현됨 (D23~D41 완료, 8개 core 모듈, 44개 runner scripts, Optuna 기반)
 
 ---
