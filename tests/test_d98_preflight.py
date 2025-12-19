@@ -101,7 +101,7 @@ class TestLivePreflightChecker:
     def test_checker_initialization(self, mock_get_settings):
         """Checker 초기화"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)
@@ -113,7 +113,7 @@ class TestLivePreflightChecker:
     def test_check_environment_paper(self, mock_get_settings):
         """환경 점검 - PAPER 모드"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)
@@ -126,7 +126,7 @@ class TestLivePreflightChecker:
     def test_check_environment_live(self, mock_get_settings):
         """환경 점검 - LIVE 모드"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)
@@ -139,7 +139,7 @@ class TestLivePreflightChecker:
     def test_check_secrets_missing(self, mock_get_settings):
         """시크릿 점검 - 누락"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         # 시크릿 제거
@@ -157,7 +157,7 @@ class TestLivePreflightChecker:
     def test_check_database_connection_configured(self, mock_get_settings):
         """DB 연결 점검 - 설정됨"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         os.environ["POSTGRES_DSN"] = "postgresql://localhost/test"
@@ -177,7 +177,7 @@ class TestLivePreflightChecker:
     def test_check_database_connection_missing(self, mock_get_settings):
         """DB 연결 점검 - 누락"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         # DB 환경변수 제거
@@ -194,7 +194,7 @@ class TestLivePreflightChecker:
     def test_check_exchange_health_dryrun(self, mock_get_settings):
         """거래소 Health 점검 - Dry-run"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)
@@ -208,7 +208,7 @@ class TestLivePreflightChecker:
     def test_check_open_positions_dryrun(self, mock_get_settings):
         """오픈 포지션 점검 - Dry-run"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)
@@ -221,7 +221,7 @@ class TestLivePreflightChecker:
     def test_check_git_safety_no_env_live(self, mock_get_settings):
         """Git 안전 점검 - .env.live 없음"""
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         checker = LivePreflightChecker(dry_run=True)

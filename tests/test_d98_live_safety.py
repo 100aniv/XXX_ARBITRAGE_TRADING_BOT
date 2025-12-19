@@ -38,7 +38,7 @@ class TestLiveSafetyValidator:
         """PAPER 모드는 항상 허용"""
         # Given: PAPER 모드
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         # When
@@ -54,7 +54,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드는 기본적으로 차단 (Fail-Closed)"""
         # Given: LIVE 모드, 환경변수 없음
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         # When
@@ -70,7 +70,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: ACK 없으면 차단"""
         # Given: LIVE 모드, ACK 없음
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_AT"] = str(int(time.time()))
@@ -89,7 +89,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 잘못된 ACK는 차단"""
         # Given: LIVE 모드, 잘못된 ACK
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "wrong_value"
@@ -109,7 +109,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 타임스탬프 없으면 차단"""
         # Given: LIVE 모드, 타임스탬프 없음
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -128,7 +128,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 잘못된 타임스탬프는 차단"""
         # Given: LIVE 모드, 잘못된 타임스탬프
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -148,7 +148,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 10분 이상 된 타임스탬프는 차단"""
         # Given: LIVE 모드, 오래된 타임스탬프
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         old_timestamp = int(time.time()) - 700  # 11분 전
@@ -169,7 +169,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: MAX_NOTIONAL 없으면 차단"""
         # Given: LIVE 모드, MAX_NOTIONAL 없음
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -188,7 +188,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 잘못된 MAX_NOTIONAL은 차단"""
         # Given: LIVE 모드, 잘못된 MAX_NOTIONAL
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -208,7 +208,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 너무 작은 MAX_NOTIONAL은 차단"""
         # Given: LIVE 모드, 너무 작은 MAX_NOTIONAL
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -228,7 +228,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 너무 큰 MAX_NOTIONAL은 차단"""
         # Given: LIVE 모드, 너무 큰 MAX_NOTIONAL
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -248,7 +248,7 @@ class TestLiveSafetyValidator:
         """LIVE 모드: 모든 조건 만족 시 허용"""
         # Given: LIVE 모드, 모든 조건 만족
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         os.environ["LIVE_ARM_ACK"] = "I_UNDERSTAND_LIVE_RISK"
@@ -268,7 +268,7 @@ class TestLiveSafetyValidator:
         """enforce_live_mode_safety는 실패 시 예외 발생"""
         # Given: LIVE 모드, 조건 불만족
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         # When/Then
@@ -281,7 +281,7 @@ class TestLiveSafetyValidator:
         """check_live_mode_safety 함수 테스트"""
         # Given: LIVE 모드, 조건 불만족
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "live"
+        mock_settings.env = "live"
         mock_get_settings.return_value = mock_settings
         
         # When/Then
@@ -293,7 +293,7 @@ class TestLiveSafetyValidator:
         """is_live_mode_armed 함수 테스트"""
         # Given: PAPER 모드
         mock_settings = MagicMock()
-        mock_settings.ARBITRAGE_ENV = "paper"
+        mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
         
         # When

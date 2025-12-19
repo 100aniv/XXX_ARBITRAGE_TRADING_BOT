@@ -64,6 +64,8 @@ from dataclasses import dataclass, field
 if TYPE_CHECKING:
     from arbitrage.config.secrets_providers.base import SecretsProviderBase
 
+from arbitrage.config.live_key_guard import validate_live_keys
+
 
 class RuntimeEnv(str, Enum):
     """Runtime environment"""
@@ -286,6 +288,18 @@ class Settings:
         # Binance (use secrets provider)
         binance_api_key = get_value("BINANCE_API_KEY")
         binance_api_secret = get_value("BINANCE_API_SECRET")
+        
+        # D98-4: Live Key Guard - 키 로딩 직전 검증
+        # LIVE 키가 허용되지 않는 환경(paper/local_dev)에서 로드되는 것을 차단
+        live_enabled = os.getenv("LIVE_ENABLED", "false").lower() == "true"
+        validate_live_keys(
+            env=env,
+            live_enabled=live_enabled,
+            upbit_access_key=upbit_access_key,
+            upbit_secret_key=upbit_secret_key,
+            binance_api_key=binance_api_key,
+            binance_api_secret=binance_api_secret,
+        )
         
         # Telegram (use secrets provider)
         telegram_bot_token = get_value("TELEGRAM_BOT_TOKEN")

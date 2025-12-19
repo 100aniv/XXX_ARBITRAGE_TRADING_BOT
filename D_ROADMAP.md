@@ -1204,7 +1204,7 @@ Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정�
 
 ## D98: Production Readiness (LIVE Safety + Observability/Runbook)
 
-**Status:** 🚧 IN PROGRESS (D98-0~3 완료, D98-4 진행 예정, 2025-12-19)
+**Status:** 🚧 IN PROGRESS (D98-0~4 완료, D98-5+ 예정, 2025-12-19)
 
 **Objective**: LIVE 모드 실행을 위한 다층 안전장치, 프리플라이트, 운영 관측성, 런북 구축
 
@@ -1294,15 +1294,33 @@ Top50 확장의 첫 단계로 20m smoke test를 수행하여 확장 시 안정�
 - Evidence: `docs/D98/D98_3_REPORT.md`, `docs/D98/D98_3_PAPER_MODE_VALIDATION.md`
 - Branch: `rescue/d98_3_exec_guard_and_d97_1h_paper`
 
-**Defense-in-Depth Architecture (D98-1~3 완성)**:
+**Phase: D98-4 (Live Key Guard - Settings Layer)** - ✅ COMPLETE (2025-12-19):
+- ✅ Settings.from_env()에 LiveSafetyValidator 통합 (키 로딩 최상위 차단)
+- ✅ Fail-Closed 원칙: LIVE 모드는 6단계 검증 통과 필수 (ARM ACK + Timestamp + Notional)
+- ✅ 환경 분기 규칙 명확화 (dev/paper는 Skip, live는 엄격 검증)
+- ✅ 164개 테스트 PASS (16 live_safety + 19 settings 통합 + 129 regression)
+- ✅ AS-IS 스캔 완료 (키 로딩 진입점 분석)
+- ✅ 문서화 한국어 (AS_IS_SCAN + REPORT)
+- Evidence: `docs/D98/D98_4_AS_IS_SCAN.md`, `docs/D98/D98_4_REPORT.md`
+- Evidence: `docs/D98/evidence/d98_4_all_tests_20251219_143205.txt`
+
+**Defense-in-Depth Architecture (D98-1~4 완성)**:
 ```
+Layer 0 (D98-4): Settings - LiveSafetyValidator (키 로딩 차단, 최상위 방어선)
 Layer 1 (D98-3): LiveExecutor.execute_trades() - 중앙 게이트 (모든 주문 일괄 차단)
 Layer 2 (D98-2): Exchange Adapters - @enforce_readonly (개별 API 호출 차단)
 Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 ```
 
+**Acceptance Criteria (D98-4)**:
+- [x] Live Key Guard가 키 로딩 계층에 존재 (`arbitrage/config/live_safety.py`)
+- [x] LIVE 키 로드 시도 시 즉시 FAIL (LiveSafetyError 예외)
+- [x] 환경 분기 규칙 명확 (ENV=live + 6단계 검증)
+- [x] 유닛/통합 테스트 100% PASS (164/164)
+- [x] 문서/커밋 한국어 작성
+- [x] SSOT 동기화 (ROADMAP + CHECKPOINT)
+
 **Next Steps**:
-- D98-4: Live Key Guard (실키 오사용 방지, 테스트/로컬 환경 차단)
 - D98-5: Live Preflight 강화 (READ_ONLY 상태 검증 추가)
 - D98-6+: Observability 강화 (Prometheus/Grafana KPI, Telegram 알림)
 - D99+: LIVE 점진 확대
