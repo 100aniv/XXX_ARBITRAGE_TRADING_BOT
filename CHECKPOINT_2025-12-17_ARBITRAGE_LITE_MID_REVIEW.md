@@ -363,7 +363,32 @@ Grafana 대시보드 설계 Best Practice(운영 가독성)
 
 ---
 
-## 10. 다음 단계 (M3 이후)
-- **D97**: Multi-Symbol TopN 확장 (Top50 → Top100)
-- **D98**: Production Readiness
-- **M4**: 운영 준비 (Observability 강화)
+## 10. 조건부/미완료 항목 현황 (2025-12-21 업데이트)
+
+### 10.1 D83-1 (Real L2 WebSocket) 최종 상태
+- **초기 상태 (D83-1.5)**: ⚠️ CONDITIONAL (Real WebSocket 메시지 수신 실패)
+- **최종 상태 (D83-1.6)**: ✅ **RESOLVED** (ALL PASS)
+- **해결 내역**:
+  - FIX #1: bytes → UTF-8 디코딩 로직 추가 (`ws_client.py`)
+  - FIX #2: Upbit 공식 구독 포맷 적용 (배열 + ticket, `upbit_ws_adapter.py`)
+  - 검증: 219개 메시지 수신 (30초), Real L2 PAPER 5분 ALL PASS
+- **근거**: `docs/D83/D83-1_6_UPBIT_WS_DEBUG_NOTE.md`
+- **회수 필요 여부**: ❌ 회수 불필요
+
+### 10.2 D98-1 구분 명확화
+- **기존 D98-1**: ReadOnly Guard (주문 차단) - ✅ COMPLETE
+- **신규 D98-5**: Preflight Real-Check (DB/Redis/Exchange 실제 연결 검증) - 🚧 IN PROGRESS
+- **구분 이유**: 두 작업은 목표가 다르므로 별도 단계로 관리
+- **근거**: `docs/D98/D98_1_SSOT_AUDIT.md`
+
+### 10.3 미사용 항목
+- **Mock L2 Provider**: Real L2 WebSocket (D83-1) 완료되었으나 Runner 기본값은 여전히 mock
+  - 조치: 이번 단계에서 변경하지 않음 (No Side-track 원칙)
+
+---
+
+## 11. 다음 단계 (M3 이후)
+- **D98-5**: Preflight Real-Check Fail-Closed (진행 중, 2025-12-21)
+- **D98-6+**: Observability 강화 (Prometheus/Grafana KPI, Telegram 알림)
+- **D99**: Production Readiness (배포/릴리즈)
+- **M4**: 운영 준비 완결

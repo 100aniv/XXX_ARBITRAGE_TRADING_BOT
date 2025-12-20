@@ -1,0 +1,6 @@
+﻿NAMES                 STATUS                             PORTS
+arbitrage-engine      Up 19 seconds (health: starting)   0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+trading_redis         Up 5 days                          0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+trading_db_postgres   Up 5 days (healthy)                0.0.0.0:5433->5432/tcp, [::]:5433->5432/tcp
+arbitrage-postgres    Up 5 days (healthy)                0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+arbitrage-redis       Up 5 days (healthy)                0.0.0.0:6380->6379/tcp, [::]:6380->6379/tcp

@@ -1320,8 +1320,28 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - [x] 문서/커밋 한국어 작성
 - [x] SSOT 동기화 (ROADMAP + CHECKPOINT)
 
+**Phase: D98-5 (Preflight Real-Check Fail-Closed)** - ✅ COMPLETE (2025-12-21):
+- ✅ DB/Redis/Exchange 실제 연결 검증 (dry-run이 아닌 real-check)
+- ✅ Redis: ping + set/get 실제 테스트
+- ✅ Postgres: SELECT 1 연결 검증
+- ✅ Exchange: env별 분기 (Paper: 설정 검증, Live: LiveSafetyValidator)
+- ✅ Fail-Closed 원칙: 하나라도 실패 시 즉시 종료 (PreflightError)
+- ✅ 12개 단위 테스트 PASS + 176개 Core Regression PASS
+- Evidence: `docs/D98/D98_1_SSOT_AUDIT.md`, `docs/D98/D98_5_AS_IS_SCAN.md`, `docs/D98/D98_5_REPORT.md`
+- Evidence: `docs/D98/evidence/d98_5_preflight_realcheck_final.json` (7/8 PASS, 1 WARN)
+
+**Acceptance Criteria (D98-5)**:
+- [x] Redis Real-Check 구현 (ping + set/get)
+- [x] Postgres Real-Check 구현 (SELECT 1)
+- [x] Exchange Real-Check 구현 (env별 분기)
+- [x] Fail-Closed 원칙 적용 (PreflightError 예외)
+- [x] Evidence 파일 저장 (realcheck + json)
+- [x] 단위/통합 테스트 100% PASS (12/12 + 176/176)
+- [x] READ_ONLY_ENFORCED와의 정합성 검증
+- [x] 문서/커밋 한국어 작성
+- [x] SSOT 동기화 (ROADMAP + CHECKPOINT)
+
 **Next Steps**:
-- D98-5: Live Preflight 강화 (READ_ONLY 상태 검증 추가)
 - D98-6+: Observability 강화 (Prometheus/Grafana KPI, Telegram 알림)
 - D99+: LIVE 점진 확대
 

@@ -1,0 +1,7 @@
+﻿                List of relations
+ Schema |        Name        | Type  |   Owner   
+--------+--------------------+-------+-----------
+ public | alert_history      | table | arbitrage
+ public | alert_history_test | table | arbitrage
+(2 rows)
+
