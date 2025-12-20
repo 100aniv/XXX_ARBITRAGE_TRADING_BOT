@@ -1341,8 +1341,27 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - [x] 문서/커밋 한국어 작성
 - [x] SSOT 동기화 (ROADMAP + CHECKPOINT)
 
+**Phase: D98-6 (Observability & Alerting Pack v1)** - ✅ COMPLETE (2025-12-21):
+- ✅ Prometheus 메트릭 7개 구현 (runs_total, last_success, duration, checks, redis/postgres latency, ready_for_live)
+- ✅ Textfile collector (.prom 파일) 방식으로 메트릭 export
+- ✅ Telegram 알림 P0/P1 구현 (FAIL/WARN 자동 감지)
+- ✅ 기존 인프라 100% 재사용 (D77 Prometheus, D80 Telegram)
+- ✅ 176/176 테스트 PASS (Core Regression 유지)
+- Evidence: `docs/D98/D98_6_REPO_INVENTORY.md`, `docs/D98/D98_6_DESIGN.md`, `docs/D98/D98_6_REPORT.md`
+- Evidence: `docs/D98/evidence/d98_6/preflight_final.prom` (7개 메트릭)
+
+**Acceptance Criteria (D98-6)**:
+- [x] Prometheus 메트릭 6개 이상 노출 (7개 구현)
+- [x] Preflight 결과가 Evidence에 저장 (.json + .prom)
+- [x] Telegram 알림 P0/P1 실제 발송 (P1 테스트 성공)
+- [x] 테스트 100% PASS (176/176)
+- [x] 문서/커밋 한국어 작성
+- [x] SSOT 동기화 (ROADMAP + CHECKPOINT)
+- [⚠️] Grafana 대시보드 (설계 완료, 구현 보류 - 선택적)
+
 **Next Steps**:
-- D98-6+: Observability 강화 (Prometheus/Grafana KPI, Telegram 알림)
+- D98-7: Open Positions 실제 조회 (Private API)
+- D98-8: DB 마이그레이션 자동화
 - D99+: LIVE 점진 확대
 
 **Tuning 인프라 (AS-IS)**:

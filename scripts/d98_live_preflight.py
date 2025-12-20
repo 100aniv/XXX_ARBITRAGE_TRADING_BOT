@@ -34,6 +34,18 @@ from arbitrage.config.preflight import PreflightError
 import redis
 import psycopg2
 
+# D98-6: Prometheus metrics imports
+import time
+from arbitrage.monitoring.prometheus_backend import PrometheusClientBackend
+
+# D98-6: Telegram alerting imports
+try:
+    from arbitrage.alerting.manager import AlertManager
+    from arbitrage.alerting.models import AlertRecord, AlertSeverity, AlertSource
+    _HAS_ALERTING = True
+except ImportError:
+    _HAS_ALERTING = False
+
 
 class PreflightResult:
     """Preflight 점검 결과"""
@@ -83,10 +95,21 @@ class PreflightResult:
 class LivePreflightChecker:
     """LIVE 모드 사전 점검기"""
     
-    def __init__(self, dry_run: bool = True):
+    def __init__(self, dry_run: bool = True, enable_metrics: bool = True, enable_alerts: bool = True):
         self.dry_run = dry_run
+        self.enable_metrics = enable_metrics
+        self.enable_alerts = enable_alerts
         self.result = PreflightResult()
         self.settings = get_settings()
+        
+        # D98-6: Prometheus metrics backend
+        self.metrics_backend = PrometheusClientBackend() if enable_metrics else None
+        self.start_time = None
+        self.redis_latency = None
+        self.postgres_latency = None
+        
+        # D98-6: Telegram alerting
+        self.alert_manager = AlertManager() if (enable_alerts and _HAS_ALERTING) else None
     
     def check_environment(self):
         """환경 변수 점검"""
@@ -217,7 +240,8 @@ class LivePreflightChecker:
         # D98-5: Real-Check (dry_run=False일 때만)
         if not self.dry_run:
             try:
-                # Redis Real-Check
+                # D98-6: Redis Real-Check with latency measurement
+                redis_start = time.time()
                 redis_client = redis.from_url(redis_url, socket_timeout=5)
                 pong = redis_client.ping()
                 if not pong:
@@ -230,8 +254,10 @@ class LivePreflightChecker:
                 if test_value != b"ok":
                     raise PreflightError(f"Redis GET 불일치: {test_value}")
                 redis_client.delete(test_key)
+                self.redis_latency = time.time() - redis_start
                 
-                # Postgres Real-Check
+                # D98-6: Postgres Real-Check with latency measurement
+                postgres_start = time.time()
                 conn = psycopg2.connect(postgres_dsn, connect_timeout=5)
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1")
@@ -240,6 +266,7 @@ class LivePreflightChecker:
                     raise PreflightError(f"Postgres SELECT 1 불일치: {result}")
                 cursor.close()
                 conn.close()
+                self.postgres_latency = time.time() - postgres_start
                 
                 self.result.add_check(
                     "Database",
@@ -406,6 +433,9 @@ class LivePreflightChecker:
         print("=" * 60)
         print()
         
+        # D98-6: 실행 시작 시간 기록
+        self.start_time = time.time()
+        
         self.check_environment()
         self.check_secrets()
         self.check_live_safety()
@@ -413,6 +443,13 @@ class LivePreflightChecker:
         self.check_exchange_health()
         self.check_open_positions()
         self.check_git_safety()
+        
+        # D98-6: 실행 종료 시간 기록 및 메트릭 저장
+        duration = time.time() - self.start_time
+        self._record_metrics(duration)
+        
+        # D98-6: Telegram 알림 전송 (FAIL/WARN 시)
+        self._send_alerts()
         
         print()
         print("=" * 60)
@@ -426,6 +463,160 @@ class LivePreflightChecker:
         print()
         
         return self.result
+    
+    def _record_metrics(self, duration: float):
+        """D98-6: Prometheus 메트릭 기록"""
+        if not self.enable_metrics or not self.metrics_backend:
+            return
+        
+        env = self.settings.env
+        
+        # 메트릭 1: preflight_runs_total (Counter)
+        self.metrics_backend.inc_counter(
+            "arbitrage_preflight_runs_total",
+            {"env": env},
+            1.0
+        )
+        
+        # 메트릭 2: preflight_last_success (Gauge 0/1)
+        success_value = 1.0 if self.result.is_ready() else 0.0
+        self.metrics_backend.set_gauge(
+            "arbitrage_preflight_last_success",
+            {"env": env},
+            success_value
+        )
+        
+        # 메트릭 3: preflight_duration_seconds (Histogram)
+        self.metrics_backend.observe_histogram(
+            "arbitrage_preflight_duration_seconds",
+            {"env": env},
+            duration
+        )
+        
+        # 메트릭 4: preflight_checks_total (Counter, 체크별)
+        for check in self.result.checks:
+            self.metrics_backend.inc_counter(
+                "arbitrage_preflight_checks_total",
+                {
+                    "env": env,
+                    "check": check["name"],
+                    "status": check["status"].lower()
+                },
+                1.0
+            )
+        
+        # 메트릭 5: Redis latency (Histogram, optional)
+        if self.redis_latency is not None:
+            self.metrics_backend.observe_histogram(
+                "arbitrage_preflight_realcheck_redis_latency_seconds",
+                {"env": env},
+                self.redis_latency
+            )
+        
+        # 메트릭 6: Postgres latency (Histogram, optional)
+        if self.postgres_latency is not None:
+            self.metrics_backend.observe_histogram(
+                "arbitrage_preflight_realcheck_postgres_latency_seconds",
+                {"env": env},
+                self.postgres_latency
+            )
+        
+        # 메트릭 7: ready_for_live (Gauge 0/1)
+        self.metrics_backend.set_gauge(
+            "arbitrage_preflight_ready_for_live",
+            {"env": env},
+            success_value
+        )
+    
+    def _send_alerts(self):
+        """D98-6: Telegram 알림 전송 (FAIL/WARN 시)"""
+        if not self.enable_alerts or not self.alert_manager:
+            return
+        
+        # P0 알림: Preflight FAIL
+        if self.result.failed > 0:
+            failed_checks = [c for c in self.result.checks if c["status"] == "FAIL"]
+            failed_list = "\n".join([f"  - {c['name']}: {c['message']}" for c in failed_checks])
+            
+            message = (
+                f"Preflight 실행 실패 ({self.result.passed}/{len(self.result.checks)} PASS, "
+                f"{self.result.failed} FAIL)\n\n"
+                f"Failed Checks:\n{failed_list}\n\n"
+                f"Recommended Actions:\n"
+                f"1. docker ps 확인 (arbitrage-redis, arbitrage-postgres 상태)\n"
+                f"2. .env.paper 확인 (REDIS_URL, POSTGRES_DSN)\n"
+                f"3. python scripts/d98_live_preflight.py --real-check 재실행\n"
+                f"4. 실패 지속 시 운영팀 에스컬레이션\n\n"
+                f"Environment: {self.settings.env}"
+            )
+            
+            alert = AlertRecord(
+                severity=AlertSeverity.P0,
+                source=AlertSource.SYSTEM,
+                title="Preflight FAIL",
+                message=message,
+                metadata={
+                    "total_checks": len(self.result.checks),
+                    "passed": self.result.passed,
+                    "failed": self.result.failed,
+                    "warnings": self.result.warnings,
+                    "env": self.settings.env
+                }
+            )
+            
+            try:
+                self.alert_manager.dispatch(alert)
+                print("[D98-6] P0 알림 전송: Preflight FAIL")
+            except Exception as e:
+                print(f"[D98-6] 알림 전송 실패: {e}")
+        
+        # P1 알림: Preflight WARN (중요 체크)
+        elif self.result.warnings > 0:
+            warn_checks = [c for c in self.result.checks if c["status"] == "WARN"]
+            warn_list = "\n".join([f"  - {c['name']}: {c['message']}" for c in warn_checks])
+            
+            message = (
+                f"Preflight 실행 경고 ({self.result.passed}/{len(self.result.checks)} PASS, "
+                f"{self.result.warnings} WARN)\n\n"
+                f"Warning Checks:\n{warn_list}\n\n"
+                f"Recommended Actions:\n"
+                f"1. 정상 동작하지만 개선 필요\n"
+                f"2. WARN 누적 시 에스컬레이션\n\n"
+                f"Environment: {self.settings.env}"
+            )
+            
+            try:
+                self.alert_manager.send_alert(
+                    severity=AlertSeverity.P1,
+                    source=AlertSource.SYSTEM,
+                    title="Preflight WARN",
+                    message=message,
+                    metadata={
+                        "total_checks": len(self.result.checks),
+                        "passed": self.result.passed,
+                        "failed": self.result.failed,
+                        "warnings": self.result.warnings,
+                        "env": str(self.settings.env)
+                    }
+                )
+                print("[D98-6] P1 알림 전송: Preflight WARN")
+            except Exception as e:
+                print(f"[D98-6] 알림 전송 실패: {e}")
+    
+    def export_metrics_prom(self, output_path: str):
+        """D98-6: Prometheus 메트릭을 .prom 파일로 export"""
+        if not self.enable_metrics or not self.metrics_backend:
+            return
+        
+        prom_text = self.metrics_backend.export_prometheus_text()
+        
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(prom_text)
+        
+        print(f"메트릭 저장: {output_file}")
 
 
 def main():
@@ -450,14 +641,35 @@ def main():
         default=False,
         help="D98-5: 실제 연결 검증 수행 (dry-run 비활성화)"
     )
+    parser.add_argument(
+        "--metrics-output",
+        default="docs/D98/evidence/d98_6/preflight_metrics.prom",
+        help="D98-6: Prometheus 메트릭 파일 경로 (.prom)"
+    )
+    parser.add_argument(
+        "--no-metrics",
+        action="store_true",
+        default=False,
+        help="D98-6: 메트릭 기록 비활성화"
+    )
+    parser.add_argument(
+        "--no-alerts",
+        action="store_true",
+        default=False,
+        help="D98-6: Telegram 알림 비활성화"
+    )
     
     args = parser.parse_args()
     
     # D98-5: --real-check 플래그가 있으면 dry_run을 False로 설정
     dry_run = args.dry_run and not args.real_check
     
+    # D98-6: 메트릭/알림 활성화 여부
+    enable_metrics = not args.no_metrics
+    enable_alerts = not args.no_alerts
+    
     # Preflight 실행
-    checker = LivePreflightChecker(dry_run=dry_run)
+    checker = LivePreflightChecker(dry_run=dry_run, enable_metrics=enable_metrics, enable_alerts=enable_alerts)
     result = checker.run_all_checks()
     
     # 결과 저장
@@ -468,6 +680,10 @@ def main():
         json.dump(result.to_dict(), f, indent=2, ensure_ascii=False)
     
     print(f"결과 저장: {output_path}")
+    
+    # D98-6: 메트릭 export
+    if enable_metrics:
+        checker.export_metrics_prom(args.metrics_output)
     
     # Exit code
     if result.is_ready():

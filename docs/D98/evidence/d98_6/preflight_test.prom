@@ -1,0 +1,98 @@
+# HELP arbitrage_preflight_runs_total arbitrage_preflight_runs_total (counter)
+# TYPE arbitrage_preflight_runs_total counter
+arbitrage_preflight_runs_total{env="RuntimeEnv.PAPER"} 1.0
+# HELP arbitrage_preflight_runs_created arbitrage_preflight_runs_total (counter)
+# TYPE arbitrage_preflight_runs_created gauge
+arbitrage_preflight_runs_created{env="RuntimeEnv.PAPER"} 1.7662487755513253e+09
+# HELP arbitrage_preflight_last_success arbitrage_preflight_last_success (gauge)
+# TYPE arbitrage_preflight_last_success gauge
+arbitrage_preflight_last_success{env="RuntimeEnv.PAPER"} 1.0
+# HELP arbitrage_preflight_duration_seconds arbitrage_preflight_duration_seconds (histogram)
+# TYPE arbitrage_preflight_duration_seconds histogram
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.005"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.01"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.025"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.05"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.075"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.1"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.25"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.5"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.75"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="1.0"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="2.5"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="5.0"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="7.5"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="10.0"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="+Inf"} 1.0
+arbitrage_preflight_duration_seconds_count{env="RuntimeEnv.PAPER"} 1.0
+arbitrage_preflight_duration_seconds_sum{env="RuntimeEnv.PAPER"} 0.0289614200592041
+# HELP arbitrage_preflight_duration_seconds_created arbitrage_preflight_duration_seconds (histogram)
+# TYPE arbitrage_preflight_duration_seconds_created gauge
+arbitrage_preflight_duration_seconds_created{env="RuntimeEnv.PAPER"} 1.7662487755514455e+09
+# HELP arbitrage_preflight_checks_total arbitrage_preflight_checks_total (counter)
+# TYPE arbitrage_preflight_checks_total counter
+arbitrage_preflight_checks_total{check="Environment",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="Secrets",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="ReadOnly Guard",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="Live Safety",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="Database",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="Exchange Health",env="RuntimeEnv.PAPER",status="pass"} 1.0
+arbitrage_preflight_checks_total{check="Open Positions",env="RuntimeEnv.PAPER",status="warn"} 1.0
+arbitrage_preflight_checks_total{check="Git Safety",env="RuntimeEnv.PAPER",status="pass"} 1.0
+# HELP arbitrage_preflight_checks_created arbitrage_preflight_checks_total (counter)
+# TYPE arbitrage_preflight_checks_created gauge
+arbitrage_preflight_checks_created{check="Environment",env="RuntimeEnv.PAPER",status="pass"} 1.766248775551523e+09
+arbitrage_preflight_checks_created{check="Secrets",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515351e+09
+arbitrage_preflight_checks_created{check="ReadOnly Guard",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515437e+09
+arbitrage_preflight_checks_created{check="Live Safety",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515518e+09
+arbitrage_preflight_checks_created{check="Database",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515604e+09
+arbitrage_preflight_checks_created{check="Exchange Health",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515676e+09
+arbitrage_preflight_checks_created{check="Open Positions",env="RuntimeEnv.PAPER",status="warn"} 1.7662487755515745e+09
+arbitrage_preflight_checks_created{check="Git Safety",env="RuntimeEnv.PAPER",status="pass"} 1.7662487755515814e+09
+# HELP arbitrage_preflight_realcheck_redis_latency_seconds arbitrage_preflight_realcheck_redis_latency_seconds (histogram)
+# TYPE arbitrage_preflight_realcheck_redis_latency_seconds histogram
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.005"} 0.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.01"} 0.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.025"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.05"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.075"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.1"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.25"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.5"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.75"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="1.0"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="2.5"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="5.0"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="7.5"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="10.0"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="+Inf"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_count{env="RuntimeEnv.PAPER"} 1.0
+arbitrage_preflight_realcheck_redis_latency_seconds_sum{env="RuntimeEnv.PAPER"} 0.010668039321899414
+# HELP arbitrage_preflight_realcheck_redis_latency_seconds_created arbitrage_preflight_realcheck_redis_latency_seconds (histogram)
+# TYPE arbitrage_preflight_realcheck_redis_latency_seconds_created gauge
+arbitrage_preflight_realcheck_redis_latency_seconds_created{env="RuntimeEnv.PAPER"} 1.7662487755516045e+09
+# HELP arbitrage_preflight_realcheck_postgres_latency_seconds arbitrage_preflight_realcheck_postgres_latency_seconds (histogram)
+# TYPE arbitrage_preflight_realcheck_postgres_latency_seconds histogram
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.005"} 0.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.01"} 0.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.025"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.05"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.075"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.1"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.25"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.5"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="0.75"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="1.0"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="2.5"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="5.0"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="7.5"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="10.0"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_bucket{env="RuntimeEnv.PAPER",le="+Inf"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_count{env="RuntimeEnv.PAPER"} 1.0
+arbitrage_preflight_realcheck_postgres_latency_seconds_sum{env="RuntimeEnv.PAPER"} 0.017163753509521484
+# HELP arbitrage_preflight_realcheck_postgres_latency_seconds_created arbitrage_preflight_realcheck_postgres_latency_seconds (histogram)
+# TYPE arbitrage_preflight_realcheck_postgres_latency_seconds_created gauge
+arbitrage_preflight_realcheck_postgres_latency_seconds_created{env="RuntimeEnv.PAPER"} 1.766248775551866e+09
+# HELP arbitrage_preflight_ready_for_live arbitrage_preflight_ready_for_live (gauge)
+# TYPE arbitrage_preflight_ready_for_live gauge
+arbitrage_preflight_ready_for_live{env="RuntimeEnv.PAPER"} 1.0
