@@ -1,0 +1,35 @@
+﻿=== STEP 0 환경 정리 증거 (D98-7 Open Positions Real-Check) ===
+타임스탬프: 2025-12-21 13:50:18
+Evidence 디렉토리: docs/D98/evidence/d98_7_20251221_1349
+
+[Python 프로세스 확인]
+
+결과: Python 프로세스 없음 
+
+[Docker 컨테이너 상태]
+NAMES                     STATUS                             PORTS
+arbitrage-prometheus      Up 4 hours (healthy)               0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp
+arbitrage-node-exporter   Up 4 hours                         0.0.0.0:9101->9100/tcp, [::]:9101->9100/tcp
+arbitrage-grafana         Up 3 hours (healthy)               0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+arbitrage-engine          Up 38 seconds (health: starting)   0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+trading_redis             Up 6 days                          0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+trading_db_postgres       Up 6 days (healthy)                0.0.0.0:5433->5432/tcp, [::]:5433->5432/tcp
+arbitrage-postgres        Up 6 days (healthy)                0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+arbitrage-redis           Up 6 days (healthy)                0.0.0.0:6380->6379/tcp, [::]:6380->6379/tcp
+srtgo-telegram-bot        Exited (0) 6 days ago              
+
+
+[Redis 연결 테스트]
+PONG
+
+[Postgres 연결 테스트]
+ health  --------       1 (1 row) 
+
+[Redis 초기화]
+OK
+
+환경 정리 완료:
+- Python 프로세스: 없음 (정리 완료)
+- Docker: 8개 컨테이너 실행 중 (Prometheus/Grafana/Node-Exporter/Redis/Postgres 정상)
+- Redis: FLUSHALL 완료
+- Postgres: 연결 정상

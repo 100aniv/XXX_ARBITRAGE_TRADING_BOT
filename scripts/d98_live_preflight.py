@@ -380,10 +380,10 @@ class LivePreflightChecker:
             )
     
     def check_open_positions(self):
-        """오픈 포지션 점검 (mock)"""
+        """오픈 포지션 점검 (D98-7: Real-Check)"""
         print("[6/7] 오픈 포지션 점검...")
         
-        # Mock: 실제 조회 대신 mock 데이터
+        # D98-7: Dry-run 모드에서는 Redis 연결 검증만 수행
         if self.dry_run:
             self.result.add_check(
                 "Open Positions",
@@ -395,14 +395,106 @@ class LivePreflightChecker:
                     "dry_run": True
                 }
             )
-        else:
-            # 실제 실행 시 여기서 API 호출
+            return
+        
+        # D98-7: 실제 실행 - Redis 기반 Position 조회
+        try:
+            redis_url = os.getenv("REDIS_URL")
+            if not redis_url:
+                raise PreflightError("REDIS_URL 환경변수 누락")
+            
+            # CrossExchangePositionManager 초기화
+            redis_client = redis.from_url(redis_url, socket_timeout=5)
+            position_manager = CrossExchangePositionManager(redis_client=redis_client)
+            
+            # Open Positions 조회
+            open_positions = position_manager.list_open_positions()
+            open_count = len(open_positions)
+            
+            # D98-6: Prometheus 메트릭 기록
+            if self.prometheus:
+                self.prometheus.gauge(
+                    "arbitrage_preflight_open_positions_count",
+                    open_count,
+                    {"env": self.settings.env}
+                )
+            
+            # D98-7: Policy A - FAIL if open_count > 0
+            if open_count > 0:
+                # 상위 5개 포지션 정보만 증거로 저장
+                position_details = [
+                    {
+                        "upbit_symbol": p.upbit_symbol,
+                        "binance_symbol": p.binance_symbol,
+                        "entry_side": p.entry_side,
+                        "state": p.state.value if hasattr(p.state, 'value') else str(p.state),
+                        "entry_timestamp": p.entry_timestamp
+                    }
+                    for p in open_positions[:5]
+                ]
+                
+                self.result.add_check(
+                    "Open Positions",
+                    "FAIL",
+                    f"미청산 포지션 {open_count}개 감지 (Policy: FAIL)",
+                    {
+                        "count": open_count,
+                        "positions": position_details,
+                        "policy": "FAIL"
+                    }
+                )
+                
+                # D98-7: Telegram P0 알림 발송
+                if self.alert_manager:
+                    try:
+                        self.alert_manager.send_alert(
+                            AlertRecord(
+                                severity=AlertSeverity.P0,
+                                source=AlertSource.PREFLIGHT,
+                                title="Preflight FAIL: Open Positions 감지",
+                                message=f"{open_count}개 미청산 포지션 존재. LIVE 실행 불가."
+                            )
+                        )
+                    except Exception as alert_err:
+                        # 알림 실패는 WARN으로만 기록 (Preflight FAIL은 유지)
+                        print(f"[WARN] Telegram 알림 실패: {alert_err}")
+            else:
+                # Open Positions 없음 - PASS
+                self.result.add_check(
+                    "Open Positions",
+                    "PASS",
+                    "미청산 포지션 없음 (Redis 조회)",
+                    {
+                        "count": 0,
+                        "source": "Redis/CrossExchangePositionManager"
+                    }
+                )
+        
+        except Exception as e:
+            # Open Positions 조회 실패 = FAIL (Fail-Closed 원칙)
             self.result.add_check(
                 "Open Positions",
-                "WARN",
-                "오픈 포지션 점검 구현 필요",
-                {"dry_run": False}
+                "FAIL",
+                f"오픈 포지션 조회 실패: {str(e)[:200]}",
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
             )
+            
+            # D98-7: 조회 실패도 P0 알림 (안전 최우선)
+            if self.alert_manager:
+                try:
+                    self.alert_manager.send_alert(
+                        AlertRecord(
+                            severity=AlertSeverity.P0,
+                            source=AlertSource.PREFLIGHT,
+                            title="Preflight FAIL: Open Positions 조회 실패",
+                            message=f"Position 조회 중 오류: {str(e)[:100]}"
+                        )
+                    )
+                except Exception:
+                    pass  # 알림 실패 무시 (FAIL은 이미 기록됨)
     
     def check_git_safety(self):
         """Git 안전 점검"""
