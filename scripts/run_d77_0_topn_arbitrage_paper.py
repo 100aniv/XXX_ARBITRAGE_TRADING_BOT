@@ -255,8 +255,10 @@ class MockTrade:
         """명목가 계산 (quantity * price)"""
         return self.quantity * max(self.buy_price, self.sell_price)
 
-# D92-1-FIX: 로깅 설정 (직접 함수 호출 시 루트 로거 사용)
-log_filename = f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+# D92-1-FIX + D99-5: 로깅 설정 (logs/paper_sessions/ 경로로 수정)
+log_dir = Path(__file__).parent.parent / "logs" / "paper_sessions"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_filename = log_dir / f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 
 # 루트 로거에 핸들러 추가 (모든 자식 로거에 propagate됨)
 root_logger = logging.getLogger()
@@ -265,7 +267,7 @@ root_logger.setLevel(logging.INFO)
 # FileHandler 추가 (중복 체크)
 file_handler_exists = any(isinstance(h, logging.FileHandler) and 'paper_session' in str(h.baseFilename) for h in root_logger.handlers)
 if not file_handler_exists:
-    file_handler = logging.FileHandler(log_filename)
+    file_handler = logging.FileHandler(str(log_filename))
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
         logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s')
