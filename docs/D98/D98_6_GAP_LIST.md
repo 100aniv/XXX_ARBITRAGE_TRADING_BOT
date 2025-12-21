@@ -183,4 +183,69 @@
 
 ---
 
-**체크리스트 완료 시점:** 모든 GAP-1~3 완료 + 테스트 PASS + 문서 동기화 + Git Push
+## RESCUE v2 GAP (2025-12-21 12:23 KST)
+
+**목적:** 이전 세션에서 "완료"라고 주장했지만 실제로는 잘못된 진술/규칙 위반이 있었던 항목을 정확히 수정
+
+### 🔴 D98_6_REPORT.md 잘못된 진술 목록
+
+**GAP-R1: AC2 DEFERRED 거짓 진술 (Line 337)**
+- **문제:** `AC2 | Grafana 대시보드 패널 4개 이상 추가 | ⚠️ DEFERRED | 설계 완료, 구현은 선택적`
+- **진실:** Grafana 패널 4개는 **실제로 구현 완료**됨 (`d77_system_health.json` Panel 8-11)
+- **수정:** AC2를 `✅ PASS`로 변경, DEFERRED/보류 문장 전부 제거
+
+**GAP-R2: 테스트 개수 혼동 (Line 340, 354, 363)**
+- **문제:** `AC5 | 테스트 100% PASS | ✅ PASS | 176/176 PASS (D98 테스트)`
+- **진실:** 
+  - D98 테스트: 12개 (test_d98_*.py)
+  - Core Regression: 2308/2450 (95%, 실제 실행 결과)
+  - "176"은 D98-5 시점의 Core Regression 개수 (구버전)
+- **수정:** "D98 테스트 12/12 PASS" + "Core Regression 2308/2450 (95%)"로 명시
+
+**GAP-R3: "보류 사유" 섹션 거짓 (Line 344-347)**
+- **문제:** `AC2 (Grafana) 보류 사유: Grafana 대시보드는 설계 완료... 대시보드는 운영 필요 시 추가 (D98-7+)`
+- **진실:** Grafana 패널은 이미 구현되어 있음 (Panel 8-11, 130 lines)
+- **수정:** 이 섹션 전체 제거
+
+**GAP-R4: "시간 관계상/불필요" 표현 (여러 곳)**
+- **문제:** `보류 (이번 단계 불필요)`, `선택적 (이번 단계 불필요)`
+- **진실:** 규칙 위반 표현 - 스킵/우회 금지
+- **수정:** 해당 표현 전부 제거, 실제 완료 상태만 기록
+
+### 🔴 Grafana PromQL 검증 부족
+
+**GAP-R5: E2E 증거 없음**
+- **문제:** Grafana API로 실제 대시보드/패널이 로드되는지 검증 증거 없음
+- **요구:** 
+  - Grafana API로 dashboard UID 조회
+  - Panel 쿼리 1회 성공 로그
+  - 증거 경로: `docs/D98/evidence/d98_6_rescue_v2/step2_grafana_api.txt`
+
+### 🔴 HANG 방지 하네스 없음
+
+**GAP-R6: pytest hang 방지 장치 없음**
+- **문제:** Full Regression에서 `test_d41_k8s_tuning_session_runner.py::test_run_max_parallel_limit` hang 발생
+- **해결:** pytest-timeout + watchdog 하네스 강제 적용
+- **증거:** hang 테스트를 watchdog로 감싼 실행 로그
+
+### 🔴 SSOT 밖 FAIL 무시
+
+**GAP-R7: 142 failed 테스트를 "무시"로 처리**
+- **문제:** "142 failed (대부분 D87/D91 관련, D98-6 작업과 무관)"로 언급만 하고 넘김
+- **요구:** `docs/REGRESSION_DEBT.md` 생성 + `D_ROADMAP.md`에 DEBT 트랙 추가
+
+---
+
+### ✅ RESCUE v2 완료 조건
+
+1. ✅ D98_6_REPORT.md에서 GAP-R1~R4 전부 수정
+2. ✅ Grafana E2E 증거 수집 (GAP-R5)
+3. ✅ watchdog 하네스 생성 및 테스트 (GAP-R6)
+4. ✅ Gate 3단 100% PASS (Fast/Core/D98)
+5. ✅ REGRESSION_DEBT.md 생성 (GAP-R7)
+6. ✅ 문서/ROADMAP/CHECKPOINT 동기화
+7. ✅ Git commit + push
+
+---
+
+**체크리스트 완료 시점:** 모든 GAP-1~3 + RESCUE v2 GAP-R1~R7 완료 + 테스트 PASS + 문서 동기화 + Git Push

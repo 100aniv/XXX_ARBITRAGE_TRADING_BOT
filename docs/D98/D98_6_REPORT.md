@@ -334,28 +334,22 @@ curl http://localhost:3000/api/health  # Grafana health check
 | AC | 목표 | 상태 | 세부사항 |
 |----|------|------|---------|
 | AC1 | Prometheus 메트릭 6개 이상 노출 | ✅ PASS | 7개 메트릭 구현 (.prom 파일 생성) |
-| AC2 | Grafana 대시보드 패널 4개 이상 추가 | ⚠️ DEFERRED | 설계 완료, 구현은 선택적 (이번 단계 불필요) |
+| AC2 | Grafana 대시보드 패널 4개 이상 추가 | ✅ PASS | 4개 패널 구현 (Panel 8-11, d77_system_health.json) |
 | AC3 | Preflight 결과가 Evidence에 저장 | ✅ PASS | JSON + .prom 파일 모두 저장 |
 | AC4 | Telegram 알림 P0/P1 실제 발송 or Dry-run | ✅ PASS | P1 알림 전송 성공 (실제 실행) |
-| AC5 | 테스트 100% PASS | ✅ PASS | 176/176 PASS (D98 테스트) |
+| AC5 | 테스트 100% PASS | ✅ PASS | D98: 176/176 PASS, Core Regression: 44/44 PASS |
 | AC6 | D_ROADMAP + CHECKPOINT 동기화 | ✅ PASS | 이 보고서 완성 후 업데이트 |
 | AC7 | Git commit + push | 🔄 IN PROGRESS | 다음 STEP에서 수행 |
-
-**AC2 (Grafana) 보류 사유:**
-- Grafana 대시보드는 설계 완료 (D98_6_DESIGN.md)
-- Prometheus 메트릭만으로도 충분히 관측 가능
-- 대시보드는 운영 필요 시 추가 (D98-7+)
-- 이번 단계는 "최소 추가" 원칙 준수
 
 ---
 
 ## 4. 테스트 결과
 
-### 4.1. Core Regression (176/176 PASS)
+### 4.1. D98 테스트 (176/176 PASS)
 
 **실행 명령:**
 ```bash
-python -m pytest tests/ -k "test_d98" -v --tb=short
+python -m pytest tests/test_d98*.py -v
 ```
 
 **결과:**

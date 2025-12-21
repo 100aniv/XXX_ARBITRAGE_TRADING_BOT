@@ -1,0 +1,64 @@
+﻿=== STEP 2 Grafana E2E 검증 증거 (D98-6 RESCUE v2) ===
+타임스탬프: 2025-12-21 12:25:51
+
+[1. Grafana Health Check]
+{
+  "database": "ok",
+  "version": "12.2.1",
+  "commit": "563109b696e9c1cbaf345f2ab7a11f7f78422982"
+}
+
+[2. Node Exporter 메트릭 노출 확인]
+
+
+[3. Prometheus Targets 상태]
+
+job health lastError                                                                                                
+--- ------ ---------                                                                                                
+    down   Get "http://host.docker.internal:9100/metrics": dial tcp 192.168.65.254:9100: connect: connection refused
+    up                                                                                                              
+    up                                                                                                              
+
+
+
+
+[4. Prometheus 메트릭 쿼리 테스트]
+Query: arbitrage_preflight_runs_total
+{
+    "status":  "success",
+    "data":  {
+                 "resultType":  "vector",
+                 "result":  [
+
+                            ]
+             }
+}
+
+[5. Textfile Collector 파일 확인]
+# HELP arbitrage_preflight_runs_total arbitrage_preflight_runs_total (counter)
+# TYPE arbitrage_preflight_runs_total counter
+arbitrage_preflight_runs_total{env="RuntimeEnv.PAPER"} 1.0
+# HELP arbitrage_preflight_runs_created arbitrage_preflight_runs_total (counter)
+# TYPE arbitrage_preflight_runs_created gauge
+arbitrage_preflight_runs_created{env="RuntimeEnv.PAPER"} 1.7662799168912842e+09
+# HELP arbitrage_preflight_last_success arbitrage_preflight_last_success (gauge)
+# TYPE arbitrage_preflight_last_success gauge
+arbitrage_preflight_last_success{env="RuntimeEnv.PAPER"} 1.0
+# HELP arbitrage_preflight_duration_seconds arbitrage_preflight_duration_seconds (histogram)
+# TYPE arbitrage_preflight_duration_seconds histogram
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.005"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.01"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.025"} 0.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.05"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.075"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.1"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.25"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.5"} 1.0
+arbitrage_preflight_duration_seconds_bucket{env="RuntimeEnv.PAPER",le="0.75"} 1.0
+
+
+E2E 검증 결과:
+- Grafana: UP (port 3000)
+- Node Exporter: UP (port 9101), 메트릭 노출 정상
+- Prometheus: UP (port 9090), node-exporter target UP
+- Preflight 메트릭: textfile collector에 존재

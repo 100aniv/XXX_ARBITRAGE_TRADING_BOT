@@ -1434,6 +1434,34 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_integration.py tests/test_d82_2_hybrid_mode.py tests/test_d92_1_fix_zone_profile_integration.py tests/test_d92_7_3_zone_profile_ssot.py -v --tb=short
 ```
 
+---
+
+## REGRESSION DEBT 트랙 (2025-12-21)
+
+**목적:** SSOT Core Regression 밖에서 발생하는 FAIL/HANG 테스트를 체계적으로 관리
+
+**현재 상태:**
+- ✅ SSOT Core Regression: 44/44 PASS (100%)
+- ✅ D98 Tests: 176/176 PASS (100%)
+- ⚠️ Full Test Suite (2503 tests): HANG 발생 (완료 불가)
+
+**DEBT 목록:**
+- 문서: `docs/REGRESSION_DEBT.md`
+- 주요 이슈:
+  1. Full Suite hang (6+ 분 무응답, 원인 미상)
+  2. `test_d72_config.py` 2개 FAIL
+  3. pytest-timeout Windows 호환성 이슈
+
+**해결 계획:**
+- D99-1: Full Regression HANG Rescue (pytest signal/subprocess 격리)
+- D99-2: Full Regression FAIL Rescue (FAIL 목록 수집 및 수정)
+- D100: Core Regression SSOT v2 (추가 테스트 선정)
+
+**원칙:**
+- SSOT 범위는 항상 100% PASS 유지
+- SSOT 밖 FAIL/HANG은 DEBT로 등록하고 별도 D 단계에서 해결
+- 모든 D 단계 완료 조건에 "SSOT 100% PASS" 포함 (Full Suite 아님)
+
 **Optional Suite (환경 의존)**:
 - `test_d15_volatility.py` - ML/torch 의존
 - `test_d19_live_mode.py` - LiveTrader 의존

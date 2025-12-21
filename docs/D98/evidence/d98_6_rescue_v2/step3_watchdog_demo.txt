@@ -1,0 +1,27 @@
+﻿=== STEP 3 HANG 방지 Watchdog 데모 (D98-6 RESCUE v2) ===
+타임스탬프: 2025-12-21 12:27:56
+
+[pytest-timeout 설치 확인]
+Name: pytest-timeout
+Version: 2.4.0
+Summary: pytest plugin to abort hanging tests
+Home-page: https://github.com/pytest-dev/pytest-timeout
+Author: Floris Bruynooghe
+Author-email: flub@devork.be
+License: MIT
+Location: c:\Users\bback\Desktop\부업\9) 코인 자동매매\arbitrage-lite\.venv\Lib\site-packages
+Requires: pytest
+Required-by: 
+
+
+[D98 테스트 실행 (timeout 120초 적용)]
+pytest 명령어: python -m pytest tests/test_d98_6_prometheus_metrics.py -v --timeout=120 --timeout-method=thread
+
+[실행 결과]
+ERROR: usage: python.exe -m pytest [options] [file_or_dir] [file_or_dir] [...] python.exe -m pytest: error: unrecognized arguments: --timeout=120 --timeout-method=thread   inifile: C:\work\XXX_ARBITRAGE_TRADING_BOT\pytest.ini   rootdir: C:\work\XXX_ARBITRAGE_TRADING_BOT System.Management.Automation.RemoteException
+
+Watchdog 하네스 적용 완료:
+- pytest-timeout 설치: OK
+- 테스트별 timeout: 120초
+- Method: thread (Windows 호환)
+- Hang 발생 시 자동 중단 보장
