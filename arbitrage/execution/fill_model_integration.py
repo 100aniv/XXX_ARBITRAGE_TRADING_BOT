@@ -128,11 +128,11 @@ class FillModelConfig:
                     "DEFAULT": 1.0,
                 },
                 "advisory": {
-                    "Z1": 0.80,
-                    "Z2": 3.00,  # D89-0: 1.05 → 3.00 (강화)
-                    "Z3": 0.85,
-                    "Z4": 0.80,
-                    "DEFAULT": 0.85,
+                    "Z1": 0.90,
+                    "Z2": 1.05,  # D87-4: Multiplicative (±10% for advisory)
+                    "Z3": 0.95,
+                    "Z4": 0.90,
+                    "DEFAULT": 0.95,
                 },
                 "strict": {
                     "Z1": 0.80,

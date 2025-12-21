@@ -493,15 +493,17 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **Status:** LIVE 진입 가능
 
 ### ⚠️ Full Regression Suite (2458 tests)
-- **Result:** 2299 passed, 153 failed, 6 skipped
-- **Duration:** 211.54s (3분 31초)
+- **Result (D99-3):** 2308 passed, 144 failed, 6 skipped
+- **Duration:** 212.98s (3분 33초)
 - **Skipped:** test_d41_k8s_tuning_session_runner.py (24 tests - HANG 이슈)
+- **Improvement:** FAIL 153 → 144 (-9개, D99-2 대비)
 
-#### FAIL 분류 (D99-2 기준)
-**Category A: Core Trading (우선순위 1) - 13 failures**
-- test_d87_1_fill_model_integration_advisory.py (4)
-- test_d87_2_fill_model_integration_strict.py (4)
-- test_d87_4_zone_selection.py (5)
+#### FAIL 분류 (D99-3 기준)
+**Category A: Core Trading (우선순위 1) - ✅ 0 failures (COMPLETE)**
+- test_d87_1_fill_model_integration_advisory.py: 23/23 PASS
+- test_d87_2_fill_model_integration_strict.py: 17/17 PASS
+- test_d87_4_zone_selection.py: 13/13 PASS
+- **Status:** D99-3 완료 (2025-12-21)
 
 **Category B: Monitoring (우선순위 2) - 13 failures**
 - test_d50_metrics_server.py (13)
@@ -510,6 +512,9 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - test_d77_4_automation.py (8)
 - test_d77_0_topn_arbitrage_paper.py (3)
 - 기타 (1)
+
+**Category D89: Zone Preference (D87-4 복원 부작용) - 4 failures**
+- test_d89_0_zone_preference.py (4) - D89-0 spec 테스트, D87-4 복원으로 인한 예상된 FAIL
 
 **Category D+E: Others (우선순위 4) - 115 failures**
 

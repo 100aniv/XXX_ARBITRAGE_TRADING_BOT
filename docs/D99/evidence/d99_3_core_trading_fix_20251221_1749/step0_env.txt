@@ -1,0 +1,28 @@
+D99-3 Core Trading FAIL Fix - Environment Snapshot
+===================================================
+Date: 2025-12-21 17:49 KST
+Task: Category A (Core Trading) 13 FAIL 수정
+
+## Git Status
+Branch: rescue/d98_3_exec_guard_and_d97_1h_paper
+HEAD: c6e75ced3b9df43c5d788a896ac6114a4bc0e919 (D99-2 완료)
+Working tree: clean
+
+## Target Files (Category A)
+1. tests/test_d87_1_fill_model_integration_advisory.py (4 failures)
+2. tests/test_d87_2_fill_model_integration_strict.py (4 failures)
+3. tests/test_d87_4_zone_selection.py (5 failures)
+Total: 13 failures
+
+## Baseline (D99-2 결과)
+- Full Regression: 2299 passed, 153 failed, 6 skipped
+- Duration: 211.54s
+- Category A: 13 failures
+- Category B: 13 failures
+- Category C: 12 failures
+- Category D+E: 115 failures
+
+## Goal
+- Category A: 13 → 0 failures
+- Full Regression FAIL: 153 → 140 (최소 -13)
+- Gate 3단: 100% PASS 유지
