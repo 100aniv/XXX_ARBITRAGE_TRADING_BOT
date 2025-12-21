@@ -1382,22 +1382,36 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 
 **Next Steps**:
 - D98-8: Preflight 주기 실행 (Cron/Scheduler)
-- D99-1: Full Regression HANG Rescue ✅ COMPLETE (2025-12-21)
-- D99-2: Full Regression FAIL Rescue (test_d41 제외)
-- D99+: LIVE 단계 진입
+-### D99-2: Full Regression Fix + FAIL List (2025-12-21) ✅ COMPLETE
+- **목표:** test_d41 스킵 후 Full Regression 완주 + FAIL 목록 수집
+- **결과:** 2299 passed, 153 failed, 6 skipped (test_d41 24개)
+- **Duration:** 211.54s (3분 31초)
+- **FAIL 분류:**
+  - Category A (Core Trading): 13 failures
+  - Category B (Monitoring): 13 failures
+  - Category C (Automation): 12 failures
+  - Category D+E (Others): 115 failures
+- **Status:** ✅ COMPLETE
+- **Evidence:** `docs/D99/evidence/d99_2_full_regression_fix_20251221_1638/`
+- **Deleted:** `docs/REGRESSION_DEBT.md` (CHECKPOINT 통합)
 
-**Tuning 인프라 (AS-IS)**:
-- ✅ 완전 구현됨 (D23~D41 완료)
-- Core 모듈: 8개 (tuning.py, tuning_advanced.py, orchestrator 등)
-- Runner scripts: 44개
-- Test coverage: 142개 파일, 1523 매치
-- Optuna 기반 Bayesian optimization, 로컬/K8s 분산 실행
-- DB/Redis 상태 관리, 광범위한 테스트 커버리지
+### D99-3: Core Trading FAIL Fix (2025-12-21) ✅ COMPLETE
+- **목표:** Category A (Core Trading) 13 FAIL → 0 FAIL
+- **Root Cause:** D89-0 변경으로 advisory mode Z2 가중치 1.05 → 3.00 (D87-4 spec 위반)
+- **Solution:** zone_preference 1줄 복원 (Z2: 3.00 → 1.05, Z1/Z4: 0.80 → 0.90, Z3/DEFAULT: 0.85 → 0.95)
+- **Result:** 
+  - test_d87_1: 23/23 PASS (was 19/23)
+  - test_d87_2: 17/17 PASS (was 13/17)
+  - test_d87_4: 13/13 PASS (was 8/13)
+  - Full Regression: 2308 passed, 144 failed (-9 from D99-2)
+- **Side Effect:** test_d89_0 4 FAIL (예상된 결과, D89-0 spec이 D87-4 위반)
+- **Modified:** `arbitrage/execution/fill_model_integration.py` (Line 130-136)
+- **Status:** ✅ COMPLETE
+- **Evidence:** `docs/D99/evidence/d99_3_core_trading_fix_20251221_1749/`
+- **Category A (Core Trading) 13 FAIL 모두 수정 완료**
+
+**Next Steps**:DB/Redis 상태 관리, 광범위한 테스트 커버리지
 - **D98 범위**: 튜닝 구현 없음 (이미 완료, 재사용만)
-
----
-
-## 마일스톤 추가 (M7~M9) — ROADMAP 확장
 
 ### M7: Multi-Exchange 확장
 **Status:** 📋 PLANNED (구현 미착수)
