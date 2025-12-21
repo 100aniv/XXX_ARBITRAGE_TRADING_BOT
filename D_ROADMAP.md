@@ -1362,9 +1362,26 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - [x] AC-7: 문서/커밋 한국어 작성
 - [x] AC-8: SSOT 동기화 (ROADMAP + CHECKPOINT)
 
+**Phase: D98-7 (Open Positions Real-Check + Preflight Hardening)** - ✅ COMPLETE (2025-12-21):
+- ✅ Open Positions 실제 조회 구현 (`CrossExchangePositionManager.list_open_positions()`)
+- ✅ Policy A (FAIL) 적용: open_count > 0이면 즉시 종료
+- ✅ Telegram P0 알림 (FAIL 시 자동 발송)
+- ✅ Prometheus 메트릭 추가 (`arbitrage_preflight_open_positions_count`)
+- ✅ Fail-Closed 원칙: 조회 실패 시에도 FAIL 반환
+- ✅ Core Regression 44/44 PASS, D98 Tests 61/63 PASS
+- Evidence: `docs/D98/D98_7_REPORT.md`, `docs/D98/evidence/d98_7_20251221_1349/`
+
+**Acceptance Criteria (D98-7)**:
+- [x] AC-1: Real open positions lookup (CrossExchangePositionManager 사용)
+- [x] AC-2: Policy application (FAIL + Telegram P0)
+- [x] AC-3: Evidence saving (5 files)
+- [x] AC-4: Core Regression 44/44 PASS
+- [x] AC-5: 문서 동기화 (D_ROADMAP, D98_7_REPORT, CHECKPOINT)
+- [x] AC-6: Git commit + push
+
 **Next Steps**:
-- D98-7: Open Positions 실제 조회 (Private API)
-- D98-8: DB 마이그레이션 자동화
+- D98-8: Preflight 주기 실행 (Cron/Scheduler)
+- D99-1: LIVE 단계 진입
 - D99+: LIVE 점진 확대
 
 **Tuning 인프라 (AS-IS)**:

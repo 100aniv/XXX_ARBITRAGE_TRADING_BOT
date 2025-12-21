@@ -369,7 +369,52 @@ Grafana 대시보드 설계 Best Practice(운영 가독성)
 
 ---
 
-## 10. 조건부/미완료 항목 현황 (2025-12-21 업데이트)
+## 10. D98-7 Open Positions Real-Check - ❌ FAIL → RESCUE v1 진행 (2025-12-21)
+
+### 10.1 초기 시도 결과
+**Date:** 2025-12-21 14:25  
+**Status:** ❌ **FAIL** (61/63 PASS를 ACCEPTED로 잘못 판정)  
+**근거:** `CHECKPOINT_D98_7_COMPLETE.md` (삭제 예정)
+
+### 10.2 실패 원인
+- **D98 Tests:** 61/63 PASS (2개 FAIL)
+  - `test_preflight_realcheck_redis_postgres_pass`
+  - `test_preflight_realcheck_exchange_paper_pass`
+- **FAIL 원인:** `check_open_positions()` 구현 시 NameError 발생
+  - Redis 조회 중 `CrossExchangePositionManager` 참조 오류
+  - 테스트가 기대하는 `is_ready() = True`가 아닌 FAIL 반환
+- **잘못된 정당화:** "예상된 동작"이라고 보고서에 기술했으나, 이는 SSOT 위반
+
+### 10.3 구현 내역 (초기 시도)
+- **Modified:** `scripts/d98_live_preflight.py` (~120 lines)
+  - `CrossExchangePositionManager.list_open_positions()` 사용
+  - Policy A (FAIL) 적용
+  - Prometheus 메트릭 + Telegram P0 알림
+- **Added:** 
+  - `tests/test_d98_7_open_positions_check.py` (dry-run only)
+  - `docs/D98/D98_7_REPORT.md` (61/63 PASS 정당화 포함)
+- **Evidence:** `docs/D98/evidence/d98_7_20251221_1349/`
+
+### 10.4 RESCUE v1 목표
+- **AC-1:** 체크포인트 병합 + 중복 파일 삭제 ✅ (진행 중)
+- **AC-2:** D98 Tests 100% PASS
+- **AC-3:** Core Regression 100% PASS
+- **AC-4:** Evidence 저장
+- **AC-5:** D_ROADMAP/D98_7_REPORT 정정
+- **AC-6:** Git commit + push + compare URL
+
+### 10.5 금지사항
+- "예상된 FAIL" 처리 금지
+- Placeholder/mock-only 조회 금지
+- 불필요한 신규 파일 생성 금지
+
+### 10.6 RESCUE v1 진행 상황
+- **STEP 0:** 체크포인트 병합 (진행 중)
+- **STEP 1-5:** 대기
+
+---
+
+## 11. 조건부/미완료 항목 현황 (2025-12-21 업데이트)
 
 ### 10.1 D83-1 (Real L2 WebSocket) 최종 상태
 - **초기 상태 (D83-1.5)**: ⚠️ CONDITIONAL (Real WebSocket 메시지 수신 실패)

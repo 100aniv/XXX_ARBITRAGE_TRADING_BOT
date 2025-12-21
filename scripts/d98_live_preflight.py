@@ -38,6 +38,9 @@ import psycopg2
 import time
 from arbitrage.monitoring.prometheus_backend import PrometheusClientBackend
 
+# D98-7: Open Positions Real-Check imports
+from arbitrage.cross_exchange.position_manager import CrossExchangePositionManager
+
 # D98-6: Telegram alerting imports
 try:
     from arbitrage.alerting.manager import AlertManager
@@ -412,11 +415,11 @@ class LivePreflightChecker:
             open_count = len(open_positions)
             
             # D98-6: Prometheus 메트릭 기록
-            if self.prometheus:
-                self.prometheus.gauge(
+            if self.metrics_backend:
+                self.metrics_backend.set_gauge(
                     "arbitrage_preflight_open_positions_count",
-                    open_count,
-                    {"env": self.settings.env}
+                    {"env": self.settings.env},
+                    open_count
                 )
             
             # D98-7: Policy A - FAIL if open_count > 0
@@ -486,12 +489,10 @@ class LivePreflightChecker:
             if self.alert_manager:
                 try:
                     self.alert_manager.send_alert(
-                        AlertRecord(
-                            severity=AlertSeverity.P0,
-                            source=AlertSource.PREFLIGHT,
-                            title="Preflight FAIL: Open Positions 조회 실패",
-                            message=f"Position 조회 중 오류: {str(e)[:100]}"
-                        )
+                        severity=AlertSeverity.P0,
+                        source=AlertSource.SYSTEM,
+                        title="Preflight FAIL: Open Positions 조회 실패",
+                        message=f"Position 조회 중 오류: {str(e)[:100]}"
                     )
                 except Exception:
                     pass  # 알림 실패 무시 (FAIL은 이미 기록됨)
@@ -642,22 +643,20 @@ class LivePreflightChecker:
                 f"Environment: {self.settings.env}"
             )
             
-            alert = AlertRecord(
-                severity=AlertSeverity.P0,
-                source=AlertSource.SYSTEM,
-                title="Preflight FAIL",
-                message=message,
-                metadata={
-                    "total_checks": len(self.result.checks),
-                    "passed": self.result.passed,
-                    "failed": self.result.failed,
-                    "warnings": self.result.warnings,
-                    "env": self.settings.env
-                }
-            )
-            
             try:
-                self.alert_manager.dispatch(alert)
+                self.alert_manager.send_alert(
+                    severity=AlertSeverity.P0,
+                    source=AlertSource.PREFLIGHT,
+                    title="Preflight FAIL",
+                    message=message,
+                    metadata={
+                        "total_checks": len(self.result.checks),
+                        "passed": self.result.passed,
+                        "failed": self.result.failed,
+                        "warnings": self.result.warnings,
+                        "env": str(self.settings.env)
+                    }
+                )
                 print("[D98-6] P0 알림 전송: Preflight FAIL")
             except Exception as e:
                 print(f"[D98-6] 알림 전송 실패: {e}")

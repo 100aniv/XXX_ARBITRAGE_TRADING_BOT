@@ -81,9 +81,10 @@ class TestPreflightRealCheck:
         "TELEGRAM_BOT_TOKEN": "test_token",
         "TELEGRAM_CHAT_ID": "test_id",
     }, clear=True)
+    @patch("arbitrage.cross_exchange.position_manager.CrossExchangePositionManager")
     @patch("redis.from_url")
     @patch("psycopg2.connect")
-    def test_preflight_realcheck_redis_postgres_pass(self, mock_pg_connect, mock_redis):
+    def test_preflight_realcheck_redis_postgres_pass(self, mock_pg_connect, mock_redis, mock_position_manager_class):
         """Real-Check: Redis + Postgres 정상 연결 → PASS"""
         # Mock Redis
         mock_redis_client = MagicMock()
@@ -100,9 +101,22 @@ class TestPreflightRealCheck:
         mock_conn.cursor.return_value = mock_cursor
         mock_pg_connect.return_value = mock_conn
         
+        # Mock CrossExchangePositionManager
+        mock_position_manager = MagicMock()
+        mock_position_manager.list_open_positions.return_value = []
+        mock_position_manager_class.return_value = mock_position_manager
+        
         # Real-Check 실행
-        checker = LivePreflightChecker(dry_run=False)
+        checker = LivePreflightChecker(dry_run=False, enable_metrics=False, enable_alerts=False)
         result = checker.run_all_checks()
+        
+        # Debug: Print all check results
+        if not result.is_ready():
+            print("\n=== FAILED CHECKS (test_preflight_realcheck_redis_postgres_pass) ===")
+            for c in result.checks:
+                if c["status"] != "PASS":
+                    print(f"FAIL: {c['name']} - {c['message']}")
+                    print(f"Details: {c.get('details', {})}")
         
         assert result.is_ready() is True
         assert result.failed == 0
@@ -195,9 +209,10 @@ class TestPreflightRealCheck:
         "TELEGRAM_BOT_TOKEN": "test_token",
         "TELEGRAM_CHAT_ID": "test_id",
     }, clear=True)
+    @patch("arbitrage.cross_exchange.position_manager.CrossExchangePositionManager")
     @patch("redis.from_url")
     @patch("psycopg2.connect")
-    def test_preflight_realcheck_exchange_paper_pass(self, mock_pg_connect, mock_redis):
+    def test_preflight_realcheck_exchange_paper_pass(self, mock_pg_connect, mock_redis, mock_position_manager_class):
         """Real-Check: Paper 모드 Exchange 검증 → PASS"""
         # Mock Redis + Postgres
         mock_redis_client = MagicMock()
@@ -213,11 +228,25 @@ class TestPreflightRealCheck:
         mock_conn.cursor.return_value = mock_cursor
         mock_pg_connect.return_value = mock_conn
         
+        # Mock CrossExchangePositionManager
+        mock_position_manager = MagicMock()
+        mock_position_manager.list_open_positions.return_value = []
+        mock_position_manager_class.return_value = mock_position_manager
+        
         # Real-Check 실행
-        checker = LivePreflightChecker(dry_run=False)
+        checker = LivePreflightChecker(dry_run=False, enable_metrics=False, enable_alerts=False)
         result = checker.run_all_checks()
         
+        # Debug: Print all check results
+        if not result.is_ready():
+            print("\n=== FAILED CHECKS ===")
+            for c in result.checks:
+                if c["status"] != "PASS":
+                    print(f"FAIL: {c['name']} - {c['message']}")
+                    print(f"Details: {c.get('details', {})}")
+        
         assert result.is_ready() is True
+        assert result.failed == 0
         
         # Exchange Health check가 PASS
         exchange_check = [c for c in result.checks if c["name"] == "Exchange Health"][0]
