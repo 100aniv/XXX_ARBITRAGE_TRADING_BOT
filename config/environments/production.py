@@ -70,7 +70,7 @@ def get_production_config() -> ArbitrageConfig:
         ),
         
         trading=TradingConfig(
-            min_spread_bps=30.0,  # 보수적
+            min_spread_bps=53.0,  # 보수적 (1.5 * (10+10+15) = 52.5, 최소 53 필요)
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=15.0,  # 실제 slippage 고려

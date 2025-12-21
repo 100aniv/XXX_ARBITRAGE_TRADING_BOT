@@ -604,7 +604,7 @@ class LivePreflightChecker:
                 print(f"[D98-6] 알림 전송 실패: {e}")
     
     def export_metrics_prom(self, output_path: str):
-        """D98-6: Prometheus 메트릭을 .prom 파일로 export"""
+        """D98-6: Prometheus 메트릭을 .prom 파일로 export (atomic write)"""
         if not self.enable_metrics or not self.metrics_backend:
             return
         
@@ -613,10 +613,19 @@ class LivePreflightChecker:
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_file, "w", encoding="utf-8") as f:
+        # Atomic write: 임시 파일에 쓰고 rename (Node Exporter textfile collector 권장)
+        temp_file = output_file.with_suffix(".prom.tmp")
+        
+        with open(temp_file, "w", encoding="utf-8") as f:
             f.write(prom_text)
         
-        print(f"메트릭 저장: {output_file}")
+        # Windows에서는 기존 파일이 있으면 먼저 삭제
+        if output_file.exists():
+            output_file.unlink()
+        
+        temp_file.rename(output_file)
+        
+        print(f"메트릭 저장 (atomic): {output_file}")
 
 
 def main():

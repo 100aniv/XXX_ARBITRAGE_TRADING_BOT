@@ -233,6 +233,130 @@
         "options": {
           "textMode": "value"
         }
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 24},
+        "type": "stat",
+        "title": "Preflight Last Success (D98-6)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "arbitrage_preflight_last_success",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "FAIL", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "PASS", "color": "green"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "textMode": "value_and_name",
+          "graphMode": "none"
+        }
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 24},
+        "type": "stat",
+        "title": "Preflight Duration P95 (D98-6)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(arbitrage_preflight_duration_seconds_bucket[5m])) * 1000",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 100, "color": "yellow"},
+                {"value": 500, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "textMode": "value_and_name",
+          "graphMode": "area"
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 24},
+        "type": "piechart",
+        "title": "Check Status Breakdown (D98-6)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum by (status) (arbitrage_preflight_checks_total)",
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value"]
+          },
+          "pieType": "pie",
+          "displayLabels": ["name", "percent"]
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          },
+          "overrides": [
+            {"matcher": {"id": "byName", "options": "pass"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]},
+            {"matcher": {"id": "byName", "options": "fail"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]},
+            {"matcher": {"id": "byName", "options": "warn"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]}
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 24},
+        "type": "graph",
+        "title": "Redis/Postgres Latency (D98-6)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(arbitrage_preflight_realcheck_redis_latency_seconds_sum[5m]) / rate(arbitrage_preflight_realcheck_redis_latency_seconds_count[5m]) * 1000",
+            "legendFormat": "Redis (ms)",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(arbitrage_preflight_realcheck_postgres_latency_seconds_sum[5m]) / rate(arbitrage_preflight_realcheck_postgres_latency_seconds_count[5m]) * 1000",
+            "legendFormat": "Postgres (ms)",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "nullPointMode": "null",
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"}
       }
     ]
   },

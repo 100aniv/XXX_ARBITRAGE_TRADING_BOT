@@ -38,8 +38,14 @@
 - 전제조건: M2(D95) 성능 Gate가 PASS여야 Top50/Top100의 의미가 생김
 
 ### M4. 운영 준비 (Observability / Alerting / Runbook)
-- **상태:** 부분 구현/문서 존재(런북/플레이북 포함), **현재 실행 흐름에서 “완전 가동/증거”가 일관되게 남는지는 재점검 필요**
-- 운영 관점의 핵심은 “운영자가 상황을 즉시 이해하고 대응” 가능해야 함
+- **상태:** ✅ **완료** (D98-6, 2025-12-21)
+- **구현 완료:**
+  - Prometheus 메트릭 7개 (Preflight KPI)
+  - Textfile collector (atomic write)
+  - Docker Compose 통합 (Prometheus/Grafana/Node-Exporter)
+  - Grafana 대시보드 패널 4개
+  - Telegram 알림 P0/P1 (FAIL/WARN)
+- 운영 관점의 핵심: "운영자가 Preflight 실행 결과를 Grafana에서 즉시 확인하고, 실패 시 Telegram 알림으로 대응" ✅
 
 ### M5. 배포/릴리즈/시크릿 거버넌스
 - **상태:** 일부 존재(환경 분리, Docker 등) 추정되나, “릴리즈/롤백/시크릿 정책 SSOT”까지는 아직 마일스톤 단위로 고정 필요

@@ -1,0 +1,35 @@
+# Prometheus Configuration for D98-6 Observability Pack
+# SSOT: D98_6_DESIGN.md, D98_6_GAP_LIST.md
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  
+  external_labels:
+    environment: 'paper'
+    cluster: 'arbitrage-lite'
+    project: 'd98-observability'
+
+scrape_configs:
+  # Job 1: Arbitrage Exporter (기존 D77 인프라)
+  - job_name: 'arbitrage_exporter'
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+        labels:
+          service: 'arbitrage_engine'
+          version: 'd77-1'
+    scrape_timeout: 10s
+
+  # Job 2: Node Exporter (textfile collector for Preflight)
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'preflight_metrics'
+          version: 'd98-6'
+    scrape_timeout: 10s
+
+  # Job 3: Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
