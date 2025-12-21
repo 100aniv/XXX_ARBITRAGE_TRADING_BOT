@@ -1408,7 +1408,20 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - **Modified:** `arbitrage/execution/fill_model_integration.py` (Line 130-136)
 - **Status:** ✅ COMPLETE
 - **Evidence:** `docs/D99/evidence/d99_3_core_trading_fix_20251221_1749/`
-- **Category A (Core Trading) 13 FAIL 모두 수정 완료**
+
+### D99-4: Monitoring FAIL Fix (2025-12-21) ✅ COMPLETE
+- **목표:** Category B (Monitoring) 13 FAIL → 0 FAIL
+- **Root Cause:** FastAPI 미설치 + 테스트 코드 ws_status dict 사용 (MetricsCollector는 개별 파라미터 기대)
+- **Solution:** 
+  1. `pip install "pydantic<2.0" "fastapi<0.99"` (환경 의존성)
+  2. test_d50_metrics_server.py Line 208, 230 ws_status dict → ws_connected, ws_reconnects 개별 파라미터
+- **Result:**
+  - test_d50_metrics_server.py: 13/13 PASS 
+  - Gate 3단: 75/75 PASS (D98 31 + Core 44)
+  - Full Regression: async timeout으로 완주 불가 (환경 이슈)
+- **Modified:** `tests/test_d50_metrics_server.py` (Line 208, 230)
+- **Status:** ✅ COMPLETE
+- **Evidence:** `docs/D99/evidence/d99_4_monitoring_fix_20251221_1843/`
 
 **Next Steps**:DB/Redis 상태 관리, 광범위한 테스트 커버리지
 - **D98 범위**: 튜닝 구현 없음 (이미 완료, 재사용만)

@@ -493,20 +493,21 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **Status:** LIVE 진입 가능
 
 ### ⚠️ Full Regression Suite (2458 tests)
-- **Result (D99-3):** 2308 passed, 144 failed, 6 skipped
-- **Duration:** 212.98s (3분 33초)
+- **Result (D99-4):** 추정 2321 passed, 131 failed, 6 skipped
+- **Duration:** N/A (async timeout으로 완주 불가)
 - **Skipped:** test_d41_k8s_tuning_session_runner.py (24 tests - HANG 이슈)
-- **Improvement:** FAIL 153 → 144 (-9개, D99-2 대비)
+- **Improvement:** FAIL 144 → 131 (-13개, D99-3 대비)
 
-#### FAIL 분류 (D99-3 기준)
-**Category A: Core Trading (우선순위 1) - ✅ 0 failures (COMPLETE)**
+#### FAIL 분류 (D99-4 기준)
+**Category A: Core Trading (우선순위 1) - ✅ 0 failures (D99-3 COMPLETE)**
 - test_d87_1_fill_model_integration_advisory.py: 23/23 PASS
 - test_d87_2_fill_model_integration_strict.py: 17/17 PASS
 - test_d87_4_zone_selection.py: 13/13 PASS
 - **Status:** D99-3 완료 (2025-12-21)
 
-**Category B: Monitoring (우선순위 2) - 13 failures**
-- test_d50_metrics_server.py (13)
+**Category B: Monitoring (우선순위 2) - ✅ 0 failures (D99-4 COMPLETE)**
+- test_d50_metrics_server.py: 13/13 PASS
+- **Status:** D99-4 완료 (2025-12-21)
 
 **Category C: Automation (우선순위 3) - 12 failures**
 - test_d77_4_automation.py (8)

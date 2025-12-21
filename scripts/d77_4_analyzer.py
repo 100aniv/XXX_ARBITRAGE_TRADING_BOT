@@ -48,14 +48,18 @@ class D77Analyzer:
         self._setup_logging()
     
     def _setup_logging(self):
-        """로깅 핸들러 추가"""
         log_file = self.log_dir / "analyzer.log"
-        handler = logging.FileHandler(log_file, encoding='utf-8')
-        handler.setFormatter(logging.Formatter(
+        self._log_handler = logging.FileHandler(log_file, encoding='utf-8')
+        self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(handler)
+        logger.addHandler(self._log_handler)
         logger.setLevel(logging.INFO)
+    
+    def __del__(self):
+        if hasattr(self, '_log_handler'):
+            logger.removeHandler(self._log_handler)
+            self._log_handler.close()
     
     def analyze(
         self,

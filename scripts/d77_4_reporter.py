@@ -28,12 +28,17 @@ class D77Reporter:
     
     def _setup_logging(self):
         log_file = self.log_dir / "reporter.log"
-        handler = logging.FileHandler(log_file, encoding='utf-8')
-        handler.setFormatter(logging.Formatter(
+        self._log_handler = logging.FileHandler(log_file, encoding='utf-8')
+        self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(handler)
+        logger.addHandler(self._log_handler)
         logger.setLevel(logging.INFO)
+    
+    def __del__(self):
+        if hasattr(self, '_log_handler'):
+            logger.removeHandler(self._log_handler)
+            self._log_handler.close()
     
     def generate_report(self, analysis_result_path: Path) -> bool:
         """리포트 생성

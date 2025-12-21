@@ -14,12 +14,12 @@ D99 시리즈는 Full Regression Suite (2458 tests)의 HANG/FAIL 이슈를 체�
 - ✅ D99-1: HANG Rescue (test_d41 원인 확정 및 스킵)
 - ✅ D99-2: Full Regression 완주 + FAIL 리스트 수집
 - ✅ D99-3: Category A (Core Trading) 13 FAIL 수정
-- ⏳ D99-4: Category B (Monitoring) 13 FAIL 수정 예정
+- ✅ D99-4: Category B (Monitoring) 13 FAIL 수정
 - ⏳ D99-5: Category C (Automation) 12 FAIL 수정 예정
 
 **Progress:**
-- Full Regression FAIL: 153 (D99-2) → 144 (D99-3) → Target: <50 (D99-5)
-- SSOT Core Suite: 44/44 + 30/30 = 100% PASS 유지 중
+- Full Regression FAIL: 153 (D99-2) → 144 (D99-3) → 131 (D99-4, 추정) → Target: <50 (D99-5)
+- SSOT Core Suite: 44/44 + 31/31 = 100% PASS 유지 중
 
 ---
 
