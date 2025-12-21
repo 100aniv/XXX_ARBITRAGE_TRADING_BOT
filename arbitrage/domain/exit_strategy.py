@@ -259,6 +259,42 @@ class ExitStrategy:
                 message=f"SPREAD_REV: {current_spread_bps:.1f} bps < {self.config.spread_reversal_threshold_bps:.1f} bps",
             )
         
+        # 3. Time Limit
+        if time_held >= self.config.max_hold_time_seconds:
+            self.exit_eval_counts["time_limit_hit"] += 1
+            return ExitDecision(
+                should_exit=True,
+                reason=ExitReason.TIME_LIMIT,
+                current_pnl_pct=current_pnl_pct,
+                current_spread_bps=current_spread_bps,
+                time_held_seconds=time_held,
+                message=f"TIME: {time_held:.1f}s >= {self.config.max_hold_time_seconds:.1f}s",
+            )
+        
+        # 4a. Take Profit (Δspread 기준)
+        if delta_spread_bps <= self.config.take_profit_delta_bps:
+            self.exit_eval_counts["tp_hit"] += 1
+            return ExitDecision(
+                should_exit=True,
+                reason=ExitReason.TAKE_PROFIT,
+                current_pnl_pct=current_pnl_pct,
+                current_spread_bps=current_spread_bps,
+                time_held_seconds=time_held,
+                message=f"TP_DELTA: Δspread {delta_spread_bps:.2f} bps <= {self.config.take_profit_delta_bps:.2f} bps",
+            )
+        
+        # 4b. Take Profit (PnL% 기준 - fallback)
+        if current_pnl_pct >= self.config.tp_threshold_pct:
+            self.exit_eval_counts["tp_hit"] += 1
+            return ExitDecision(
+                should_exit=True,
+                reason=ExitReason.TAKE_PROFIT,
+                current_pnl_pct=current_pnl_pct,
+                current_spread_bps=current_spread_bps,
+                time_held_seconds=time_held,
+                message=f"TP: PnL {current_pnl_pct:.2f}% >= {self.config.tp_threshold_pct:.2f}%",
+            )
+        
         # Hold position
         self.exit_eval_counts["none"] += 1
         return ExitDecision(

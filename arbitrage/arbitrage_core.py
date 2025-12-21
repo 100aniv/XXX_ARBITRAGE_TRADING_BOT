@@ -8,7 +8,7 @@ Deterministic and fully testable.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 logger = logging.getLogger(__name__)
 

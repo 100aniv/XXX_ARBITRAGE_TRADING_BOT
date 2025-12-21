@@ -25,7 +25,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(name)s] %(levelname)s: %(message)s'
 )
-logger = logging.getLogger(__name__)
 
 
 class D77Orchestrator:
@@ -38,15 +37,43 @@ class D77Orchestrator:
         self.log_dir = project_root / "logs" / "d77-4" / self.run_id
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
+        # D99-5: 인스턴스별 고유 logger
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}.{id(self)}")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        self._log_handler = None
+        
         # 로그 파일 핸들러 추가
         log_file = self.log_dir / "orchestrator.log"
-        handler = logging.FileHandler(log_file, encoding='utf-8')
-        handler.setFormatter(logging.Formatter(
+        self._log_handler = logging.FileHandler(log_file, encoding='utf-8')
+        self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(handler)
+        self.logger.addHandler(self._log_handler)
         
-        logger.info(f"[D77-4 Orchestrator] 시작 (mode={mode}, run_id={self.run_id})")
+        self.logger.info(f"[D77-4 Orchestrator] 시작 (mode={mode}, run_id={self.run_id})")
+    
+    def close(self):
+        """명시적 cleanup - D99-5"""
+        if self._log_handler:
+            try:
+                self._log_handler.flush()
+                self.logger.removeHandler(self._log_handler)
+                self._log_handler.close()
+                self._log_handler = None
+                self.logger.handlers.clear()
+            except Exception:
+                pass
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+    
+    def __del__(self):
+        self.close()
     
     def run(self) -> int:
         """전체 플로우 실행
@@ -57,56 +84,56 @@ class D77Orchestrator:
         try:
             # Step 1: 환경 체크
             if not self._run_env_checker():
-                logger.error("환경 체크 실패")
+                self.logger.error("환경 체크 실패")
                 return 1
             
             # Step 2: 60초 스모크 테스트
             smoke_kpi_path = self._run_smoke_test()
             if not smoke_kpi_path or not smoke_kpi_path.exists():
-                logger.error("스모크 테스트 실패")
+                self.logger.error("스모크 테스트 실패")
                 return 1
             
             # 스모크 결과 간단 판단
             if not self._check_smoke_pass(smoke_kpi_path):
-                logger.error("스모크 테스트 FAIL → 중단")
+                self.logger.error("스모크 테스트 FAIL → 중단")
                 return 1
             
-            logger.info("[OK] 스모크 테스트 PASS")
+            self.logger.info("[OK] 스모크 테스트 PASS")
             
             if self.mode == "smoke-only":
-                logger.info("smoke-only 모드 → 여기서 종료")
+                self.logger.info("smoke-only 모드 → 여기서 종료")
                 return 0
             
             # Step 3: 1시간 본 실행
             full_kpi_path = self._run_full_test()
             if not full_kpi_path or not full_kpi_path.exists():
-                logger.error("1시간 본 실행 실패")
+                self.logger.error("1시간 본 실행 실패")
                 return 1
             
             # Step 4: 분석
             analysis_result_path = self._run_analyzer(full_kpi_path)
             if not analysis_result_path or not analysis_result_path.exists():
-                logger.error("분석 실패")
+                self.logger.error("분석 실패")
                 return 1
             
             # Step 5: 리포트 생성
             if not self._run_reporter(analysis_result_path):
-                logger.error("리포트 생성 실패")
+                self.logger.error("리포트 생성 실패")
                 return 1
             
-            logger.info("[OK] 전체 플로우 완료")
+            self.logger.info("[OK] 전체 플로우 완료")
             return 0
             
         except KeyboardInterrupt:
-            logger.warning("사용자 중단 (Ctrl+C)")
+            self.logger.warning("사용자 중단 (Ctrl+C)")
             return 1
         except Exception as e:
-            logger.exception(f"예외 발생: {e}")
+            self.logger.exception(f"예외 발생: {e}")
             return 1
     
     def _run_env_checker(self) -> bool:
         """환경 체커 실행"""
-        logger.info("[Step 1/5] 환경 체크 실행")
+        self.logger.info("[Step 1/5] 환경 체크 실행")
         
         cmd = [
             sys.executable,
@@ -117,15 +144,15 @@ class D77Orchestrator:
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode == 0:
-            logger.info("환경 체크 성공")
+            self.logger.info("환경 체크 성공")
             return True
         else:
-            logger.error(f"환경 체크 실패: {result.stderr}")
+            self.logger.error(f"환경 체크 실패: {result.stderr}")
             return False
     
     def _run_smoke_test(self) -> Optional[Path]:
         """60초 스모크 테스트 실행"""
-        logger.info("[Step 2/5] 60초 스모크 테스트 실행")
+        self.logger.info("[Step 2/5] 60초 스모크 테스트 실행")
         
         kpi_path = self.log_dir / "smoke_60s_kpi.json"
         console_log = self.log_dir / "smoke_60s_console.log"
@@ -149,20 +176,20 @@ class D77Orchestrator:
                 cwd=self.project_root
             )
             
-            logger.info(f"Runner 프로세스 시작: PID={proc.pid}")
+            self.logger.info(f"Runner 프로세스 시작: PID={proc.pid}")
             
             # 완료 대기 (타임아웃 120초)
             try:
                 proc.wait(timeout=120)
-                logger.info(f"Runner 종료: exit_code={proc.returncode}")
+                self.logger.info(f"Runner 종료: exit_code={proc.returncode}")
                 
                 if proc.returncode == 0:
                     return kpi_path
                 else:
-                    logger.error(f"Runner 실패: exit_code={proc.returncode}")
+                    self.logger.error(f"Runner 실패: exit_code={proc.returncode}")
                     return None
             except subprocess.TimeoutExpired:
-                logger.error("Runner 타임아웃 (120초)")
+                self.logger.error("Runner 타임아웃 (120초)")
                 proc.kill()
                 return None
     
@@ -176,18 +203,18 @@ class D77Orchestrator:
             # 간단한 체크: round_trips >= 1, crash = 0
             round_trips = kpi.get("round_trips_completed", 0)
             if round_trips < 1:
-                logger.warning(f"Round trips = {round_trips} < 1 → FAIL")
+                self.logger.warning(f"Round trips = {round_trips} < 1 → FAIL")
                 return False
             
-            logger.info(f"스모크 KPI: round_trips={round_trips}")
+            self.logger.info(f"스모크 KPI: round_trips={round_trips}")
             return True
         except Exception as e:
-            logger.error(f"스모크 KPI 로드 실패: {e}")
+            self.logger.error(f"스모크 KPI 로드 실패: {e}")
             return False
     
     def _run_full_test(self) -> Optional[Path]:
         """1시간 본 실행"""
-        logger.info("[Step 3/5] 1시간 본 실행")
+        self.logger.info("[Step 3/5] 1시간 본 실행")
         
         kpi_path = self.log_dir / "full_1h_kpi.json"
         console_log = self.log_dir / "full_1h_console.log"
@@ -210,26 +237,26 @@ class D77Orchestrator:
                 cwd=self.project_root
             )
             
-            logger.info(f"Runner 프로세스 시작: PID={proc.pid}")
+            self.logger.info(f"Runner 프로세스 시작: PID={proc.pid}")
             
             # 1시간 + 여유 10분 타임아웃
             try:
                 proc.wait(timeout=4200)
-                logger.info(f"Runner 종료: exit_code={proc.returncode}")
+                self.logger.info(f"Runner 종료: exit_code={proc.returncode}")
                 
                 if proc.returncode == 0:
                     return kpi_path
                 else:
-                    logger.error(f"Runner 실패: exit_code={proc.returncode}")
+                    self.logger.error(f"Runner 실패: exit_code={proc.returncode}")
                     return None
             except subprocess.TimeoutExpired:
-                logger.error("Runner 타임아웃 (70분)")
+                self.logger.error("Runner 타임아웃 (70분)")
                 proc.kill()
                 return None
     
     def _run_analyzer(self, kpi_path: Path) -> Optional[Path]:
         """분석기 실행"""
-        logger.info("[Step 4/5] 분석기 실행")
+        self.logger.info("[Step 4/5] 분석기 실행")
         
         console_log = self.log_dir / "full_1h_console.log"
         
@@ -246,15 +273,15 @@ class D77Orchestrator:
         analysis_result_path = self.log_dir / "analysis_result.json"
         
         if result.returncode == 0 or analysis_result_path.exists():
-            logger.info("분석 완료")
+            self.logger.info("분석 완료")
             return analysis_result_path
         else:
-            logger.error(f"분석 실패: {result.stderr}")
+            self.logger.error(f"분석 실패: {result.stderr}")
             return None
     
     def _run_reporter(self, analysis_result_path: Path) -> bool:
         """리포터 실행"""
-        logger.info("[Step 5/5] 리포터 실행")
+        self.logger.info("[Step 5/5] 리포터 실행")
         
         cmd = [
             sys.executable,
@@ -266,10 +293,10 @@ class D77Orchestrator:
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode == 0:
-            logger.info("리포트 생성 완료")
+            self.logger.info("리포트 생성 완료")
             return True
         else:
-            logger.error(f"리포트 생성 실패: {result.stderr}")
+            self.logger.error(f"리포트 생성 실패: {result.stderr}")
             return False
 
 

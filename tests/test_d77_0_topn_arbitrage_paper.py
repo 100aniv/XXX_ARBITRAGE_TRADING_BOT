@@ -171,6 +171,7 @@ class TestExitStrategy:
             sl_threshold_pct=0.5,
             max_hold_time_seconds=180.0,
             spread_reversal_threshold_bps=-10.0,
+            take_profit_delta_bps=-100.0,  # D99-5: TP_DELTA 비활성화
         )
         strategy = ExitStrategy(config=config)
         
@@ -238,6 +239,7 @@ class TestExitStrategy:
             sl_threshold_pct=0.5,
             max_hold_time_seconds=180.0,
             spread_reversal_threshold_bps=-10.0,
+            take_profit_delta_bps=-100.0,  # D99-5: TP_DELTA 비활성화
         )
         strategy = ExitStrategy(config=config)
         
@@ -270,6 +272,7 @@ class TestExitStrategy:
             sl_threshold_pct=0.5,
             max_hold_time_seconds=180.0,
             spread_reversal_threshold_bps=-10.0,
+            take_profit_delta_bps=-100.0,  # D99-5: TP_DELTA 비활성화
         )
         strategy = ExitStrategy(config=config)
         

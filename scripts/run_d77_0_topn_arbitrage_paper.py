@@ -256,28 +256,34 @@ class MockTrade:
         return self.quantity * max(self.buy_price, self.sell_price)
 
 # D92-1-FIX + D99-5: 로깅 설정 (logs/paper_sessions/ 경로로 수정)
+# import 시점이 아닌 실행 시점에만 로그 생성하도록 지연
 log_dir = Path(__file__).parent.parent / "logs" / "paper_sessions"
-if not log_dir.exists():
-    log_dir.mkdir(parents=True, exist_ok=True)
-log_filename = log_dir / f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+log_filename = None
 
-# 루트 로거에 핸들러 추가 (모든 자식 로거에 propagate됨)
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-
-# FileHandler 추가 (중복 체크)
-file_handler_exists = any(isinstance(h, logging.FileHandler) and 'paper_session' in str(h.baseFilename) for h in root_logger.handlers)
-if not file_handler_exists:
-    file_handler = logging.FileHandler(str(log_filename))
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(
-        logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s')
-    )
-    root_logger.addHandler(file_handler)
+def _setup_logging():
+    """로깅 설정 (실행 시점에 호출)"""
+    global log_filename
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_filename = log_dir / f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+        
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
+        file_handler_exists = any(isinstance(h, logging.FileHandler) and 'paper_session' in str(h.baseFilename) for h in root_logger.handlers)
+        if not file_handler_exists:
+            file_handler = logging.FileHandler(str(log_filename))
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(
+                logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s')
+            )
+            root_logger.addHandler(file_handler)
+            logging.info(f"[D92-1-FIX] Logger initialized with file: {log_filename}")
+    except Exception as e:
+        logging.warning(f"[D99-5] Failed to setup file logging: {e}, using console only")
 
 # 모듈 로거 (루트 로거로 propagate)
 logger = logging.getLogger(__name__)
-logger.info(f"[D92-1-FIX] Logger initialized with file: {log_filename}")
 
 
 class D77PAPERRunner:
@@ -1511,10 +1517,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    _setup_logging()  # D99-5: 로깅 설정 지연 초기화
-    args = parse_args()
-    
-    try:
-        asyncio.run(main(args))
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user, exiting gracefully...")
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)

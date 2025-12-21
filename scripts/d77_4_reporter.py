@@ -13,9 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict
 
-logger = logging.getLogger(__name__)
-
-
 class D77Reporter:
     """D77-4 리포트 생성"""
     
@@ -25,6 +22,12 @@ class D77Reporter:
         self.log_dir = project_root / "logs" / "d77-4" / run_id
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
+        # D99-5: 인스턴스별 고유 logger (핸들러 공유 방지)
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}.{id(self)}")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        self._log_handler = None
+        
         self._setup_logging()
     
     def _setup_logging(self):
@@ -33,17 +36,18 @@ class D77Reporter:
         self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(self._log_handler)
-        logger.setLevel(logging.INFO)
+        self.logger.addHandler(self._log_handler)
     
     def close(self):
-        """명시적 cleanup (Windows 파일 락 해결용)"""
-        if hasattr(self, '_log_handler') and self._log_handler:
+        """명시적 cleanup (Windows 파일 락 해결용) - D99-5 강화"""
+        if self._log_handler:
             try:
                 self._log_handler.flush()
+                self.logger.removeHandler(self._log_handler)
                 self._log_handler.close()
-                logger.removeHandler(self._log_handler)
                 self._log_handler = None
+                # 핸들러 완전 제거
+                self.logger.handlers.clear()
             except Exception:
                 pass
     
@@ -69,11 +73,11 @@ class D77Reporter:
         Returns:
             성공 여부
         """
-        logger.info("[D77-4 Reporter] 리포트 생성 시작")
+        self.logger.info("[D77-4 Reporter] 리포트 생성 시작")
         
         # 분석 결과 로드
         if not analysis_result_path.exists():
-            logger.error(f"분석 결과 없음: {analysis_result_path}")
+            self.logger.error(f"분석 결과 없음: {analysis_result_path}")
             return False
         
         with open(analysis_result_path, 'r', encoding='utf-8') as f:
@@ -82,7 +86,7 @@ class D77Reporter:
         # 템플릿 로드
         template_path = self.project_root / "docs" / "D77_4_LONG_PAPER_VALIDATION_REPORT_TEMPLATE.md"
         if not template_path.exists():
-            logger.error(f"템플릿 없음: {template_path}")
+            self.logger.error(f"템플릿 없음: {template_path}")
             return False
         
         with open(template_path, 'r', encoding='utf-8') as f:

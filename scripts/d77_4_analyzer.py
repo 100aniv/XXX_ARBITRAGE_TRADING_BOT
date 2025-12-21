@@ -15,9 +15,6 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-logger = logging.getLogger(__name__)
-
-
 class D77Analyzer:
     """D77-4 KPI 분석 및 판단"""
     
@@ -46,6 +43,12 @@ class D77Analyzer:
         self.log_dir = project_root / "logs" / "d77-4" / run_id
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
+        # D99-5: 인스턴스별 고유 logger (핸들러 공유 방지)
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}.{id(self)}")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        self._log_handler = None
+        
         self._setup_logging()
     
     def _setup_logging(self):
@@ -54,17 +57,18 @@ class D77Analyzer:
         self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(self._log_handler)
-        logger.setLevel(logging.INFO)
+        self.logger.addHandler(self._log_handler)
     
     def close(self):
-        """명시적 cleanup (Windows 파일 락 해결용)"""
-        if hasattr(self, '_log_handler') and self._log_handler:
+        """명시적 cleanup (Windows 파일 락 해결용) - D99-5 강화"""
+        if self._log_handler:
             try:
                 self._log_handler.flush()
+                self.logger.removeHandler(self._log_handler)
                 self._log_handler.close()
-                logger.removeHandler(self._log_handler)
                 self._log_handler = None
+                # 핸들러 완전 제거
+                self.logger.handlers.clear()
             except Exception:
                 pass
     
@@ -102,7 +106,7 @@ class D77Analyzer:
         Note:
             D77-5: metrics_path가 제공되지 않으면, Prometheus에서 자동으로 스냅샷을 저장합니다.
         """
-        logger.info(f"[D77-4 Analyzer] 분석 시작 (run_id: {self.run_id})")
+        self.logger.info(f"[D77-4 Analyzer] 분석 시작 (run_id: {self.run_id})")
         
         result = {
             "run_id": self.run_id,
@@ -116,7 +120,7 @@ class D77Analyzer:
         
         # D77-5: Prometheus 스냅샷 자동 저장
         if not metrics_path or not metrics_path.exists():
-            logger.info("[D77-5] Prometheus 스냅샷 자동 저장 시도")
+            self.logger.info("[D77-5] Prometheus 스냅샷 자동 저장 시도")
             try:
                 from arbitrage.monitoring.prometheus_snapshot import save_prometheus_snapshot
                 snapshot_path = save_prometheus_snapshot(
@@ -127,17 +131,17 @@ class D77Analyzer:
                 if snapshot_path:
                     metrics_path = snapshot_path
                     result["prometheus_snapshot_path"] = str(snapshot_path)
-                    logger.info(f"[D77-5] Prometheus 스냅샷 저장 완료: {snapshot_path}")
+                    self.logger.info(f"[D77-5] Prometheus 스냅샷 저장 완료: {snapshot_path}")
                 else:
-                    logger.warning("[D77-5] Prometheus 스냅샷 저장 실패 (서버 미응답 또는 에러)")
+                    self.logger.warning("[D77-5] Prometheus 스냅샷 저장 실패 (서버 미응답 또는 에러)")
             except Exception as e:
-                logger.error(f"[D77-5] Prometheus 스냅샷 저장 중 예외: {e}", exc_info=True)
+                self.logger.error(f"[D77-5] Prometheus 스냅샷 저장 중 예외: {e}", exc_info=True)
         else:
             result["prometheus_snapshot_path"] = str(metrics_path)
         
         # KPI 로드
         if not kpi_path.exists():
-            logger.error(f"KPI 파일 없음: {kpi_path}")
+            self.logger.error(f"KPI 파일 없음: {kpi_path}")
             result["decision"] = "NO-GO"
             result["decision_reason"] = "KPI 파일 없음"
             return result
@@ -146,9 +150,9 @@ class D77Analyzer:
             with open(kpi_path, 'r', encoding='utf-8') as f:
                 kpi = json.load(f)
             result["kpi"] = kpi
-            logger.info(f"KPI 로드 완료: {len(kpi)} 필드")
+            self.logger.info(f"KPI 로드 완료: {len(kpi)} 필드")
         except Exception as e:
-            logger.error(f"KPI 파일 로드 실패: {e}")
+            self.logger.error(f"KPI 파일 로드 실패: {e}")
             result["decision"] = "NO-GO"
             result["decision_reason"] = f"KPI 로드 실패: {e}"
             return result
@@ -172,7 +176,7 @@ class D77Analyzer:
             if passed:
                 critical_pass_count += 1
         
-        logger.info(f"Critical: {critical_pass_count}/6 PASS")
+        self.logger.info(f"Critical: {critical_pass_count}/6 PASS")
         
         # High Priority Criteria 검증
         high_pass_count = 0
@@ -185,14 +189,14 @@ class D77Analyzer:
             if passed:
                 high_pass_count += 1
         
-        logger.info(f"High Priority: {high_pass_count}/6 PASS")
+        self.logger.info(f"High Priority: {high_pass_count}/6 PASS")
         
         # 의사결정
         decision, reason = self._make_decision(critical_pass_count, high_pass_count)
         result["decision"] = decision
         result["decision_reason"] = reason
         
-        logger.info(f"최종 판단: {decision} - {reason}")
+        self.logger.info(f"최종 판단: {decision} - {reason}")
         
         # 결과 저장
         self._save_result(result)
@@ -206,7 +210,7 @@ class D77Analyzer:
             로그 통계 딕셔너리
         """
         if not log_path.exists():
-            logger.warning(f"콘솔 로그 파일 없음: {log_path}")
+            self.logger.warning(f"콘솔 로그 파일 없음: {log_path}")
             return {"traceback_count": 0, "error_count": 0, "warning_count": 0}
         
         try:
@@ -219,11 +223,11 @@ class D77Analyzer:
                 "warning_count": len(re.findall(r"\[WARNING\]", log_text)),
             }
             
-            logger.info(f"로그 통계: Traceback={stats['traceback_count']}, "
+            self.logger.info(f"로그 통계: Traceback={stats['traceback_count']}, "
                        f"ERROR={stats['error_count']}, WARNING={stats['warning_count']}")
             return stats
         except Exception as e:
-            logger.warning(f"로그 분석 예외: {e}")
+            self.logger.warning(f"로그 분석 예외: {e}")
             return {"traceback_count": 0, "error_count": 0, "warning_count": 0}
     
     def _parse_metrics(self, metrics_path: Path) -> Dict:
@@ -247,10 +251,10 @@ class D77Analyzer:
                     except ValueError:
                         pass
             
-            logger.info(f"Prometheus 메트릭 파싱: {len(metrics)} 항목")
+            self.logger.info(f"Prometheus 메트릭 파싱: {len(metrics)} 항목")
             return metrics
         except Exception as e:
-            logger.warning(f"메트릭 파싱 예외: {e}")
+            self.logger.warning(f"메트릭 파싱 예외: {e}")
             return {}
     
     def _check_criteria(
@@ -288,10 +292,10 @@ class D77Analyzer:
             # D77-5: Prometheus 스냅샷 파일 존재 여부로 검증
             prometheus_snapshot = self.log_dir / "prometheus_metrics.prom"
             if prometheus_snapshot.exists():
-                logger.info(f"[C5] Prometheus 스냅샷 파일 존재: {prometheus_snapshot}")
+                self.logger.info(f"[C5] Prometheus 스냅샷 파일 존재: {prometheus_snapshot}")
                 return True
             else:
-                logger.warning(f"[C5] Prometheus 스냅샷 파일 없음: {prometheus_snapshot}")
+                self.logger.warning(f"[C5] Prometheus 스냅샷 파일 없음: {prometheus_snapshot}")
                 return False
         
         elif check_type == "manual":
@@ -316,7 +320,7 @@ class D77Analyzer:
             # 일반 필드 + threshold 체크
             field = criteria.get("field")
             if not field or field not in kpi:
-                logger.warning(f"{cid}: 필드 없음 ({field})")
+                self.logger.warning(f"{cid}: 필드 없음 ({field})")
                 return False
             
             value = kpi[field]
@@ -361,7 +365,7 @@ class D77Analyzer:
         output_path = self.log_dir / "analysis_result.json"
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
-        logger.info(f"분석 결과 저장: {output_path}")
+        self.logger.info(f"분석 결과 저장: {output_path}")
 
 
 def main():

@@ -22,9 +22,6 @@ try:
 except ImportError:
     psutil = None
 
-logger = logging.getLogger(__name__)
-
-
 class D77EnvChecker:
     """D77-4 환경 체크 및 자동 정리"""
     
@@ -33,6 +30,12 @@ class D77EnvChecker:
         self.run_id = run_id
         self.log_dir = project_root / "logs" / "d77-4" / run_id
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        # D99-5: 인스턴스별 고유 logger (핸들러 공유 방지)
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}.{id(self)}")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        self._log_handler = None
         
         # 로깅 설정
         self._setup_logging()
@@ -43,17 +46,18 @@ class D77EnvChecker:
         self._log_handler.setFormatter(logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
         ))
-        logger.addHandler(self._log_handler)
-        logger.setLevel(logging.INFO)
+        self.logger.addHandler(self._log_handler)
     
     def close(self):
-        """명시적 cleanup (Windows 파일 락 해결용)"""
-        if hasattr(self, '_log_handler') and self._log_handler:
+        """명시적 cleanup (Windows 파일 락 해결용) - D99-5 강화"""
+        if self._log_handler:
             try:
                 self._log_handler.flush()
+                self.logger.removeHandler(self._log_handler)
                 self._log_handler.close()
-                logger.removeHandler(self._log_handler)
                 self._log_handler = None
+                # 핸들러 완전 제거
+                self.logger.handlers.clear()
             except Exception:
                 pass
     
@@ -76,7 +80,7 @@ class D77EnvChecker:
         Returns:
             (success, result_dict)
         """
-        logger.info(f"[D77-4] 환경 체크 시작 (run_id: {self.run_id})")
+        self.logger.info(f"[D77-4] 환경 체크 시작 (run_id: {self.run_id})")
         
         result = {
             "run_id": self.run_id,
@@ -85,7 +89,7 @@ class D77EnvChecker:
         }
         
         # Step 1: 기존 Runner 프로세스 종료
-        logger.info("[Step 1/4] 기존 PAPER Runner 프로세스 체크")
+        self.logger.info("[Step 1/4] 기존 PAPER Runner 프로세스 체크")
         killed_count = self._kill_existing_runners()
         result["steps"]["process_cleanup"] = {
             "killed_processes": killed_count,
@@ -93,7 +97,7 @@ class D77EnvChecker:
         }
         
         # Step 2: Docker 컨테이너 체크
-        logger.info("[Step 2/4] Docker Redis/PostgreSQL 컨테이너 체크")
+        self.logger.info("[Step 2/4] Docker Redis/PostgreSQL 컨테이너 체크")
         docker_ok, docker_status = self._check_docker_containers()
         result["steps"]["docker_check"] = {
             "redis_status": docker_status.get("redis"),
@@ -102,26 +106,26 @@ class D77EnvChecker:
         }
         
         if not docker_ok:
-            logger.warning("Docker 컨테이너 체크 실패 (경고, 계속 진행)")
+            self.logger.warning("Docker 컨테이너 체크 실패 (경고, 계속 진행)")
             # Docker 실패해도 계속 진행 (로컬 개발 환경일 수 있음)
         
         # Step 3: Redis 초기화
-        logger.info("[Step 3/4] Redis 상태 초기화")
+        self.logger.info("[Step 3/4] Redis 상태 초기화")
         redis_ok = self._reset_redis()
         result["steps"]["redis_reset"] = {"success": redis_ok}
         
         if not redis_ok:
-            logger.warning("Redis 초기화 실패 (경고, 계속 진행)")
+            self.logger.warning("Redis 초기화 실패 (경고, 계속 진행)")
         
         # Step 4: PostgreSQL 초기화
-        logger.info("[Step 4/4] PostgreSQL alert 테이블 정리")
+        self.logger.info("[Step 4/4] PostgreSQL alert 테이블 정리")
         pg_ok = self._reset_postgres()
         result["steps"]["postgres_reset"] = {"success": pg_ok}
         
         if not pg_ok:
-            logger.warning("PostgreSQL 초기화 실패 (경고, 계속 진행)")
+            self.logger.warning("PostgreSQL 초기화 실패 (경고, 계속 진행)")
         
-        logger.info(f"[D77-4] 환경 체크 완료: {'SUCCESS' if result['success'] else 'FAIL'}")
+        self.logger.info(f"[D77-4] 환경 체크 완료: {'SUCCESS' if result['success'] else 'FAIL'}")
         return result["success"], result
     
     def _kill_existing_runners(self) -> int:
@@ -131,7 +135,7 @@ class D77EnvChecker:
             종료된 프로세스 수
         """
         if not psutil:
-            logger.warning("psutil 없음, 프로세스 체크 생략")
+            self.logger.warning("psutil 없음, 프로세스 체크 생략")
             return 0
         
         killed_count = 0
@@ -150,7 +154,7 @@ class D77EnvChecker:
                     if proc.pid == os.getpid():
                         continue
                     
-                    logger.info(f"기존 Runner 프로세스 종료: PID={proc.pid}")
+                    self.logger.info(f"기존 Runner 프로세스 종료: PID={proc.pid}")
                     proc.terminate()
                     try:
                         proc.wait(timeout=5)
@@ -161,9 +165,9 @@ class D77EnvChecker:
                 continue
         
         if killed_count > 0:
-            logger.info(f"총 {killed_count}개 프로세스 종료")
+            self.logger.info(f"총 {killed_count}개 프로세스 종료")
         else:
-            logger.info("종료할 프로세스 없음")
+            self.logger.info("종료할 프로세스 없음")
         
         return killed_count
     
@@ -188,7 +192,7 @@ class D77EnvChecker:
             )
             
             if result.returncode != 0:
-                logger.error(f"docker compose ps 실패: {result.stderr}")
+                self.logger.error(f"docker compose ps 실패: {result.stderr}")
                 return False, {}
             
             # 컨테이너 상태 파싱
@@ -211,7 +215,7 @@ class D77EnvChecker:
             
             # 하나라도 Down이면 자동 기동
             if not (redis_up and postgres_up):
-                logger.info("컨테이너 일부 Down 상태, docker compose up -d 실행")
+                self.logger.info("컨테이너 일부 Down 상태, docker compose up -d 실행")
                 up_result = subprocess.run(
                     ["docker", "compose", "up", "-d"],
                     cwd=docker_dir,
@@ -223,27 +227,27 @@ class D77EnvChecker:
                 )
                 
                 if up_result.returncode != 0:
-                    logger.error(f"docker compose up -d 실패: {up_result.stderr}")
+                    self.logger.error(f"docker compose up -d 실패: {up_result.stderr}")
                     return False, status
                 
-                logger.info("30초 대기 (컨테이너 기동)")
+                self.logger.info("30초 대기 (컨테이너 기동)")
                 time.sleep(30)
                 
                 # 재확인
                 redis_up = postgres_up = True  # 낙관적 가정
                 status = {"redis": "Up", "postgres": "Up"}
             
-            logger.info(f"Docker 컨테이너 상태: Redis={status['redis']}, Postgres={status['postgres']}")
+            self.logger.info(f"Docker 컨테이너 상태: Redis={status['redis']}, Postgres={status['postgres']}")
             return True, status
             
         except FileNotFoundError:
-            logger.error("docker 명령어를 찾을 수 없음 (Docker 미설치?)")
+            self.logger.error("docker 명령어를 찾을 수 없음 (Docker 미설치?)")
             return False, {}
         except subprocess.TimeoutExpired:
-            logger.error("docker compose 명령 타임아웃")
+            self.logger.error("docker compose 명령 타임아웃")
             return False, {}
         except Exception as e:
-            logger.error(f"Docker 체크 중 예외: {e}")
+            self.logger.error(f"Docker 체크 중 예외: {e}")
             return False, {}
     
     def _reset_redis(self) -> bool:
@@ -263,13 +267,13 @@ class D77EnvChecker:
             )
             
             if result.returncode == 0 and "OK" in result.stdout:
-                logger.info("Redis FLUSHDB 성공")
+                self.logger.info("Redis FLUSHDB 성공")
                 return True
             else:
-                logger.warning(f"Redis FLUSHDB 실패: {result.stderr}")
+                self.logger.warning(f"Redis FLUSHDB 실패: {result.stderr}")
                 return False
         except Exception as e:
-            logger.warning(f"Redis 초기화 예외: {e}")
+            self.logger.warning(f"Redis 초기화 예외: {e}")
             return False
     
     def _reset_postgres(self) -> bool:
@@ -304,7 +308,7 @@ class D77EnvChecker:
             )
             
             if create_result.returncode != 0:
-                logger.warning(f"PostgreSQL 테이블 생성 실패: {create_result.stderr}")
+                self.logger.warning(f"PostgreSQL 테이블 생성 실패: {create_result.stderr}")
                 return False
             
             # TRUNCATE로 데이터 정리
@@ -320,14 +324,14 @@ class D77EnvChecker:
             )
             
             if truncate_result.returncode == 0:
-                logger.info("PostgreSQL alert_history 초기화 완료 (테이블 생성/정리)")
+                self.logger.info("PostgreSQL alert_history 초기화 완료 (테이블 생성/정리)")
                 return True
             else:
-                logger.warning(f"PostgreSQL TRUNCATE 실패: {truncate_result.stderr}")
+                self.logger.warning(f"PostgreSQL TRUNCATE 실패: {truncate_result.stderr}")
                 return False
                 
         except Exception as e:
-            logger.warning(f"PostgreSQL 초기화 예외: {e}")
+            self.logger.warning(f"PostgreSQL 초기화 예외: {e}")
             return False
 
 
