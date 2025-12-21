@@ -46,10 +46,29 @@ class D77EnvChecker:
         logger.addHandler(self._log_handler)
         logger.setLevel(logging.INFO)
     
+    def close(self):
+        """명시적 cleanup (Windows 파일 락 해결용)"""
+        if hasattr(self, '_log_handler') and self._log_handler:
+            try:
+                self._log_handler.flush()
+                self._log_handler.close()
+                logger.removeHandler(self._log_handler)
+                self._log_handler = None
+            except Exception:
+                pass
+    
+    def __enter__(self):
+        """Context manager 지원"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager cleanup"""
+        self.close()
+        return False
+    
     def __del__(self):
-        if hasattr(self, '_log_handler'):
-            logger.removeHandler(self._log_handler)
-            self._log_handler.close()
+        """Cleanup logging handlers"""
+        self.close()
     
     def check_all(self) -> Tuple[bool, Dict[str, any]]:
         """전체 환경 체크 수행

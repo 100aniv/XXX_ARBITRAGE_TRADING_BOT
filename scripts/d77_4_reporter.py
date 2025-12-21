@@ -23,6 +23,7 @@ class D77Reporter:
         self.project_root = project_root
         self.run_id = run_id
         self.log_dir = project_root / "logs" / "d77-4" / run_id
+        self.log_dir.mkdir(parents=True, exist_ok=True)
         
         self._setup_logging()
     
@@ -35,10 +36,29 @@ class D77Reporter:
         logger.addHandler(self._log_handler)
         logger.setLevel(logging.INFO)
     
+    def close(self):
+        """명시적 cleanup (Windows 파일 락 해결용)"""
+        if hasattr(self, '_log_handler') and self._log_handler:
+            try:
+                self._log_handler.flush()
+                self._log_handler.close()
+                logger.removeHandler(self._log_handler)
+                self._log_handler = None
+            except Exception:
+                pass
+    
+    def __enter__(self):
+        """Context manager 지원"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager cleanup"""
+        self.close()
+        return False
+    
     def __del__(self):
-        if hasattr(self, '_log_handler'):
-            logger.removeHandler(self._log_handler)
-            self._log_handler.close()
+        """Cleanup logging handlers"""
+        self.close()
     
     def generate_report(self, analysis_result_path: Path) -> bool:
         """리포트 생성

@@ -64,34 +64,35 @@ class TestAnalyzer:
             project_root = Path(tmpdir)
             run_id = "test_run_002"
             
-            analyzer = D77Analyzer(project_root, run_id)
-            
-            # Critical 6/6, High 6/6
-            decision, reason = analyzer._make_decision(6, 6)
-            assert decision == "COMPLETE GO"
-            assert "6/6" in reason
+            with D77Analyzer(project_root, run_id) as analyzer:
+                # Critical 6/6, High 6/6
+                decision, reason = analyzer._make_decision(6, 6)
+                assert decision == "COMPLETE GO"
+                assert "6/6" in reason
     
     def test_analyzer_decision_conditional_go(self):
         """CONDITIONAL GO 판단 테스트"""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            analyzer = D77Analyzer(project_root, "test_run")
+            run_id = "test_run"
             
-            # Critical 6/6, High 4/6
-            decision, reason = analyzer._make_decision(6, 4)
-            assert decision == "CONDITIONAL GO"
-            assert "4/6" in reason
+            with D77Analyzer(project_root, run_id) as analyzer:
+                # Critical 6/6, High 4/6
+                decision, reason = analyzer._make_decision(6, 4)
+                assert decision == "CONDITIONAL GO"
+                assert "4/6" in reason
     
     def test_analyzer_decision_no_go(self):
         """NO-GO 판단 테스트"""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            analyzer = D77Analyzer(project_root, "test_run")
+            run_id = "test_run"
             
-            # Critical 5/6
-            decision, reason = analyzer._make_decision(5, 6)
-            assert decision == "NO-GO"
-            assert "5/6" in reason
+            with D77Analyzer(project_root, run_id) as analyzer:
+                # Critical 5/6
+                decision, reason = analyzer._make_decision(5, 6)
+                assert decision == "NO-GO"
+                assert "5/6" in reason
     
     def test_analyzer_kpi_parsing(self):
         """KPI 파싱 테스트"""
@@ -119,25 +120,24 @@ class TestAnalyzer:
             with open(console_log_path, 'w') as f:
                 f.write("[INFO] Test log\n")
             
-            analyzer = D77Analyzer(project_root, run_id)
-            result = analyzer.analyze(kpi_path, console_log_path)
-            
-            assert result["run_id"] == run_id
-            assert result["kpi"]["total_trades"] == 100
-            assert result["decision"] in ["COMPLETE GO", "CONDITIONAL GO", "NO-GO"]
+            with D77Analyzer(project_root, run_id) as analyzer:
+                result = analyzer.analyze(kpi_path, console_log_path)
+                assert result["run_id"] == run_id
+                assert result["kpi"]["total_trades"] == 100
+                assert result["decision"] in ["COMPLETE GO", "CONDITIONAL GO", "NO-GO"]
 
 
 class TestReporter:
     """리포터 테스트"""
     
     def test_reporter_initialization(self):
-        """초기화 테스트"""
+        """리포터 초기화 테스트"""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             run_id = "test_run_004"
             
-            reporter = D77Reporter(project_root, run_id)
-            assert reporter.run_id == run_id
+            with D77Reporter(project_root, run_id) as reporter:
+                assert reporter.run_id == run_id
 
 
 class TestOrchestrator:

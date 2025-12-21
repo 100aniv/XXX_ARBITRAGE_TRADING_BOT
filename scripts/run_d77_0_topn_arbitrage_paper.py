@@ -257,7 +257,8 @@ class MockTrade:
 
 # D92-1-FIX + D99-5: 로깅 설정 (logs/paper_sessions/ 경로로 수정)
 log_dir = Path(__file__).parent.parent / "logs" / "paper_sessions"
-log_dir.mkdir(parents=True, exist_ok=True)
+if not log_dir.exists():
+    log_dir.mkdir(parents=True, exist_ok=True)
 log_filename = log_dir / f'paper_session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 
 # 루트 로거에 핸들러 추가 (모든 자식 로거에 propagate됨)
@@ -1510,5 +1511,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+    _setup_logging()  # D99-5: 로깅 설정 지연 초기화
+    args = parse_args()
+    
+    try:
+        asyncio.run(main(args))
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user, exiting gracefully...")
