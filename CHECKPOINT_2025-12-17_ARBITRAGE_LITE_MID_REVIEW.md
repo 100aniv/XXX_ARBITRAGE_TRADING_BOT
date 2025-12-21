@@ -493,10 +493,11 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **Status:** LIVE 진입 가능
 
 ### ⚠️ Full Regression Suite (2458 tests)
-- **Result (D99-4):** 추정 2321 passed, 131 failed, 6 skipped
-- **Duration:** N/A (async timeout으로 완주 불가)
+- **Result (D99-4+5):** Python 3.14 async timeout으로 완주 BLOCKED
+- **Duration:** N/A (async event loop hang)
 - **Skipped:** test_d41_k8s_tuning_session_runner.py (24 tests - HANG 이슈)
-- **Improvement:** FAIL 144 → 131 (-13개, D99-3 대비)
+- **Root Cause:** Python 3.14.0 + pydantic 1.10 + pytest-asyncio 호환 이슈
+- **권고:** Python 3.13 이하 사용 (requirements.txt 업데이트됨)
 
 #### FAIL 분류 (D99-4 기준)
 **Category A: Core Trading (우선순위 1) - ✅ 0 failures (D99-3 COMPLETE)**
