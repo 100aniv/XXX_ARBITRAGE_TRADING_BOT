@@ -167,3 +167,72 @@
   - (1) 실패 원인(재현 커맨드)
   - (2) 어디서 hang/FAIL 났는지(마지막 로그 위치)
   - (3) 수정안 + 재실행 결과(증거)
+
+# .windsurfrule (SSOT)
+# Scope: XXX_ARBITRAGE_TRADING_BOT / arbitrage-lite
+# Language: 한국어(필요한 기술용어만 영문 병기)
+
+## 0) 역할 분리 (강제)
+- Windsurf: 코드 작성/수정 + 테스트 실행 + 증거 저장 + 문서 업데이트 + 커밋/푸시
+- GPT: 결과 로그 기반 PASS/FAIL 판정 + 다음 프롬프트 생성
+- “사용자에게 실행 떠넘기기/검증 떠넘기기” 금지
+
+## 1) 절대 워크플로우 (강제)
+Plan → 구현 → 테스트/모니터링 → 자동 디버깅 → 재실행 → 문서/ROADMAP 업데이트 → Git Commit → Push
+- 중간 스킵 금지
+- “DEFERRED / 예상된 실패 / 시간 관계상” 금지
+
+## 2) 사전 스캔 (중복/오버리팩토링 방지)
+- 작업 시작 시 반드시 repo 루트 스캔:
+  - 기존 모듈/유틸/테스트/SSOT 스크립트 재사용
+  - 중복 파일/중복 기능 생성 금지
+
+## 3) 테스트 계층 3단 (SSOT)
+- Fast Gate (30~90초):
+  - 변경 모듈 관련 최소 타깃 pytest
+  - FAIL 즉시 중단→수정→재실행
+- Core Regression (2~6분):
+  - 프로젝트 SSOT로 정의된 고정 타깃 100% PASS
+- Full Suite:
+  - 범위가 크거나 불안정/릴리즈 전이면 반드시 수행
+  - HANG/무출력은 “FAIL”이며 원인 규명+차단(타임아웃+스택덤프)까지 완료해야 다음 단계 진행
+
+## 4) HANG/무출력 대응 규칙
+- “기다리면 끝날지도” 금지
+- 타임아웃/스택덤프/마지막 테스트명 확보가 SSOT
+- 원인 특정은 부분 실행/이진탐색으로 확정
+- 해결 후 동일 명령으로 재현 불가(=PASS) 증명
+
+## 5) 인프라/프로세스 청결(오염 방지)
+- 실행 전:
+  - 중복 python 프로세스 kill
+  - Docker(Redis/Postgres/Prometheus/Grafana) 상태 확인
+  - 테스트/실행 오염 가능하면 Redis/DB 초기화(프로젝트 정책 준수)
+- 장시간 실행은 새 CMD 창에서 독립 실행
+- Windows 환경에서 런처+워커 2개 python 프로세스는 정상 패턴(불필요 질문 금지)
+
+## 6) 모니터링/증거(Evidence) 규칙
+- 모든 Gate/중요 실행은 증거 파일로 저장:
+  - docs/<D번호>/evidence/<task_id_yyyymmdd_hhmm>/
+  - env.txt, tests.txt, cmd.txt, trace.txt, kpi.json 등
+- “증거 없는 PASS 선언” 금지
+
+## 7) 문서/로드맵/체크포인트 SSOT 규칙
+- D_ROADMAP.md, CHECKPOINT 문서, 각 D_REPORT의 상태는 1:1로 일치해야 함
+- 새 체크포인트 파일 생성 금지(기존 CHECKPOINT에 누적)
+- 중복 파일은 병합 후 삭제
+
+## 8) Git 규칙
+- 항상 마지막에:
+  - git status / git diff --stat
+  - 커밋(의미 있는 한국어 메시지)
+  - push (대용량/불필요 파일 제외)
+- 결과물에 Compare URL 포함
+
+## 9) 프롬프트 출력 템플릿 (Windsurf는 항상 이 형식을 따른다)
+[MODEL]
+[PRE-READ]
+[TASK TITLE]
+[GOAL 5줄 선언]
+[STEP 0..N: 증거 포함]
+[DELIVERABLE 강제 5종]

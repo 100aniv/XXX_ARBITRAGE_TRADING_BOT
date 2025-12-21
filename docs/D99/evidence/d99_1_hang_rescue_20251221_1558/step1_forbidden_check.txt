@@ -1,0 +1,4 @@
+﻿
+docs\D98\D98_7_REPORT.md:30:| **AC-4** | Gate 3-step tests 100% PASS | ✅ **PASS** | Core Regression 44/44 PASS, D98 tests 61/63 PASS (2개는 예상된 동작) |
+
+

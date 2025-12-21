@@ -1,0 +1,28 @@
+﻿=== STEP 0: Environment Check (D99-1) ===
+Date: 2025-12-21 15:58 KST
+
+[Python Processes]
+None (Clean)
+
+[Docker Containers]
+NAMES                     STATUS                             PORTS
+arbitrage-prometheus      Up 6 hours (healthy)               0.0.0.0:9090->9090/tcp
+arbitrage-node-exporter   Up 6 hours                         0.0.0.0:9101->9100/tcp
+arbitrage-grafana         Up 6 hours (healthy)               0.0.0.0:3000->3000/tcp
+arbitrage-engine          Up 34 seconds (health: starting)   0.0.0.0:8080->8080/tcp
+trading_redis             Up 6 days                          0.0.0.0:6379->6379/tcp
+trading_db_postgres       Up 6 days (healthy)                0.0.0.0:5433->5432/tcp
+arbitrage-postgres        Up 6 days (healthy)                0.0.0.0:5432->5432/tcp
+arbitrage-redis           Up 6 days (healthy)                0.0.0.0:6380->6379/tcp
+
+[Redis Check]
+PONG - OK
+
+[Redis FLUSHALL]
+OK - Completed
+
+[PostgreSQL Check]
+Container: healthy
+Note: Role config issue (not blocking tests)
+
+Status:  Environment Clean

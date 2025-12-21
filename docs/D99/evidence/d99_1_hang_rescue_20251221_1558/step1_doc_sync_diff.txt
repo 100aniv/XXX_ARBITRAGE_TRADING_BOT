@@ -1,0 +1,4 @@
+﻿ CHECKPOINT_2025-12-17_ARBITRAGE_LITE_MID_REVIEW.md | 78 ++++++++++------------
+ D_ROADMAP.md                                       | 15 +++--
+ docs/D98/D98_7_REPORT.md                           | 29 ++++----
+ 3 files changed, 60 insertions(+), 62 deletions(-)

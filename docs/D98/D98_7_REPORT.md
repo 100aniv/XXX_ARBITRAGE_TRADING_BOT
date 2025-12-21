@@ -108,25 +108,28 @@ if len(open_positions) > 0:
 
 ---
 
-## 5. 테스트 결과
+## 6. 테스트 결과 (D98 Tests + RESCUE v1 완료)
 
-### 5.1. D98-7 Unit Tests
+**실행 명령:**
+```bash
+python -m pytest tests/test_d98*.py -v
 ```
-tests/test_d98_preflight.py::TestLivePreflightChecker::test_check_open_positions_dryrun PASSED
-```
 
-### 5.2. D98 Tests (61/63 PASS)
-**실패 2개 분석:**
-- `test_preflight_realcheck_redis_postgres_pass`
-- `test_preflight_realcheck_exchange_paper_pass`
+**RESCUE v1 이전 (FAIL):**
+- **Total:** 63개
+- **PASS:** 61개 (96.8%)
+- **FAIL:** 2개 (3.2%)
+- **원인:** `CrossExchangePositionManager` import 누락
 
-**실패 원인:** 기존 테스트가 `is_ready() = True`를 기대했으나, D98-7 구현으로 인해 `check_open_positions()`가 실제로 Redis 조회를 시도하여 NameError 발생 → FAIL 반환
+**RESCUE v1 이후 (PASS):**
+- **Total:** 65개
+- **PASS:** 65개 (100%) 
+- **FAIL:** 0개
 
-**판단:** 예상된 동작, D98-7 구현이 정상 작동하는 증거
+**Core Regression:**
+- **Total:** 44개
+- **PASS:** 44개 (100%) 
 
-### 5.3. Core Regression (44/44 PASS) ✅
-```
-======================= 44 passed, 4 warnings in 12.10s =======================
 ```
 
 **SSOT 기준 충족:** Core Regression 100% PASS

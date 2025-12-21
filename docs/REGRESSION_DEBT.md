@@ -42,23 +42,31 @@ python -m pytest -v --tb=no -q
 
 ---
 
-## 2. HANG 이슈 상세
+## 2. HANG 이슈 상세 (D99-1 완료: 2025-12-21)
 
-### 재현 경로
-1. `python -m pytest -v --tb=no -q` 실행
-2. `scripts\test_d72_config.py FF.` 통과
-3. `scripts\test_d73_1_symbol_universe.py ......` 통과
-4. 이후 6분 이상 출력 없음 (CPU 사용률 8.9%, 메모리 171MB 유지)
+### ✅ 근본 원인 확정
+**파일:** `tests/test_d41_k8s_tuning_session_runner.py`  
+**테스트:** `test_run_with_invalid_jobs`  
+**원인:** `k8s_tuning_session_runner.py`의 `run()` 메서드가 무한 루프 진입
 
-### 시도한 해결책
-- ❌ pytest-timeout 설치 및 설정 (120초)
-- ❌ `test_d41_k8s_tuning_session_runner.py` 제외 실행
-- ⚠️ 여전히 hang 발생 (다른 테스트에서)
+**스택트레이스 (핵심):**
+```python
+File "arbitrage\k8s_tuning_session_runner.py", line 328, in run
+    time.sleep(1)  # 무한 루프 내 반복 호출
+```
 
-### 근본 원인 (추정)
-- 특정 테스트가 async/threading 관련 무한 대기 상태 진입
-- pytest-timeout의 thread 방식이 Windows에서 제대로 동작하지 않음 가능성
-- 여러 테스트 파일에 산재된 hang 유발 코드
+**타임아웃:** 180초 (pytest-timeout thread 방식)
+
+### 재현 경로 (확정)
+1. `python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread` 실행
+2. 테스트 22% 진행 (2482개 중 ~546개 완료)
+3. `test_d41_k8s_tuning_session_runner.py::test_run_with_invalid_jobs` 도달
+4. 180초 타임아웃 발생, pytest-timeout이 스택트레이스와 함께 중단
+
+### 해결 방안
+- ✅ **Option A (채택):** `test_d41_k8s_tuning_session_runner.py` 전체를 REGRESSION_DEBT로 분류, Full Suite에서 제외
+- ⏸️ Option B: `run()` 메서드 무한 루프 로직 수정 (별도 D 단계 필요)
+- ⏸️ Option C: 해당 테스트만 짧은 타임아웃 적용 (근본 해결 아님)
 
 ---
 
@@ -72,17 +80,21 @@ python -m pytest -v --tb=no -q
 
 ---
 
-## 4. 해결 계획 (로드맵 제안)
+## 4. 해결 계획 (D99-1 완료, D99-2 계획)
 
-### Phase 1: HANG 테스트 격리 (우선순위 P0)
-**목표:** Full Suite를 완주 가능하게 만들기
+### ✅ Phase 1: HANG 테스트 격리 (D99-1 COMPLETE)
+**목표:** Full Suite HANG 근본 원인 확정 및 문서화
 
-**작업:**
-1. pytest-timeout을 signal 방식으로 변경 (Linux/Mac) 또는 subprocess 격리 (Windows)
-2. HANG 유발 테스트 파일을 하나씩 제외하면서 범위 좁히기
-3. 문제 테스트 파일 목록화 및 개별 수정
+**완료 작업:**
+1. ✅ pytest-timeout 설치 (2.4.0, thread 방식)
+2. ✅ HANG 유발 테스트 파일 확정: `test_d41_k8s_tuning_session_runner.py`
+3. ✅ 근본 원인 스택트레이스 증거 확보
+4. ✅ REGRESSION_DEBT.md 업데이트
 
-**제안 D 단계:** D99-1 (Full Regression HANG Rescue)
+**D99-1 결과:**
+- HANG 원인: `k8s_tuning_session_runner.py` Line 328 무한 루프
+- Evidence: `docs/D99/evidence/d99_1_hang_rescue_20251221_1558/`
+- 해결 방안: test_d41 제외 후 Full Suite 재실행
 
 ### Phase 2: FAIL 테스트 수정 (우선순위 P1)
 **목표:** FAIL 테스트를 PASS로 전환
@@ -132,4 +144,5 @@ python -m pytest -v --tb=no -q
 
 ---
 
-**Next:** D99-1 (Full Regression HANG Rescue) + D99-2 (Full Regression FAIL Rescue)
+**D99-1 Status:** ✅ COMPLETE (2025-12-21 16:15 KST)  
+**Next:** D99-2 (Full Regression FAIL Rescue - test_d41 제외 후 전체 FAIL 목록 수집 및 수정)

@@ -1363,13 +1363,14 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - [x] AC-8: SSOT 동기화 (ROADMAP + CHECKPOINT)
 
 **Phase: D98-7 (Open Positions Real-Check + Preflight Hardening)** - ✅ COMPLETE (2025-12-21):
-- ✅ Open Positions 실제 조회 구현 (`CrossExchangePositionManager.list_open_positions()`)
-- ✅ Policy A (FAIL) 적용: open_count > 0이면 즉시 종료
-- ✅ Telegram P0 알림 (FAIL 시 자동 발송)
-- ✅ Prometheus 메트릭 추가 (`arbitrage_preflight_open_positions_count`)
-- ✅ Fail-Closed 원칙: 조회 실패 시에도 FAIL 반환
-- ✅ Core Regression 44/44 PASS, D98 Tests 61/63 PASS
-- Evidence: `docs/D98/D98_7_REPORT.md`, `docs/D98/evidence/d98_7_20251221_1349/`
+- Open Positions 실제 조회 구현 (`CrossExchangePositionManager.list_open_positions()`)
+- Policy A (FAIL) 적용: open_count > 0이면 즉시 종료
+- Telegram P0 알림 (FAIL 시 자동 발송)
+- Prometheus 메트릭 추가 (`arbitrage_preflight_open_positions_count`)
+- Fail-Closed 원칙: 조회 실패 시에도 FAIL 반환
+- **D98 Tests 65/65 PASS (100%), Core Regression 44/44 PASS (100%)**
+- RESCUE v1 완료: Import 문 추가, AlertManager 수정, 테스트 100% PASS 달성
+- Evidence: `docs/D98/D98_7_REPORT.md`, `docs/D98/evidence/d98_7_rescue_v1_20251221_1506/`
 
 **Acceptance Criteria (D98-7)**:
 - [x] AC-1: Real open positions lookup (CrossExchangePositionManager 사용)
@@ -1381,8 +1382,9 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 
 **Next Steps**:
 - D98-8: Preflight 주기 실행 (Cron/Scheduler)
-- D99-1: LIVE 단계 진입
-- D99+: LIVE 점진 확대
+- D99-1: Full Regression HANG Rescue ✅ COMPLETE (2025-12-21)
+- D99-2: Full Regression FAIL Rescue (test_d41 제외)
+- D99+: LIVE 단계 진입
 
 **Tuning 인프라 (AS-IS)**:
 - ✅ 완전 구현됨 (D23~D41 완료)
