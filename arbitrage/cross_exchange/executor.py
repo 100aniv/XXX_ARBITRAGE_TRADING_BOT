@@ -22,11 +22,16 @@ Architecture:
     └─> Partial fill handling / Rollback
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from decimal import Decimal
 from typing import Optional, Dict, Any, Literal, TYPE_CHECKING
 from dataclasses import dataclass, asdict, field
+
+if TYPE_CHECKING:
+    from .integration import CrossExchangeIntegration
 
 if TYPE_CHECKING:
     from arbitrage.execution.fill_model_integration import FillModelIntegration
