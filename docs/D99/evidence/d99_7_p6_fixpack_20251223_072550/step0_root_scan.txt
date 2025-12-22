@@ -1,0 +1,24 @@
+﻿=== GIT STATUS ===
+On branch rescue/d98_3_exec_guard_and_d97_1h_paper nothing to commit, working tree clean
+
+=== GIT BRANCH ===
+rescue/d98_3_exec_guard_and_d97_1h_paper
+
+=== GIT LOG (최근 5개) ===
+75529b7 D99-6 P5: M5 Release SSOT + Config.copy() methods (90 FAIL maintained, M5 documentation complete) 935c006 D99-6 P4: Alert Throttler 寃⑸━ -> Full Regression FAIL 90 (紐⑺몴 ?ъ꽦, Docker ON SSOT) + SSOT docs sync 07a0e16 D99-6 P3: Docker ON SSOT 怨좎젙 + Full Regression FAIL -13 (telegram/d17/simulated_exchange) 80f55f5 D99-6 P1 FixPack: ?명꽣?섏씠???쒓렇?덉쿂 ?섏젙 (124112 FAIL, -12媛? + SSOT ?숆린??e1541e5 D99-6 P0 FixPack: env/deps FAIL 媛먯냼 (126124) + SSOT ?숆린??+ evidence 異붽?
+
+=== PYTHON VERSION ===
+Python 3.14.0
+
+=== KEY PACKAGES ===
+
+
+=== DEPENDENCY FILES ===
+requirements.txt
+
+=== DIRECTORY STRUCTURE (KEY FOLDERS) ===
+configs/: 22
+config/: 35
+arbitrage/: 344
+tests/: 817
+docs/: 579

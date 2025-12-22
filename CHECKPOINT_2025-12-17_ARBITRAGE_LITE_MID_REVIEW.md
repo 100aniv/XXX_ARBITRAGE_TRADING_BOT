@@ -53,9 +53,12 @@
   - `docs/M5/RELEASE_CHECKLIST.md` - 배포 체크리스트 (Pre-Release Gate, Rollback, Secrets SSOT)
   - `docs/DEPLOYMENT_GUIDE.md` - 상세 배포 가이드 (기존)
   - `docs/D98/D98_RUNBOOK.md` - Production Runbook (D98-0)
-- **D99-6 진행:**
+- **D99 진행 상황:**
   - P4: Full Regression 119 → 90 (목표 달성!)
-  - P5: M5 문서화 + Config 부분 개선 (ArbitrageConfig.copy() 등)
+  - P5: M5 문서화 + Config 부분 개선
+  - **P6 (D99-7):** PaperExchange BASE/QUOTE 수정 (80 → 75 FAIL, -5개)
+    - Core: 44/44 PASS 유지
+    - 남은 75 FAIL: Live API(15), FX Provider(13), 비즈니스 로직(13), 환경(34)
 
 ### M6. Live Ramp (소액 → 확대)
 - **상태:** 미진행(예정)

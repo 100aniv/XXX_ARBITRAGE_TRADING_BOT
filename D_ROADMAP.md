@@ -1423,7 +1423,43 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - **Status:** ✅ COMPLETE
 - **Evidence:** `docs/D99/evidence/d99_4_monitoring_fix_20251221_1843/`
 
-**Next Steps**:DB/Redis 상태 관리, 광범위한 테스트 커버리지
+### D99-6 P0~P5: FixPack Series (2025-12-22~23) ✅ COMPLETE
+- **목표:** Full Regression FAIL 119 → 99 이하
+- **결과:** 119 → 90 FAIL (-29개, 24.4% 개선, **목표 달성**)
+- **Phase 요약:**
+  - P0: 126 → 124 (-2개, env/deps)
+  - P1: 124 → 112 (-12개, SimulatedExchange + CrossExchange)
+  - P3: 119 → 106 (-13개, Docker ON SSOT + Telegram + d17)
+  - P4: 106 → 90 (-16개, Alert Throttler 격리)
+  - P5: 90 → 88추정 (-2개, Config.copy() + M5 RELEASE_CHECKLIST.md)
+- **Status:** ✅ COMPLETE
+- **Evidence:** `docs/D99/evidence/d99_6_p*_fixpack_*/`
+
+### D99-7 (P6): PaperExchange BASE/QUOTE Fix (2025-12-23) ✅ PARTIAL
+- **목표:** Full Regression FAIL 80 → 60 이하 (-20 이상)
+- **Baseline:** 80 FAIL (P5 이후 재측정)
+- **Root Cause:** PaperExchange의 create_order()/_fill_order()에서 BASE/QUOTE 파싱 혼동
+  - BUY: quote currency(KRW) 필요한데 base currency(BTC) 체크
+  - SELL: base currency 필요한데 quote currency 체크
+- **Solution:** 
+  - `arbitrage/exchanges/paper_exchange.py` 수정 (~40 lines)
+  - create_order(): BASE/QUOTE 구분 로직 수정 (Lines 143-173)
+  - _fill_order(): 동일한 파싱 로직 적용 (Lines 207-248)
+- **Result:**
+  - test_d42_paper_exchange.py: 14/14 PASS (5 FAIL → 0 FAIL)
+  - Core Regression: 44/44 PASS ✅
+  - Full Regression: 2389 passed, 75 failed (-5개, 6.25% 개선)
+- **Status:** ⚠️ PARTIAL (-5개, 목표 -20 대비 25% 달성)
+- **Evidence:** `docs/D99/evidence/d99_7_p6_fixpack_20251223_072550/`
+- **Report:** `docs/D99/D99_7_P6_FIXPACK_REPORT.md`
+
+**Remaining 75 FAIL Clusters:**
+- Live API 의존 (15): test_d42_upbit_spot(4), test_d42_binance_futures(3), test_d80_2(4), 기타(4)
+- FX Provider (13): test_d80_3(6), test_d80_4(3), test_d80_5(4)
+- 비즈니스 로직 (13): test_d37(5), test_d89_0(4), test_d87_3(4)
+- 환경/설정 의존 (34): test_d78(4), test_d44(4), test_d79_4(6), 기타(20)
+
+**Next Steps (D99-8/P7):**
 - **D98 범위**: 튜닝 구현 없음 (이미 완료, 재사용만)
 
 ### M7: Multi-Exchange 확장

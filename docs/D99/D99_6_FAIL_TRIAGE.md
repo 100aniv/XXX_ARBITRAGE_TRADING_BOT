@@ -74,6 +74,20 @@
      - Compliance & Audit Trail (Trade Logging, Regulatory Reporting)
   3. ⏸️ 나머지 클러스터 보류 (시간 제약, 다음 FixPack 대상)
 
+**Phase 6 (P6 Fix - 2025-12-23 07:25 KST, PaperExchange BASE/QUOTE 수정):**
+- **Baseline:** 80 FAIL (P5 이후 재측정, 실제 베이스라인)
+- **목표:** 80 → 60 이하 (-20 이상)
+- **P6 Results:**
+  1. ✅ PaperExchange BASE/QUOTE 파싱 수정 (80 → 75 FAIL, -5개)
+     - `arbitrage/exchanges/paper_exchange.py` 수정
+     - `create_order()`: BASE/QUOTE 구분 로직 수정
+     - `_fill_order()`: 동일한 파싱 로직 적용
+     - `test_d42_paper_exchange.py`: 14/14 PASS (5 FAIL → 0 FAIL)
+  2. ⚠️ 목표 미달: -5개 (목표 -20 대비 25% 달성)
+     - 남은 75 FAIL: Live API 의존(15), FX Provider(13), 비즈니스 로직(13), 환경 의존(34)
+  3. ✅ Core Regression: 44/44 PASS 유지
+  4. 📋 Next: D99-8(P7) targets Live API Mock + FX Provider (-20 goal)
+
 ---
 
 ## FAIL 원인군 분류 (Triage)

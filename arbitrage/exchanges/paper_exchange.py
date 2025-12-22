@@ -140,24 +140,37 @@ class PaperExchange(BaseExchange):
         if price is None:
             raise InvalidOrderError(f"Cannot determine price for {symbol}")
         
-        # Symbol 파싱하여 기본 자산 결정
+        # Symbol 파싱하여 필요 자산 결정 (BASE-QUOTE)
         if "-" in symbol:
-            # Upbit 형식: "KRW-BTC" -> 기본 자산은 "KRW"
-            base_asset = symbol.split("-")[0]
+            # Upbit 형식: "BTC-KRW" (BASE-QUOTE)
+            base_currency, quote_currency = symbol.split("-")
         else:
-            # Binance 형식: "BTCUSDT" -> 기본 자산은 "USDT"
+            # Binance 형식: "BTCUSDT" (BASEQUOTE)
             if symbol.endswith("USDT"):
-                base_asset = "USDT"
+                quote_currency = "USDT"
+                base_currency = symbol[:-4]
+            elif symbol.endswith("BTC"):
+                quote_currency = "BTC"
+                base_currency = symbol[:-3]
             else:
-                base_asset = symbol[3:]  # 기타 경우
+                # 기타: 마지막 3자리를 quote로 가정
+                quote_currency = symbol[-3:]
+                base_currency = symbol[:-3]
         
-        # 잔고 확인 (매수 시)
+        # 잔고 확인
         if side == OrderSide.BUY:
+            # BUY: quote currency 필요 (KRW로 BTC 매수)
             required_amount = qty * price
-            if base_asset not in self._balance or self._balance[base_asset].free < required_amount:
-                raise InsufficientBalanceError(
-                    f"Insufficient {base_asset}: required={required_amount}, available={self._balance.get(base_asset, Balance(base_asset, 0, 0)).free}"
-                )
+            required_currency = quote_currency
+        else:
+            # SELL: base currency 필요 (BTC를 KRW로 매도)
+            required_amount = qty
+            required_currency = base_currency
+        
+        if required_currency not in self._balance or self._balance[required_currency].free < required_amount:
+            raise InsufficientBalanceError(
+                f"Insufficient {required_currency}: required={required_amount}, available={self._balance.get(required_currency, Balance(required_currency, 0, 0)).free}"
+            )
         
         # 주문 생성
         order_id = str(uuid.uuid4())[:12]
@@ -191,48 +204,48 @@ class PaperExchange(BaseExchange):
         order.filled_qty = order.qty
         order.status = OrderStatus.FILLED
         
-        # Symbol 파싱 (Upbit: "KRW-BTC", Binance: "BTCUSDT")
+        # Symbol 파싱 (BASE-QUOTE): create_order()와 동일 로직
         if "-" in order.symbol:
-            # Upbit 형식: "KRW-BTC" -> 거래 자산은 "BTC"
-            parts = order.symbol.split("-")
-            base_asset = parts[0]  # "KRW"
-            trade_asset = parts[1]  # "BTC"
+            # Upbit 형식: "BTC-KRW" (BASE-QUOTE)
+            base_currency, quote_currency = order.symbol.split("-")
         else:
-            # Binance 형식: "BTCUSDT" -> 거래 자산은 "BTC", 기본 자산은 "USDT"
-            # 간단화: 마지막 4자리를 기본 자산으로 간주
+            # Binance 형식: "BTCUSDT" (BASEQUOTE)
             if order.symbol.endswith("USDT"):
-                trade_asset = order.symbol[:-4]  # "BTCUSDT" -> "BTC"
-                base_asset = "USDT"
+                quote_currency = "USDT"
+                base_currency = order.symbol[:-4]
+            elif order.symbol.endswith("BTC"):
+                quote_currency = "BTC"
+                base_currency = order.symbol[:-3]
             else:
-                # 기타 경우: 첫 3자리를 거래 자산으로
-                trade_asset = order.symbol[:3]
-                base_asset = order.symbol[3:]
+                # 기타: 마지막 3자리를 quote로 가정
+                quote_currency = order.symbol[-3:]
+                base_currency = order.symbol[:-3]
         
         # 잔고 업데이트
         if order.side == OrderSide.BUY:
-            # 기본 자산 차감, 거래 자산 추가
+            # BUY: quote 차감, base 증가 (KRW로 BTC 매수)
             cost = order.qty * order.price
             
-            if base_asset not in self._balance:
-                self._balance[base_asset] = Balance(asset=base_asset, free=0.0, locked=0.0)
+            if quote_currency not in self._balance:
+                self._balance[quote_currency] = Balance(asset=quote_currency, free=0.0, locked=0.0)
             
-            self._balance[base_asset].free -= cost
+            self._balance[quote_currency].free -= cost
             
-            if trade_asset not in self._balance:
-                self._balance[trade_asset] = Balance(asset=trade_asset, free=0.0, locked=0.0)
-            self._balance[trade_asset].free += order.qty
+            if base_currency not in self._balance:
+                self._balance[base_currency] = Balance(asset=base_currency, free=0.0, locked=0.0)
+            self._balance[base_currency].free += order.qty
         
         elif order.side == OrderSide.SELL:
-            # 거래 자산 차감, 기본 자산 추가
+            # SELL: base 차감, quote 증가 (BTC를 KRW로 매도)
             revenue = order.qty * order.price
             
-            if trade_asset in self._balance:
-                self._balance[trade_asset].free -= order.qty
+            if base_currency in self._balance:
+                self._balance[base_currency].free -= order.qty
             
-            if base_asset not in self._balance:
-                self._balance[base_asset] = Balance(asset=base_asset, free=0.0, locked=0.0)
+            if quote_currency not in self._balance:
+                self._balance[quote_currency] = Balance(asset=quote_currency, free=0.0, locked=0.0)
             
-            self._balance[base_asset].free += revenue
+            self._balance[quote_currency].free += revenue
         
         logger.debug(f"[D42_PAPER] Order filled: {order_id}")
     
