@@ -45,9 +45,19 @@
   2. ✅ SimulatedExchange.get_ticker() - Price 객체 반환 추가 (-9)
   3. ✅ Order 생성자 - exchange, created_at, updated_at 파라미터 수정 (-3)
 
-**누적 감소 (P0+P1+P3):** 119 → 106 (13개 감소, 10.9%)
+**Phase 4 (P4 Fix - 2025-12-23 00:52 KST, Docker ON SSOT):**
+- **Baseline:** 106 FAIL (P3 완료 후)
+- **Passed:** 2374 (95.1%) ⬆️ +16
+- **Failed:** 90 (3.6%) ⬇️ **-16개 감소**
+- **Skipped:** 31 (1.2%)
+- **Duration:** 210.89s (3분 30초)
+- **P4 Fix:**
+  1. ✅ Alert Throttler 격리 - reset_global_alert_throttler() 추가 (-11)
+  2. ✅ test_d80_9 테스트 픽스처 수정 - 모든 테스트 클래스에 적용 (-5)
 
-**D99-6 목표:** 119 → 99 이하 (-20 이상) | **현재 진행률: 65% (13/20)**
+**누적 감소 (P0+P1+P3+P4):** 119 → 90 (29개 감소, 24.4%)
+
+**D99-6 목표:** 119 → 99 이하 (-20 이상) | **✅ 목표 달성: 90 < 99 (145% 달성!)**
 
 ---
 

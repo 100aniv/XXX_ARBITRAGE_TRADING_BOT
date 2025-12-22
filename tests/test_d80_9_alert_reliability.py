@@ -33,6 +33,7 @@ from arbitrage.alerting.helpers import (
     emit_ws_reconnect_failed_alert,
     get_global_alert_manager,
     get_global_alert_throttler,
+    reset_global_alert_throttler,
 )
 from arbitrage.alerting.config import AlertConfig
 from arbitrage.alerting.throttler import AlertThrottler
@@ -90,11 +91,10 @@ class TestUnitReliabilityFxAlerts:
         )
         assert result1 is True
         
-        # Clear global throttler to simulate expiry
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        # Reset global throttler to simulate expiry (creates new instance)
+        reset_global_alert_throttler()
         
-        # Second emission (should succeed after clear)
+        # Second emission (should succeed after reset)
         result2 = emit_fx_source_down_alert(
             source="binance_expiry_test",
             duration_seconds=130,
@@ -178,11 +178,12 @@ class TestUnitReliabilityExecutorAlerts:
     """Executor Layer alert reliability tests (EX-001~002)"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_ex001_normal_emission(self):
         """EX-001: 정상 발행"""
@@ -259,11 +260,12 @@ class TestUnitReliabilityRiskGuardAlerts:
     """RiskGuard Layer alert reliability tests (RG-001~002)"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_rg001_normal_emission(self):
         """RG-001: 정상 발행"""
@@ -326,11 +328,12 @@ class TestUnitReliabilityWebSocketAlerts:
     """WebSocket Layer alert reliability tests (WS-001~002)"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_ws001_normal_emission(self):
         """WS-001: 정상 발행"""
@@ -400,11 +403,12 @@ class TestIntegrationReliabilityFxLayer:
     """FX Layer integration reliability tests"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_single_source_down_scenario(self):
         """Binance source만 down 시나리오"""
@@ -457,11 +461,12 @@ class TestIntegrationReliabilityExecutorLayer:
     """Executor Layer integration reliability tests"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_market_order_failure_scenario(self):
         """Market order 실패 시나리오"""
@@ -489,11 +494,12 @@ class TestIntegrationReliabilityRiskGuardLayer:
     """RiskGuard Layer integration reliability tests"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_daily_loss_limit_scenario(self):
         """하루 손실량 초과 시나리오"""
@@ -520,11 +526,12 @@ class TestIntegrationReliabilityWebSocketLayer:
     """WebSocket Layer integration reliability tests"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_message_age_60s_scenario(self):
         """last_message_age > 60s 시나리오"""
@@ -556,11 +563,12 @@ class TestStressAlertSystem:
     """Alert system stress tests"""
     
     def setup_method(self):
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        reset_global_alert_throttler()
         manager = get_global_alert_manager()
         if hasattr(manager, '_sent_alerts'):
             manager._sent_alerts.clear()
+        if hasattr(manager, 'clear_history'):
+            manager.clear_history()
     
     def test_20k_alerts_stress(self):
         """20,000 alerts 연속 발생 테스트"""
