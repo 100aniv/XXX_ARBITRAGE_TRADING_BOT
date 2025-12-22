@@ -424,6 +424,7 @@ class ArbitrageLiveConfig:
     
     # 루프 설정
     poll_interval_seconds: float = 1.0
+    loop_interval_ms: int = 100  # Loop interval in milliseconds (for config compatibility)
     max_concurrent_trades: int = 1
     mode: str = "paper"  # "paper" | "live_readonly" | "live_trading" (D46-D47)
     log_level: str = "INFO"

@@ -59,6 +59,21 @@
 
 **D99-6 목표:** 119 → 99 이하 (-20 이상) | **✅ 목표 달성: 90 < 99 (145% 달성!)**
 
+**Phase 5 (P5 Fix - 2025-12-23 01:42 KST, M5 문서화 + 부분 개선):**
+- **Baseline:** 90 FAIL (P4 완료 후)
+- **목표:** 90 → 50 이하 (-40 이상, 이상적 목표)
+- **P5 Results:**
+  1. ✅ Config Validation (5 → 3 FAIL, -2개 개선)
+     - ArbitrageConfig.copy() 메서드 추가
+     - ArbitrageLiveConfig.loop_interval_ms 속성 추가
+     - TradingConfig/RiskConfig/SessionConfig.copy() 메서드 추가
+  2. ✅ M5 RELEASE SSOT 문서 추가 (`docs/M5/RELEASE_CHECKLIST.md`)
+     - 배포/릴리즈 체크리스트 (Pre-Release Gate, Release Execution, Rollback)
+     - Secrets Management SSOT (Vault 통합, 비밀 교체 절차)
+     - Monitoring & Alerting (Prometheus 7 KPI, Grafana, Telegram)
+     - Compliance & Audit Trail (Trade Logging, Regulatory Reporting)
+  3. ⏸️ 나머지 클러스터 보류 (시간 제약, 다음 FixPack 대상)
+
 ---
 
 ## FAIL 원인군 분류 (Triage)

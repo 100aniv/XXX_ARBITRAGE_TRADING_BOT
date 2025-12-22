@@ -48,9 +48,14 @@
 - 운영 관점의 핵심: "운영자가 Preflight 실행 결과를 Grafana에서 즉시 확인하고, 실패 시 Telegram 알림으로 대응" ✅
 
 ### M5. 배포/릴리즈/시크릿 거버넌스
-- **상태:** 🚧 진행 중 (D99-6, 2025-12-23)
-- **D99-6 P4 완료:** Full Regression FAIL 119 → 90 (목표 달성!)
-- Docker ON SSOT 고정, Alert Throttler 격리 완료
+- **상태:** ✅ 문서화 완료 (D99-6 P5, 2025-12-23)
+- **산출물:**
+  - `docs/M5/RELEASE_CHECKLIST.md` - 배포 체크리스트 (Pre-Release Gate, Rollback, Secrets SSOT)
+  - `docs/DEPLOYMENT_GUIDE.md` - 상세 배포 가이드 (기존)
+  - `docs/D98/D98_RUNBOOK.md` - Production Runbook (D98-0)
+- **D99-6 진행:**
+  - P4: Full Regression 119 → 90 (목표 달성!)
+  - P5: M5 문서화 + Config 부분 개선 (ArbitrageConfig.copy() 등)
 
 ### M6. Live Ramp (소액 → 확대)
 - **상태:** 미진행(예정)

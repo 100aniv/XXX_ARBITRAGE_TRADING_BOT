@@ -84,8 +84,8 @@ class RiskConfig:
     max_open_trades: int = 1
     
     # Daily limits
-    max_daily_loss: float = 1000.0
-    max_daily_trades: int = 100
+    max_daily_loss: float = 10000.0
+    max_daily_trades: int = 50
     
     # Position sizing
     position_size_usd: float = 1000.0
@@ -97,6 +97,13 @@ class RiskConfig:
                 f"max_daily_loss ({self.max_daily_loss}) must be >= "
                 f"max_notional_per_trade ({self.max_notional_per_trade})"
             )
+    
+    def copy(self, update: dict = None):
+        """Create a copy with optional updates"""
+        from dataclasses import replace
+        if update is None:
+            return replace(self)
+        return replace(self, **update)
 
 
 @dataclass(frozen=True)
@@ -126,6 +133,13 @@ class TradingConfig:
                 f"min_spread_bps ({self.min_spread_bps}) must be > 1.5 * (fees + slippage) ({total_cost * 1.5:.2f}). "
                 f"Current: fee_a={self.taker_fee_a_bps}, fee_b={self.taker_fee_b_bps}, slippage={self.slippage_bps}"
             )
+    
+    def copy(self, update: dict = None):
+        """Create a copy with optional updates"""
+        from dataclasses import replace
+        if update is None:
+            return replace(self)
+        return replace(self, **update)
 
 
 @dataclass(frozen=True)
@@ -228,15 +242,20 @@ class SessionConfig:
     """세션 관리 설정"""
     
     mode: str = 'paper'  # 'paper', 'live', 'backtest'
-    data_source: str = 'paper'  # 'paper', 'ws', 'backtest'
-    
-    # Runtime
+    data_source: str = 'rest'  # 'rest', 'ws'
     max_runtime_seconds: Optional[int] = None
     loop_interval_ms: int = 100
     
-    # State persistence
-    state_persistence_enabled: bool = True
+    # State management
+    state_persistence_enabled: bool = False
     snapshot_interval_seconds: int = 300
+    
+    def copy(self, update: dict = None):
+        """Create a copy with optional updates"""
+        from dataclasses import replace
+        if update is None:
+            return replace(self)
+        return replace(self, **update)
 
 
 @dataclass(frozen=True)
@@ -304,6 +323,52 @@ class ArbitrageConfig:
             exchange_a_to_b_rate=self.trading.exchange_a_to_b_rate,
             bid_ask_spread_bps=self.trading.bid_ask_spread_bps
         )
+    
+    def copy(self, update: dict = None):
+        """
+        Create a copy of the config with optional updates
+        
+        Args:
+            update: Dictionary of field updates (nested updates supported)
+        
+        Returns:
+            New ArbitrageConfig instance
+        """
+        import copy as copy_module
+        
+        if update is None:
+            return copy_module.deepcopy(self)
+        
+        # Convert frozen dataclass to dict, update, and recreate
+        config_dict = {
+            'env': self.env,
+            'exchange': self.exchange,
+            'database': self.database,
+            'risk': self.risk,
+            'trading': self.trading,
+            'monitoring': self.monitoring,
+            'session': self.session,
+            'universe': self.universe,
+            'engine': self.engine,
+            'multi_symbol_risk_guard': self.multi_symbol_risk_guard,
+            'symbols': self.symbols,
+            'paper_initial_balance_krw': self.paper_initial_balance_krw,
+            'paper_initial_balance_usdt': self.paper_initial_balance_usdt,
+        }
+        
+        # Apply updates
+        for key, value in update.items():
+            if '.' in key:
+                # Nested update (e.g., 'trading.min_spread_bps')
+                parts = key.split('.')
+                nested_key = parts[0]
+                nested_field = '.'.join(parts[1:])
+                if hasattr(config_dict[nested_key], 'copy'):
+                    config_dict[nested_key] = config_dict[nested_key].copy({nested_field: value})
+            else:
+                config_dict[key] = value
+        
+        return ArbitrageConfig(**config_dict)
     
     def to_live_config(self):
         """
