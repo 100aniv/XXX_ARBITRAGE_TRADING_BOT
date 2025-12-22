@@ -25,6 +25,51 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
+@pytest.fixture(autouse=True, scope="session")
+def setup_test_environment_variables():
+    """
+    D99-6: 테스트 환경 기본 환경변수 설정
+    
+    - Production config 테스트 시 필요한 환경변수 기본값 제공
+    - 실제 값은 .env 파일이나 CI/CD에서 오버라이드
+    """
+    test_env_defaults = {
+        # PostgreSQL (Docker 기본값)
+        "POSTGRES_HOST": "localhost",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "arbitrage",
+        "POSTGRES_USER": "arbitrage",
+        "POSTGRES_PASSWORD": "arbitrage",
+        
+        # Redis (Docker 기본값)
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6380",
+        "REDIS_DB": "0",
+        
+        # API Keys (테스트용 placeholder)
+        "UPBIT_ACCESS_KEY": "test_upbit_key",
+        "UPBIT_SECRET_KEY": "test_upbit_secret",
+        "BINANCE_API_KEY": "test_binance_key",
+        "BINANCE_SECRET_KEY": "test_binance_secret",
+        
+        # Telegram (테스트용)
+        "TELEGRAM_BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+        "TELEGRAM_CHAT_ID": "-1001234567890",
+        
+        # Environment
+        "ARBITRAGE_ENV": "local_dev",
+    }
+    
+    # 기존 값이 없을 때만 설정 (오버라이드 방지)
+    for key, default_value in test_env_defaults.items():
+        if key not in os.environ:
+            os.environ[key] = default_value
+    
+    yield
+    
+    # cleanup은 하지 않음 (테스트 격리는 개별 fixture에서 처리)
+
+
 @pytest.fixture(autouse=True, scope="function")
 def disable_readonly_guard_for_tests():
     """

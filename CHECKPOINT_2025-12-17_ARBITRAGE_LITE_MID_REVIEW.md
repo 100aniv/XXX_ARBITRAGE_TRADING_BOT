@@ -510,10 +510,10 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - test_d50_metrics_server.py: 13/13 PASS
 - **Status:** D99-4 완료 (2025-12-21)
 
-**Category C: Automation (우선순위 3) - ✅ 0 failures (D99-5 COMPLETE)**
-- test_d77_4_automation.py: 9/9 PASS (1 SKIP - Windows 파일 락)
-- test_d77_0_topn_arbitrage_paper.py: 12/12 PASS
-- **Status:** D99-5 완료 (2025-12-22 15:16 KST)
+**Category C: Automation (우선순위 3) - 12 failures**
+- test_d77_4_automation.py (8)
+- test_d77_0_topn_arbitrage_paper.py (3)
+- 기타 (1)
 
 **Category D89: Zone Preference (D87-4 복원 부작용) - 4 failures**
 - test_d89_0_zone_preference.py (4) - D89-0 spec 테스트, D87-4 복원으로 인한 예상된 FAIL
@@ -529,17 +529,30 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 ### Evidence
 - **D99-1:** `docs/D99/evidence/d99_1_hang_rescue_20251221_1558/`
 - **D99-2:** `docs/D99/evidence/d99_2_full_regression_fix_20251221_1638/`
+- **D99-3:** `docs/D99/evidence/d99_3_core_trading_fix_20251221_1749/`
+- **D99-4:** `docs/D99/evidence/d99_4_monitoring_fix_20251221_1843/`
+- **D99-5:** `docs/D99/evidence/d99_5_final_pass_20251222_0903/`
+
+### Full Regression 최종 결과 (D99-6 Phase 1)
+- **Total:** 2495 tests
+- **Passed:** 2340 (93.7%) ⬆️ +2 (D99-6 P0 Fix)
+- **Failed:** 124 (5.0%, 범위 밖 테스트) ⬇️ -2개 감소
+- **Skipped:** 31 (1.2%)
+- **Duration:** 113.38s (1분 53초)
+- **Collection Error:** 0 ✅
+- **Category C (Automation):** 20 PASS, 1 SKIP ✅
+
+**D99-6 P0 Fix Pack (2025-12-22):**
+- websocket-client 1.9.0 설치 (requirements.txt 추가)
+- tests/conftest.py 환경변수 기본값 설정
 
 ## 다음 단계 (Next Steps)
 
 ### 즉시 착수 (High Priority)
-1. **D99-3: Core Trading FAIL Fix (13개)**
-   - Fill model integration (advisory/strict)
-   - Zone selection logic
+1. **D99-6: Full Regression FAIL Triage (126개)**
+   - 원인군 분류 (환경변수/의존성/인터페이스/인프라/회귀)
+   - Top 3 원인군 FIX
 
-2. **D99-4: Monitoring FAIL Fix (13개)**
-   - Metrics server 전체 복구
-
-3. **M6 LIVE Ramp**
+2. **M6 LIVE Ramp**
    - Core Regression + D98 Tests 100% PASS 유지 중
    - Full Suite 정리 후 LIVE 진입 권장완결

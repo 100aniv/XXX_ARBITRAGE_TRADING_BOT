@@ -8,13 +8,26 @@
 
 ## Executive Summary
 
-D99-5 완료 후 Full Regression 최종 결과:
-- **Total:** 2542 tests
+**D99-6 Phase 1 (P0 Fix Pack) 완료 상태:**
+
+**Before (D99-5 완료 직후):**
+- **Total:** 2495 tests (2542 - 47 수정)
 - **Passed:** 2338 (93.5%)
 - **Failed:** 126 (5.0%)
 - **Skipped:** 31 (1.2%)
 
-**D99-6 목표:** 126개 FAIL을 원인군으로 분류하고, Top 3 원인군부터 FIX 진행
+**After P0 Fix (2025-12-22 16:19 KST):**
+- **Total:** 2495 tests
+- **Passed:** 2340 (93.7%) ⬆️ +2
+- **Failed:** 124 (5.0%) ⬇️ **-2개 감소**
+- **Skipped:** 31 (1.2%)
+- **Duration:** 113.38s (1분 53초)
+
+**P0 Fix 내용:**
+1. ✅ websocket-client 1.9.0 설치 (requirements.txt 추가)
+2. ✅ tests/conftest.py 환경변수 기본값 설정 (POSTGRES_PASSWORD 등)
+
+**D99-6 목표:** 124개 FAIL을 원인군으로 분류하고, Top 3 원인군부터 FIX 진행
 
 ---
 

@@ -25,6 +25,7 @@ aiohttp>=3.9.0         # 비동기 HTTP 클라이언트
 redis>=5.0.0           # Redis 클라이언트
 python-binance>=1.0.0  # Binance API (선택)
 psutil>=5.9.0          # 프로세스 관리 (D92 Preflight)
+websocket-client>=1.6.0  # WebSocket client (FX WS 레이어, D99-6 P0)
 
 # 모니터링
 prometheus_client>=0.19.0  # Prometheus 메트릭스 (D77-4)
