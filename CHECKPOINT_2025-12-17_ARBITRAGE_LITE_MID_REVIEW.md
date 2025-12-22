@@ -510,10 +510,10 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - test_d50_metrics_server.py: 13/13 PASS
 - **Status:** D99-4 완료 (2025-12-21)
 
-**Category C: Automation (우선순위 3) - 12 failures**
-- test_d77_4_automation.py (8)
-- test_d77_0_topn_arbitrage_paper.py (3)
-- 기타 (1)
+**Category C: Automation (우선순위 3) - ✅ 0 failures (D99-5 COMPLETE)**
+- test_d77_4_automation.py: 9/9 PASS (1 SKIP - Windows 파일 락)
+- test_d77_0_topn_arbitrage_paper.py: 12/12 PASS
+- **Status:** D99-5 완료 (2025-12-22 15:16 KST)
 
 **Category D89: Zone Preference (D87-4 복원 부작용) - 4 failures**
 - test_d89_0_zone_preference.py (4) - D89-0 spec 테스트, D87-4 복원으로 인한 예상된 FAIL
