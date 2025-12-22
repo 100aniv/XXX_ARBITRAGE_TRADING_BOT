@@ -291,34 +291,18 @@ Category C (Automation) 12 FAIL → 0 FAIL
    
 2. **테스트 환경변수 기본값 설정**
    - `tests/conftest.py`에 `setup_test_environment_variables` fixture 추가
-   - POSTGRES_PASSWORD, REDIS_HOST 등 Docker 기본값 자동 설정
+   - POSTGRES_PASSWORD, REDIS_HOST 등## D99-6 Phase 1: P0 Fix Pack (2025-12-22 16:19)
 
-### Results
-**Before (D99-5 완료 직후):**
-- Total: 2495 tests
-- Passed: 2338 (93.5%)
-- Failed: 126 (5.0%)
-- Skipped: 31 (1.2%)
+**Status:** COMPLETE
 
-**After P0 Fix:**
-- Total: 2495 tests
-- Passed: 2340 (93.7%) ⬆️ +2
-- **Failed: 124 (5.0%)** ⬇️ **-2개 감소**
-- Skipped: 31 (1.2%)
-- Duration: 113.38s
+**목표:** 환경변수 + 의존성 P0 이슈 해결
 
-### Modified Files
-1. `requirements.txt`: websocket-client>=1.6.0 추가
-2. `tests/conftest.py`: setup_test_environment_variables fixture 추가
-3. `docs/D99/D99_6_FAIL_TRIAGE.md`: 원인군 분류 + P0 Fix 결과
-4. `docs/D99/D99_REPORT.md`: D99-6 Phase 1 섹션 추가
-5. `CHECKPOINT_2025-12-17_ARBITRAGE_LITE_MID_REVIEW.md`: Full Regression 결과 최신화
+**Before:** 2338 PASS, 126 FAIL, 31 SKIP  
+**After:** 2340 PASS, 124 FAIL, 31 SKIP 
 
-### Evidence
-- `docs/D99/evidence/d99_6_p0_fixpack_20251222_161444/`
-- Fast Gate: D77-0 (12 PASS), D77-4 (8 PASS, 1 SKIP)
-- Full Regression Before: step4_full_regression.txt (126 FAIL)
-- Full Regression After: step5_full_regression_after_p0.txt (124 FAIL)
+**P0 Fix:**
+1. websocket-client 1.9.0 설치 (requirements.txt)
+2. tests/conftest.py 환경변수 기본값 설정
 
 ### AC Status
 - ✅ AC-1: FAIL 원인군 분류 (5개 원인군)

@@ -57,6 +57,31 @@ class SimulatedExchange:
             f"balance={self.balance}"
         )
     
+    async def connect(self) -> None:
+        """Connect to exchange (no-op for simulated exchange, added for interface compatibility)"""
+        logger.debug(f"SimulatedExchange.connect() called (no-op)")
+        pass
+    
+    async def get_balance(self, currency: str = None) -> Dict[str, float]:
+        """Get balance (D99-6 P1: 백워드 호환)"""
+        if currency:
+            return {currency: self.balance.get(currency, 0.0)}
+        return self.balance.copy()
+    
+    def set_price(self, symbol: str, bid: float, ask: float) -> None:
+        """Set price (alias for update_orderbook, D99-6 P1: 백워드 호환)"""
+        self.update_orderbook(symbol, bid, ask)
+    
+    async def get_ticker(self, symbol: str):
+        """Get ticker (D99-6 P1: 백워드 호환)"""
+        if symbol not in self._order_books:
+            return None
+        
+        ob = self._order_books[symbol]
+        # Return a simple object with bid/ask attributes
+        from types import SimpleNamespace
+        return SimpleNamespace(bid=ob.bid, ask=ob.ask, symbol=symbol)
+    
     def update_orderbook(self, symbol: str, bid: float, ask: float) -> None:
         """Update orderbook prices"""
         self._order_books[symbol] = OrderBook(symbol, bid, ask)

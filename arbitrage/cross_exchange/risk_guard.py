@@ -497,7 +497,7 @@ class CrossExchangeRiskGuard:
             details={},
         )
     
-    def _check_cross_sync_rules(self, decision: CrossExchangeDecision) -> CrossRiskDecision:
+    def _check_cross_sync_rules(self, decision: CrossExchangeDecision, adjusted_config=None) -> CrossRiskDecision:
         """
         CrossSync 기반 exposure/imbalance 규칙
         

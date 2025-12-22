@@ -1,0 +1,6 @@
+Total FAILED tests: 0
+Total unique test files: 0
+
+Top 10 test files by FAIL count:
+
+Top 3 coverage: 0/0 (0.0%)

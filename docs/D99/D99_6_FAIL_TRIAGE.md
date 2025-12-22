@@ -8,26 +8,33 @@
 
 ## Executive Summary
 
-**D99-6 Phase 1 (P0 Fix Pack) 완료 상태:**
+**D99-6 Phase 2 (P1 Fix Pack) 완료 상태:**
 
-**Before (D99-5 완료 직후):**
-- **Total:** 2495 tests (2542 - 47 수정)
+**Phase 0 (D99-5 완료 직후):**
+- **Total:** 2495 tests
 - **Passed:** 2338 (93.5%)
 - **Failed:** 126 (5.0%)
 - **Skipped:** 31 (1.2%)
 
-**After P0 Fix (2025-12-22 16:19 KST):**
-- **Total:** 2495 tests
+**Phase 1 (P0 Fix - 2025-12-22 16:19 KST):**
 - **Passed:** 2340 (93.7%) ⬆️ +2
-- **Failed:** 124 (5.0%) ⬇️ **-2개 감소**
+- **Failed:** 124 (5.0%) ⬇️ -2개 감소
+- **Duration:** 113.38s
+- **P0 Fix:** websocket-client + env vars (conftest)
+
+**Phase 2 (P1 Fix - 2025-12-22 18:45 KST):**
+- **Passed:** 2352 (94.3%) ⬆️ +12
+- **Failed:** 112 (4.5%) ⬇️ **-12개 감소**
 - **Skipped:** 31 (1.2%)
-- **Duration:** 113.38s (1분 53초)
+- **Duration:** 108.85s (1분 48초)
+- **P1 Fix:**
+  1. ✅ SimulatedExchange.connect/disconnect/get_balance/get_ticker 추가
+  2. ✅ CrossExchangeRiskGuard._check_cross_sync_rules(adjusted_config) 시그니처 수정
+  3. ✅ CrossExchangeExecutor.__init__(integration, enable_rollback) 백워드 호환
 
-**P0 Fix 내용:**
-1. ✅ websocket-client 1.9.0 설치 (requirements.txt 추가)
-2. ✅ tests/conftest.py 환경변수 기본값 설정 (POSTGRES_PASSWORD 등)
+**누적 감소:** 126 → 112 (14개 감소, 11.1%)
 
-**D99-6 목표:** 124개 FAIL을 원인군으로 분류하고, Top 3 원인군부터 FIX 진행
+**D99-6 목표:** 112개 FAIL 재분류 및 Phase 3 계획
 
 ---
 
@@ -58,7 +65,7 @@ config.base.ConfigError: Production requires POSTGRES_PASSWORD environment varia
 
 ---
 
-### 원인군 2: 의존성 누락 (Priority: P0)
+### 원인군 2: 의존성 누락 (Priority: P0) - ✅ FIXED (Phase 1)
 
 **특징:** `yaml`, `pyyaml` 등 필수 패키지 미설치
 
@@ -82,7 +89,7 @@ ModuleNotFoundError: No module named 'yaml'
 
 ---
 
-### 원인군 3: 인터페이스/메서드 누락 (Priority: P1)
+### 원인군 3: 인터페이스/메서드 누락 (Priority: P1) - ⚠️ PARTIAL (Phase 2)
 
 **특징:** 클래스/객체에 필요한 메서드가 없음 (예: `connect()`, `copy()`)
 

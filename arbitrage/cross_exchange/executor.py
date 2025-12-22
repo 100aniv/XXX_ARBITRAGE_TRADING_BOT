@@ -153,6 +153,8 @@ class CrossExchangeExecutor:
         fill_model_integration: Optional["FillModelIntegration"] = None,
         fx_provider: Optional[FxRateProvider] = None,  # D80-2
         base_currency: Currency = Currency.KRW,  # D80-2
+        integration: Optional["CrossExchangeIntegration"] = None,  # D99-6 P1: 백워드 호환
+        enable_rollback: bool = True  # D99-6 P1: 백워드 호환
     ):
         """
         Initialize CrossExchangeExecutor
@@ -168,9 +170,28 @@ class CrossExchangeExecutor:
             fill_model_integration: FillModelIntegration (optional)
             fx_provider: FxRateProvider (optional, D80-2)
             base_currency: 기본 통화 (D80-2)
+            integration: CrossExchangeIntegration (D99-6 P1: 백워드 호환)
+            enable_rollback: Rollback 활성화 (D99-6 P1: 백워드 호환)
         """
-        self.upbit_exchange = upbit_exchange
-        self.binance_exchange = binance_exchange
+        # D99-6 P1: integration 파라미터가 제공되면 우선 사용
+        if integration is not None:
+            import warnings
+            warnings.warn(
+                "Passing 'integration' to CrossExchangeExecutor is deprecated. "
+                "Use upbit_exchange/binance_exchange directly.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            self.upbit_exchange = integration.upbit
+            self.binance_exchange = integration.binance
+            self.integration = integration
+            self.enable_rollback = enable_rollback
+        else:
+            self.upbit_exchange = upbit_exchange
+            self.binance_exchange = binance_exchange
+            self.integration = None
+            self.enable_rollback = enable_rollback
+        
         self.position_manager = position_manager
         self.fx_converter = fx_converter
         self.risk_guard = risk_guard

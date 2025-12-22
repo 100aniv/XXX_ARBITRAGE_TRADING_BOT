@@ -533,14 +533,16 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **D99-4:** `docs/D99/evidence/d99_4_monitoring_fix_20251221_1843/`
 - **D99-5:** `docs/D99/evidence/d99_5_final_pass_20251222_0903/`
 
-### Full Regression 최종 결과 (D99-6 Phase 1)
-- **Total:** 2495 tests
-- **Passed:** 2340 (93.7%) ⬆️ +2 (D99-6 P0 Fix)
-- **Failed:** 124 (5.0%, 범위 밖 테스트) ⬇️ -2개 감소
-- **Skipped:** 31 (1.2%)
-- **Duration:** 113.38s (1분 53초)
-- **Collection Error:** 0 ✅
-- **Category C (Automation):** 20 PASS, 1 SKIP ✅
+### Full Regression 현재 상태 (2025-12-22 18:45 KST):
+- Total: 2495 tests
+- Passed: 2352 (94.3%) ⬆️ +14 (누적)
+- **Failed: 112** (4.5%) ⬇️ **-14개 감소 (누적)**
+- Skipped: 31 (1.2%)
+- Duration: 108.85s (1분 48초)
+
+**D99-6 Phase 1+2 완료:**
+- ✅ Phase 1 (P0): websocket-client + env vars (-2개)
+- ⚠️ Phase 2 (P1): RiskGuard/Executor 시그니처 수정 (-12개)
 
 **D99-6 P0 Fix Pack (2025-12-22):**
 - websocket-client 1.9.0 설치 (requirements.txt 추가)
