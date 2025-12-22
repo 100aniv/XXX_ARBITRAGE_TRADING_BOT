@@ -1,8 +1,8 @@
 # D99-6: Full Regression FAIL Triage (원인군 분류)
 
 **Author:** Windsurf AI  
-**Date:** 2025-12-22  
-**Status:** 🚧 IN PROGRESS (원인군 분류 + Top 3 FIX 진행 중)
+**Date:** 2025-12-22 ~ 2025-12-23  
+**Status:** 🚧 IN PROGRESS (Phase 3 진행 중 - Docker ON SSOT 기준)
 
 ---
 
@@ -34,7 +34,20 @@
 
 **누적 감소:** 126 → 112 (14개 감소, 11.1%)
 
-**D99-6 목표:** 112개 FAIL 재분류 및 Phase 3 계획
+**Phase 3 (P3 Fix - 2025-12-23 00:03 KST, Docker ON SSOT):**
+- **Baseline:** 119 FAIL (Docker ON 상태에서 재측정)
+- **Passed:** 2358 (94.6%) ⬆️ +6
+- **Failed:** 106 (4.2%) ⬇️ **-13개 감소**
+- **Skipped:** 31 (1.2%)
+- **Duration:** 212.94s (3분 32초)
+- **P3 Fix:**
+  1. ✅ TelegramNotifier.is_available() - 빈 문자열 처리 로직 수정 (-1)
+  2. ✅ SimulatedExchange.get_ticker() - Price 객체 반환 추가 (-9)
+  3. ✅ Order 생성자 - exchange, created_at, updated_at 파라미터 수정 (-3)
+
+**누적 감소 (P0+P1+P3):** 119 → 106 (13개 감소, 10.9%)
+
+**D99-6 목표:** 119 → 99 이하 (-20 이상) | **현재 진행률: 65% (13/20)**
 
 ---
 

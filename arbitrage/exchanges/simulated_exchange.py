@@ -62,6 +62,11 @@ class SimulatedExchange:
         logger.debug(f"SimulatedExchange.connect() called (no-op)")
         pass
     
+    async def disconnect(self) -> None:
+        """Disconnect from exchange (no-op for simulated exchange, D99-6 P1: 백워드 호환)"""
+        logger.debug(f"SimulatedExchange.disconnect() called (no-op)")
+        pass
+    
     async def get_balance(self, currency: str = None) -> Dict[str, float]:
         """Get balance (D99-6 P1: 백워드 호환)"""
         if currency:
@@ -72,19 +77,29 @@ class SimulatedExchange:
         """Set price (alias for update_orderbook, D99-6 P1: 백워드 호환)"""
         self.update_orderbook(symbol, bid, ask)
     
-    async def get_ticker(self, symbol: str):
-        """Get ticker (D99-6 P1: 백워드 호환)"""
-        if symbol not in self._order_books:
-            return None
-        
-        ob = self._order_books[symbol]
-        # Return a simple object with bid/ask attributes
-        from types import SimpleNamespace
-        return SimpleNamespace(bid=ob.bid, ask=ob.ask, symbol=symbol)
-    
     def update_orderbook(self, symbol: str, bid: float, ask: float) -> None:
         """Update orderbook prices"""
         self._order_books[symbol] = OrderBook(symbol, bid, ask)
+    
+    async def get_ticker(self, symbol: str) -> Price:
+        """Get ticker (bid/ask prices) for symbol"""
+        if symbol not in self._order_books:
+            return Price(
+                exchange=self.exchange_type,
+                symbol=symbol,
+                bid=0.0,
+                ask=0.0,
+                timestamp=datetime.now(timezone.utc)
+            )
+        
+        ob = self._order_books[symbol]
+        return Price(
+            exchange=self.exchange_type,
+            symbol=symbol,
+            bid=ob.bid,
+            ask=ob.ask,
+            timestamp=datetime.now(timezone.utc)
+        )
     
     async def place_order(
         self,
@@ -98,13 +113,15 @@ class SimulatedExchange:
         
         order = Order(
             order_id=order_id,
+            exchange=self.exchange_type,
             symbol=symbol,
             side=side,
             quantity=quantity,
             price=price or 0.0,
             status=OrderStatus.PENDING,
             filled_quantity=0.0,
-            timestamp=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
         
         await self._simulate_execution(order)

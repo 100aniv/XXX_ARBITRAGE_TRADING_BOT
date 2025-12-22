@@ -65,8 +65,9 @@ class TelegramNotifier(NotifierBase):
             except Exception:
                 pass  # Fallback to env var
         
-        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
-        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID")
+        # Only use env var if bot_token/chat_id is explicitly None (not empty string)
+        self.bot_token = bot_token if bot_token is not None else os.getenv("TELEGRAM_BOT_TOKEN")
+        self.chat_id = chat_id if chat_id is not None else os.getenv("TELEGRAM_CHAT_ID")
         self._send_message_fn = send_message_fn or self._default_send_message
     
     def send(self, alert: AlertRecord) -> bool:

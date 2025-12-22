@@ -28,7 +28,8 @@ class TestTelegramNotifier:
     
     def test_is_available_false(self):
         """Notifier unavailable when not configured"""
-        notifier = TelegramNotifier(bot_token=None, chat_id=None)
+        # Explicitly pass empty strings to override environment defaults
+        notifier = TelegramNotifier(bot_token="", chat_id="")
         assert notifier.is_available() is False
     
     def test_format_message(self):

@@ -10,19 +10,21 @@
 
 D99 시리즈는 Full Regression Suite (2458 tests)의 HANG/FAIL 이슈를 체계적으로 해결하는 작업이다.
 
-**최종 상태 (2025-12-22 16:19 KST):**
+**최종 상태 (2025-12-22 18:45 KST):**
 - ✅ D99-1: HANG Rescue (test_d41 원인 확정 및 스킵)
 - ✅ D99-2: Full Regression 완주 + FAIL 리스트 수집
 - ✅ D99-3: Category A (Core Trading) 13 FAIL 수정
 - ✅ D99-4: Category B (Monitoring) 13 FAIL 수정
 - ✅ D99-5: Category C (Automation) 0 FAIL 달성 (FINAL PASS 확정)
-- 🚧 D99-6 Phase 1: P0 Fix Pack (126 → 124 FAIL 감소)
+- ✅ D99-6 Phase 1: P0 Fix Pack (126 → 124 FAIL, -2개)
+- ⚠️ D99-6 Phase 2: P1 Fix Pack (124 → 112 FAIL, -12개)
 
 **최종 결과:**
 - Python 3.13.11 환경 고정 ✅
 - Category C (Automation): 20 PASS, 1 SKIP (Windows 파일 락) ✅
 - Collection Error: 0 (2495 tests collected) ✅
-- **Full Regression (D99-6 Phase 1 후):** 2340 PASS, 124 FAIL, 31 SKIP ✅
+- **Full Regression (D99-6 Phase 2 후):** 2352 PASS, 112 FAIL, 31 SKIP ✅
+- **누적 개선:** 126 → 112 (14개 감소, 11.1%) ✅
 - SSOT Core Suite: 44/44 + 31/31 = 100% PASS 유지 ✅
 
 ---
@@ -291,18 +293,34 @@ Category C (Automation) 12 FAIL → 0 FAIL
    
 2. **테스트 환경변수 기본값 설정**
    - `tests/conftest.py`에 `setup_test_environment_variables` fixture 추가
-   - POSTGRES_PASSWORD, REDIS_HOST 등## D99-6 Phase 1: P0 Fix Pack (2025-12-22 16:19)
+   - POSTGRES_PASSWORD, REDIS_HOST 등 Docker 기본값 자동 설정
 
-**Status:** COMPLETE
+### Results
+**Before (D99-5 완료 직후):**
+- Total: 2495 tests
+- Passed: 2338 (93.5%)
+- Failed: 126 (5.0%)
+- Skipped: 31 (1.2%)
 
-**목표:** 환경변수 + 의존성 P0 이슈 해결
+**After P0 Fix:**
+- Total: 2495 tests
+- Passed: 2340 (93.7%) ⬆️ +2
+- **Failed: 124 (5.0%)** ⬇️ **-2개 감소**
+- Skipped: 31 (1.2%)
+- Duration: 113.38s
 
-**Before:** 2338 PASS, 126 FAIL, 31 SKIP  
-**After:** 2340 PASS, 124 FAIL, 31 SKIP 
+### Modified Files
+1. `requirements.txt`: websocket-client>=1.6.0 추가
+2. `tests/conftest.py`: setup_test_environment_variables fixture 추가
+3. `docs/D99/D99_6_FAIL_TRIAGE.md`: 원인군 분류 + P0 Fix 결과
+4. `docs/D99/D99_REPORT.md`: D99-6 Phase 1 섹션 추가
+5. `CHECKPOINT_2025-12-17_ARBITRAGE_LITE_MID_REVIEW.md`: Full Regression 결과 최신화
 
-**P0 Fix:**
-1. websocket-client 1.9.0 설치 (requirements.txt)
-2. tests/conftest.py 환경변수 기본값 설정
+### Evidence
+- `docs/D99/evidence/d99_6_p0_fixpack_20251222_161444/`
+- Fast Gate: D77-0 (12 PASS), D77-4 (8 PASS, 1 SKIP)
+- Full Regression Before: step4_full_regression.txt (126 FAIL)
+- Full Regression After: step5_full_regression_after_p0.txt (124 FAIL)
 
 ### AC Status
 - ✅ AC-1: FAIL 원인군 분류 (5개 원인군)
