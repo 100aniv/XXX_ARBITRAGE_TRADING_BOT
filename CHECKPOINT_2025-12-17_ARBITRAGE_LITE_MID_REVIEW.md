@@ -59,6 +59,10 @@
   - **P6 (D99-7):** PaperExchange BASE/QUOTE 수정 (80 → 75 FAIL, -5개)
     - Core: 44/44 PASS 유지
     - 남은 75 FAIL: Live API(15), FX Provider(13), 비즈니스 로직(13), 환경(34)
+  - **P7 (D99-8):** Python 환경 복구 (3.14.0 → 3.13.11, 75 FAIL 베이스라인 재확정)
+    - psycopg2-binary 의존성 추가
+    - Core: 44/44 PASS 유지
+    - Full: 2342 PASS, 75 FAIL (안정화 완료)
 
 ### M6. Live Ramp (소액 → 확대)
 - **상태:** 미진행(예정)

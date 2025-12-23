@@ -1471,6 +1471,29 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 **Next Steps (D99-8/P7):**
 - **D98 범위**: 튜닝 구현 없음 (이미 완료, 재사용만)
 
+### D99-8 (P7): Environment Recovery (2025-12-23) ✅ COMPLETE
+- **목표:** Python 3.14.0 회귀 복구 + 베이스라인 재확정
+- **Root Cause:** Python 3.14.0 환경에서 Starlette/FastAPI 호환 문제 → 83 FAIL 회귀
+- **Solution:**
+  - Python 3.13.11 venv 재생성
+  - psycopg2-binary>=2.9.0 의존성 추가 (requirements.txt)
+  - test_d98_7_open_positions_check.py 복구
+- **Result:**
+  - Core Regression: 44/44 PASS ✅
+  - Full Regression: 2342 PASS, 75 FAIL (베이스라인 재확정)
+  - Duration: 104.99s
+- **Status:** ✅ COMPLETE (환경 안정화)
+- **Evidence:** `docs/D99/evidence/d99_8_p7_fixpack_20251223_092438/`
+- **Report:** `docs/D99/D99_8_P7_ENV_RECOVERY_REPORT.md`
+
+**Modified Files:**
+1. `requirements.txt`: psycopg2-binary>=2.9.0 추가 (PostgreSQL driver)
+
+**Next Steps (D99-9/P8):**
+- Live API Mock 전환 (예상 -15 FAIL)
+- FX Provider In-Memory 전환 (예상 -13 FAIL)
+- 목표: 75 → 55 이하 (-20개)
+
 ### M7: Multi-Exchange 확장
 **Status:** 📋 PLANNED (구현 미착수)
 
