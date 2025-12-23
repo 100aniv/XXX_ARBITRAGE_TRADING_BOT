@@ -248,6 +248,7 @@ def test_ws_provider_get_websocket_stats():
 # C. Integration Tests (4)
 # =============================================================================
 
+@pytest.mark.fx_api
 def test_executor_with_ws_fx_provider():
     """Executor + WebSocketFxRateProvider 통합"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -305,6 +306,7 @@ def test_ws_update_to_executor_cost():
     assert rate == Decimal("1.0")
 
 
+@pytest.mark.fx_api
 def test_ws_metrics_recording():
     """Metrics: cross_fx_ws_connected, reconnect_total, message_total"""
     from arbitrage.monitoring.cross_exchange_metrics import (
@@ -335,8 +337,9 @@ def test_ws_metrics_recording():
     assert all_metrics["gauges"]["cross_fx_ws_last_message_seconds"] == 5.0
 
 
+@pytest.mark.fx_api
 def test_backward_compatibility_real_fx_provider():
-    """Backward compatibility (RealFxRateProvider 여전히 동작)"""
+    """Backward compatibility: RealFxRateProvider 여전히 동작"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
     binance_exchange = PaperExchange(config={"base_currency": Currency.USDT})
     

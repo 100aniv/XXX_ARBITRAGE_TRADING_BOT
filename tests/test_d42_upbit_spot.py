@@ -44,6 +44,7 @@ class TestUpbitSpotExchangeInitialization:
 class TestUpbitSpotExchangeOrderbook:
     """UpbitSpotExchange 호가 테스트"""
     
+    @pytest.mark.live_api
     def test_get_orderbook(self):
         """호가 조회"""
         exchange = UpbitSpotExchange()
@@ -58,6 +59,7 @@ class TestUpbitSpotExchangeOrderbook:
 class TestUpbitSpotExchangeBalance:
     """UpbitSpotExchange 잔고 테스트"""
     
+    @pytest.mark.live_api
     def test_get_balance(self):
         """잔고 조회"""
         exchange = UpbitSpotExchange()
@@ -134,6 +136,7 @@ class TestUpbitSpotExchangeOrders:
         with pytest.raises(RuntimeError):
             exchange.cancel_order("order_123")
     
+    @pytest.mark.live_api
     def test_cancel_order_live_enabled(self):
         """실거래 활성화 상태에서 취소"""
         config = {

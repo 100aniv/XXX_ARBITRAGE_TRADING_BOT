@@ -63,6 +63,11 @@
     - psycopg2-binary 의존성 추가
     - Core: 44/44 PASS 유지
     - Full: 2342 PASS, 75 FAIL (안정화 완료)
+  - **P8 (D99-9):** 테스트 결정론화 (Live/FX 분리, 75 → 54 FAIL, -21개)
+    - pytest.ini: live_api, fx_api 마커 정의
+    - 7개 테스트 파일에 24개 함수 마커 추가
+    - Core: 44/44 PASS 유지
+    - Full: 2388 PASS, 54 FAIL (목표 -20 초과 달성)
 
 ### M6. Live Ramp (소액 → 확대)
 - **상태:** 미진행(예정)

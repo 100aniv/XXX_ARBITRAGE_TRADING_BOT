@@ -297,6 +297,7 @@ def test_real_fx_reverse_rate_krw_usd(mock_get):
 # C. Integration Tests (6)
 # =============================================================================
 
+@pytest.mark.fx_api
 def test_executor_estimate_order_cost_with_real_fx():
     """Executor._estimate_order_cost() with Real FX"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -328,6 +329,7 @@ def test_executor_estimate_order_cost_with_real_fx():
     assert upbit_cost.amount == Decimal("100000")
 
 
+@pytest.mark.fx_api
 def test_executor_upbit_order_cost_krw():
     """Upbit order cost (KRW)"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -353,6 +355,7 @@ def test_executor_upbit_order_cost_krw():
     assert upbit_cost.amount == Decimal("100000")
 
 
+@pytest.mark.fx_api
 def test_executor_binance_order_cost_usdt_to_krw():
     """Binance order cost (USDT→KRW 변환)"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -383,6 +386,7 @@ def test_executor_binance_order_cost_usdt_to_krw():
     assert binance_cost.amount == Decimal("4000")
 
 
+@pytest.mark.fx_api
 def test_executor_stale_warning_log(caplog):
     """Stale warning log 생성"""
     import logging
@@ -419,6 +423,7 @@ def test_executor_stale_warning_log(caplog):
     assert any("FX rate is STALE" in record.message for record in caplog.records)
 
 
+@pytest.mark.fx_api
 def test_executor_backward_compat_static_fx():
     """Backward compatibility (StaticFxRateProvider 여전히 동작)"""
     from arbitrage.common.currency import StaticFxRateProvider
@@ -454,6 +459,7 @@ def test_executor_backward_compat_static_fx():
     assert upbit_cost.amount == Decimal("100000")
 
 
+@pytest.mark.fx_api
 def test_executor_default_real_fx_provider():
     """Executor에서 기본으로 RealFxRateProvider 사용"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})

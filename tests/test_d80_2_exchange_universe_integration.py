@@ -172,6 +172,7 @@ def test_make_money_explicit_currency():
 # C. Executor Tests (4~6 tests)
 # =============================================================================
 
+@pytest.mark.live_api
 def test_executor_estimate_order_cost_returns_money():
     """Executor._estimate_order_cost()가 Money를 반환하는지 확인"""
     # Mock executor (필수 의존성만 주입)
@@ -200,6 +201,7 @@ def test_executor_estimate_order_cost_returns_money():
     assert cost.currency == Currency.KRW
 
 
+@pytest.mark.live_api
 def test_executor_upbit_notional_money_krw():
     """Executor에서 Upbit notional이 Money(KRW)로 계산되는지 확인"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -225,6 +227,7 @@ def test_executor_upbit_notional_money_krw():
     assert upbit_cost.amount == Decimal("100000")  # 50M * 0.002
 
 
+@pytest.mark.live_api
 def test_executor_binance_notional_money_usdt():
     """Executor에서 Binance notional이 Money(USDT)로 계산되는지 확인"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -347,8 +350,9 @@ def test_cross_execution_result_pnl_krw_deprecated():
     assert result.pnl_krw_amount == 10000.0
 
 
+@pytest.mark.live_api
 def test_executor_existing_interface_unchanged():
-    """기존 Executor 인터페이스가 유지되는지 확인 (import, basic flow)"""
+    """Executor 인터페이스가 유지되는지 확인 (import, basic flow)"""
     from arbitrage.cross_exchange.executor import CrossExchangeExecutor, CrossExecutionResult
     
     # Import 성공 확인

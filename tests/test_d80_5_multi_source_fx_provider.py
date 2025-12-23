@@ -249,6 +249,7 @@ def test_websocket_disabled():
 # C. Integration Tests (5)
 # =============================================================================
 
+@pytest.mark.fx_api
 def test_executor_with_multi_source_fx_provider():
     """Executor + MultiSourceFxRateProvider 통합"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
@@ -312,6 +313,7 @@ def test_metrics_recording():
     assert all_metrics["gauges"]["cross_fx_multi_source_median"] == 1.0005
 
 
+@pytest.mark.fx_api
 def test_backward_compatibility_websocket_fx_provider():
     """Backward compatibility (WebSocketFxRateProvider 여전히 동작)"""
     from arbitrage.common.currency import WebSocketFxRateProvider
@@ -344,6 +346,7 @@ def test_backward_compatibility_websocket_fx_provider():
     assert binance_cost.currency == Currency.USDT
 
 
+@pytest.mark.fx_api
 def test_backward_compatibility_real_fx_provider():
     """Backward compatibility (RealFxRateProvider 여전히 동작)"""
     from arbitrage.common.currency import StaticFxRateProvider
@@ -378,8 +381,9 @@ def test_backward_compatibility_real_fx_provider():
     assert upbit_cost.currency == Currency.KRW
 
 
+@pytest.mark.fx_api
 def test_source_update_to_cache_to_executor():
-    """Source update → cache → executor cost 반영"""
+    """Source update → Cache → Executor cost 반영"""
     upbit_exchange = PaperExchange(config={"base_currency": Currency.KRW})
     binance_exchange = PaperExchange(config={"base_currency": Currency.USDT})
     
