@@ -10,23 +10,22 @@
 
 D99 시리즈는 Full Regression Suite (2458 tests)의 HANG/FAIL 이슈를 체계적으로 해결하는 작업이다.
 
-**최종 상태 (2025-12-22 18:45 KST):**
-- ✅ D99-1: HANG Rescue (test_d41 원인 확정 및 스킵)
-- ✅ D99-2: Full Regression 완주 + FAIL 리스트 수집
-- ✅ D99-3: Category A (Core Trading) 13 FAIL 수정
-- ✅ D99-4: Category B (Monitoring) 13 FAIL 수정
-- ✅ D99-5: Category C (Automation) 0 FAIL 달성 (FINAL PASS 확정)
-- ✅ D99-6 Phase 1: P0 Fix Pack (126 → 124 FAIL, -2개)
-- ⚠️ D99-6 Phase 2: P1 Fix Pack (124 → 112 FAIL, -12개)
-
-**최종 결과:**
-- Python 3.14.0 환경 고정 ✅
-- Category C (Automation): 20 PASS, 1 SKIP (Windows 파일 락) ✅
-- Collection Error: 0 (2495 tests collected) ✅
-- **Full Regression (D99-6 P4 후):** 2374 PASS, 90 FAIL, 31 SKIP ✅
-- **누적 개선:** 119 → 90 (29개 감소, 24.4%) ✅
-- **목표 달성:** 90 < 99 (145% 달성!) ✅
-- Core Regression: 178/178 = 100% PASS 유지 ✅
+**최종 상태 (2025-12-23 02:15 KST):**
+- D99-1: HANG Rescue (test_d41 원인 확정 및 스킵)
+- D99-2: Full Regression 완주 + FAIL 리스트 수집
+- D99-3: Category A (Core Trading) 13 FAIL 수정
+- D99-4: Category B (Monitoring) 13 FAIL 수정
+- D99-5: Category C (Automation) 0 FAIL 달성 (FINAL PASS 확정)
+- D99-6 P0: Fix Pack (126 → 124 FAIL, -2개)
+- D99-6 P1: Fix Pack (124 → 112 FAIL, -12개)
+- D99-6 P3: Fix Pack (119 → 106 FAIL, -13개, Docker ON SSOT)
+- D99-6 P4: Fix Pack (106 → 90 FAIL, -16개, **목표 달성!**)
+- D99-6 P5: M5 문서화 + Config 부분 개선 (M5 산출물 고정)(Windows 파일 락) 
+- Collection Error: 0 (2495 tests collected) 
+- **Full Regression (D99-6 P4 후):** 2374 PASS, 90 FAIL, 31 SKIP 
+- **누적 개선:** 119 → 90 (29개 감소, 24.4%) 
+- **목표 달성:** 90 < 99 (145% 달성!) 
+- Core Regression: 178/178 = 100% PASS 유지 
 
 ---
 

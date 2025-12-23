@@ -7,6 +7,15 @@
 
 ---
 
+## [BIBLE] MILESTONE CONTRACT — 절대 수정 금지 규칙
+- 아래 "Milestone Contract" 블록은 계약(Contract)이며 **문구/순서/번호/범위/설명 삭제·수정 금지**.
+- 허용되는 변경은 오직 2개:
+  1) Status 체크([ ] → [x]) 표시 변경
+  2) 각 Milestone 하단의 "Progress Log"에 날짜로 **append-only** 진행 기록 추가
+- 스코프/번호/범위를 바꿔야 한다면:
+  - 기존 블록을 고쳐쓰지 말고, "REBASELOG"에 사유/날짜/커밋을 남기고
+  - 새 CHECKPOINT 파일을 생성(기존 체크포인트 덮어쓰기 금지)
+
 <!-- ROADMAP CONTRACT (SSOT) -->
 - SSOT: D_ROADMAP.md가 “목표/AC/Done/Next”의 유일 기준이다.
 - D문서는 해당 D섹션을 구현/검증/증거로 풀어쓴 하위 산출물이다. (ROADMAP → D)
@@ -61,10 +70,10 @@
 - 목표: 소액 LIVE로 시작해 점진적으로 확대하는 절차/가드/킬스위치를 증거로 고정
 - 산출물: Live Runbook, 위험 한도, 중단 조건, 실제 증거 로그/지표, 회고(Postmortem)
 - 관련 D(예정):
-  - Live-0: 소액(최소) LIVE 스모크
-  - Live-1: 1h LIVE
-  - Live-2: 3~12h LIVE
-  - Live-3: 점진적 규모 확장
+  - D106: 소액(최소) LIVE 스모크
+  - D107: 1h LIVE
+  - D108: 3~12h LIVE
+  - D109~D115: 점진적 규모 확대
 
 ---
 
@@ -1473,7 +1482,7 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - 헬스/컴플라이언스 훅
 - API 어댑터 추상화
 
-**D 매핑**: D99~D105 (예정)
+**D 매핑**: D116~D125 (예정)
 
 ---
 
@@ -1488,7 +1497,7 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - 리포트 링크 모음
 - CLI 기반 운영 도구
 
-**D 매핑**: D106~D110 (예정)
+**D 매핑**: D126~D130 (예정)
 
 ---
 
@@ -1503,7 +1512,24 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - 리스크 관리 강화
 - 비상 중단 메커니즘
 
-**D 매핑**: D111~D115 (예정)
+**D 매핑**: D131~D135 (예정)
+
+---
+
+## REBASELOG (Milestone Contract 변경 이력)
+
+### 2025-12-23 09:17 KST - D번호 예약 범위 충돌 제거
+**사유:** M5(D99)가 이미 사용 중인데 M7~M9가 D99~D115를 중복 예약하여 충돌 발생
+
+**변경 내역:**
+- M7 (Multi-Exchange 확장): D99~D105 → **D116~D125**
+- M8 (Operator UI/Console): D106~D110 → **D126~D130**
+- M9 (Live Ramp 소액→확대): D111~D115 → **D131~D135**
+- M6 (Live Ramp 검증): Live-0~Live-3 → **D106~D115** (구체화)
+
+**정책:** 이후 D번호 예약은 REBASELOG에 append-only로만 기록. Milestone Contract 블록 수정 금지.
+
+**커밋:** (진행 중)
 
 ---
 
