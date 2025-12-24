@@ -81,36 +81,36 @@ class TestD89ZonePreferenceWeightTuning:
         strict_score_z1 = strict_integration.adjust_route_score(base_score, advice_z1)
         
         # Assert
-        # Advisory Z2 = 70 * 3.00 = 210 (clipped to 100)
-        assert advisory_score_z2 == 100.0, \
-            f"Advisory Z2 should be clipped to 100, got {advisory_score_z2}"
+        # D99-11: D87-4 multiplicative weights - Advisory Z2 = 70 * 1.05 = 73.5
+        assert 73.0 <= advisory_score_z2 <= 74.0, \
+            f"Advisory Z2 should be ~73.5 (70*1.05), got {advisory_score_z2}"
         
         # Strict Z2 = 70 * 1.15 = 80.5
         assert 80.0 <= strict_score_z2 <= 81.0, \
             f"Strict Z2 should be ~80.5, got {strict_score_z2}"
         
-        # Advisory Z2 >> Strict Z2
-        assert advisory_score_z2 > strict_score_z2, \
-            f"Advisory Z2 ({advisory_score_z2}) should be > Strict Z2 ({strict_score_z2})"
+        # D99-11: Advisory Z2 (1.05) < Strict Z2 (1.15)이므로 반대
+        assert advisory_score_z2 < strict_score_z2, \
+            f"Advisory Z2 ({advisory_score_z2}) should be < Strict Z2 ({strict_score_z2})"
         
-        # Advisory Z1 = 70 * 0.80 = 56.0
-        assert 55.5 <= advisory_score_z1 <= 56.5, \
-            f"Advisory Z1 should be ~56.0, got {advisory_score_z1}"
+        # D99-11: Advisory Z1 = 70 * 0.90 = 63.0
+        assert 62.5 <= advisory_score_z1 <= 63.5, \
+            f"Advisory Z1 should be ~63.0 (70*0.90), got {advisory_score_z1}"
         
         # Strict Z1 = 70 * 0.80 = 56.0
         assert 55.5 <= strict_score_z1 <= 56.5, \
             f"Strict Z1 should be ~56.0, got {strict_score_z1}"
         
-        # Advisory Z1 ≈ Strict Z1 (둘 다 0.80)
-        assert abs(advisory_score_z1 - strict_score_z1) < 0.1, \
-            f"Advisory Z1 ({advisory_score_z1}) ≈ Strict Z1 ({strict_score_z1})"
+        # D99-11: Advisory Z1 (0.90) > Strict Z1 (0.80)
+        assert advisory_score_z1 > strict_score_z1, \
+            f"Advisory Z1 ({advisory_score_z1}) should be > Strict Z1 ({strict_score_z1})"
     
     def test_t2_config_zone_preference_values(self):
         """
         T2: 설정값 반영 검증
         
         FillModelConfig 생성 시 zone_preference 값 확인:
-        - Advisory Z2 = 3.00 (D89-0 강화)
+        - D99-11: Advisory Z2 = 1.05 (D87-4 multiplicative)
         - Strict Z2 = 1.15 (기준선 유지)
         """
         # Arrange & Act
@@ -132,15 +132,15 @@ class TestD89ZonePreferenceWeightTuning:
         assert strict_config.zone_preference is not None, \
             "Strict config should have zone_preference"
         
-        # Advisory Z2 = 3.00
+        # D99-11: Advisory Z2 = 1.05
         advisory_z2 = advisory_config.zone_preference.get("advisory", {}).get("Z2")
-        assert advisory_z2 == 3.00, \
-            f"Advisory Z2 should be 3.00, got {advisory_z2}"
+        assert advisory_z2 == 1.05, \
+            f"Advisory Z2 should be 1.05, got {advisory_z2}"
         
-        # Advisory Z1 = 0.80
+        # D99-11: Advisory Z1 = 0.90
         advisory_z1 = advisory_config.zone_preference.get("advisory", {}).get("Z1")
-        assert advisory_z1 == 0.80, \
-            f"Advisory Z1 should be 0.80, got {advisory_z1}"
+        assert advisory_z1 == 0.90, \
+            f"Advisory Z1 should be 0.90, got {advisory_z1}"
         
         # Strict Z2 = 1.15 (unchanged)
         strict_z2 = strict_config.zone_preference.get("strict", {}).get("Z2")
@@ -156,8 +156,8 @@ class TestD89ZonePreferenceWeightTuning:
         """
         T3: Score Clipping 검증
         
-        base_score=70, Z2=3.00 → adjusted_score=210 → clipped to 100
-        0~100 범위 내 clipping 정상 작동
+        D99-11: base_score=70, Z2=1.05 → adjusted_score=73.5 (no clipping needed)
+        0~100 범위 내 정상 작동
         """
         # Arrange
         base_score = 70.0
@@ -181,9 +181,9 @@ class TestD89ZonePreferenceWeightTuning:
         adjusted_score = integration.adjust_route_score(base_score, advice_z2)
         
         # Assert
-        # 70 * 3.00 = 210, but clipped to 100
-        assert adjusted_score == 100.0, \
-            f"Score should be clipped to 100, got {adjusted_score}"
+        # D99-11: 70 * 1.05 = 73.5 (no clipping)
+        assert 73.0 <= adjusted_score <= 74.0, \
+            f"Score should be ~73.5 (70*1.05), got {adjusted_score}"
         
         # 0~100 범위 내
         assert 0.0 <= adjusted_score <= 100.0, \
@@ -259,13 +259,13 @@ class TestD89ZonePreferenceWeightTuning:
         adjusted_score_z4 = integration.adjust_route_score(base_score, advice_z4)
         
         # Assert
-        # Z3: 80 * 0.85 = 68.0
-        assert 67.5 <= adjusted_score_z3 <= 68.5, \
-            f"Z3 score should be ~68.0, got {adjusted_score_z3}"
+        # D99-11: Z3: 80 * 0.95 = 76.0
+        assert 75.5 <= adjusted_score_z3 <= 76.5, \
+            f"Z3 score should be ~76.0 (80*0.95), got {adjusted_score_z3}"
         
-        # Z4: 80 * 0.80 = 64.0
-        assert 63.5 <= adjusted_score_z4 <= 64.5, \
-            f"Z4 score should be ~64.0, got {adjusted_score_z4}"
+        # D99-11: Z4: 80 * 0.90 = 72.0
+        assert 71.5 <= adjusted_score_z4 <= 72.5, \
+            f"Z4 score should be ~72.0 (80*0.90), got {adjusted_score_z4}"
 
 
 if __name__ == "__main__":

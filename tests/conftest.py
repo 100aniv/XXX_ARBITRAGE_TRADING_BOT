@@ -45,6 +45,7 @@ def setup_test_environment_variables():
         "REDIS_HOST": "localhost",
         "REDIS_PORT": "6380",
         "REDIS_DB": "0",
+        "REDIS_PASSWORD": "",  # D99-10: Redis password (empty for local dev)
         
         # API Keys (테스트용 placeholder)
         "UPBIT_ACCESS_KEY": "test_upbit_key",

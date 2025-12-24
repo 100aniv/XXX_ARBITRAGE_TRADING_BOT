@@ -21,11 +21,12 @@ uvicorn>=0.24.0        # ASGI 서버
 websockets>=12.0       # WebSocket 실시간 스트리밍
 
 # D16 실거래 모듈 의존성
-aiohttp>=3.9.0         # 비동기 HTTP 클라이언트
+aiohttp==3.11.11         # 비동기 HTTP 클라이언트
 redis>=5.0.0           # Redis 클라이언트
 python-binance>=1.0.0  # Binance API (선택)
 psutil>=5.9.0          # 프로세스 관리 (D92 Preflight)
-websocket-client>=1.6.0
+websocket-client==1.9.0
+PyYAML==6.0.1
 prometheus-client>=0.18.0
 psycopg2-binary>=2.9.0  # FX WS 레이어, D99-6 P0
 

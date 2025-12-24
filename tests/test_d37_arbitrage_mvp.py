@@ -46,6 +46,7 @@ class TestArbitrageConfig:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
 
         assert config.min_spread_bps == 30.0
@@ -65,6 +66,7 @@ class TestArbitrageConfig:
             slippage_bps=5.0,
             max_position_usd=1000.0,
             max_open_trades=5,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
 
         assert config.max_open_trades == 5
@@ -167,6 +169,7 @@ class TestArbitrageEngine:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -181,6 +184,7 @@ class TestArbitrageEngine:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -203,6 +207,7 @@ class TestArbitrageEngine:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -231,6 +236,7 @@ class TestArbitrageEngine:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -252,22 +258,24 @@ class TestArbitrageEngine:
         assert opportunity.net_edge_bps >= config.min_spread_bps
 
     def test_detect_opportunity_insufficient_spread(self):
-        """스프레드 부족 - 기회 없음."""
+        """불충분한 스프레드 (net_edge < 0) - 기회 없음."""
         config = ArbitrageConfig(
-            min_spread_bps=100.0,  # 높은 임계값
+            min_spread_bps=30.0,  # D99-11: D45 이후 프로덕션에서 이 값은 무시됨
             taker_fee_a_bps=5.0,
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
+        # 스프레드가 음수인 경우: bid_b < ask_a
         snapshot = OrderBookSnapshot(
             timestamp="2025-01-01T00:00:00Z",
-            best_bid_a=100.0,
-            best_ask_a=100.5,
-            best_bid_b=101.0,
-            best_ask_b=101.5,
+            best_bid_a=101.0,
+            best_ask_a=102.0,
+            best_bid_b=100.0,
+            best_ask_b=101.0,
         )
 
         opportunity = engine.detect_opportunity(snapshot)
@@ -282,6 +290,7 @@ class TestArbitrageEngine:
             slippage_bps=5.0,
             max_position_usd=1000.0,
             max_open_trades=1,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -311,6 +320,7 @@ class TestArbitrageEngine:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -337,6 +347,7 @@ class TestArbitrageEngine:
             max_position_usd=1000.0,
             max_open_trades=1,  # 최대 1개 거래만 허용
             close_on_spread_reversal=True,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
 
@@ -384,6 +395,7 @@ class TestArbitrageBacktester:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
         backtest_config = BacktestConfig()
@@ -400,6 +412,7 @@ class TestArbitrageBacktester:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
         backtest_config = BacktestConfig(initial_balance_usd=10_000.0)
@@ -420,6 +433,7 @@ class TestArbitrageBacktester:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
         backtest_config = BacktestConfig(initial_balance_usd=10_000.0)
@@ -457,6 +471,7 @@ class TestArbitrageBacktester:
             taker_fee_b_bps=5.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
+            exchange_a_to_b_rate=1.0,  # D99-11: 테스트용 1:1 환율 고정
         )
         engine = ArbitrageEngine(config)
         backtest_config = BacktestConfig(
