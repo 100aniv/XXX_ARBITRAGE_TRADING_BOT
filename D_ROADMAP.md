@@ -1631,33 +1631,37 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 **목적:** 개발 중 명령 표준화 + 파일 변경 감지 자동 재실행
 
-**SSOT 명령 (pytest.ini 기반):**
-- `fast`: `python -m pytest -m "not optional_ml and not optional_live" -q`
-- `regression`: `python -m pytest -m "not optional_ml and not optional_live" -q` (fast와 동일)
-- `full`: `python -m pytest -q` (모든 테스트 포함)
+**SSOT 명령 (D92 Core Regression 정의):**
+- `fast`: Core Regression SSOT (43-44개 테스트, 100% PASS)
+- `regression`: Core Regression SSOT (fast와 동일)
+- `full`: DEBT/OPTIONAL (필요 시 실행, SSOT 아님)
 - `doctor`: 사전진단 (python, pytest, git 점검)
 
-**사용법:**
+**Core Regression SSOT:**
 ```powershell
-# 직접 실행
-python -m pytest -m "not optional_ml and not optional_live" -q
+python -m pytest tests/test_d27_monitoring.py tests/test_d82_*.py tests/test_d92_*.py --import-mode=importlib -v --tb=short
+```
 
-# watchdog (파일 변경 감지 자동 재실행)
+**Watchdog (파일 변경 감지 자동 재실행):**
+```powershell
 .\scripts\watchdog.ps1 fast|regression|full
 ```
 
 **산출물:**
 - `justfile` - SSOT 명령 선언 (의도 문서)
-- `scripts/watchdog.ps1` - PowerShell FileSystemWatcher 기반 파일 감시
+- `scripts/watchdog.ps1` - watchexec 기반 파일 감시 (또는 PowerShell FileSystemWatcher 폴백)
 - `docs/DEV_WORKFLOW_SSOT.md` - 상세 사용 가이드
-- `logs/dev_workflow_scan.md` - 스캔 결과 및 SSOT 근거
+- `docs/D92/D92_CORE_REGRESSION_DEFINITION.md` - SSOT 정의 (근거)
 
 **근거:**
-- pytest.ini: Core Regression 마커 정의 (line 5-14)
-- D_ROADMAP.md: M1/M2 SSOT Gate (line 37-48)
-- CHECKPOINT_2025-12-17: D99-12 P11 Full Regression 39 FAIL
+- D92_CORE_REGRESSION_DEFINITION.md: 43-44개 테스트 100% PASS 정의
+- M1/M2 SSOT Gate: D93/D94/D95 (line 37-48)
 
-**상태:** ✅ COMPLETE (2025-12-26 01:37 UTC+09:00)
+**원칙:**
+- SSOT는 100% PASS만 인정 (FAIL/HANG은 DEBT/OPTIONAL)
+- Full Suite는 필요 시 실행하되 SSOT 아님
+
+**상태:** ✅ COMPLETE (2025-12-26 01:54 UTC+09:00)
 
 ---
 

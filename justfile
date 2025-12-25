@@ -1,14 +1,15 @@
 # SSOT: Dev Workflow Gate 3단 + doctor (사전진단)
-# 근거: pytest.ini (Core Regression), D_ROADMAP.md (M1~M2 SSOT)
-# Python 러너: python -m pytest (Windows)
-# 주의: just/watchexec이 PATH에 없으면 scripts/run_gate.py 또는 PowerShell 직접 실행 사용
+# 근거: D92_CORE_REGRESSION_DEFINITION.md (44-test SSOT)
+# Python 러너: python -m pytest (Windows, abt_bot_env 우선)
+# Watchdog: watchexec 기반 (또는 scripts/watchdog.ps1 래퍼)
 
-# 이 justfile은 "의도 선언" 역할
-# 실제 실행은:
-#   - PowerShell: python -m pytest -m "not optional_ml and not optional_live" -q
-#   - Python: python scripts/run_gate.py doctor|fast|regression|full
-#   - Watchdog: .\scripts\watchdog.ps1 fast|regression|full
+# Core Regression SSOT (D92 정의)
+# - 타깃: 43-44개 테스트 (test_d27, test_d82_*, test_d92_*)
+# - 기준: 100% PASS만 SSOT 인정
+# - 명령: python -m pytest tests/test_d27_monitoring.py tests/test_d82_*.py tests/test_d92_*.py --import-mode=importlib -v --tb=short
+
+# Fast/Regression = Core Regression SSOT (동일)
+# Full = DEBT/OPTIONAL (필요 시 실행, SSOT 아님)
 
 # 참고: just가 설치되지 않으면 아래 명령을 직접 PowerShell에서 실행하세요:
-#   python -m pytest -m "not optional_ml and not optional_live" -q  # fast/regression
-#   python -m pytest -q                                              # full
+#   python -m pytest tests/test_d27_monitoring.py tests/test_d82_*.py tests/test_d92_*.py --import-mode=importlib -v --tb=short

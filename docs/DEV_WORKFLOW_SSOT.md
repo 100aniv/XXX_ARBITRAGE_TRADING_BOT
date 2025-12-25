@@ -28,12 +28,12 @@ just regression
 ```
 
 **실행 내용:**
-- pytest.ini 기반 Core Regression
-- 마커: `-m "not optional_ml and not optional_live"`
-- 예상 시간: 3-5분
-- 예상 결과: 2403 PASS, 39 FAIL (D99-12 P11 기준)
+- Core Regression SSOT (D92 정의)
+- 타깃: 43-44개 테스트 (test_d27, test_d82_*, test_d92_*)
+- 예상 시간: 1-2분
+- **기준: 100% PASS만 SSOT 인정** (FAIL/HANG은 DEBT/OPTIONAL)
 
-### 1.3 전체 테스트 (full)
+### 1.3 전체 테스트 (full) - DEBT/OPTIONAL
 
 ```powershell
 just full
@@ -42,7 +42,7 @@ just full
 **실행 내용:**
 - 모든 테스트 (live_api, fx_api 포함)
 - 예상 시간: 4-5분
-- 예상 결과: 2403 PASS, 39 FAIL (D99-12 P11 기준)
+- **상태: DEBT/OPTIONAL** (SSOT 아님, 필요 시 실행)
 
 ---
 
