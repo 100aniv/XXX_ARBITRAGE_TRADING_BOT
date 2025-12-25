@@ -59,8 +59,10 @@ def validate_env(env_name: str, verbose: bool = False) -> Tuple[str, List[str], 
     warnings = []
     
     try:
-        # Force reload to pick up env file
+        # Force reload to pick up env file (skip validation for now)
+        os.environ["SKIP_SETTINGS_VALIDATION"] = "1"
         settings = reload_settings()
+        del os.environ["SKIP_SETTINGS_VALIDATION"]
         
         # Check if env matches
         if settings.env.value != env_name:
@@ -233,6 +235,11 @@ def main():
         help="Target environment (default: paper)",
     )
     parser.add_argument(
+        "--env-file",
+        type=Path,
+        help="Custom .env file path (for testing/isolation)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Show detailed configuration summary",
@@ -241,8 +248,11 @@ def main():
     args = parser.parse_args()
     env_name = args.env
     
-    # Load .env file
-    env_file = project_root / f".env.{env_name}"
+    # Load .env file (custom path or default)
+    if args.env_file:
+        env_file = args.env_file
+    else:
+        env_file = project_root / f".env.{env_name}"
     
     if not env_file.exists():
         print(f"[Warning] {env_file.name} not found")

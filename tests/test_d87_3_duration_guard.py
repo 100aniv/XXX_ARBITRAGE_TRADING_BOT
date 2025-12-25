@@ -44,7 +44,7 @@ class TestDurationGuard:
         calibration_path = PROJECT_ROOT / "logs" / "d86-1" / "calibration_20251207_123906.json"
         
         cmd = [
-            "python",
+            sys.executable,
             "scripts/run_d84_2_calibrated_fill_paper.py",
             "--duration-seconds", str(duration_seconds),
             "--l2-source", "mock",  # Mock L2로 빠르게 테스트
@@ -109,7 +109,7 @@ class TestDurationGuard:
         calibration_path = PROJECT_ROOT / "logs" / "d86-1" / "calibration_20251207_123906.json"
         
         cmd = [
-            "python",
+            sys.executable,
             "scripts/run_d84_2_calibrated_fill_paper.py",
             "--duration-seconds", str(duration_seconds),
             "--l2-source", "mock",  # Mock L2로 빠르게 테스트
@@ -168,7 +168,7 @@ class TestDurationGuard:
         calibration_path = PROJECT_ROOT / "logs" / "d86-1" / "calibration_20251207_123906.json"
         
         cmd = [
-            "python",
+            sys.executable,
             "scripts/run_d84_2_calibrated_fill_paper.py",
             "--duration-seconds", str(duration_seconds),
             "--l2-source", "mock",
@@ -201,7 +201,7 @@ class TestDurationGuard:
         """Orchestrator Dry-run 모드 테스트"""
         # Arrange
         cmd = [
-            "python",
+            sys.executable,
             "scripts/d87_3_longrun_orchestrator.py",
             "--mode", "dry-run",
         ]
@@ -238,7 +238,7 @@ class TestDurationGuard:
         calibration_path = PROJECT_ROOT / "logs" / "d86-1" / "calibration_20251207_123906.json"
         
         cmd = [
-            "python",
+            sys.executable,
             "scripts/run_d84_2_calibrated_fill_paper.py",
             "--duration-seconds", str(duration_seconds),
             "--l2-source", "mock",

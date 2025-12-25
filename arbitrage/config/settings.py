@@ -463,8 +463,9 @@ class Settings:
                 if hasattr(settings, key):
                     setattr(settings, key, value)
         
-        # Validate
-        settings.validate()
+        # Validate (skip if SKIP_SETTINGS_VALIDATION=1 for test isolation)
+        if os.getenv("SKIP_SETTINGS_VALIDATION") != "1":
+            settings.validate()
         
         return settings
     

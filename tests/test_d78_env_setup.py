@@ -30,13 +30,29 @@ def create_test_env_file(tmp_path: Path, env_name: str, vars: Dict[str, str]) ->
     return env_file
 
 
-def run_script(script_name: str, args: list, cwd: Path, env: Dict[str, str] = None) -> subprocess.CompletedProcess:
-    """Run a script and return the result"""
+def run_script(script_name: str, args: list, cwd: Path, env: Dict[str, str] = None, clean_env: bool = False) -> subprocess.CompletedProcess:
+    """Run a script and return the result
+    
+    Args:
+        clean_env: If True, start with minimal environment (PATH, SYSTEMROOT only)
+                   This provides complete isolation for env validation tests
+    """
     script_path = cwd / "scripts" / script_name
     cmd = [sys.executable, str(script_path)] + args
     
-    # Merge environment
-    full_env = os.environ.copy()
+    # Build environment
+    if clean_env:
+        # Minimal environment for complete isolation
+        full_env = {
+            "PATH": os.environ.get("PATH", ""),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+            "PYTHONPATH": str(cwd),
+        }
+    else:
+        # Inherit current environment
+        full_env = os.environ.copy()
+    
+    # Add/override with provided env vars
     if env:
         full_env.update(env)
     
@@ -56,24 +72,21 @@ def test_validate_env_local_dev_minimal(tmp_path, monkeypatch):
     Test validate_env.py for local_dev with minimal config
     Should PASS with warnings
     """
-    # Change to temp directory
-    monkeypatch.chdir(tmp_path)
-    
     # Create minimal local_dev env file
     env_file = create_test_env_file(tmp_path, "local_dev", {
         "POSTGRES_HOST": "localhost",
         "REDIS_HOST": "localhost",
     })
     
-    # Copy settings.py to temp (simulating project structure)
     project_root = Path(__file__).parent.parent
     
-    # Run validate_env.py
+    # Run validate_env.py with --env-file for isolation
     result = run_script(
         "validate_env.py",
-        ["--env", "local_dev"],
+        ["--env", "local_dev", "--env-file", str(env_file)],
         project_root,
         env={"ARBITRAGE_ENV": "local_dev"},
+        clean_env=True,
     )
     
     # Should succeed (exit 0) with warnings
@@ -86,8 +99,6 @@ def test_validate_env_paper_missing_required(tmp_path, monkeypatch):
     Test validate_env.py for paper with missing required fields
     Should FAIL
     """
-    monkeypatch.chdir(tmp_path)
-    
     # Create incomplete paper env file (missing Telegram, Exchange)
     env_file = create_test_env_file(tmp_path, "paper", {
         "POSTGRES_HOST": "localhost",
@@ -98,9 +109,10 @@ def test_validate_env_paper_missing_required(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "paper"],
+        ["--env", "paper", "--env-file", str(env_file)],
         project_root,
         env={"ARBITRAGE_ENV": "paper"},
+        clean_env=True,
     )
     
     # Should fail (exit 1)
@@ -114,8 +126,6 @@ def test_validate_env_paper_complete(tmp_path, monkeypatch):
     Test validate_env.py for paper with all required fields
     Should PASS
     """
-    monkeypatch.chdir(tmp_path)
-    
     # Create complete paper env file
     env_file = create_test_env_file(tmp_path, "paper", {
         "UPBIT_ACCESS_KEY": "test_upbit_key_12345",
@@ -130,9 +140,10 @@ def test_validate_env_paper_complete(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "paper"],
+        ["--env", "paper", "--env-file", str(env_file)],
         project_root,
         env={"ARBITRAGE_ENV": "paper"},
+        clean_env=True,
     )
     
     # Should succeed (exit 0)
@@ -145,8 +156,6 @@ def test_validate_env_live_warns_localhost(tmp_path, monkeypatch):
     Test validate_env.py for live mode with localhost DB
     Should PASS with WARN
     """
-    monkeypatch.chdir(tmp_path)
-    
     # Create live env with localhost (suspicious for live)
     env_file = create_test_env_file(tmp_path, "live", {
         "UPBIT_ACCESS_KEY": "test_upbit_key",
@@ -161,9 +170,10 @@ def test_validate_env_live_warns_localhost(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "live"],
+        ["--env", "live", "--env-file", str(env_file)],
         project_root,
         env={"ARBITRAGE_ENV": "live"},
+        clean_env=True,
     )
     
     # Should succeed but with warnings
@@ -177,8 +187,6 @@ def test_validate_env_live_warns_test_chat_id(tmp_path, monkeypatch):
     Test validate_env.py for live mode with test-looking chat ID
     Should WARN
     """
-    monkeypatch.chdir(tmp_path)
-    
     # Create live env with test-looking chat ID
     env_file = create_test_env_file(tmp_path, "live", {
         "UPBIT_ACCESS_KEY": "test_key",
@@ -193,9 +201,10 @@ def test_validate_env_live_warns_test_chat_id(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "live"],
+        ["--env", "live", "--env-file", str(env_file)],
         project_root,
         env={"ARBITRAGE_ENV": "live"},
+        clean_env=True,
     )
     
     # Should succeed but with warnings
@@ -208,8 +217,6 @@ def test_validate_env_verbose(tmp_path, monkeypatch):
     Test validate_env.py with --verbose flag
     Should show configuration summary
     """
-    monkeypatch.chdir(tmp_path)
-    
     env_file = create_test_env_file(tmp_path, "local_dev", {
         "POSTGRES_HOST": "localhost",
         "REDIS_HOST": "localhost",
@@ -219,9 +226,10 @@ def test_validate_env_verbose(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "local_dev", "--verbose"],
+        ["--env", "local_dev", "--env-file", str(env_file), "--verbose"],
         project_root,
         env={"ARBITRAGE_ENV": "local_dev"},
+        clean_env=True,
     )
     
     # Should succeed and show summary
@@ -233,8 +241,6 @@ def test_no_secret_values_in_validate_output(tmp_path, monkeypatch):
     """
     Test that validate_env.py does NOT print actual secret values
     """
-    monkeypatch.chdir(tmp_path)
-    
     # Use distinctive secret values
     secret_key = "SUPER_SECRET_KEY_DO_NOT_PRINT_123456789"
     secret_token = "987654321:SUPER_SECRET_TOKEN_DO_NOT_PRINT"
@@ -252,9 +258,10 @@ def test_no_secret_values_in_validate_output(tmp_path, monkeypatch):
     
     result = run_script(
         "validate_env.py",
-        ["--env", "paper", "--verbose"],
+        ["--env", "paper", "--env-file", str(env_file), "--verbose"],
         project_root,
         env={"ARBITRAGE_ENV": "paper"},
+        clean_env=True,
     )
     
     # Should succeed
