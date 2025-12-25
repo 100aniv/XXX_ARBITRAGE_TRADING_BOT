@@ -61,8 +61,12 @@ def validate_env(env_name: str, verbose: bool = False) -> Tuple[str, List[str], 
     try:
         # Force reload to pick up env file (skip validation for now)
         os.environ["SKIP_SETTINGS_VALIDATION"] = "1"
+        # D99-13 P12: validate_env.py는 키 검증용이므로 Live Key Guard 우회
+        os.environ["SKIP_LIVE_KEY_GUARD"] = "1"
         settings = reload_settings()
         del os.environ["SKIP_SETTINGS_VALIDATION"]
+        if "SKIP_LIVE_KEY_GUARD" in os.environ:
+            del os.environ["SKIP_LIVE_KEY_GUARD"]
         
         # Check if env matches
         if settings.env.value != env_name:

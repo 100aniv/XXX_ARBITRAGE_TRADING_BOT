@@ -48,9 +48,8 @@ class TestUnitReliabilityFxAlerts:
     
     def setup_method(self):
         """각 테스트 전 초기화"""
-        # Reset global throttler
-        throttler = get_global_alert_throttler()
-        throttler._memory_store.clear()
+        # Reset global throttler (D99-13 P12: 전역 초기화)
+        reset_global_alert_throttler()
         
         # Reset global manager
         manager = get_global_alert_manager()

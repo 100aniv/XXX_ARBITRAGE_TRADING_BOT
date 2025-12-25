@@ -143,10 +143,10 @@ class CrossExchangeExecutor:
     
     def __init__(
         self,
-        upbit_exchange: BaseExchange,
-        binance_exchange: BaseExchange,
-        position_manager: CrossExchangePositionManager,
-        fx_converter: FXConverter,
+        upbit_exchange: Optional[BaseExchange] = None,
+        binance_exchange: Optional[BaseExchange] = None,
+        position_manager: Optional[CrossExchangePositionManager] = None,
+        fx_converter: Optional[FXConverter] = None,
         risk_guard: Optional[CrossExchangeRiskGuard] = None,
         secrets_checker: Optional[Any] = None,  # SecretsChecker
         dry_run: bool = False,
@@ -154,7 +154,11 @@ class CrossExchangeExecutor:
         fx_provider: Optional[FxRateProvider] = None,  # D80-2
         base_currency: Currency = Currency.KRW,  # D80-2
         integration: Optional["CrossExchangeIntegration"] = None,  # D99-6 P1: 백워드 호환
-        enable_rollback: bool = True  # D99-6 P1: 백워드 호환
+        enable_rollback: bool = True,  # D99-6 P1: 백워드 호환
+        upbit_client: Optional[BaseExchange] = None,  # D99-13 P12: 백워드 호환
+        binance_client: Optional[BaseExchange] = None,  # D99-13 P12: 백워드 호환
+        health_monitor: Optional[Any] = None,  # D99-13 P12: 백워드 호환 (무시)
+        settings: Optional[Any] = None,  # D99-13 P12: 백워드 호환 (무시)
     ):
         """
         Initialize CrossExchangeExecutor
@@ -173,6 +177,12 @@ class CrossExchangeExecutor:
             integration: CrossExchangeIntegration (D99-6 P1: 백워드 호환)
             enable_rollback: Rollback 활성화 (D99-6 P1: 백워드 호환)
         """
+        # D99-13 P12: upbit_client/binance_client 백워드 호환 (테스트용)
+        if upbit_client is not None:
+            upbit_exchange = upbit_client
+        if binance_client is not None:
+            binance_exchange = binance_client
+        
         # D99-6 P1: integration 파라미터가 제공되면 우선 사용
         if integration is not None:
             import warnings
@@ -192,12 +202,19 @@ class CrossExchangeExecutor:
             self.integration = None
             self.enable_rollback = enable_rollback
         
+        # D99-13 P12: upbit_client/binance_client 별칭 (실행 로직 호환성)
+        self.upbit_client = self.upbit_exchange
+        self.binance_client = self.binance_exchange
+        
         self.position_manager = position_manager
         self.fx_converter = fx_converter
         self.risk_guard = risk_guard
         self.secrets_checker = secrets_checker
         self.dry_run = dry_run
         self.fill_model_integration = fill_model_integration
+        self.health_monitor = health_monitor  # D99-13 P12: health_monitor 초기화
+        self.settings = settings  # D99-13 P12: settings 초기화
+        self.alert_manager = None  # D99-13 P12: alert_manager 초기화 (기본 None)
         
         # D80-2/D80-3: Multi-Currency 지원
         if fx_provider is None:
@@ -220,6 +237,7 @@ class CrossExchangeExecutor:
         self.base_currency = base_currency
         
         # Metrics (내부용, 하위 호환성 유지)
+        self.metrics_collector = None  # D99-13 P12: 기본값 None
         self.total_executions = 0
         self.successful_executions = 0
         self.failed_executions = 0

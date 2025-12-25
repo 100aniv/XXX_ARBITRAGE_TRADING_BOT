@@ -188,6 +188,11 @@ def validate_live_keys(
         ... )
         LiveKeyError: [D98-4_LIVE_KEY_GUARD] 허용되지 않는 환경에서 LIVE Upbit 키 감지...
     """
+    # D99-13 P12: validate_env.py 등 검증 스크립트에서 우회 가능
+    if os.getenv("SKIP_LIVE_KEY_GUARD") == "1":
+        logger.debug("[D98-4_LIVE_KEY_GUARD] Validation skipped (SKIP_LIVE_KEY_GUARD=1)")
+        return
+    
     # Rule 1: LIVE_ENABLED=true이지만 env != live → 차단
     if live_enabled and env != RuntimeEnv.LIVE:
         error_msg = (
