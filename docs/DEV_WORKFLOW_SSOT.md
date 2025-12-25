@@ -2,7 +2,8 @@
 
 **목적:** 명령 표준화 + 중간 멈춤 최소화 + 파일 변경 감지 자동 재실행
 
-**최종 업데이트:** 2025-12-26 01:37 UTC+09:00
+**최종 업데이트:** 2025-12-26 02:09 UTC+09:00  
+**SSOT:** Core Regression 44 tests (D92 정의)
 
 ---
 
@@ -138,22 +139,22 @@ just regression > logs/evidence/20251226_0137/regression.txt 2>&1
 
 ### 4.2 fast / regression
 
-**실행 시간:** 3-5분  
-**마커:** `-m "not optional_ml and not optional_live"`  
-**근거:** pytest.ini (Core Regression SSOT)  
-**예상 결과:** 2403 PASS, 39 FAIL (D99-12 P11)
+**실행 시간:** 12-15초  
+**타깃:** Core Regression SSOT (44 tests)  
+**근거:** docs/D92/D92_CORE_REGRESSION_DEFINITION.md  
+**결과:** 44/44 PASS (100% SSOT)
 
-**주의:** fast와 regression이 동일한 이유:
-- 명시적 "fast gate" 정의 없음 (문서/CI 근거 부족)
-- 안전하게 "항상 돌리던 Core Regression"으로 통일
-- 필요 시 다음 PR에서 fast를 더 가볍게 분리 가능
+**fast와 regression이 동일한 이유:**
+- Core Regression SSOT = fast = regression (모두 동일)
+- SSOT는 100% PASS만 인정
+- FAIL/HANG은 DEBT/OPTIONAL로 관리
 
 ### 4.3 full
 
+**상태:** DEBT/OPTIONAL (SSOT 아님)  
 **실행 시간:** 4-5분  
-**마커:** 없음 (모든 테스트)  
-**포함:** live_api, fx_api 테스트  
-**예상 결과:** 2403 PASS, 39 FAIL (D99-12 P11)
+**포함:** 모든 테스트 (live_api, fx_api 포함)  
+**주의:** SSOT가 아니므로 필요 시에만 실행
 
 ---
 
@@ -220,12 +221,13 @@ just regression
 
 ## 7. SSOT 근거
 
-| 항목 | 근거 파일 | 라인 | 내용 |
-|------|----------|------|------|
-| **Core Regression** | pytest.ini | 5-14 | 마커 정의 + 실행 명령 |
-| **M1 Gate SSOT** | D_ROADMAP.md | 37-42 | D93/D94 재현성/안정성 |
-| **M2 Gate SSOT** | D_ROADMAP.md | 44-48 | D95 성능 |
-| **D99-12 P11** | CHECKPOINT | 56-74 | Full Regression 45→39 FAIL |
+| 항목 | 근거 파일 | 내용 |
+|------|----------|------|
+| **Core Regression SSOT** | docs/D92/D92_CORE_REGRESSION_DEFINITION.md | 43-44개 테스트 100% PASS |
+| **M1 Gate SSOT** | D_ROADMAP.md (line 37-42) | D93/D94 재현성/안정성 |
+| **M2 Gate SSOT** | D_ROADMAP.md (line 44-48) | D95 성능 |
+| **fast/regression** | justfile | Core Regression SSOT 44 tests |
+| **full** | justfile | DEBT/OPTIONAL (SSOT 아님) |
 
 ---
 
