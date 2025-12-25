@@ -1627,5 +1627,39 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
+## DEV WORKFLOW: SSOT Gate 3단 + watchdog (2025-12-26)
+
+**목적:** 개발 중 명령 표준화 + 파일 변경 감지 자동 재실행
+
+**SSOT 명령 (pytest.ini 기반):**
+- `fast`: `python -m pytest -m "not optional_ml and not optional_live" -q`
+- `regression`: `python -m pytest -m "not optional_ml and not optional_live" -q` (fast와 동일)
+- `full`: `python -m pytest -q` (모든 테스트 포함)
+- `doctor`: 사전진단 (python, pytest, git 점검)
+
+**사용법:**
+```powershell
+# 직접 실행
+python -m pytest -m "not optional_ml and not optional_live" -q
+
+# watchdog (파일 변경 감지 자동 재실행)
+.\scripts\watchdog.ps1 fast|regression|full
+```
+
+**산출물:**
+- `justfile` - SSOT 명령 선언 (의도 문서)
+- `scripts/watchdog.ps1` - PowerShell FileSystemWatcher 기반 파일 감시
+- `docs/DEV_WORKFLOW_SSOT.md` - 상세 사용 가이드
+- `logs/dev_workflow_scan.md` - 스캔 결과 및 SSOT 근거
+
+**근거:**
+- pytest.ini: Core Regression 마커 정의 (line 5-14)
+- D_ROADMAP.md: M1/M2 SSOT Gate (line 37-48)
+- CHECKPOINT_2025-12-17: D99-12 P11 Full Regression 39 FAIL
+
+**상태:** ✅ COMPLETE (2025-12-26 01:37 UTC+09:00)
+
+---
+
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

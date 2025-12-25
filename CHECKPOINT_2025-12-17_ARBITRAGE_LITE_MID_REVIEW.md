@@ -78,6 +78,30 @@
 
 ---
 
+## 7. Dev Workflow: SSOT Gate 3단 + watchdog (2025-12-26)
+
+**상태:** ✅ COMPLETE
+
+**목적:** 개발 중 명령 표준화 + 파일 변경 감지 자동 재실행
+
+**SSOT 명령:**
+- fast/regression: `python -m pytest -m "not optional_ml and not optional_live" -q`
+- full: `python -m pytest -q`
+- doctor: 사전진단 (python, pytest, git)
+
+**산출물:**
+- `justfile` - SSOT 명령 선언
+- `scripts/watchdog.ps1` - PowerShell FileSystemWatcher 기반 파일 감시
+- `docs/DEV_WORKFLOW_SSOT.md` - 상세 사용 가이드
+- `logs/dev_workflow_scan.md` - 스캔 결과 및 중복 탐지
+
+**근거:**
+- pytest.ini (Core Regression SSOT)
+- D_ROADMAP.md (M1/M2 SSOT Gate)
+- D99-12 P11 (Full Regression 39 FAIL)
+
+---
+
 ## 2. 최근 진행 결과(핵심 사실 요약)
 
 ### 2.1 D93 — 2-run 재현성 Gate (✅ PASS)
