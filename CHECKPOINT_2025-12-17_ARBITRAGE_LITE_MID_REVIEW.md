@@ -515,12 +515,22 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **D98 Tests:** 30/30 PASS (0.77s)
 - **Status:** LIVE 진입 가능
 
-### ⚠️ Full Regression Suite (2458 tests)
-- **Result (D99-4+5):** Python 3.14 async timeout으로 완주 BLOCKED
-- **Duration:** N/A (async event loop hang)
-- **Skipped:** test_d41_k8s_tuning_session_runner.py (24 tests - HANG 이슈)
-- **Root Cause:** Python 3.14.0 + pydantic 1.10 + pytest-asyncio 호환 이슈
-- **권고:** Python 3.13 이하 사용 (requirements.txt 업데이트됨)
+### ✅ Full Regression Suite (2515 tests) - D99-20 완료
+- **Result (D99-20):** **0 FAIL / 2515 PASS / 38 SKIP (100.00%)**
+- **Duration:** 108초 (평균)
+- **Deterministic:** 2회 연속 0 FAIL 확인
+- **Status:** ✅ **COMPLETE (Full Regression 0 FAIL + 결정론 확보)**
+
+**D99 시리즈 진행 (D99-18 → D99-20):**
+- D99-18 (P17): Singleton reset AFTER + Alert 기본 격리 → 5 FAIL (99.80%)
+- D99-19 (P18): Singleton BEFORE+AFTER + Alert manager reset → 1 FAIL (99.96%, -80%)
+- D99-20 (P19): Test self-isolation (monkeypatch) → **0 FAIL (100.00%)** ✅
+
+**핵심 개선:**
+- Singleton reset BEFORE+AFTER (clean slate 보장)
+- Alert system multiple singletons reset (manager, throttler, router, dispatcher, metrics)
+- DB env vars cleanup (POSTGRES/REDIS)
+- Test self-isolation (monkeypatch로 특수 테스트 격리)
 
 #### FAIL 분류 (D99-4 기준)
 **Category A: Core Trading (우선순위 1) - ✅ 0 failures (D99-3 COMPLETE)**
@@ -556,12 +566,13 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **D99-4:** `docs/D99/evidence/d99_4_monitoring_fix_20251221_1843/`
 - **D99-5:** `docs/D99/evidence/d99_5_final_pass_20251222_0903/`
 
-### Full Regression 현재 상태 (2025-12-22 18:45 KST):
-- Total: 2495 tests
-- Passed: 2352 (94.3%) ⬆️ +14 (누적)
-- **Failed: 112** (4.5%) ⬇️ **-14개 감소 (누적)**
-- Skipped: 31 (1.2%)
-- Duration: 108.85s (1분 48초)
+### Full Regression 최종 상태 (2025-12-26 18:20 KST) - D99-20 완료:
+- Total: 2515 tests
+- Passed: **2515 (100.00%)** ⬆️ +163 (누적, D99-18 대비 +5)
+- **Failed: 0 (0.00%)** ⬇️ **-112개 감소 (누적, -100%)**
+- Skipped: 38 (1.5%)
+- Duration: 108초 (평균)
+- Deterministic: 2회 연속 0 FAIL 확인 ✅
 
 **D99-6 Phase 1+2 완료:**
 - ✅ Phase 1 (P0): websocket-client + env vars (-2개)
@@ -573,10 +584,18 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 
 ## 다음 단계 (Next Steps)
 
+### ✅ D99 시리즈 완료 (2025-12-26)
+- **D99-18 (P17):** Singleton reset AFTER + Async migration → 5 FAIL
+- **D99-19 (P18):** Singleton BEFORE+AFTER + Alert reset → 1 FAIL (-80%)
+- **D99-20 (P19):** Test self-isolation (monkeypatch) → **0 FAIL (100%)** ✅
+- **상태:** Full Regression 0 FAIL + 결정론 확보 ✅
+- **Evidence:** `logs/evidence/d99_20_p19_20251226_181711/`
+- **Report:** `docs/D99/D99_20_P19_FULLREG_ZERO_FAIL_FINAL.md`
+
 ### 즉시 착수 (High Priority)
-1. **D99-6: Full Regression FAIL Triage (126개)**
-   - 원인군 분류 (환경변수/의존성/인터페이스/인프라/회귀)
-   - Top 3 원인군 FIX
+1. **pytest-xdist 검토 (선택)**
+   - 병렬 실행으로 108초 → 50-60초 가능
+   - 테스트 격리 완벽(D99-20) → 병렬 안전
 
 2. **M6 LIVE Ramp**
    - Core Regression + D98 Tests 100% PASS 유지 중

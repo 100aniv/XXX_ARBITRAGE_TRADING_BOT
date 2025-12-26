@@ -1519,6 +1519,92 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - 환경변수 보강 (conftest.py) (예상 -10 FAIL)
 - 목표: 54 → 40 이하 (-14개)
 
+### D99-18 (P17): Async Migration + Singleton Reset (2025-12-26) ✅ COMPLETE
+- **목표:** Full Regression FAIL 감소 + 테스트 격리 개선
+- **Solution:**
+  - Singleton reset AFTER test (Settings, readonly_guard)
+  - Alert system 기본 격리 (router, dispatcher)
+  - Async migration 완료 (run_once deprecated)
+- **Result:**
+  - Core Regression: 44/44 PASS ✅
+  - Full Regression: 2510 PASS, 5 FAIL (99.80%)
+- **Status:** ✅ COMPLETE (베이스라인 설정)
+- **Evidence:** `logs/evidence/d99_18_*`
+- **Report:** `docs/D99/D99_18_*.md`
+
+**FAIL 분석 (5개):**
+- test_d78_settings.py (2): env 누수
+- test_d80_9_alert_reliability.py (3): alert state 누수
+
+**Next Steps (D99-19):**
+- Singleton reset BEFORE+AFTER (clean slate)
+- Alert manager/throttler reset 추가
+
+### D99-19 (P18): Full Regression Order-Dependency Fix (2025-12-26) ✅ COMPLETE
+- **목표:** 5 FAIL → 1 FAIL (80% 개선)
+- **Solution:**
+  - Singleton reset BEFORE+AFTER test (clean slate 보장)
+  - Alert manager/throttler/router/dispatcher/metrics reset
+  - DB env vars cleanup (POSTGRES/REDIS)
+  - D78/production_secrets 자체 격리 존중
+- **Result:**
+  - Core Regression: 44/44 PASS ✅
+  - Full Regression: 2514 PASS, 1 FAIL (99.96%)
+  - Improvement: -4 FAIL (-80%)
+  - Deterministic: 2회 연속 동일 결과 (1 FAIL)
+- **Status:** ✅ COMPLETE (80% 개선)
+- **Evidence:** `logs/evidence/d99_19_p18_20251226_140137/`
+- **Report:** `docs/D99/D99_19_P18_FULLREG_ZERO_FAIL_ORDER_FIX.md`
+
+**Modified Files:**
+1. `tests/conftest.py`: Singleton BEFORE+AFTER, Alert reset, DB cleanup
+2. `arbitrage/alerting/helpers.py`: reset_global_alert_manager() 추가
+
+**남은 이슈 (1 FAIL):**
+- test_production_secrets_placeholders: env leakage (LOW priority)
+
+**Next Steps (D99-20):**
+- Test self-isolation (monkeypatch)
+- 0 FAIL 완전 달성
+
+### D99-20 (P19): Full Regression 0 FAIL 최종 달성 (2025-12-26) ✅ COMPLETE
+- **목표:** 1 FAIL → 0 FAIL (100% 달성)
+- **Solution:**
+  - Test self-isolation (monkeypatch로 env cleanup)
+  - test_production_secrets_placeholders에 cleanup_keys 명시적 삭제
+  - 전역 격리(conftest) 불변, 해당 테스트만 자체 격리
+- **Result:**
+  - Core Regression: 44/44 PASS ✅
+  - Full Regression Round 1: **0 FAIL / 2515 PASS / 38 SKIP (100%)**
+  - Full Regression Round 2: **0 FAIL / 2515 PASS / 38 SKIP (100%)**
+  - Deterministic: 2회 연속 0 FAIL ✅
+- **Status:** ✅ **COMPLETE (Full Regression 0 FAIL + 결정론 확보)**
+- **Evidence:** `logs/evidence/d99_20_p19_20251226_181711/`
+- **Report:** `docs/D99/D99_20_P19_FULLREG_ZERO_FAIL_FINAL.md`
+
+**Modified Files:**
+1. `tests/test_config/test_environments.py`: monkeypatch env cleanup (Lines 86-109)
+
+**누적 개선 (D99-18 → D99-20):**
+- 시작: 5 FAIL / 2510 PASS (99.80%)
+- 최종: **0 FAIL / 2515 PASS (100.00%)** ✅
+- 개선: -5 FAIL (-100%), +5 PASS (+0.20%)
+
+**핵심 학습:**
+- Singleton reset은 BEFORE+AFTER 필요 (clean slate)
+- Alert system은 multiple singletons (manager, throttler, router 등)
+- Test self-isolation (monkeypatch) vs Global isolation (conftest)
+- 최소 변경 원칙 (1개 테스트 수정으로 0 FAIL 달성)
+
+**D99 시리즈 완료:**
+- D99-1~20: Full Regression HANG → 0 FAIL 완전 해결
+- Core Regression: 44/44 PASS (100% 유지)
+- Full Regression: **2515/2515 PASS (100% 달성)** ✅
+
+**Next Steps:**
+- pytest-xdist 검토 (병렬 실행, 50-60초 가능)
+- M6: Live Ramp 준비 (D106~D115)
+
 ### M7: Multi-Exchange 확장
 **Status:** 📋 PLANNED (구현 미착수)
 

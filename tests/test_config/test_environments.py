@@ -83,8 +83,25 @@ class TestProductionConfig:
         assert config.risk.max_open_trades == 1
         assert config.risk.max_daily_trades == 50  # 낮음
     
-    def test_production_secrets_placeholders(self):
-        """Production은 환경변수 placeholder 사용"""
+    def test_production_secrets_placeholders(self, monkeypatch):
+        """Production은 환경변수 placeholder 사용
+        
+        D99-20: Test self-isolation
+        - 이전 테스트(PAPER mode)가 UPBIT/BINANCE 키를 실제값으로 설정
+        - 이 테스트는 placeholder 형식(${...})을 검증해야 하므로
+        - 테스트 시작 시 오염된 키를 명시적으로 삭제
+        """
+        # D99-20: Clean env vars that might be set by previous tests
+        # (PAPER mode tests set these to actual values)
+        cleanup_keys = [
+            "UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY",
+            "BINANCE_API_KEY", "BINANCE_API_SECRET", "BINANCE_SECRET_KEY",
+            "REDIS_HOST", "REDIS_PASSWORD",
+            "POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD",
+        ]
+        for key in cleanup_keys:
+            monkeypatch.delenv(key, raising=False)
+        
         config = ProductionConfig()
         
         # 환경변수 placeholder 형식
