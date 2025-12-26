@@ -55,6 +55,12 @@ def reset_global_alert_throttler() -> None:
     _alert_throttler = None
 
 
+def reset_global_alert_manager() -> None:
+    """Reset global AlertManager (for testing)"""
+    global _alert_manager
+    _alert_manager = None
+
+
 def emit_rule_based_alert(
     rule_id: str,
     context: Optional[Dict[str, Any]] = None,

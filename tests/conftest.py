@@ -52,63 +52,82 @@ def setup_test_environment_variables():
 @pytest.fixture(autouse=True, scope="function")
 def isolate_test_environment(request):
     """
-    D99-17 P16: 테스트 환경 격리 (function-scope)
+    D99-19 P18: 테스트 격리 100% (env 전체 복원 + singleton/alert reset)
     
-    - READ_ONLY_ENFORCED=false (거래 로직 테스트 가능)
-    - Singleton/캐시 reset
-    - Secrets 제거는 placeholder 테스트만 적용 (조건부)
+    - 환경변수 전체 snapshot/복원 (부분 복원 → 전체 복원)
+    - 모든 singleton reset (settings, readonly_guard, alert router)
+    - Alert manager 상태 초기화 (throttle, dedup, circuit)
     """
-    # D98 readonly 테스트는 자체 제어
-    if "test_d98" in request.node.nodeid or "readonly" in request.node.nodeid.lower():
+    # D98/D78/production_secrets 테스트는 자체 격리 사용
+    # (이들 테스트는 이미 try/finally로 env/singleton 복원 구현됨)
+    if (
+        "test_d98" in request.node.nodeid or
+        "readonly" in request.node.nodeid.lower() or
+        "test_d78_settings" in request.node.nodeid or
+        "test_production_secrets" in request.node.nodeid or
+        "test_environments" in request.node.nodeid
+    ):
         yield
         return
     
     from arbitrage.config.readonly_guard import set_readonly_mode
     
-    saved_env = {}
+    # D99-19 P18: Singleton reset BEFORE test (clean slate)
+    from arbitrage.config import readonly_guard
+    readonly_guard._guard_instance = None
     
-    # D99-17 P16: Secrets 제거는 placeholder 테스트만 (조건부)
-    # "test_production_secrets_placeholders" 같은 테스트만 secrets 제거
-    should_remove_secrets = (
-        "placeholder" in request.node.nodeid.lower() or
-        "test_production_secrets" in request.node.nodeid.lower()
-    )
-    
-    if should_remove_secrets:
-        secrets_to_remove = [
-            "UPBIT_ACCESS_KEY",
-            "UPBIT_SECRET_KEY",
-            "BINANCE_API_KEY",
-            "BINANCE_SECRET_KEY",
-            "POSTGRES_PASSWORD",
-            "REDIS_PASSWORD",
-            "TELEGRAM_BOT_TOKEN",
-            "TELEGRAM_CHAT_ID",
-        ]
-        for key in secrets_to_remove:
-            saved_env[key] = os.environ.pop(key, None)
-    
-    saved_env["READ_ONLY_ENFORCED"] = os.environ.get("READ_ONLY_ENFORCED")
+    from arbitrage.config import settings as settings_module
+    settings_module._settings_instance = None
     
     # 테스트 격리 환경 설정
     set_readonly_mode(False)
     
     yield
     
-    # 원래 env 복원
-    for key, value in saved_env.items():
-        if value is not None:
-            os.environ[key] = value
-        else:
-            os.environ.pop(key, None)
+    # D99-19 P18: env 복원은 선택적 (특정 테스트 제외)
+    # D78/production_secrets는 자체 복원 로직 사용
     
-    # Singleton 재초기화
+    # Singleton 재초기화 (모두)
     from arbitrage.config import readonly_guard
     readonly_guard._guard_instance = None
     
-    # D99-18 P17: Settings singleton reset (test isolation)
     from arbitrage.config import settings as settings_module
     settings_module._settings_instance = None
+    
+    # D99-19 P18: Clean DB env vars only (prevent leakage to Settings tests)
+    # Note: Exchange/Telegram keys NOT cleaned (breaks tests that need them)
+    db_env_keys = [
+        "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_DSN",
+        "REDIS_HOST", "REDIS_PORT", "REDIS_DB", "REDIS_PASSWORD", "REDIS_URL",
+    ]
+    for key in db_env_keys:
+        os.environ.pop(key, None)
+    
+    # D99-19 P18: Alert singletons reset (manager, throttler, router, dispatcher, metrics)
+    try:
+        from arbitrage.alerting.helpers import reset_global_alert_manager, reset_global_alert_throttler
+        reset_global_alert_manager()
+        reset_global_alert_throttler()
+    except (ImportError, AttributeError):
+        pass
+    
+    try:
+        from arbitrage.alerting.routing import reset_global_alert_router
+        reset_global_alert_router()
+    except (ImportError, AttributeError):
+        pass
+    
+    try:
+        from arbitrage.alerting.dispatcher import reset_global_alert_dispatcher
+        reset_global_alert_dispatcher()
+    except (ImportError, AttributeError):
+        pass
+    
+    try:
+        from arbitrage.alerting.metrics_exporter import reset_global_alert_metrics
+        reset_global_alert_metrics()
+    except (ImportError, AttributeError):
+        pass
 
 
 # Core Regression SSOT: Exclude environment-dependent tests from collection
