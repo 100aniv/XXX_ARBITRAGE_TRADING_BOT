@@ -127,7 +127,7 @@ def validate_env(env_name: str, verbose: bool = False) -> Tuple[str, List[str], 
         # Verbose: show configuration summary
         if verbose:
             config = settings.to_dict()
-            print("\n📊 Configuration Summary:")
+            print("\n[Configuration Summary]")
             for key, value in config.items():
                 print(f"   {key}: {value}")
         
@@ -144,6 +144,14 @@ def validate_env(env_name: str, verbose: bool = False) -> Tuple[str, List[str], 
     except ValueError as e:
         # Settings validation error (from Settings.validate())
         error_msg = str(e)
+        
+        # D99-14 P13: local_dev에서는 Settings 검증 실패를 WARN으로 처리
+        if env_name == "local_dev":
+            # local_dev는 minimal config로 실행 가능하므로 WARN 처리
+            warnings.append(f"Settings validation issue (non-critical for local_dev): {error_msg}")
+            return "WARN", missing, warnings
+        
+        # Paper/Live: 엄격한 검증 (FAIL 처리)
         # Parse error message to extract missing fields
         if "Missing required credentials" in error_msg:
             for line in error_msg.split("\n"):

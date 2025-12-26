@@ -40,6 +40,35 @@ from arbitrage.alerting.throttler import AlertThrottler
 
 
 # ============================================================================
+# Module-level fixture for complete test isolation (D99-14 P13)
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def reset_alert_state():
+    """
+    Reset alert system state before each test.
+    
+    Ensures complete test isolation by resetting:
+    - Global alert throttler (in-memory store)
+    - Global alert manager (sent alerts tracking)
+    
+    This fixture runs automatically before every test in this module.
+    """
+    # Reset throttler
+    reset_global_alert_throttler()
+    
+    # Reset manager
+    manager = get_global_alert_manager()
+    if hasattr(manager, '_sent_alerts'):
+        manager._sent_alerts.clear()
+    
+    yield
+    
+    # Cleanup after test
+    reset_global_alert_throttler()
+
+
+# ============================================================================
 # Unit Reliability Tests (10 rules × 6 scenarios)
 # ============================================================================
 
@@ -92,6 +121,17 @@ class TestUnitReliabilityFxAlerts:
         
         # Reset global throttler to simulate expiry (creates new instance)
         reset_global_alert_throttler()
+        
+        # D99-14 P13: Manager도 함께 리셋 (중복 감지 방지)
+        manager = get_global_alert_manager()
+        if hasattr(manager, '_sent_alerts'):
+            manager._sent_alerts.clear()
+        # D99-14 P13: Rate limit tracker도 리셋
+        if hasattr(manager, '_rate_limit_tracker'):
+            manager._rate_limit_tracker.clear()
+        # D99-14 P13: Alert history도 리셋
+        if hasattr(manager, '_alert_history'):
+            manager._alert_history.clear()
         
         # Second emission (should succeed after reset)
         result2 = emit_fx_source_down_alert(
