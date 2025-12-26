@@ -28,40 +28,18 @@ if str(project_root) not in sys.path:
 @pytest.fixture(autouse=True, scope="session")
 def setup_test_environment_variables():
     """
-    D99-6: 테스트 환경 기본 환경변수 설정
+    D99-16 P15: 테스트 환경 기본 환경변수 설정 (최소화)
     
-    - Production config 테스트 시 필요한 환경변수 기본값 제공
-    - 실제 값은 .env 파일이나 CI/CD에서 오버라이드
+    - production secrets 검증 충돌 방지를 위해 DB/API keys 제외
+    - 필요한 테스트는 개별적으로 monkeypatch 사용
+    - 환경 기본값만 설정 (ARBITRAGE_ENV=local_dev)
     """
     test_env_defaults = {
-        # PostgreSQL (Docker 기본값)
-        "POSTGRES_HOST": "localhost",
-        "POSTGRES_PORT": "5432",
-        "POSTGRES_DB": "arbitrage",
-        "POSTGRES_USER": "arbitrage",
-        "POSTGRES_PASSWORD": "arbitrage",
-        
-        # Redis (Docker 기본값)
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6380",
-        "REDIS_DB": "0",
-        "REDIS_PASSWORD": "",  # D99-10: Redis password (empty for local dev)
-        
-        # API Keys (테스트용 placeholder)
-        "UPBIT_ACCESS_KEY": "test_upbit_key",
-        "UPBIT_SECRET_KEY": "test_upbit_secret",
-        "BINANCE_API_KEY": "test_binance_key",
-        "BINANCE_SECRET_KEY": "test_binance_secret",
-        
-        # Telegram (테스트용)
-        "TELEGRAM_BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-        "TELEGRAM_CHAT_ID": "-1001234567890",
-        
-        # Environment
+        # Environment (기본값만)
         "ARBITRAGE_ENV": "local_dev",
     }
     
-    # 기존 값이 없을 때만 설정 (오버라이드 방지)
+    # 기존 값이 없을 때만 설정
     for key, default_value in test_env_defaults.items():
         if key not in os.environ:
             os.environ[key] = default_value

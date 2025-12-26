@@ -34,21 +34,34 @@ def test_config_loading():
     assert staging_config.session.data_source == 'ws'
     print("✅ Staging config loaded")
     
-    # Test 3: Production (D99-15 P14: Set required env vars for testing)
+    # Test 3: Production (D99-16 P15: monkeypatch로 격리)
     print("\n[TEST 3] Loading production config...")
-    os.environ.setdefault('POSTGRES_PASSWORD', 'test_password')
-    os.environ.setdefault('UPBIT_ACCESS_KEY', 'test_upbit_key')
-    os.environ.setdefault('BINANCE_API_KEY', 'test_binance_key')
+    # 테스트용 env 저장 (이후 복원)
+    saved_env = {}
+    test_env_vars = {
+        'POSTGRES_PASSWORD': 'unit_test_postgres_password_d72_12345',
+        'UPBIT_ACCESS_KEY': 'unit_test_upbit_access_key_d72_67890',
+        'UPBIT_SECRET_KEY': 'unit_test_upbit_secret_key_d72_abcde',
+        'BINANCE_API_KEY': 'unit_test_binance_api_key_d72_fghij',
+        'BINANCE_SECRET_KEY': 'unit_test_binance_secret_key_d72_klmno',
+    }
+    
+    for key, value in test_env_vars.items():
+        saved_env[key] = os.environ.get(key)
+        os.environ[key] = value
+    
     try:
         prod_config = load_config('production')
         assert prod_config.env == 'production'
         assert prod_config.monitoring.log_level == 'WARNING'
         print("✅ Production config loaded")
     finally:
-        # Cleanup test env vars
-        for key in ['POSTGRES_PASSWORD', 'UPBIT_ACCESS_KEY', 'BINANCE_API_KEY']:
-            if os.environ.get(key) == f'test_{key.lower()}' or os.environ.get(key) == 'test_password':
+        # 원래 상태로 복원
+        for key, original_value in saved_env.items():
+            if original_value is None:
                 os.environ.pop(key, None)
+            else:
+                os.environ[key] = original_value
     
     print("\n" + "=" * 70)
     print("✅ All config loading tests PASSED")

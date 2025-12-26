@@ -18,8 +18,9 @@ except ImportError:
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+@pytest.mark.d50_metrics
 class TestD50MetricsServerBasics:
-    """D50 MetricsServer 기본 테스트"""
+    """D50 MetricsServer 기본 테스트 (D99-16: httpx/starlette 호환 이슈 - async 전환 필요)"""
     
     def test_metrics_server_initialization(self):
         """MetricsServer 초기화"""
@@ -48,33 +49,34 @@ class TestD50MetricsServerBasics:
         assert "/health" in routes
         assert "/metrics" in routes
     
-    def test_metrics_server_health_endpoint(self):
+    async def test_metrics_server_health_endpoint(self):
         """GET /health 엔드포인트"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(1000.0, 0, 5000.0, "rest")
         
         server = MetricsServer(collector)
-        client = TestClient(server.app)
-        
-        response = client.get("/health")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
-        assert data["data_source"] == "rest"
-        assert "uptime_seconds" in data
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/health")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "ok"
+            assert data["data_source"] == "rest"
+            assert "uptime_seconds" in data
     
     def test_metrics_server_metrics_endpoint_json(self):
         """GET /metrics 엔드포인트 (JSON)"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(1000.0, 1, 5000.0, "rest")
         
         server = MetricsServer(collector, metrics_format="json")
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         
@@ -84,16 +86,19 @@ class TestD50MetricsServerBasics:
         assert "trades_opened_total" in data
         assert "spread_bps" in data
         assert data["trades_opened_total"] == 1
+        
+        client.close()
     
     def test_metrics_server_metrics_endpoint_prometheus(self):
         """GET /metrics 엔드포인트 (Prometheus)"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(1000.0, 1, 5000.0, "rest")
         
         server = MetricsServer(collector, metrics_format="prometheus")
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         
@@ -102,9 +107,12 @@ class TestD50MetricsServerBasics:
         assert "arbitrage_loop_time_ms" in text
         assert "arbitrage_trades_opened_total" in text
         assert "arbitrage_spread_bps" in text
+        
+        client.close()
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+@pytest.mark.d50_metrics
 class TestD50MetricsServerPrometheus:
     """D50 MetricsServer Prometheus 형식 테스트"""
     
@@ -140,19 +148,21 @@ class TestD50MetricsServerPrometheus:
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+@pytest.mark.d50_metrics
 class TestD50MetricsServerJSON:
     """D50 MetricsServer JSON 형식 테스트"""
     
     def test_json_format_complete(self):
         """JSON 형식 완전성"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(1000.0, 2, 5000.0, "rest")
         collector.update_loop_metrics(1100.0, 1, 4500.0, "rest")
         
         server = MetricsServer(collector, metrics_format="json")
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         data = response.json()
@@ -175,29 +185,35 @@ class TestD50MetricsServerJSON:
         
         for field in required_fields:
             assert field in data
+        
+        client.close()
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+@pytest.mark.d50_metrics
 class TestD50MetricsServerEdgeCases:
     """D50 MetricsServer 엣지 케이스"""
     
     def test_metrics_server_empty_collector(self):
         """빈 MetricsCollector"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         server = MetricsServer(collector)
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         
         assert response.status_code == 200
         data = response.json()
         assert data["loop_time_ms"] == 0.0
+        
+        client.close()
     
     def test_metrics_server_ws_status_true(self):
         """WebSocket 연결 상태 (연결됨)"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(
@@ -210,17 +226,20 @@ class TestD50MetricsServerEdgeCases:
         )
         
         server = MetricsServer(collector)
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         data = response.json()
         
         assert data["ws_connected"] is True
         assert data["ws_reconnect_count"] == 3
+        
+        client.close()
     
     def test_metrics_server_ws_status_false(self):
         """WebSocket 연결 상태 (연결 안 됨)"""
-        from fastapi.testclient import TestClient
+        import httpx
         
         collector = MetricsCollector()
         collector.update_loop_metrics(
@@ -233,16 +252,20 @@ class TestD50MetricsServerEdgeCases:
         )
         
         server = MetricsServer(collector)
-        client = TestClient(server.app)
+        transport = httpx.ASGITransport(app=server.app)
+        client = httpx.Client(transport=transport, base_url="http://test")
         
         response = client.get("/metrics")
         data = response.json()
         
         assert data["ws_connected"] is False
         assert data["ws_reconnect_count"] == 0
+        
+        client.close()
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+@pytest.mark.d50_metrics
 class TestD50MetricsServerLifecycle:
     """D50 MetricsServer 라이프사이클 테스트"""
     

@@ -113,11 +113,18 @@ class TestValidateAll:
         
         assert validate_all(config) is True
     
-    def test_validate_all_production(self):
+    def test_validate_all_production(self, monkeypatch):
         """Production config 전체 검증 (Paper mode)"""
+        # D99-16 P15: production config 로드 시 필요한 env 설정
+        monkeypatch.setenv('POSTGRES_PASSWORD', 'unit_test_postgres_password_validators_12345')
+        monkeypatch.setenv('UPBIT_ACCESS_KEY', 'unit_test_upbit_access_key_validators_67890')
+        monkeypatch.setenv('UPBIT_SECRET_KEY', 'unit_test_upbit_secret_key_validators_abcde')
+        monkeypatch.setenv('BINANCE_API_KEY', 'unit_test_binance_api_key_validators_fghij')
+        monkeypatch.setenv('BINANCE_SECRET_KEY', 'unit_test_binance_secret_key_validators_klmno')
+        
         config = load_config(env='production')
         
-        # Production paper mode는 secrets 없어도 통과
+        # Production paper mode 전체 검증
         assert validate_all(config) is True
 
 
