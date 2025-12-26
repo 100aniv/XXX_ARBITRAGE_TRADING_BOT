@@ -34,12 +34,21 @@ def test_config_loading():
     assert staging_config.session.data_source == 'ws'
     print("✅ Staging config loaded")
     
-    # Test 3: Production
+    # Test 3: Production (D99-15 P14: Set required env vars for testing)
     print("\n[TEST 3] Loading production config...")
-    prod_config = load_config('production')
-    assert prod_config.env == 'production'
-    assert prod_config.monitoring.log_level == 'WARNING'
-    print("✅ Production config loaded")
+    os.environ.setdefault('POSTGRES_PASSWORD', 'test_password')
+    os.environ.setdefault('UPBIT_ACCESS_KEY', 'test_upbit_key')
+    os.environ.setdefault('BINANCE_API_KEY', 'test_binance_key')
+    try:
+        prod_config = load_config('production')
+        assert prod_config.env == 'production'
+        assert prod_config.monitoring.log_level == 'WARNING'
+        print("✅ Production config loaded")
+    finally:
+        # Cleanup test env vars
+        for key in ['POSTGRES_PASSWORD', 'UPBIT_ACCESS_KEY', 'BINANCE_API_KEY']:
+            if os.environ.get(key) == f'test_{key.lower()}' or os.environ.get(key) == 'test_password':
+                os.environ.pop(key, None)
     
     print("\n" + "=" * 70)
     print("✅ All config loading tests PASSED")

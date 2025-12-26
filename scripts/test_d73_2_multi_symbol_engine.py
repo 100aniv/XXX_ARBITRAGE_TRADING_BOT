@@ -186,8 +186,9 @@ async def test_multi_symbol_async_structure():
     # Async 실행 테스트 (짧게)
     print(f"Starting multi-symbol engine (3 symbols)...")
     
-    # NOTE: run_multi()는 무한 루프가 아니라 placeholder이므로 즉시 종료됨
-    await runner.run_multi()
+    # D99-15 P14: Pass explicit limits to prevent infinite loop (HANG prevention)
+    # Run for max 2 iterations per symbol OR 1 second total runtime
+    await runner.run_multi(max_iterations=2, max_runtime_seconds=1.0)
     
     # Stats 확인
     stats = runner.get_stats()

@@ -18,7 +18,9 @@ class TestLiveRunnerPaperScenario:
     """Paper 모드 Live Runner E2E 시나리오"""
     
     def test_live_runner_basic_execution(self):
-        """기본 Live Runner 실행"""
+        """기본 Live Runner 실행 테스트"""
+        import asyncio
+        
         engine = ArbitrageEngine(
             ArbitrageConfig(
                 min_spread_bps=20.0,
@@ -47,8 +49,8 @@ class TestLiveRunnerPaperScenario:
             config=config,
         )
         
-        # 실행
-        runner.run_forever()
+        # D99-15 P14: run_forever() is async, must use asyncio.run()
+        asyncio.run(runner.run_forever())
         
         # 통계 확인
         stats = runner.get_stats()
@@ -96,8 +98,9 @@ class TestLiveRunnerPaperScenario:
         assert runner._risk_guard is not None
         assert runner._risk_guard.risk_limits.max_notional_per_trade == 5000.0
         
-        # 실행
-        runner.run_forever()
+        # D99-15 P14: run_forever() is async, must use asyncio.run()
+        import asyncio
+        asyncio.run(runner.run_forever())
         
         # 통계 확인
         stats = runner.get_stats()
@@ -183,8 +186,9 @@ class TestLiveRunnerWithDynamicPrices:
         )
         price_thread.start()
         
-        # Live Runner 실행
-        runner.run_forever()
+        # D99-15 P14: run_forever() is async, must use asyncio.run()
+        import asyncio
+        asyncio.run(runner.run_forever())
         
         # 통계 확인
         stats = runner.get_stats()
@@ -233,8 +237,9 @@ class TestLiveRunnerRiskGuardIntegration:
             config=config,
         )
         
-        # 실행
-        runner.run_forever()
+        # D99-15 P14: run_forever() is async, must use asyncio.run()
+        import asyncio
+        asyncio.run(runner.run_forever())
         
         # 거래가 거절되었을 가능성 확인
         stats = runner.get_stats()

@@ -72,17 +72,26 @@ def setup_test_environment_variables():
 
 
 @pytest.fixture(autouse=True, scope="function")
-def disable_readonly_guard_for_tests():
+def disable_readonly_guard_for_tests(request):
     """
-    D98-1: 테스트 환경에서 ReadOnlyGuard 비활성화 (기본값)
+    D98-1/D99-15 P14: 테스트 환경에서 ReadOnlyGuard 비활성화 (기본값)
     
     - 기존 테스트 호환성 보장
-    - D98 테스트는 set_readonly_mode(True)로 명시적 재설정
+    - D98 테스트는 SKIP (자체적으로 set_readonly_mode 호출)
+    - D99-15 P14: Singleton reset 추가 (캐시된 상태 무효화)
     """
+    # D99-15 P14: Skip for D98 readonly tests (they control their own state)
+    if "test_d98" in request.node.nodeid or "readonly" in request.node.nodeid.lower():
+        # D98 tests manage their own READ_ONLY state
+        yield
+        return
+    
+    from arbitrage.config.readonly_guard import set_readonly_mode
+    
     original_value = os.environ.get("READ_ONLY_ENFORCED")
     
-    # 테스트 시작 시 READ_ONLY_ENFORCED=false 설정
-    os.environ["READ_ONLY_ENFORCED"] = "false"
+    # 테스트 시작 시 READ_ONLY_ENFORCED=false 설정 + singleton reset
+    set_readonly_mode(False)
     
     yield
     
@@ -91,6 +100,10 @@ def disable_readonly_guard_for_tests():
         os.environ["READ_ONLY_ENFORCED"] = original_value
     else:
         os.environ.pop("READ_ONLY_ENFORCED", None)
+    
+    # Singleton 재초기화
+    from arbitrage.config import readonly_guard
+    readonly_guard._guard_instance = None
 
 
 # Core Regression SSOT: Exclude environment-dependent tests from collection
