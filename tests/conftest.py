@@ -50,34 +50,57 @@ def setup_test_environment_variables():
 
 
 @pytest.fixture(autouse=True, scope="function")
-def disable_readonly_guard_for_tests(request):
+def isolate_test_environment(request):
     """
-    D98-1/D99-15 P14: 테스트 환경에서 ReadOnlyGuard 비활성화 (기본값)
+    D99-17 P16: 테스트 환경 격리 (function-scope)
     
-    - 기존 테스트 호환성 보장
-    - D98 테스트는 SKIP (자체적으로 set_readonly_mode 호출)
-    - D99-15 P14: Singleton reset 추가 (캐시된 상태 무효화)
+    - READ_ONLY_ENFORCED=false (거래 로직 테스트 가능)
+    - Singleton/캐시 reset
+    - Secrets 제거는 placeholder 테스트만 적용 (조건부)
     """
-    # D99-15 P14: Skip for D98 readonly tests (they control their own state)
+    # D98 readonly 테스트는 자체 제어
     if "test_d98" in request.node.nodeid or "readonly" in request.node.nodeid.lower():
-        # D98 tests manage their own READ_ONLY state
         yield
         return
     
     from arbitrage.config.readonly_guard import set_readonly_mode
     
-    original_value = os.environ.get("READ_ONLY_ENFORCED")
+    saved_env = {}
     
-    # 테스트 시작 시 READ_ONLY_ENFORCED=false 설정 + singleton reset
+    # D99-17 P16: Secrets 제거는 placeholder 테스트만 (조건부)
+    # "test_production_secrets_placeholders" 같은 테스트만 secrets 제거
+    should_remove_secrets = (
+        "placeholder" in request.node.nodeid.lower() or
+        "test_production_secrets" in request.node.nodeid.lower()
+    )
+    
+    if should_remove_secrets:
+        secrets_to_remove = [
+            "UPBIT_ACCESS_KEY",
+            "UPBIT_SECRET_KEY",
+            "BINANCE_API_KEY",
+            "BINANCE_SECRET_KEY",
+            "POSTGRES_PASSWORD",
+            "REDIS_PASSWORD",
+            "TELEGRAM_BOT_TOKEN",
+            "TELEGRAM_CHAT_ID",
+        ]
+        for key in secrets_to_remove:
+            saved_env[key] = os.environ.pop(key, None)
+    
+    saved_env["READ_ONLY_ENFORCED"] = os.environ.get("READ_ONLY_ENFORCED")
+    
+    # 테스트 격리 환경 설정
     set_readonly_mode(False)
     
     yield
     
-    # 테스트 종료 후 원래 값 복원
-    if original_value is not None:
-        os.environ["READ_ONLY_ENFORCED"] = original_value
-    else:
-        os.environ.pop("READ_ONLY_ENFORCED", None)
+    # 원래 env 복원
+    for key, value in saved_env.items():
+        if value is not None:
+            os.environ[key] = value
+        else:
+            os.environ.pop(key, None)
     
     # Singleton 재초기화
     from arbitrage.config import readonly_guard

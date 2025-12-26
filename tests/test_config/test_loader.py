@@ -77,8 +77,15 @@ class TestConfigLoader:
         assert config.session.data_source == 'ws'
         assert config.monitoring.log_level == 'INFO'
     
-    def test_load_config_production(self):
-        """Production config 로드"""
+    def test_load_config_production(self, monkeypatch):
+        """Production 설정 로드"""
+        # D99-17 P16: production config 로드 시 필요한 env 설정
+        monkeypatch.setenv('POSTGRES_PASSWORD', 'unit_test_postgres_password_loader_12345')
+        monkeypatch.setenv('UPBIT_ACCESS_KEY', 'unit_test_upbit_access_key_loader_67890')
+        monkeypatch.setenv('UPBIT_SECRET_KEY', 'unit_test_upbit_secret_key_loader_abcde')
+        monkeypatch.setenv('BINANCE_API_KEY', 'unit_test_binance_api_key_loader_fghij')
+        monkeypatch.setenv('BINANCE_SECRET_KEY', 'unit_test_binance_secret_key_loader_klmno')
+        
         config = load_config(env='production')
         
         assert isinstance(config, ArbitrageConfig)

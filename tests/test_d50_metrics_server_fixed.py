@@ -18,9 +18,8 @@ except ImportError:
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
-@pytest.mark.d50_metrics
 class TestD50MetricsServerBasics:
-    """D50 MetricsServer 기본 테스트 (D99-16: httpx/starlette 호환 이슈 - async 전환 필요)"""
+    """D50 MetricsServer 기본 테스트 (D99-17: AsyncClient 기반 정석 async 전환 완료)"""
     
     def test_metrics_server_initialization(self):
         """MetricsServer 초기화"""
@@ -67,7 +66,7 @@ class TestD50MetricsServerBasics:
             assert data["data_source"] == "rest"
             assert "uptime_seconds" in data
     
-    def test_metrics_server_metrics_endpoint_json(self):
+    async def test_metrics_server_metrics_endpoint_json(self):
         """GET /metrics 엔드포인트 (JSON)"""
         import httpx
         
@@ -76,20 +75,17 @@ class TestD50MetricsServerBasics:
         
         server = MetricsServer(collector, metrics_format="json")
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "loop_time_ms" in data
-        assert "trades_opened_total" in data
-        assert "spread_bps" in data
-        assert data["trades_opened_total"] == 1
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert "loop_time_ms" in data
+            assert "trades_opened_total" in data
+            assert "spread_bps" in data
+            assert data["trades_opened_total"] == 1
     
-    def test_metrics_server_metrics_endpoint_prometheus(self):
+    async def test_metrics_server_metrics_endpoint_prometheus(self):
         """GET /metrics 엔드포인트 (Prometheus)"""
         import httpx
         
@@ -98,21 +94,17 @@ class TestD50MetricsServerBasics:
         
         server = MetricsServer(collector, metrics_format="prometheus")
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        
-        assert response.status_code == 200
-        text = response.text
-        assert "arbitrage_loop_time_ms" in text
-        assert "arbitrage_trades_opened_total" in text
-        assert "arbitrage_spread_bps" in text
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            
+            assert response.status_code == 200
+            text = response.text
+            assert "arbitrage_loop_time_ms" in text
+            assert "arbitrage_trades_opened_total" in text
+            assert "arbitrage_spread_bps" in text
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
-@pytest.mark.d50_metrics
 class TestD50MetricsServerPrometheus:
     """D50 MetricsServer Prometheus 형식 테스트"""
     
@@ -148,11 +140,10 @@ class TestD50MetricsServerPrometheus:
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
-@pytest.mark.d50_metrics
 class TestD50MetricsServerJSON:
     """D50 MetricsServer JSON 형식 테스트"""
     
-    def test_json_format_complete(self):
+    async def test_json_format_complete(self):
         """JSON 형식 완전성"""
         import httpx
         
@@ -162,56 +153,49 @@ class TestD50MetricsServerJSON:
         
         server = MetricsServer(collector, metrics_format="json")
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        data = response.json()
-        
-        # 모든 필드 확인
-        required_fields = [
-            "loop_time_ms",
-            "loop_time_avg_ms",
-            "loop_time_max_ms",
-            "loop_time_min_ms",
-            "trades_opened_total",
-            "trades_opened_recent",
-            "spread_bps",
-            "spread_avg_bps",
-            "data_source",
-            "ws_connected",
-            "ws_reconnect_count",
-            "uptime_seconds",
-        ]
-        
-        for field in required_fields:
-            assert field in data
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            data = response.json()
+            
+            # 모든 필드 확인
+            required_fields = [
+                "loop_time_ms",
+                "loop_time_avg_ms",
+                "loop_time_max_ms",
+                "loop_time_min_ms",
+                "trades_opened_total",
+                "trades_opened_recent",
+                "spread_bps",
+                "spread_avg_bps",
+                "data_source",
+                "ws_connected",
+                "ws_reconnect_count",
+                "uptime_seconds",
+            ]
+            
+            for field in required_fields:
+                assert field in data
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
-@pytest.mark.d50_metrics
 class TestD50MetricsServerEdgeCases:
     """D50 MetricsServer 엣지 케이스"""
     
-    def test_metrics_server_empty_collector(self):
+    async def test_metrics_server_empty_collector(self):
         """빈 MetricsCollector"""
         import httpx
         
         collector = MetricsCollector()
         server = MetricsServer(collector)
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["loop_time_ms"] == 0.0
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["loop_time_ms"] == 0.0
     
-    def test_metrics_server_ws_status_true(self):
+    async def test_metrics_server_ws_status_true(self):
         """WebSocket 연결 상태 (연결됨)"""
         import httpx
         
@@ -227,17 +211,14 @@ class TestD50MetricsServerEdgeCases:
         
         server = MetricsServer(collector)
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        data = response.json()
-        
-        assert data["ws_connected"] is True
-        assert data["ws_reconnect_count"] == 3
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            data = response.json()
+            
+            assert data["ws_connected"] is True
+            assert data["ws_reconnect_count"] == 3
     
-    def test_metrics_server_ws_status_false(self):
+    async def test_metrics_server_ws_status_false(self):
         """WebSocket 연결 상태 (연결 안 됨)"""
         import httpx
         
@@ -253,19 +234,15 @@ class TestD50MetricsServerEdgeCases:
         
         server = MetricsServer(collector)
         transport = httpx.ASGITransport(app=server.app)
-        client = httpx.Client(transport=transport, base_url="http://test")
-        
-        response = client.get("/metrics")
-        data = response.json()
-        
-        assert data["ws_connected"] is False
-        assert data["ws_reconnect_count"] == 0
-        
-        client.close()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/metrics")
+            data = response.json()
+            
+            assert data["ws_connected"] is False
+            assert data["ws_reconnect_count"] == 0
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
-@pytest.mark.d50_metrics
 class TestD50MetricsServerLifecycle:
     """D50 MetricsServer 라이프사이클 테스트"""
     

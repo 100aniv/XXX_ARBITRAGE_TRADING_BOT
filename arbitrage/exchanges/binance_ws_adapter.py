@@ -59,9 +59,9 @@ class BinanceWebSocketAdapter(BaseWebSocketClient):
             heartbeat_interval: heartbeat 간격 (초)
             timeout: 연결 타임아웃 (초)
         """
-        # D83-2: Binance Spot WebSocket (Upbit과 일관성)
+        # D99-17 P16: Binance Futures WebSocket (정확한 endpoint)
         super().__init__(
-            url="wss://stream.binance.com:9443/stream",
+            url="wss://fstream.binance.com/stream",
             heartbeat_interval=heartbeat_interval,
             timeout=timeout,
         )
