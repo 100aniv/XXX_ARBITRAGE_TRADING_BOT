@@ -105,6 +105,10 @@ def isolate_test_environment(request):
     # Singleton 재초기화
     from arbitrage.config import readonly_guard
     readonly_guard._guard_instance = None
+    
+    # D99-18 P17: Settings singleton reset (test isolation)
+    from arbitrage.config import settings as settings_module
+    settings_module._settings_instance = None
 
 
 # Core Regression SSOT: Exclude environment-dependent tests from collection

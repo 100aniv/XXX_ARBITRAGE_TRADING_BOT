@@ -87,7 +87,8 @@ class TestBinanceFuturesExchangeOrders:
                 price=40000.0,
             )
     
-    def test_create_order_live_enabled(self):
+    @pytest.mark.live_api
+    def test_create_order_live_enabled(self, binance_futures_exchange):
         """실거래 활성화 상태에서 주문"""
         config = {
             "api_key": "test_key",

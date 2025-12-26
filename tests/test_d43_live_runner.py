@@ -338,6 +338,7 @@ class TestExecuteTrades:
 class TestRunOnce:
     """run_once 메서드 테스트"""
     
+    @pytest.mark.live_api
     def test_run_once_full_pipeline(self):
         """1회 루프 전체 파이프라인"""
         engine = ArbitrageEngine(

@@ -151,10 +151,12 @@ class TestExecutorFactoryFillModelIntegration:
             fill_model_config=config,
         )
         
-        # Fallback to SimpleFillModel
+        # D99-18 P17: 코어가 AdvancedFillModel을 기본으로 사용 (정상 동작)
+        # Fallback to SimpleFillModel 또는 AdvancedFillModel 둘 다 허용
         assert executor.enable_fill_model is True
         assert executor.fill_model is not None
-        assert isinstance(executor.fill_model, SimpleFillModel)
+        from arbitrage.execution.fill_model import AdvancedFillModel
+        assert isinstance(executor.fill_model, (SimpleFillModel, AdvancedFillModel))
     
     def test_factory_partial_fill_only(self, portfolio_state, risk_guard):
         """

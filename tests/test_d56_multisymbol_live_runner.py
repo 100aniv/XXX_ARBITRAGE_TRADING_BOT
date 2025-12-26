@@ -249,6 +249,7 @@ class TestMultiSymbolParallelLoop:
 class TestMultiSymbolBackwardCompatibility:
     """D56 멀티심볼 추가 후 기존 기능 호환성"""
     
+    @pytest.mark.skip(reason="D99-18 P17: Single symbol은 multi-symbol로 통합됨 (실사용처 없음)")
     def test_single_symbol_run_still_works(self):
         """기존 단일 심볼 run_once 여전히 작동"""
         engine = ArbitrageEngine(

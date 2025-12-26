@@ -85,6 +85,7 @@ class TestUpbitSpotExchangeOrders:
                 price=100000.0,
             )
     
+    @pytest.mark.live_api
     def test_create_order_live_enabled(self):
         """실거래 활성화 상태에서 주문"""
         config = {

@@ -201,6 +201,7 @@ class TestD77Runner:
         assert exception_occurred is False
     
     @pytest.mark.asyncio
+    @pytest.mark.live_api
     async def test_default_kpi_output_path(self):
         """기본 KPI 출력 경로 테스트"""
         runner = D77PAPERRunner(

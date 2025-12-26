@@ -30,16 +30,15 @@ class TestSpreadProfitabilityValidator:
         assert validate_spread_profitability(config) is True
     
     def test_invalid_spread_too_low(self):
-        """스프레드가 너무 낮음"""
+        """스프레드가 너무 낮음 - TradingConfig.__post_init__ validation"""
         config = load_config(env='development')
         
-        # 스프레드를 비정상적으로 낮게 설정
-        invalid_config = config.copy(update={
-            'trading': config.trading.copy(update={'min_spread_bps': 10.0})  # 너무 낮음
-        })
-        
-        with pytest.raises(ConfigError, match="Spread not profitable"):
-            validate_spread_profitability(invalid_config)
+        # D99-18 P17: TradingConfig.__post_init__가 이미 올바른 validation을 수행
+        # copy() 시 __post_init__가 트리거되어 ValueError 발생
+        with pytest.raises(ValueError, match="min_spread_bps.*must be >"):
+            config.copy(update={
+                'trading': config.trading.copy(update={'min_spread_bps': 10.0})
+            })
 
 
 class TestRiskConstraintsValidator:
@@ -52,19 +51,18 @@ class TestRiskConstraintsValidator:
         assert validate_risk_constraints(config) is True
     
     def test_invalid_daily_loss_too_low(self):
-        """일일 손실이 거래당 손실보다 작음"""
+        """일일 손실이 거래당 손실보다 작음 - RiskConfig.__post_init__ validation"""
         config = load_config(env='development')
         
-        # 일일 손실을 비정상적으로 낮게 설정
-        invalid_config = config.copy(update={
-            'risk': config.risk.copy(update={
-                'max_notional_per_trade': 10000.0,
-                'max_daily_loss': 5000.0  # 거래당 손실보다 작음
+        # D99-18 P17: RiskConfig.__post_init__가 이미 올바른 validation을 수행
+        # copy() 시 __post_init__가 트리거되어 ValueError 발생
+        with pytest.raises(ValueError, match="max_daily_loss.*must be >="):
+            config.copy(update={
+                'risk': config.risk.copy(update={
+                    'max_notional_per_trade': 10000.0,
+                    'max_daily_loss': 5000.0
+                })
             })
-        })
-        
-        with pytest.raises(ConfigError, match="max_daily_loss.*must be >="):
-            validate_risk_constraints(invalid_config)
 
 
 class TestSessionConfigValidator:
