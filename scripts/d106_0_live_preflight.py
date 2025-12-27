@@ -1,13 +1,15 @@
 """
-D106-1: Live Preflight Dry-run (M6 Live Ramp 준비) - 진단 강화
+D106-2: Live Preflight Dry-run (M6 Live Ramp 준비) - 결정론화 + 401 분해
 
 목표:
 - .env.live 로딩 및 필수 키 검증
+- 환경변수 충돌 감지 + 강제 override (D106-2 신규)
 - 환경변수 placeholder(${...}) 검출 → FAIL
 - 업비트/바이낸스 API 연결 dry-run (주문 없이 읽기만)
 - Binance apiRestrictions 강제 검증 (출금 OFF, Futures ON)
 - PostgreSQL/Redis 연결 확인
 - 에러 원인 6대 분류 (Invalid key, IP 제한, Clock skew, Rate limit, Futures 권한, Network)
+- 401 분해: HTTP status + exchange error code + 공인 IP 진단 (D106-2 신규)
 - 결과를 evidence에 저장 (민감정보 마스킹)
 
 ROADMAP:
@@ -48,10 +50,30 @@ if not env_file.exists():
     sys.exit(1)
 
 print(f"[Loading] {env_file.name}")
-load_dotenv(env_file)
+
+# D106-2: Env 충돌 감지 + 강제 override
+from dotenv import dotenv_values
+
+env_file_values = dotenv_values(env_file)
+conflicts_detected = False
+conflict_keys = []
+
+for key, value in env_file_values.items():
+    if key in os.environ and os.environ[key] != value:
+        conflicts_detected = True
+        conflict_keys.append(key)
+
+# 강제 override (기본 True)
+load_dotenv(env_file, override=True)
 
 # D106-0: READ_ONLY_ENFORCED 강제 설정 (실주문 0건 보장)
 os.environ["READ_ONLY_ENFORCED"] = "true"
+
+# D106-2: Env 충돌 정보 저장 (나중에 evidence에 포함)
+ENV_CONFLICTS = {
+    "detected": conflicts_detected,
+    "conflict_keys": conflict_keys
+}
 
 # Imports
 from arbitrage.config.settings import get_settings
@@ -85,47 +107,54 @@ def mask_sensitive(text: str, key_length: int = 8) -> str:
     return f"{text[:key_length]}...{text[-key_length:]}"
 
 
-def classify_api_error(error: Exception, error_message: str) -> APIErrorType:
-    """API 에러를 6대 유형으로 분류
+def classify_api_error(error: Exception, error_message: str, status_code: Optional[int] = None) -> APIErrorType:
+    """API 에러를 6대 유형으로 분류 (D106-2: 401 분해 강화)
     
     Args:
         error: 예외 객체
         error_message: 에러 메시지 (소문자 변환)
+        status_code: HTTP status code (선택)
     
     Returns:
         APIErrorType
     """
     msg_lower = error_message.lower()
     
-    # (a) Invalid key/permission
-    if any(keyword in msg_lower for keyword in [
-        "invalid api", "invalid key", "invalid signature", 
-        "unauthorized", "authentication failed", "api key",
-        "permission denied", "not authorized"
-    ]):
-        return APIErrorType.INVALID_KEY
+    # (0) HTTP status 기반 우선 분류
+    if status_code == 429:
+        return APIErrorType.RATE_LIMIT
     
-    # (b) IP 제한
-    if any(keyword in msg_lower for keyword in [
-        "ip", "whitelist", "access denied", "restricted"
-    ]):
-        return APIErrorType.IP_RESTRICTION
-    
-    # (c) Clock skew
-    if any(keyword in msg_lower for keyword in [
+    # (a) Clock skew (Binance -1021)
+    if "-1021" in error_message or any(keyword in msg_lower for keyword in [
         "timestamp", "recvwindow", "nonce", "clock", "time sync"
     ]):
         return APIErrorType.CLOCK_SKEW
     
-    # (d) Rate limit
-    if "429" in msg_lower or "rate limit" in msg_lower or "too many" in msg_lower:
-        return APIErrorType.RATE_LIMIT
+    # (b) IP 제한 (키워드 우선)
+    if any(keyword in msg_lower for keyword in [
+        "ip", "whitelist", "restricted", "access denied from", "forbidden"
+    ]):
+        return APIErrorType.IP_RESTRICTION
     
-    # (e) Futures/권한 부족
+    # (c) Invalid key/permission (401/403)
+    if any(keyword in msg_lower for keyword in [
+        "invalid api", "invalid key", "invalid signature", 
+        "unauthorized", "authentication failed", "api key",
+        "permission denied", "not authorized", "401", "403"
+    ]):
+        return APIErrorType.INVALID_KEY
+    
+    # (d) Futures/권한 부족
     if any(keyword in msg_lower for keyword in [
         "futures", "margin", "trading not enabled", "account not enabled"
     ]):
         return APIErrorType.PERMISSION_DENIED
+    
+    # (e) Rate limit (메시지 기반)
+    if any(keyword in msg_lower for keyword in [
+        "rate limit", "too many", "weight", "request limit"
+    ]):
+        return APIErrorType.RATE_LIMIT
     
     # (f) Network/SSL/DNS
     if any(keyword in msg_lower for keyword in [
@@ -134,6 +163,21 @@ def classify_api_error(error: Exception, error_message: str) -> APIErrorType:
         return APIErrorType.NETWORK_ERROR
     
     return APIErrorType.UNKNOWN
+
+
+def get_public_ip() -> Optional[str]:
+    """공인 IP 조회 (D106-2: WARN only, FAIL 아님)
+    
+    Returns:
+        공인 IP 또는 None (실패 시)
+    """
+    try:
+        response = requests.get("https://api.ipify.org", timeout=3)
+        if response.status_code == 200:
+            return response.text.strip()
+    except Exception as e:
+        pass
+    return None
 
 
 def get_error_hint(error_type: APIErrorType, exchange: str) -> str:
@@ -232,7 +276,7 @@ class D106LivePreflightChecker:
         self.result = D106PreflightResult()
     
     def check_env_file_loaded(self) -> None:
-        """1. .env.live 로딩 확인"""
+        """1. .env.live 로딩 확인 (D106-2: 충돌 감지 포함)"""
         try:
             arbitrage_env = os.getenv("ARBITRAGE_ENV", "")
             
@@ -244,11 +288,23 @@ class D106LivePreflightChecker:
                     details={"arbitrage_env": arbitrage_env}
                 )
             else:
+                # D106-2: Env 충돌 정보 포함
+                details = {
+                    "arbitrage_env": arbitrage_env,
+                    "env_loaded_from": ".env.live",
+                    "conflicts_detected": ENV_CONFLICTS["detected"],
+                    "conflict_keys": ENV_CONFLICTS["conflict_keys"]  # 값은 절대 출력 금지
+                }
+                
+                if ENV_CONFLICTS["detected"]:
+                    print(f"[D106-2] Env conflict detected: {ENV_CONFLICTS['conflict_keys']}")
+                    print(f"[D106-2] Override applied (load_dotenv override=True)")
+                
                 self.result.add_check(
                     name="ENV_FILE_LOAD",
                     status="PASS",
-                    message=".env.live loaded successfully",
-                    details={"arbitrage_env": arbitrage_env}
+                    message=".env.live loaded successfully (with override)",
+                    details=details
                 )
         except Exception as e:
             self.result.add_check(
@@ -370,24 +426,45 @@ class D106LivePreflightChecker:
                 }
             )
         except Exception as e:
-            # D106-1: 에러 원인 분류 (6대 유형)
+            # D106-2: 에러 원인 분류 + 401 분해 강화
             error_msg = str(e)
-            error_type = classify_api_error(e, error_msg)
+            status_code = None
+            exchange_error_code = None
+            
+            # HTTP status code 추출
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                status_code = e.response.status_code
+            elif "401" in error_msg:
+                status_code = 401
+            elif "403" in error_msg:
+                status_code = 403
+            
+            error_type = classify_api_error(e, error_msg, status_code)
             error_hint = get_error_hint(error_type, "upbit")
+            
+            # D106-2: 공인 IP 정보 포함
+            public_ip = get_public_ip()
             
             self.result.add_check(
                 name="UPBIT_CONNECTION",
                 status="FAIL",
                 message=f"Upbit connection failed: {error_msg[:200]}",
                 details={
-                    "error": error_msg[:500],  # 에러 메시지 길이 제한
+                    "error": error_msg[:500],
                     "error_type": error_type.value,
                     "error_hint": error_hint,
-                    "next_action": "위 [해결] 가이드를 따라 Upbit Open API 설정 확인"
+                    "next_action": "위 [해결] 가이드를 따라 Upbit Open API 설정 확인",
+                    "http_status_code": status_code,
+                    "public_ip": public_ip,
+                    "env_conflicts": ENV_CONFLICTS["detected"]
                 }
             )
             print(f"\n[Upbit 연결 실패]")
             print(f"원인 유형: {error_type.value}")
+            if status_code:
+                print(f"HTTP Status: {status_code}")
+            if public_ip:
+                print(f"현재 공인 IP: {public_ip}")
             print(error_hint)
             print()
     
@@ -438,10 +515,34 @@ class D106LivePreflightChecker:
                     }
                 )
         except Exception as e:
-            # D106-1: 에러 원인 분류 (6대 유형)
+            # D106-2: 에러 원인 분류 + 401 분해 강화
             error_msg = str(e)
-            error_type = classify_api_error(e, error_msg)
+            status_code = None
+            exchange_error_code = None
+            exchange_error_msg = None
+            
+            # HTTP status code 추출
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                status_code = e.response.status_code
+            elif "401" in error_msg:
+                status_code = 401
+            elif "403" in error_msg:
+                status_code = 403
+            
+            # Binance JSON 에러 코드 추출
+            try:
+                if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                    resp_json = json.loads(e.response.text)
+                    exchange_error_code = resp_json.get("code")
+                    exchange_error_msg = resp_json.get("msg")
+            except:
+                pass
+            
+            error_type = classify_api_error(e, error_msg, status_code)
             error_hint = get_error_hint(error_type, "binance")
+            
+            # D106-2: 공인 IP 정보 포함
+            public_ip = get_public_ip()
             
             self.result.add_check(
                 name="BINANCE_CONNECTION",
@@ -451,11 +552,22 @@ class D106LivePreflightChecker:
                     "error": error_msg[:500],
                     "error_type": error_type.value,
                     "error_hint": error_hint,
-                    "next_action": "위 [해결] 가이드를 따라 Binance API Management 설정 확인"
+                    "next_action": "위 [해결] 가이드를 따라 Binance API Management 설정 확인",
+                    "http_status_code": status_code,
+                    "exchange_error_code": exchange_error_code,
+                    "exchange_error_msg": exchange_error_msg,
+                    "public_ip": public_ip,
+                    "env_conflicts": ENV_CONFLICTS["detected"]
                 }
             )
             print(f"\n[Binance 연결 실패]")
             print(f"원인 유형: {error_type.value}")
+            if status_code:
+                print(f"HTTP Status: {status_code}")
+            if exchange_error_code:
+                print(f"Exchange Error Code: {exchange_error_code}")
+            if public_ip:
+                print(f"현재 공인 IP: {public_ip}")
             print(error_hint)
             print()
     

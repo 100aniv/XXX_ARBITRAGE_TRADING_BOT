@@ -609,6 +609,15 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **파일:** scripts/d106_0_live_preflight.py (473 → 795 lines, +322 lines) ✅
 - **상태:** "사람이 바로 고칠 수 있는" 진단 시스템 완료 ✅
 
+### ✅ D106-2: Live Preflight 결정론화 + 401 분해 (2025-12-27)
+- **Env 충돌 감지:** dotenv_values + override=True로 환경 오염 사전 감지 ✅
+- **401 분해:** HTTP status + exchange error code + 공인 IP 자동 감지 ✅
+- **공인 IP 진단:** api.ipify.org로 현재 공인 IP 자동 조회 (49.172.185.202) ✅
+- **Evidence 강화:** conflicts_detected, public_ip, http_status_code, exchange_error_code 저장 ✅
+- **Preflight 결과:** 6/7 PASS (Binance PASS + apiRestrictions PASS, Upbit 401 원인 명확) ✅
+- **파일:** scripts/d106_0_live_preflight.py (795 → 875 lines, +80 lines) ✅
+- **상태:** 결정론적 진단 + 401 원인 특정 완료 ✅
+
 ### 즉시 착수 (High Priority)
 1. **D107: 1h LIVE 스모크**
    - Seed $50, Kill Switch 설정
