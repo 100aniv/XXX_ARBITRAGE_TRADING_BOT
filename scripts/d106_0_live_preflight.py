@@ -1,12 +1,14 @@
 """
-D106-0: Live Preflight Dry-run (M6 Live Ramp 준비)
+D106-1: Live Preflight Dry-run (M6 Live Ramp 준비) - 진단 강화
 
 목표:
 - .env.live 로딩 및 필수 키 검증
 - 환경변수 placeholder(${...}) 검출 → FAIL
 - 업비트/바이낸스 API 연결 dry-run (주문 없이 읽기만)
+- Binance apiRestrictions 강제 검증 (출금 OFF, Futures ON)
 - PostgreSQL/Redis 연결 확인
-- 결과를 evidence에 저장
+- 에러 원인 6대 분류 (Invalid key, IP 제한, Clock skew, Rate limit, Futures 권한, Network)
+- 결과를 evidence에 저장 (민감정보 마스킹)
 
 ROADMAP:
 - M6 (Live Ramp): D106 소액 LIVE 스모크 준비
@@ -15,14 +17,22 @@ ROADMAP:
 주의:
 - 실제 주문 절대 금지 (READ_ONLY_ENFORCED=true 강제)
 - Dry-run 목적: 연결 검증만 (잔고, 서버시간, 심볼 조회)
+- API 키/시크릿은 로그에 절대 평문 저장 금지
 """
 
 import json
 import os
 import sys
+import re
+import hmac
+import hashlib
+import time
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from enum import Enum
+from urllib.parse import urlencode
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -46,6 +56,128 @@ os.environ["READ_ONLY_ENFORCED"] = "true"
 # Imports
 from arbitrage.config.settings import get_settings
 from arbitrage.config.readonly_guard import is_readonly_mode
+
+
+class APIErrorType(Enum):
+    """API 연결 실패 원인 분류 (6대 유형)"""
+    INVALID_KEY = "invalid_key"  # API 키/시크릿 오류, 권한 부족
+    IP_RESTRICTION = "ip_restriction"  # IP 화이트리스트 불일치
+    CLOCK_SKEW = "clock_skew"  # Timestamp/nonce 오류 (시간 동기화)
+    RATE_LIMIT = "rate_limit"  # 429 Too Many Requests
+    PERMISSION_DENIED = "permission_denied"  # Futures 미활성화, 출금 권한 등
+    NETWORK_ERROR = "network_error"  # SSL, DNS, Timeout
+    UNKNOWN = "unknown"  # 기타
+
+
+def mask_sensitive(text: str, key_length: int = 8) -> str:
+    """민감정보 마스킹 (API 키, 시크릿)
+    
+    Args:
+        text: 원본 텍스트
+        key_length: 앞/뒤로 보여줄 길이
+    
+    Returns:
+        마스킹된 텍스트 (예: AbCd...XyZ0)
+    """
+    if not text or len(text) <= key_length * 2:
+        return "***MASKED***"
+    
+    return f"{text[:key_length]}...{text[-key_length:]}"
+
+
+def classify_api_error(error: Exception, error_message: str) -> APIErrorType:
+    """API 에러를 6대 유형으로 분류
+    
+    Args:
+        error: 예외 객체
+        error_message: 에러 메시지 (소문자 변환)
+    
+    Returns:
+        APIErrorType
+    """
+    msg_lower = error_message.lower()
+    
+    # (a) Invalid key/permission
+    if any(keyword in msg_lower for keyword in [
+        "invalid api", "invalid key", "invalid signature", 
+        "unauthorized", "authentication failed", "api key",
+        "permission denied", "not authorized"
+    ]):
+        return APIErrorType.INVALID_KEY
+    
+    # (b) IP 제한
+    if any(keyword in msg_lower for keyword in [
+        "ip", "whitelist", "access denied", "restricted"
+    ]):
+        return APIErrorType.IP_RESTRICTION
+    
+    # (c) Clock skew
+    if any(keyword in msg_lower for keyword in [
+        "timestamp", "recvwindow", "nonce", "clock", "time sync"
+    ]):
+        return APIErrorType.CLOCK_SKEW
+    
+    # (d) Rate limit
+    if "429" in msg_lower or "rate limit" in msg_lower or "too many" in msg_lower:
+        return APIErrorType.RATE_LIMIT
+    
+    # (e) Futures/권한 부족
+    if any(keyword in msg_lower for keyword in [
+        "futures", "margin", "trading not enabled", "account not enabled"
+    ]):
+        return APIErrorType.PERMISSION_DENIED
+    
+    # (f) Network/SSL/DNS
+    if any(keyword in msg_lower for keyword in [
+        "ssl", "dns", "timeout", "connection", "network", "unreachable"
+    ]):
+        return APIErrorType.NETWORK_ERROR
+    
+    return APIErrorType.UNKNOWN
+
+
+def get_error_hint(error_type: APIErrorType, exchange: str) -> str:
+    """에러 유형별 해결 힌트 (사람이 바로 고칠 수 있게)
+    
+    Args:
+        error_type: 에러 유형
+        exchange: 거래소 (upbit, binance)
+    
+    Returns:
+        해결 가이드 문자열
+    """
+    hints = {
+        APIErrorType.INVALID_KEY: {
+            "upbit": "[해결] Upbit Open API 관리 > API 키 재확인\n  - 자산조회: ON\n  - 주문조회: ON\n  - 주문하기: ON\n  - 출금하기: OFF (필수)\n  - IP 화이트리스트: 현재 IP 추가",
+            "binance": "[해결] Binance API Management > 키 재확인\n  - Enable Reading: ON\n  - Enable Futures: ON\n  - Enable Withdrawals: OFF (필수)\n  - IP Restrict: 현재 IP 추가"
+        },
+        APIErrorType.IP_RESTRICTION: {
+            "upbit": "[해결] Upbit Open API > IP 화이트리스트 확인\n  - VPN 사용 중이면 해제\n  - 공용 IP 확인: curl ifconfig.me\n  - Upbit에 해당 IP 등록",
+            "binance": "[해결] Binance API Management > IP Restrictions 확인\n  - Unrestrict access to trusted IPs only 활성화 시 IP 추가\n  - VPN 사용 중이면 해제"
+        },
+        APIErrorType.CLOCK_SKEW: {
+            "upbit": "[해결] 시스템 시간 동기화\n  - Windows: w32tm /resync\n  - 서버 시간과 5초 이상 차이 시 API 호출 실패",
+            "binance": "[해결] Binance recvWindow 오류\n  - 시스템 시간 동기화: w32tm /resync\n  - Binance 서버 시간: GET /fapi/v1/time 확인"
+        },
+        APIErrorType.RATE_LIMIT: {
+            "upbit": "[해결] Upbit Rate Limit 초과\n  - 1초에 최대 10회 요청\n  - 재시도 대기: 1초 후",
+            "binance": "[해결] Binance Rate Limit 초과 (429)\n  - Weight limit 초과 시 1분 대기\n  - Order rate limit 초과 시 재시도 간격 증가"
+        },
+        APIErrorType.PERMISSION_DENIED: {
+            "upbit": "[해결] Upbit API 권한 부족\n  - Open API 관리 > 권한 재설정\n  - 최소 권한: 자산조회, 주문조회, 주문하기",
+            "binance": "[해결] Binance Futures 미활성화\n  - Wallet > Futures > Open Now\n  - Futures 계좌 활성화 후 API 재발급"
+        },
+        APIErrorType.NETWORK_ERROR: {
+            "upbit": "[해결] 네트워크/SSL 오류\n  - 인터넷 연결 확인\n  - 방화벽/보안 소프트웨어 확인\n  - DNS: 8.8.8.8 (Google) 사용",
+            "binance": "[해결] 네트워크/SSL 오류\n  - 인터넷 연결 확인\n  - VPN/Proxy 확인\n  - Binance 서버 상태: status.binance.com"
+        },
+        APIErrorType.UNKNOWN: {
+            "upbit": "[해결] 원인 불명 오류\n  - 에러 메시지를 Upbit 고객센터에 문의\n  - API 키 재발급 시도",
+            "binance": "[해결] 원인 불명 오류\n  - 에러 메시지를 Binance Support에 문의\n  - API 키 재발급 시도"
+        }
+    }
+    
+    return hints.get(error_type, {}).get(exchange, "[해결] 에러 로그 확인 필요")
 
 
 class D106PreflightResult:
@@ -208,58 +340,260 @@ class D106LivePreflightChecker:
             )
     
     def check_upbit_connection(self) -> None:
-        """4. 업비트 API 연결 확인 (dry-run)"""
+        """4. 업비트 API 연결 확인 (dry-run) - D106-1: 에러 분류 강화"""
         try:
-            from arbitrage.exchanges.upbit_spot import UpbitSpotAdapter
+            from arbitrage.exchanges.upbit_spot import UpbitSpotExchange
             
-            upbit = UpbitSpotAdapter()
+            # API 키 마스킹 (로그용)
+            upbit_key = os.getenv("UPBIT_ACCESS_KEY", "")
+            upbit_secret = os.getenv("UPBIT_SECRET_KEY", "")
+            upbit_key_masked = mask_sensitive(upbit_key) if upbit_key else "NOT_SET"
+            
+            # Exchange 초기화 (환경변수에서 API 키 전달)
+            upbit = UpbitSpotExchange(config={
+                "api_key": upbit_key,
+                "api_secret": upbit_secret,
+                "live_enabled": False  # Preflight는 dry-run (주문 금지)
+            })
             
             # Dry-run: 계좌 조회 (주문 아님)
-            balances = upbit.get_balances()
+            balance = upbit.get_balance()
             
             self.result.add_check(
                 name="UPBIT_CONNECTION",
                 status="PASS",
-                message=f"Upbit connection OK (balances: {len(balances)} assets)",
+                message=f"Upbit connection OK (assets: {len(balance)} currencies)",
                 details={
-                    "balance_count": len(balances),
-                    "method": "get_balances (read-only)"
+                    "asset_count": len(balance),
+                    "method": "get_balances (read-only)",
+                    "api_key_masked": upbit_key_masked
                 }
             )
         except Exception as e:
+            # D106-1: 에러 원인 분류 (6대 유형)
+            error_msg = str(e)
+            error_type = classify_api_error(e, error_msg)
+            error_hint = get_error_hint(error_type, "upbit")
+            
             self.result.add_check(
                 name="UPBIT_CONNECTION",
                 status="FAIL",
-                message=f"Upbit connection failed: {e}",
-                details={"error": str(e)}
+                message=f"Upbit connection failed: {error_msg[:200]}",
+                details={
+                    "error": error_msg[:500],  # 에러 메시지 길이 제한
+                    "error_type": error_type.value,
+                    "error_hint": error_hint,
+                    "next_action": "위 [해결] 가이드를 따라 Upbit Open API 설정 확인"
+                }
             )
+            print(f"\n[Upbit 연결 실패]")
+            print(f"원인 유형: {error_type.value}")
+            print(error_hint)
+            print()
     
     def check_binance_connection(self) -> None:
-        """5. 바이낸스 API 연결 확인 (dry-run)"""
+        """5. 바이낸스 API 연결 확인 (dry-run) - D106-1: 에러 분류 + apiRestrictions 검증"""
         try:
             from arbitrage.exchanges.binance_futures import BinanceFuturesExchange
             
-            binance = BinanceFuturesExchange()
+            # API 키 마스킹 (로그용)
+            binance_key = os.getenv("BINANCE_API_KEY", "")
+            binance_secret = os.getenv("BINANCE_API_SECRET", "")
+            binance_key_masked = mask_sensitive(binance_key) if binance_key else "NOT_SET"
+            
+            # Exchange 초기화 (환경변수에서 API 키 전달)
+            binance = BinanceFuturesExchange(config={
+                "api_key": binance_key,
+                "api_secret": binance_secret,
+                "live_enabled": False  # Preflight는 dry-run (주문 금지)
+            })
             
             # Dry-run: 계좌 조회 (주문 아님)
             balance = binance.get_balance()
             
-            self.result.add_check(
-                name="BINANCE_CONNECTION",
-                status="PASS",
-                message=f"Binance connection OK (balance: {balance})",
-                details={
-                    "balance": str(balance),
-                    "method": "get_balance (read-only)"
-                }
-            )
+            # D106-1: Binance apiRestrictions 강제 검증 (CRITICAL)
+            restrictions = self._check_binance_api_restrictions()
+            
+            if restrictions["status"] == "FAIL":
+                self.result.add_check(
+                    name="BINANCE_CONNECTION",
+                    status="FAIL",
+                    message=f"Binance API restrictions check FAILED: {restrictions['message']}",
+                    details={
+                        "balance": str(balance),
+                        "api_restrictions": restrictions,
+                        "api_key_masked": binance_key_masked
+                    }
+                )
+            else:
+                self.result.add_check(
+                    name="BINANCE_CONNECTION",
+                    status="PASS",
+                    message=f"Binance connection OK (balance: {balance}, API restrictions: PASS)",
+                    details={
+                        "balance": str(balance),
+                        "method": "get_balance (read-only)",
+                        "api_restrictions": restrictions,
+                        "api_key_masked": binance_key_masked
+                    }
+                )
         except Exception as e:
+            # D106-1: 에러 원인 분류 (6대 유형)
+            error_msg = str(e)
+            error_type = classify_api_error(e, error_msg)
+            error_hint = get_error_hint(error_type, "binance")
+            
             self.result.add_check(
                 name="BINANCE_CONNECTION",
                 status="FAIL",
-                message=f"Binance connection failed: {e}",
-                details={"error": str(e)}
+                message=f"Binance connection failed: {error_msg[:200]}",
+                details={
+                    "error": error_msg[:500],
+                    "error_type": error_type.value,
+                    "error_hint": error_hint,
+                    "next_action": "위 [해결] 가이드를 따라 Binance API Management 설정 확인"
+                }
             )
+            print(f"\n[Binance 연결 실패]")
+            print(f"원인 유형: {error_type.value}")
+            print(error_hint)
+            print()
+    
+    def _check_binance_api_restrictions(self) -> Dict[str, Any]:
+        """Binance SAPI: apiRestrictions 검증 (출금 OFF, Futures ON 강제)
+        
+        Reference: GET /sapi/v1/account/apiRestrictions
+        
+        Returns:
+            Dict with status, message, details
+        """
+        try:
+            api_key = os.getenv("BINANCE_API_KEY", "")
+            api_secret = os.getenv("BINANCE_API_SECRET", "")
+            
+            if not api_key or not api_secret:
+                return {
+                    "status": "FAIL",
+                    "message": "Binance API key/secret not configured",
+                    "details": {}
+                }
+            
+            # Binance SAPI endpoint
+            base_url = "https://api.binance.com"
+            endpoint = "/sapi/v1/account/apiRestrictions"
+            
+            # Query parameters
+            timestamp = int(time.time() * 1000)
+            params = {
+                "timestamp": timestamp,
+                "recvWindow": 5000
+            }
+            
+            # Signature
+            query_string = urlencode(params)
+            signature = hmac.new(
+                api_secret.encode("utf-8"),
+                query_string.encode("utf-8"),
+                hashlib.sha256
+            ).hexdigest()
+            params["signature"] = signature
+            
+            # Request
+            headers = {"X-MBX-APIKEY": api_key}
+            response = requests.get(
+                f"{base_url}{endpoint}",
+                headers=headers,
+                params=params,
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                return {
+                    "status": "FAIL",
+                    "message": f"API restrictions check failed: HTTP {response.status_code}",
+                    "details": {
+                        "status_code": response.status_code,
+                        "response": response.text[:200]
+                    }
+                }
+            
+            data = response.json()
+            
+            # 필수 검증 항목
+            enable_withdrawals = data.get("enableWithdrawals", True)  # Default True (위험)
+            enable_reading = data.get("enableReading", False)
+            enable_futures = data.get("enableFutures", False)
+            ip_restrict = data.get("ipRestrict", False)
+            
+            # 검증 로직
+            checks = []
+            
+            # CRITICAL: 출금 권한 OFF 필수
+            if enable_withdrawals:
+                checks.append("❌ enableWithdrawals=true (DANGEROUS! 출금 권한 OFF 필수)")
+            else:
+                checks.append("✅ enableWithdrawals=false (안전)")
+            
+            # Reading 권한 ON 필수
+            if not enable_reading:
+                checks.append("❌ enableReading=false (계좌 조회 불가)")
+            else:
+                checks.append("✅ enableReading=true (계좌 조회 가능)")
+            
+            # Futures 권한 ON 필수 (우리 봇은 Futures 사용)
+            if not enable_futures:
+                checks.append("❌ enableFutures=false (Futures 트레이딩 불가)")
+            else:
+                checks.append("✅ enableFutures=true (Futures 트레이딩 가능)")
+            
+            # IP 제한 (권장)
+            if ip_restrict:
+                checks.append("✅ ipRestrict=true (IP 화이트리스트 활성화)")
+            else:
+                checks.append("⚠️ ipRestrict=false (IP 제한 없음 - 보안 취약)")
+            
+            # FAIL 조건: 출금 ON 또는 Reading/Futures OFF
+            if enable_withdrawals or not enable_reading or not enable_futures:
+                return {
+                    "status": "FAIL",
+                    "message": "Binance API 권한 설정 오류",
+                    "details": {
+                        "enableWithdrawals": enable_withdrawals,
+                        "enableReading": enable_reading,
+                        "enableFutures": enable_futures,
+                        "ipRestrict": ip_restrict,
+                        "checks": checks,
+                        "action_required": [
+                            "1. Binance > API Management > Edit Restrictions",
+                            "2. Enable Withdrawals: OFF (필수)",
+                            "3. Enable Reading: ON",
+                            "4. Enable Futures: ON",
+                            "5. IP Restrict: 현재 IP 추가 (권장)"
+                        ]
+                    }
+                }
+            
+            return {
+                "status": "PASS",
+                "message": "Binance API 권한 설정 정상",
+                "details": {
+                    "enableWithdrawals": enable_withdrawals,
+                    "enableReading": enable_reading,
+                    "enableFutures": enable_futures,
+                    "ipRestrict": ip_restrict,
+                    "checks": checks
+                }
+            }
+            
+        except Exception as e:
+            return {
+                "status": "FAIL",
+                "message": f"apiRestrictions 검증 실패: {str(e)[:200]}",
+                "details": {
+                    "error": str(e)[:500],
+                    "note": "Binance SAPI 호출 오류 - API 키 권한 확인 필요"
+                }
+            }
     
     def check_postgres_connection(self) -> None:
         """6. PostgreSQL 연결 확인"""

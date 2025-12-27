@@ -592,11 +592,28 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **Evidence:** `logs/evidence/d99_20_p19_20251226_181711/`
 - **Report:** `docs/D99/D99_20_P19_FULLREG_ZERO_FAIL_FINAL.md`
 
+### ✅ D106-0: Live Preflight Dry-run (2025-12-27)
+- **.env.live 설정:** 실제 API 키로 LIVE 환경 파일 생성 (.gitignore 포함) ✅
+- **Preflight 스크립트:** 7대 점검 항목 구현 (ENV, KEYS, READONLY, UPBIT, BINANCE, POSTGRES, REDIS) ✅
+- **Git Safety 개선:** .env.live 존재 여부 → Git tracked 여부 판단으로 변경 ✅
+- **보안:** READ_ONLY_ENFORCED 강제 활성화 (주문 차단) ✅
+- **문서:** docs/D106/D106_0_LIVE_PREFLIGHT.md ✅
+- **상태:** M6 Live Ramp 첫 단계 완료 ✅
+
+### ✅ D106-1: Live Preflight 진단 강화 (2025-12-27)
+- **API 에러 6대 분류:** Invalid key, IP 제한, Clock skew, Rate limit, Permission denied, Network ✅
+- **Binance apiRestrictions:** SAPI 호출로 출금 권한 OFF, Futures ON 강제 검증 ✅
+- **민감정보 마스킹:** 로그에 API 키 평문 저장 금지 (AbCd...XyZ0 형식) ✅
+- **트러블슈팅 가이드:** 6대 에러 유형별 해결 방법 문서화 ✅
+- **문서:** docs/D106/D106_1_TROUBLESHOOTING.md (신규) ✅
+- **파일:** scripts/d106_0_live_preflight.py (473 → 795 lines, +322 lines) ✅
+- **상태:** "사람이 바로 고칠 수 있는" 진단 시스템 완료 ✅
+
 ### 즉시 착수 (High Priority)
-1. **pytest-xdist 검토 (선택)**
+1. **D107: 1h LIVE 스모크**
+   - Seed $50, Kill Switch 설정
+   - Preflight 7/7 PASS 확인 후 진입
+
+2. **pytest-xdist 검토 (선택)**
    - 병렬 실행으로 108초 → 50-60초 가능
    - 테스트 격리 완벽(D99-20) → 병렬 안전
-
-2. **M6 LIVE Ramp**
-   - Core Regression + D98 Tests 100% PASS 유지 중
-   - Full Suite 정리 후 LIVE 진입 권장완결

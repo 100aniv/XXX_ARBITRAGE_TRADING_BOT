@@ -1,8 +1,9 @@
-# D106-0: Live Preflight Dry-run (M6 Live Ramp 준비)
+# D106: Live Preflight Dry-run (M6 Live Ramp 준비)
 
 **일시:** 2025-12-27  
+**버전:** D106-1 (진단 강화)  
 **상태:** ✅ COMPLETED  
-**목표:** LIVE 진입 전 환경 검증 자동화 (Dry-run, 주문 없음)
+**목표:** LIVE 진입 전 환경 검증 자동화 (Dry-run, 주문 없음, 에러 자동 분류)
 
 ---
 
@@ -10,12 +11,15 @@
 
 **M6 Live Ramp 준비 단계**로, LIVE 실행 전 필수 환경 검증을 자동화합니다.
 
-### Primary Goals
+### Primary Goals (D106-1 확장)
 1. `.env.live` 로딩 및 필수 키 검증
 2. 환경변수 placeholder(${...}) 검출 → FAIL
 3. 업비트/바이낸스 API 연결 dry-run (주문 없이 읽기만)
-4. PostgreSQL/Redis 연결 확인
-5. READ_ONLY_ENFORCED 강제 활성화 (주문 차단)
+4. **Binance apiRestrictions 강제 검증 (출금 OFF, Futures ON)** ← D106-1 신규
+5. PostgreSQL/Redis 연결 확인
+6. READ_ONLY_ENFORCED 강제 활성화 (주문 차단)
+7. **API 에러 6대 분류 시스템 (사람이 바로 고칠 수 있게)** ← D106-1 신규
+8. **민감정보 마스킹 (로그에 API 키 평문 저장 금지)** ← D106-1 신규
 
 ### ROADMAP 준수
 - **M6 (Live Ramp):** D106 소액 LIVE 스모크 준비
@@ -47,12 +51,12 @@
 - **파일:** `c:\work\XXX_ARBITRAGE_TRADING_BOT\.env.local_dev`
 - **변경:** API 키를 실제 키로 업데이트 (개발 환경용)
 
-### 2. Live Preflight 스크립트
+### 2. Live Preflight 스크립트 (D106-1 강화)
 
-#### `scripts/d106_0_live_preflight.py` (신규)
-**역할:** LIVE 환경 dry-run 검증 (주문 없음)
+#### `scripts/d106_0_live_preflight.py` (D106-1: 795 lines)
+**역할:** LIVE 환경 dry-run 검증 (주문 없음, 에러 자동 분류)
 
-**7대 점검 항목:**
+**7대 점검 항목 + 진단 강화:**
 1. **ENV_FILE_LOAD:** `.env.live` 로딩 확인 (`ARBITRAGE_ENV=live`)
 2. **REQUIRED_KEYS:** 필수 환경변수 존재 확인 (placeholder 검출)
    - `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`
@@ -60,10 +64,66 @@
    - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
    - `POSTGRES_DSN`, `REDIS_URL`
 3. **READONLY_MODE:** `READ_ONLY_ENFORCED=true` 활성화 확인 (주문 차단)
-4. **UPBIT_CONNECTION:** 업비트 API 연결 dry-run (`get_balances()` 호출)
-5. **BINANCE_CONNECTION:** 바이낸스 API 연결 dry-run (`get_balance()` 호출)
+4. **UPBIT_CONNECTION:** 업비트 API 연결 dry-run
+   - 읽기 전용: `get_balances()`
+   - 에러 시: 6대 유형 자동 분류 + 해결 가이드 출력
+   - API 키 마스킹 (로그: `AbCd...XyZ0` 형식)
+5. **BINANCE_CONNECTION:** 바이낸스 API 연결 dry-run
+   - 읽기 전용: `get_balance()`
+   - **apiRestrictions 강제 검증 (SAPI 호출)**
+   - 에러 시: 6대 유형 자동 분류 + 해결 가이드 출력
+   - API 키 마스킹
 6. **POSTGRES_CONNECTION:** PostgreSQL 연결 확인 (`SELECT version()`)
 7. **REDIS_CONNECTION:** Redis 연결 확인 (`ping()`)
+
+#### D106-1 신규 기능
+
+**A. API 에러 6대 분류 시스템**
+```python
+class APIErrorType(Enum):
+    INVALID_KEY = "invalid_key"          # API 키/시크릿 오류, 권한 부족
+    IP_RESTRICTION = "ip_restriction"    # IP 화이트리스트 불일치
+    CLOCK_SKEW = "clock_skew"            # Timestamp/nonce 오류 (시간 동기화)
+    RATE_LIMIT = "rate_limit"            # 429 Too Many Requests
+    PERMISSION_DENIED = "permission_denied"  # Futures 미활성화, 출금 권한 등
+    NETWORK_ERROR = "network_error"      # SSL, DNS, Timeout
+    UNKNOWN = "unknown"                  # 기타
+```
+
+**B. Binance apiRestrictions 강제 검증 (CRITICAL)**
+```python
+def _check_binance_api_restrictions() -> Dict[str, Any]:
+    """GET /sapi/v1/account/apiRestrictions 호출
+    
+    필수 검증:
+    - enableWithdrawals == false (필수, 출금 권한 OFF)
+    - enableReading == true (계좌 조회 필요)
+    - enableFutures == true (Futures 트레이딩 필요)
+    - ipRestrict (권장, IP 화이트리스트)
+    """
+```
+
+**실패 시 출력 예시:**
+```
+❌ enableWithdrawals=true (DANGEROUS! 출금 권한 OFF 필수)
+❌ enableFutures=false (Futures 트레이딩 불가)
+
+[해결]
+1. Binance > API Management > Edit Restrictions
+2. Enable Withdrawals: OFF (필수)
+3. Enable Reading: ON
+4. Enable Futures: ON
+5. IP Restrict: 현재 IP 추가 (권장)
+```
+
+**C. 민감정보 마스킹**
+```python
+def mask_sensitive(text: str, key_length: int = 8) -> str:
+    """API 키/시크릿 마스킹
+    
+    예: AbCdEfGhIjKlMnOpQrStUvWxYz0123 → AbCdEfGh...UvWxYz01
+    """
+```
 
 **실행 명령어:**
 ```powershell
@@ -77,6 +137,11 @@ python scripts/d106_0_live_preflight.py
 **Exit Code:**
 - `0`: 모든 점검 PASS (LIVE 준비 완료)
 - `1`: 일부 점검 FAIL (LIVE 진입 금지)
+
+**D106-1 진단 강화:**
+- 에러 발생 시 콘솔에 실시간 해결 가이드 출력
+- JSON 로그에 `error_type`, `error_hint`, `next_action` 포함
+- API 키는 절대 평문 저장 안 함 (마스킹 필수)
 
 ### 3. D98 Live Preflight 개선
 
