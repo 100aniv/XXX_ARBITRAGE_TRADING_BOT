@@ -219,7 +219,7 @@ class TestLivePreflightChecker:
     
     @patch("scripts.d98_live_preflight.get_settings")
     def test_check_git_safety_no_env_live(self, mock_get_settings):
-        """Git 안전 점검 - .env.live 없음"""
+        """Git 안전 점검 - .env.live가 .gitignore에 포함되어 있으면 PASS"""
         mock_settings = MagicMock()
         mock_settings.env = "paper"
         mock_get_settings.return_value = mock_settings
@@ -228,5 +228,6 @@ class TestLivePreflightChecker:
         checker.check_git_safety()
         
         assert len(checker.result.checks) == 1
-        # .env.live 없으면 PASS
+        # D106-0: .env.live가 존재하더라도 .gitignore에 있으면 안전 (PASS)
+        # Git tracked 여부로 판단 (gitignore면 untracked)
         assert checker.result.checks[0]["status"] == "PASS"

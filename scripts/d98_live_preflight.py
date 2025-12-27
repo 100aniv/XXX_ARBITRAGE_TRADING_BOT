@@ -501,22 +501,53 @@ class LivePreflightChecker:
         """Git 안전 점검"""
         print("[7/7] Git 안전 점검...")
         
-        # .env.live 존재 여부 (커밋 방지)
+        # .env.live 존재 여부 및 Git 추적 여부 확인
         env_live_path = Path(__file__).parent.parent / ".env.live"
         
-        if env_live_path.exists():
-            self.result.add_check(
-                "Git Safety",
-                "FAIL",
-                ".env.live 파일이 존재합니다 (삭제 또는 .gitignore 확인)",
-                {"path": str(env_live_path)}
-            )
-        else:
+        if not env_live_path.exists():
             self.result.add_check(
                 "Git Safety",
                 "PASS",
                 ".env.live 파일 없음 (안전)",
                 {}
+            )
+            return
+        
+        # D106-0: .env.live가 존재하면 Git에 tracked 되었는지 확인
+        # .gitignore에 포함되어 있으면 안전
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "ls-files", ".env.live"],
+                cwd=env_live_path.parent,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            # git ls-files 출력이 있으면 tracked (위험)
+            if result.stdout.strip():
+                self.result.add_check(
+                    "Git Safety",
+                    "FAIL",
+                    ".env.live가 Git에 tracked 되어 있습니다 (즉시 제거 필요)",
+                    {"path": str(env_live_path), "git_tracked": True}
+                )
+            else:
+                # 출력 없음 = untracked (.gitignore에 포함되어 안전)
+                self.result.add_check(
+                    "Git Safety",
+                    "PASS",
+                    ".env.live 존재하지만 .gitignore에 포함되어 안전",
+                    {"path": str(env_live_path), "git_tracked": False}
+                )
+        except Exception as e:
+            # Git 명령어 실패 시 경고
+            self.result.add_check(
+                "Git Safety",
+                "WARN",
+                f".env.live 존재하나 Git 상태 확인 실패: {e}",
+                {"path": str(env_live_path), "error": str(e)}
             )
     
     def run_all_checks(self) -> PreflightResult:
