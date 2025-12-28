@@ -2339,30 +2339,32 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
-#### D200-1: V2 SSOT Rebuild ⏳ IN_PROGRESS
+#### D200-1: V2 SSOT Hardening & Roadmap Lock ⏳ IN_PROGRESS
 **상태:** IN_PROGRESS  
 **날짜:** 2025-12-29  
-**문서:** `docs/v2/design/INFRA_REUSE_INVENTORY.md`, `docs/v2/design/SSOT_MAP.md`, `docs/v2/design/V2_MIGRATION_STRATEGY.md`
+**문서:** `docs/v2/design/SSOT_MAP.md`, `docs/v2/design/CLEANUP_CANDIDATES.md`, `db/migrations/v2_schema.sql`
 
 **목표:**
-- SSOT 경계/파일 위치/로드맵/설정/인프라 재사용 확정
-- README 정리 (루트 README를 V2 프로젝트 설명으로 재작성)
-- Runtime Config SSOT 생성 (config/v2/config.yml)
-- 인프라 재사용 인벤토리 3종 생성
+- SSOT 7종을 "헌법" 수준으로 확정 (Process/Config/Secrets/Data/Cache/Monitoring/Evidence)
+- DB/Redis SSOT 뼈대 생성 (스키마/키스페이스 규칙)
+- config.yml을 하드코딩 제거 SSOT로 승격
+- D_ROADMAP.md를 상용 완성 관점으로 상세화
 
-**AC (Acceptance Criteria):**
-- [x] 프로젝트 스캔 + 중복 리포트 (567 폴더, 49 모듈)
-- [x] 인프라 인벤토리 3종 (INFRA/SSOT_MAP/MIGRATION)
-- [x] README 정리 (루트 README 새로 작성, 기존은 docs/v1/ 백업)
-- [x] Runtime Config SSOT (config/v2/config.yml + config.py)
-- [x] .env.v2.example 템플릿 생성
-- [ ] D_ROADMAP.md V2 섹션 상세 추가 (현재 작업 중)
+**AC (Acceptance Criteria) - 강제:**
+- [x] SSOT_MAP 7종 확정 + README 링크
+- [x] 중복/유사 항목 TOP30 정리 후보 문서 (CLEANUP_CANDIDATES.md)
+- [x] "V1 자산 재사용" 결정을 INFRA_REUSE_INVENTORY.md에 KEEP/DEFER/DROP 명문화
+- [ ] DB/Redis 역할이 SSOT_MAP에 반영 (v2_schema.sql, REDIS_KEYSPACE.md 생성)
+- [ ] config.yml이 하드코딩 제거 목표로 필수 키 포함 (주문 최소/수수료/리밋/가드레일)
+- [ ] D201~D206 세부 Dxxx-y 분해 완료 (현재 작업 중)
+- [ ] SSOT_MAP/README/D_ROADMAP 간 링크/정의 충돌 0
 - [ ] Gate 100% PASS 검증
 - [ ] 커밋 + 푸시
 
 **증거:**
-- 스캔 리포트: `logs/evidence/v2_kickoff_scan_20251229_013151/`
-- 인벤토리: `docs/v2/design/` (3종 문서)
+- 스캔 리포트: `logs/evidence/v2_kickoff_scan_20251229_015611/`
+- SSOT 문서: `docs/v2/design/SSOT_MAP.md` (7종 + 추가 SSOT)
+- 정리 후보: `docs/v2/design/CLEANUP_CANDIDATES.md`
 - 설정: `config/v2/config.yml`, `arbitrage/v2/core/config.py`
 
 ---
@@ -2389,228 +2391,372 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
-### D201: Exchange Adapter v2 (거래소 연동)
+### D201: Adapter Contract (어댑터 계약)
 
-#### D201-1: OrderIntent/Adapter Contract Tests 100% PASS
-**상태:** PLANNED
-
-**목표:**
-- OrderIntent validation 테스트 작성
-- Adapter 인터페이스 contract 테스트 작성
-- Mock/Upbit Adapter 100% coverage
-
-**AC:**
-- [ ] test_v2_order_intent.py (validation 테스트)
-- [ ] test_v2_adapter_contract.py (인터페이스 테스트)
-- [ ] Mock/Upbit Adapter 100% PASS
-
----
-
-#### D201-2: UpbitAdapter MARKET 규약 + Read-only Payload 검증
-**상태:** PLANNED
-
-**목표:**
-- UpbitAdapter 완성 (V1 upbit_spot.py 참조)
-- MARKET BUY/SELL payload 검증 100%
-- Read-only 모드 강제
-
-**AC:**
-- [ ] MARKET BUY: price (KRW 금액) 검증
-- [ ] MARKET SELL: volume (코인 수량) 검증
-- [ ] Symbol 변환 (BTC/KRW → KRW-BTC)
-- [ ] test_upbit_adapter.py 100% PASS
-
----
-
-#### D201-3: BinanceAdapter MARKET 규약 + Read-only Payload 검증
+#### D201-1: Binance Adapter v2 (MARKET semantics)
 **상태:** PLANNED
 
 **목표:**
 - BinanceAdapter 구현 (V1 binance_futures.py 참조)
-- MARKET 주문 규약 (quantity 기반)
+- MARKET 주문 규약 명확화 (BUY/SELL 모두 quantity 기반)
 - Read-only 모드 강제
 
 **AC:**
-- [ ] MARKET BUY/SELL: quantity 검증
-- [ ] Symbol 변환 (BTC/USDT)
+- [ ] MARKET BUY: quantity (base amount) 검증
+- [ ] MARKET SELL: quantity (base amount) 검증
+- [ ] Symbol 변환 (BTC/KRW → BTCUSDT)
+- [ ] OrderIntent → Binance payload 변환 100% 정확
 - [ ] test_binance_adapter.py 100% PASS
 
+**참조:**
+- V1: `arbitrage/exchanges/binance_futures.py`
+- V2 규약: `docs/v2/V2_ARCHITECTURE.md` (MARKET semantics)
+
 ---
 
-### D202: MarketData v2 (시장 데이터)
-
-#### D202-1: REST 최소 데이터 (호가/체결/티커) 표준 인터페이스
+#### D201-2: Contract Tests 100% PASS (BUY quote_amount / SELL base_qty)
 **상태:** PLANNED
 
 **목표:**
-- REST API Provider 구현
+- Adapter 인터페이스 contract 테스트 작성
+- MARKET BUY/SELL 규약 엄격 검증
+- Mock/Upbit/Binance Adapter 100% coverage
+
+**AC:**
+- [ ] test_v2_order_intent.py (OrderIntent validation)
+- [ ] test_v2_adapter_contract.py (인터페이스 contract)
+- [ ] MARKET BUY: quote_amount 필수 검증
+- [ ] MARKET SELL: base_qty 필수 검증
+- [ ] Mock/Upbit/Binance 모두 100% PASS
+
+**테스트 케이스:**
+- UpbitAdapter: BUY uses price (KRW amount), SELL uses volume (coin qty)
+- BinanceAdapter: BUY/SELL both use quantity (coin qty)
+- 규약 위반 시 즉시 ValueError
+
+---
+
+### D202: MarketData SSOT (시장 데이터)
+
+#### D202-1: WS/REST 최소 구현 + 재연결/레이트리밋
+**상태:** PLANNED
+
+**목표:**
+- REST API Provider 구현 (호가/체결/티커)
+- WebSocket Provider 구현 (L2 orderbook)
 - Redis cache 통합 (TTL 100ms)
-- 멀티 거래소 지원
-
-**AC:**
-- [ ] RestProvider 인터페이스 정의
-- [ ] Upbit/Binance REST 구현
-- [ ] Redis cache 동작 확인
-- [ ] test_rest_provider.py 100% PASS
-
----
-
-#### D202-2: WS(L2) 통합 + Reconnect/Health
-**상태:** PLANNED
-
-**목표:**
-- WebSocket Provider 구현
-- L2 orderbook 통합
 - Reconnect 로직 + health check
+- Rate limit 준수 (Upbit 30 req/s, Binance 1200 req/min)
 
 **AC:**
-- [ ] WsProvider 인터페이스 정의
-- [ ] L2 orderbook parsing
-- [ ] Reconnect 자동화
-- [ ] test_ws_provider.py (연결/재연결 시나리오)
+- [ ] RestProvider 인터페이스 정의 + Upbit/Binance 구현
+- [ ] WsProvider 인터페이스 정의 + L2 orderbook parsing
+- [ ] Redis cache 동작 확인 (key: `v2:market:{exchange}:{symbol}`, TTL: 100ms)
+- [ ] Reconnect 자동화 (최대 3회 재시도, exponential backoff)
+- [ ] Rate limit counter (Redis: `v2:ratelimit:{exchange}:{endpoint}`)
+- [ ] test_market_data_provider.py 100% PASS
+
+**참조:**
+- V1: `arbitrage/exchanges/upbit_l2_ws_provider.py`, `arbitrage/exchanges/binance_l2_ws_provider.py`
+- Redis keyspace: `docs/v2/design/REDIS_KEYSPACE.md`
 
 ---
 
-### D203: Opportunity Detector v2 (기회 탐지)
-
-#### D203-1: Fee/Slippage 포함 Break-even 공식 (문서+테스트)
+#### D202-2: MarketData evidence 저장 포맷 (샘플 1h)
 **상태:** PLANNED
 
 **목표:**
-- Break-even spread 계산 공식 정의
-- Fee model 분리
-- Config 기반 threshold 설정
+- MarketData 수집 증거 저장 포맷 정의
+- 1시간 샘플 수집 (Upbit/Binance Top10)
+- 통계 집계 (latency, uptime, reconnect count)
 
 **AC:**
-- [ ] 공식 문서화 (docs/v2/design/FEE_MODEL.md)
-- [ ] OpportunityDetector 구현
-- [ ] test_opportunity_detector.py (수식 검증)
+- [ ] Evidence JSON schema 정의 (market_data_sample.json)
+- [ ] 필수 필드: exchange, symbol, timestamp, bid, ask, last, volume
+- [ ] 1h 샘플 수집 완료 (최소 3600개 데이터 포인트)
+- [ ] 통계: avg_latency < 50ms, uptime > 99%, reconnect < 3회
+- [ ] Evidence 저장: `logs/evidence/d202_2_market_sample_YYYYMMDD_HHMM/`
+
+**포맷 예시:**
+```json
+{
+  "run_id": "d202_2_YYYYMMDD_HHMM",
+  "exchange": "upbit",
+  "symbol": "BTC/KRW",
+  "duration_seconds": 3600,
+  "data_points": 3600,
+  "stats": {
+    "avg_latency_ms": 45.2,
+    "uptime_pct": 99.8,
+    "reconnect_count": 1
+  }
+}
+```
 
 ---
 
-#### D203-2: Backtest/Paper Gate (20m→1h) 기준 정의
+### D203: Opportunity & Threshold (기회 탐지)
+
+#### D203-1: fee/slippage 포함 threshold 공식 (문서+테스트)
 **상태:** PLANNED
 
 **목표:**
-- Paper 테스트 duration 기준 정의
+- Break-even spread 계산 공식 정의 및 문서화
+- Fee model 분리 (taker fee, maker fee, slippage)
+- Config 기반 threshold 설정 (config.yml)
+
+**AC:**
+- [ ] 공식 문서화: `docs/v2/design/FEE_MODEL.md`
+- [ ] 공식: `break_even_bps = taker_fee_a + taker_fee_b + slippage_a + slippage_b + buffer`
+- [ ] OpportunityDetector 구현 (`arbitrage/v2/core/opportunity_detector.py`)
+- [ ] config.yml에 threshold 설정 추가 (strategy.threshold_bps)
+- [ ] test_opportunity_detector.py (수식 검증, 경계값 테스트)
+- [ ] 예상 break-even: Upbit-Binance = 24 bps (fee 10 + slippage 10 + buffer 4)
+
+**공식 예시:**
+```python
+# Upbit: taker_fee=0.05%, Binance: taker_fee=0.04%, slippage=0.05% each
+# break_even = (0.05 + 0.04) + (0.05 + 0.05) + 0.05 (buffer) = 0.24%
+threshold_bps = config.exchanges.upbit.taker_fee_bps + \
+                config.exchanges.binance.taker_fee_bps + \
+                config.strategy.slippage_bps * 2 + \
+                config.strategy.buffer_bps
+```
+
+---
+
+#### D203-2: replay/backtest gate (짧은 구간)
+**상태:** PLANNED
+
+**목표:**
+- Backtest/Paper Gate 기준 정의 (20m → 1h → 3h 계단식)
 - KPI 수집 표준화
-- Gate 조건 확정
+- Gate 통과 조건 확정
 
 **AC:**
-- [ ] 20m/1h/3h duration 기준 문서화
-- [ ] KPI 수집 자동화
-- [ ] Gate 통과 조건 정의
+- [ ] Duration 기준 문서화: `docs/v2/design/PAPER_GATE_CRITERIA.md`
+- [ ] 20m smoke: 최소 1개 entry, 0 crash, latency < 100ms
+- [ ] 1h baseline: 최소 5개 entry, winrate > 30%, PnL > 0
+- [ ] 3h longrun: 무정지, memory leak < 10%, CPU < 50%
+- [ ] KPI JSON schema 정의 (kpi_summary.json)
+- [ ] Gate 자동 검증 스크립트 (`scripts/verify_paper_gate.py`)
+
+**KPI 필수 필드:**
+```json
+{
+  "duration_seconds": 3600,
+  "entries": 12,
+  "exits": 8,
+  "winrate_pct": 66.7,
+  "pnl_usd": 45.23,
+  "avg_latency_ms": 62,
+  "max_memory_mb": 180,
+  "avg_cpu_pct": 35
+}
+```
 
 ---
 
-### D204: Paper Execution Loop v2 (모의 실행)
+### D204: Paper Execution (모의 실행)
 
-#### D204-1: TopN 20m Smoke (실데이터+Mock order)
+#### D204-1: DB ledger 기록 (orders/fills/trades) "필수"
 **상태:** PLANNED
 
 **목표:**
-- Top10 심볼 20분 smoke 테스트
-- 실시간 market data + Mock 주문
-- KPI 수집 (entry/exit/pnl)
+- DB ledger 구현 (PostgreSQL: v2_orders, v2_fills, v2_trades)
+- Paper 실행 시 모든 주문/체결/거래를 DB에 기록
+- PnL 계산을 DB 기반으로 수행
 
 **AC:**
-- [ ] 20m smoke 완료
-- [ ] KPI JSON 생성
-- [ ] 0개 이상 거래 발생
+- [ ] DB 스키마 생성: `db/migrations/v2_schema.sql`
+- [ ] 테이블: v2_orders, v2_fills, v2_trades, v2_ledger
+- [ ] 필수 컬럼: run_id, timestamp, exchange, symbol, side, order_type, quantity, price, status
+- [ ] Paper 실행 시 DB insert 자동화
+- [ ] PnL aggregation 쿼리 작성 (daily/weekly/monthly)
+- [ ] test_db_ledger.py 100% PASS
+
+**스키마 예시:**
+```sql
+CREATE TABLE v2_orders (
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    order_id VARCHAR(64) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    exchange VARCHAR(32) NOT NULL,
+    symbol VARCHAR(32) NOT NULL,
+    side VARCHAR(8) NOT NULL,
+    order_type VARCHAR(16) NOT NULL,
+    quantity NUMERIC(20, 8),
+    price NUMERIC(20, 8),
+    status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_v2_orders_run_id ON v2_orders(run_id);
+CREATE INDEX idx_v2_orders_timestamp ON v2_orders(timestamp);
+```
 
 ---
 
-#### D204-2: 1h Baseline
+#### D204-2: 20m → 1h → 3~12h 계단식
 **상태:** PLANNED
 
 **목표:**
-- 1시간 paper 테스트
-- 안정성 검증
-- PnL 추적
-
-**AC:**
-- [ ] 1h 무정지 실행
-- [ ] PnL 계산 정확성
-- [ ] Evidence 저장
-
----
-
-#### D204-3: 3h/12h Longrun (중단 없는 자동 evidence)
-**상태:** PLANNED
-
-**목표:**
-- 장시간 안정성 검증
+- 계단식 Paper 테스트 (20m smoke → 1h baseline → 3h/12h longrun)
+- 각 단계별 Gate 조건 확정
 - 자동 evidence 수집
-- 리소스 누수 확인
 
 **AC:**
-- [ ] 3h/12h 무정지 실행
-- [ ] 메모리/CPU 안정
-- [ ] Evidence 자동 저장
+- [ ] 20m smoke: 최소 1 entry, 0 crash, Gate PASS
+- [ ] 1h baseline: 최소 5 entry, winrate > 30%, PnL > 0, Gate PASS
+- [ ] 3h longrun: 무정지, memory leak < 10%, CPU < 50%, Gate PASS
+- [ ] 12h optional: 안정성 극한 테스트 (조건부)
+- [ ] Evidence 자동 저장: `logs/evidence/d204_2_{duration}_YYYYMMDD_HHMM/`
+- [ ] KPI 자동 집계 및 리포트 생성
+
+**실행 명령어:**
+```powershell
+# 20m smoke
+python -m arbitrage.v2.harness.paper_runner --duration 1200 --symbols-top 10
+
+# 1h baseline
+python -m arbitrage.v2.harness.paper_runner --duration 3600 --symbols-top 20
+
+# 3h longrun
+python -m arbitrage.v2.harness.paper_runner --duration 10800 --symbols-top 20
+```
 
 ---
 
-### D205: User-Facing Reporting (사용자 리포팅)
+### D205: User Facing Reporting (사용자 리포팅)
 
-#### D205-1: PnL SSOT Schema + Daily/Weekly/Monthly 리포트 생성
+#### D205-1: daily/weekly/monthly PnL + DD + winrate (DB 기반)
 **상태:** PLANNED
 
+**목적:** DB 기반 PnL 리포팅 SSOT 확립
+
 **목표:**
-- PnL 데이터 schema 정의
-- PostgreSQL 저장
-- 리포트 자동 생성
+- PnL 데이터 schema 정의 (PostgreSQL)
+- Daily/Weekly/Monthly aggregation 자동화
+- Drawdown, Winrate, Sharpe ratio 계산
+- CSV/JSON 출력
 
 **AC:**
-- [ ] PnL schema (v2_pnl_daily, v2_pnl_weekly, v2_pnl_monthly)
-- [ ] 리포트 생성 자동화
-- [ ] CSV/JSON 출력
+- [ ] DB schema: v2_pnl_daily, v2_pnl_weekly, v2_pnl_monthly
+- [ ] 필수 컬럼: date, total_pnl, realized_pnl, unrealized_pnl, num_trades, winrate, max_drawdown
+- [ ] Aggregation 쿼리 작성 (CTE 사용)
+- [ ] 리포트 생성 스크립트: `scripts/generate_pnl_report.py`
+- [ ] CSV 출력: `outputs/pnl_report_YYYYMMDD.csv`
+- [ ] JSON 출력: `outputs/pnl_report_YYYYMMDD.json`
+- [ ] test_pnl_aggregation.py 100% PASS
+
+**스키마 예시:**
+```sql
+CREATE TABLE v2_pnl_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    total_pnl NUMERIC(20, 8) NOT NULL,
+    realized_pnl NUMERIC(20, 8) NOT NULL,
+    unrealized_pnl NUMERIC(20, 8) NOT NULL,
+    num_trades INT NOT NULL,
+    num_wins INT NOT NULL,
+    winrate_pct NUMERIC(5, 2),
+    max_drawdown_pct NUMERIC(5, 2),
+    sharpe_ratio NUMERIC(10, 4),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
 ---
 
-#### D205-2: 대시보드 (로컬 우선: Grafana/HTML/CLI 중 1개 선택) + API Read-only
+#### D205-2: Grafana/리포트 뷰 (우선) + API는 DEFER 가능
 **상태:** PLANNED
 
+**목적:** 시각화 우선, API는 조건부
+
 **목표:**
-- Grafana 대시보드 우선
-- V2 metrics 시각화
-- Read-only API (선택)
+- Grafana dashboard 생성 (V2 전용)
+- Prometheus metrics 연동
+- Read-only API는 DEFER 가능 (D206+ 이후)
 
 **AC:**
-- [ ] Grafana dashboard `v2_overview.json`
-- [ ] Prometheus metrics 연동
-- [ ] (선택) FastAPI read-only endpoint
+- [ ] Grafana dashboard: `monitoring/grafana/dashboards/v2_overview.json`
+- [ ] Panels: PnL trend, Entry/Exit count, Winrate, Latency, CPU/Memory
+- [ ] Prometheus metrics 정의: `v2_pnl_total`, `v2_trades_count`, `v2_latency_ms`
+- [ ] Dashboard provisioning 자동화
+- [ ] (DEFER) FastAPI read-only endpoint (`/api/v2/pnl`, `/api/v2/trades`)
+
+**Dashboard Panels:**
+1. **PnL Trend** (Time series): v2_pnl_total
+2. **Entry/Exit Count** (Counter): v2_trades_count{type="entry|exit"}
+3. **Winrate** (Gauge): v2_winrate_pct
+4. **Latency** (Histogram): v2_latency_ms
+5. **Resource Usage** (Graph): process_cpu_seconds_total, process_resident_memory_bytes
 
 ---
 
-### D206: Ops/Deploy & Reuse Infra (운영/배포)
+### D206: Ops & Deploy (운영/배포)
 
-#### D206-1: 기존 도커/모니터링 재사용 확정 (KEEP/DROP 반영)
+#### D206-1: Docker Compose SSOT 고정
 **상태:** PLANNED
 
+**목적:** 인프라 SSOT를 infra/docker-compose.yml로 확정
+
 **목표:**
-- 인프라 재사용 인벤토리 실행
-- KEEP 항목 활성화
-- DROP 항목 비활성화
+- 인프라 재사용 인벤토리 실행 (KEEP/DROP 반영)
+- KEEP 항목 활성화 (Postgres, Redis, Prometheus, Grafana)
+- DROP 항목 비활성화 (V1 Engine, Paper Trader)
+- SSOT 확정: `infra/docker-compose.yml`만 수정, `docker/docker-compose.yml`은 보관
 
 **AC:**
-- [ ] infra/docker-compose.yml 업데이트
-- [ ] Prometheus/Grafana 설정
-- [ ] Exporter 활성화 결정
+- [ ] INFRA_REUSE_INVENTORY.md KEEP 11개 항목 활성화
+- [ ] infra/docker-compose.yml 업데이트 (V2 서비스 추가)
+- [ ] V2 서비스: v2-engine (arbitrage.v2.core.engine), v2-paper (arbitrage.v2.harness.paper_runner)
+- [ ] Prometheus/Grafana 설정 업데이트 (v2 scrape config)
+- [ ] Exporter 활성화: Node Exporter, Redis Exporter (Postgres Exporter는 DEFER)
+- [ ] Health check 정의 (v2-engine: HTTP /health, v2-paper: process check)
+- [ ] docker-compose up -d 테스트 (모든 서비스 healthy)
+
+**KEEP 항목 (11개):**
+1. PostgreSQL + TimescaleDB
+2. Redis
+3. Prometheus
+4. Grafana
+5. Node Exporter
+6. Adminer (DB 관리)
+7. Docker network (arbitrage-net)
+8. Volume (postgres-data, redis-data, grafana-data)
+9. Health check 패턴
+10. 환경 변수 주입 (.env.v2)
+11. 포트 매핑 규칙
 
 ---
 
-#### D206-2: 배포 패키징 (로컬 배포/업데이트/런북)
-**상태:** PLANNED
+#### D206-2: k8s는 "조건 충족 시" DEFER
+**상태:** DEFERRED
 
-**목표:**
-- 배포 스크립트 작성
+**목적:** Kubernetes는 조건 충족 시에만 진행
+
+**조건 (3가지 모두 충족 필요):**
+1. ✅ D204-2 (1h baseline) 100% 안정 달성
+2. ✅ D205-1 (PnL 리포팅) 완전 자동화
+3. ✅ 실거래 준비 완료 (LIVE Ramp D207+ 시작)
+
+**목표 (조건 충족 시):**
+- K8s manifest 작성 (Deployment, Service, ConfigMap, Secret)
+- Helm chart 생성 (optional)
+- CI/CD 파이프라인 구축
 - 런북 문서화
-- 롤백 절차 정의
 
-**AC:**
-- [ ] 배포 스크립트 (scripts/deploy_v2.sh)
-- [ ] 런북 (docs/v2/RUNBOOK.md)
+**AC (DEFER):**
+- [ ] k8s manifests: `infra/k8s/v2-engine-deployment.yaml`
+- [ ] ConfigMap: v2-config (config.yml)
+- [ ] Secret: v2-secrets (.env.v2)
+- [ ] CI/CD: GitHub Actions (optional)
+- [ ] 런북: `docs/v2/K8S_RUNBOOK.md`
 - [ ] 롤백 절차 문서화
+
+**현재 결정:** D206-2는 DEFER. 로컬 Docker Compose만으로 충분 (D206-1 완료 시).
 
 ---
 

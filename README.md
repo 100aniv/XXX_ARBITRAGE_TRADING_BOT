@@ -69,6 +69,39 @@ pip install -r requirements.txt
 
 ---
 
+## 📚 SSOT 문서 (Single Source of Truth)
+
+**V2는 SSOT 원칙을 강제합니다. 모든 도메인은 단 1개의 SSOT를 가집니다.**
+
+### 필수 SSOT 7종
+
+| # | 도메인 | SSOT 파일 | 역할 |
+|---|--------|-----------|------|
+| **1** | **Process** | [`D_ROADMAP.md`](D_ROADMAP.md) | 프로젝트 로드맵, D 단계 정의 |
+| **2** | **Runtime Config** | [`config/v2/config.yml`](config/v2/config.yml) | 거래소/전략/안전 설정 |
+| **3** | **Secrets** | [`.env.v2.example`](.env.v2.example) | API Keys 템플릿 (실제: `.env.v2`) |
+| **4** | **Data (DB)** | [`db/migrations/v2_schema.sql`](db/migrations/v2_schema.sql) | PostgreSQL 스키마 |
+| **5** | **Cache/Locks (Redis)** | [`docs/v2/design/REDIS_KEYSPACE.md`](docs/v2/design/REDIS_KEYSPACE.md) | Redis 키 네이밍 규칙 |
+| **6** | **Monitoring** | [`monitoring/prometheus/prometheus.v2.yml`](monitoring/prometheus/prometheus.v2.yml) | Prometheus/Grafana 설정 |
+| **7** | **Evidence** | [`docs/v2/design/EVIDENCE_FORMAT.md`](docs/v2/design/EVIDENCE_FORMAT.md) | 실행 증거 저장 포맷 |
+
+### 추가 SSOT (V2 특화)
+
+| 도메인 | SSOT 파일 | 역할 |
+|--------|-----------|------|
+| **Rulebook** | [`docs/v2/SSOT_RULES.md`](docs/v2/SSOT_RULES.md) | V2 개발 강제 규칙 |
+| **Architecture** | [`docs/v2/V2_ARCHITECTURE.md`](docs/v2/V2_ARCHITECTURE.md) | Engine-Centric 설계 계약 |
+| **Infra Reuse** | [`docs/v2/design/INFRA_REUSE_INVENTORY.md`](docs/v2/design/INFRA_REUSE_INVENTORY.md) | V1 인프라 재사용 전략 |
+| **Migration** | [`docs/v2/design/V2_MIGRATION_STRATEGY.md`](docs/v2/design/V2_MIGRATION_STRATEGY.md) | V1→V2 마이그레이션 계획 |
+| **SSOT Map** | [`docs/v2/design/SSOT_MAP.md`](docs/v2/design/SSOT_MAP.md) | 전체 SSOT 목록 및 규칙 |
+
+**⚠️ 금지 사항:**
+- ❌ SSOT 분기 (예: `config_v2_prod.yml`, `D_ROADMAP_V2.md`)
+- ❌ 환경별 설정 파일 중복 (환경 변수로 오버라이드)
+- ❌ Secrets 커밋 (`.env.v2`는 gitignore 필수)
+
+---
+
 ## 📂 프로젝트 구조 (V2 기준)
 
 ```

@@ -14,11 +14,27 @@
 
 ---
 
-## 🗺️ 도메인별 SSOT 정의
+## 🗺️ 도메인별 SSOT 정의 (7종 필수)
+
+**필수 SSOT 7종:**
+1. Process SSOT - `D_ROADMAP.md`
+2. Runtime Config SSOT - `config/v2/config.yml`
+3. Secrets SSOT - `.env.v2.example` (템플릿), `.env.v2` (실제, gitignore)
+4. Data SSOT - `db/migrations/v2_schema.sql`
+5. Cache/Locks SSOT - Redis keyspace 규칙
+6. Monitoring SSOT - Prometheus/Grafana 설정
+7. Evidence SSOT - `logs/evidence/` 규칙
+
+**추가 SSOT (V2 특화):**
+- Rulebook SSOT - `docs/v2/SSOT_RULES.md`
+- Architecture SSOT - `docs/v2/V2_ARCHITECTURE.md`
+- Test SSOT - `pytest.ini`
+
+---
 
 ### 1️⃣ Process SSOT (프로세스/로드맵)
 
-#### 📄 `docs/D_ROADMAP.md`
+#### 📄 `D_ROADMAP.md`
 
 **역할:**
 - 전체 프로젝트 로드맵 (D1~D206+)
@@ -78,9 +94,133 @@
 
 ---
 
-### 3️⃣ Architecture Contract SSOT (설계 계약)
+### 4️⃣ Data SSOT (데이터베이스 스키마)
 
-#### 📄 `docs/v2/V2_ARCHITECTURE.md`
+#### 📄 `db/migrations/v2_schema.sql`
+
+**역할:**
+- V2 전용 DB 스키마 정의
+- 테이블: v2_orders, v2_trades, v2_fills, v2_ledger, v2_pnl_daily 등
+- Index, Constraint, Trigger
+- Migration 이력 관리
+
+**금지 사항:**
+- ❌ v2_schema_v2.sql, v2_schema_prod.sql 등 분기 금지
+- ❌ 코드에서 직접 CREATE TABLE 실행 금지
+- ❌ V1 테이블 직접 수정 금지 (별도 스키마 사용)
+
+**참조자:**
+- DB 초기화 시 (migration 실행)
+- ORM/Query 작성 시 (스키마 참조)
+- PnL 리포팅 시 (집계 쿼리)
+
+**업데이트 규칙:**
+- 스키마 변경 시 → 새 migration 파일 생성 (v2_001_add_column.sql)
+- 변경 시 커밋 메시지에 "[DB]" 태그
+- Rollback script 필수 포함
+
+**현재 상태:**
+- ⏳ D200-1에서 skeleton 생성 예정 (이번 턴)
+- 🔄 D204-1에서 본격 구현 (orders/fills/trades)
+
+---
+
+### 5️⃣ Cache/Locks SSOT (Redis 키스페이스)
+
+#### 📄 `docs/v2/design/REDIS_KEYSPACE.md`
+
+**역할:**
+- Redis key 네이밍 규칙: `v2:{env}:{run_id}:{domain}:{key}`
+- TTL 정책 (market_data: 100ms, config: 1h)
+- Lock prefix: `v2:lock:{resource}`
+- Rate limit counter prefix: `v2:ratelimit:{exchange}:{endpoint}`
+
+**금지 사항:**
+- ❌ 네이밍 규칙 무시 (v2_prefix 없는 키)
+- ❌ 환경별 key 충돌 (dev/prod 격리 필수)
+- ❌ TTL 없는 캐시 (메모리 누수)
+
+**참조자:**
+- MarketData Provider (캐싱)
+- RateLimitManager (카운터)
+- Engine (상태 저장)
+
+**업데이트 규칙:**
+- 새 keyspace 추가 시 → REDIS_KEYSPACE.md 업데이트
+- TTL 변경 시 → 근거 문서화
+- 변경 시 커밋 메시지에 "[REDIS]" 태그
+
+**현재 상태:**
+- ⏳ D200-1에서 skeleton 생성 예정 (이번 턴)
+- 🔄 D202-1에서 MarketData 캐시 구현
+
+---
+
+### 6️⃣ Monitoring SSOT (모니터링 설정)
+
+#### 📄 `monitoring/prometheus/prometheus.v2.yml`
+
+**역할:**
+- V2 전용 scrape config
+- Metric endpoint 정의 (v2_engine, v2_adapter)
+- Alerting rules (latency > 100ms, error rate > 1%)
+- Grafana dashboard source: `monitoring/grafana/dashboards/v2_overview.json`
+
+**금지 사항:**
+- ❌ prometheus.yml 직접 수정 (v2.yml만 수정)
+- ❌ Grafana dashboard를 수동으로만 관리 (JSON 소스 필수)
+- ❌ Metric 네이밍 불일치 (v2_ prefix 필수)
+
+**참조자:**
+- Engine 초기화 시 (metrics exporter 시작)
+- Grafana (dashboard rendering)
+- Alertmanager (alert routing)
+
+**업데이트 규칙:**
+- 새 metric 추가 시 → prometheus.v2.yml + Grafana dashboard 동시 업데이트
+- 변경 시 커밋 메시지에 "[MONITORING]" 태그
+
+**현재 상태:**
+- ✅ monitoring/prometheus/prometheus.yml 존재 (V1)
+- ⏳ prometheus.v2.yml 생성 예정 (D205-2)
+
+---
+
+### 7️⃣ Evidence SSOT (실행 증거 저장)
+
+#### 📄 `docs/v2/design/EVIDENCE_FORMAT.md`
+
+**역할:**
+- Evidence 저장 경로 규칙: `logs/evidence/{task}_YYYYMMDD_HHMM/`
+- JSON schema 정의 (smoke_evidence.json, kpi_summary.json)
+- 파일명 규칙 (snake_case, 타임스탬프 포함)
+- 필수 필드 (run_id, duration, status, metrics)
+
+**금지 사항:**
+- ❌ 규칙 무시한 임의 경로 저장
+- ❌ JSON schema 없는 커스텀 포맷
+- ❌ 민감 정보 포함 (API key, password)
+
+**참조자:**
+- Smoke/Paper Harness (evidence 저장)
+- Gate 검증 (evidence 읽기)
+- 사후 분석 (KPI 집계)
+
+**업데이트 규칙:**
+- 새 evidence 타입 추가 시 → EVIDENCE_FORMAT.md 업데이트 + schema 정의
+- 변경 시 커밋 메시지에 "[EVIDENCE]" 태그
+
+**현재 상태:**
+- ⏳ D200-2에서 EVIDENCE_FORMAT.md 생성 예정
+- 🔄 D204-1에서 Paper evidence 본격 구현
+
+---
+
+### 추가 SSOT (V2 특화)
+
+#### Architecture Contract SSOT
+
+##### 📄 `docs/v2/V2_ARCHITECTURE.md`
 
 **역할:**
 - Engine-Centric 아키텍처 정의
@@ -109,7 +249,7 @@
 
 ---
 
-### 4️⃣ Runtime Config SSOT (실행 설정)
+### 2️⃣ Runtime Config SSOT (실행 설정)
 
 #### 📄 `config/v2/config.yml`
 
@@ -135,12 +275,12 @@
 - 변경 시 커밋 메시지에 "[CONFIG]" 태그
 
 **현재 상태:**
-- ⏳ D200-1에서 생성 예정 (이번 턴)
+- ✅ D200-1에서 생성 완료 (155 lines)
 - 🔄 D201-2/D201-3에서 거래소 설정 추가 예정
 
 ---
 
-### 5️⃣ Secrets SSOT (인증 정보)
+### 3️⃣ Secrets SSOT (인증 정보)
 
 #### 📄 `.env.v2.example` (템플릿)
 #### 📄 `.env.v2` (실제 값, gitignore)
