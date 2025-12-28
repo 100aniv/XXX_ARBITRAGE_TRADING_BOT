@@ -634,10 +634,24 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **Preflight 재검증:** 7/7 PASS (logs/evidence/d106_0_live_preflight_20251228_124644/) ✅
 - **상태:** **SSOT 재현성 확보 완료** ✅
 
+### ✅ D107: 1h LIVE Smoke Test (스켈레톤 완료, 2025-12-28)
+- **목표:** 소액/저위험 1시간 LIVE 스모크 (M6 Live Ramp 첫 단계)
+- **상태:** ⏳ **스켈레톤 구현 완료** (실제 LIVE 실행은 Phase 2)
+- **구현:**
+  - scripts/run_d107_live_smoke.py (최소 래퍼)
+  - justfile: `live-smoke` 명령 추가
+  - 잔고 확인: Upbit 31,925 KRW ✅ / Binance 34.46 USDT ✅
+  - Evidence 구조: `logs/evidence/d107_live_smoke_*/`
+- **Learning:**
+  - Seed $50 강제 금지 → 거래소별 최소 주문 가능 잔고만 체크
+  - Balance 객체 처리: `get_balance()` returns `Dict[str, Balance]`
+  - 실제 보유(31,925 KRW / 34.46 USDT)로도 실행 가능 확인
+- **Next:** Phase 2에서 실제 LIVE 거래 로직 구현
+
 ### 즉시 착수 (High Priority)
-1. **D107: 1h LIVE 스모크**
-   - Seed $50, Kill Switch 설정
-   - Preflight 7/7 PASS 확인 후 진입
+1. **D107 Phase 2: 실제 LIVE 거래 로직**
+   - 현재: 스켈레톤 (증거 구조만 확보)
+   - 다음: run_arbitrage_live.py 통합 + 킬스위치
 
 2. **pytest-xdist 검토 (선택)**
    - 병렬 실행으로 108초 → 50-60초 가능

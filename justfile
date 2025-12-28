@@ -31,6 +31,11 @@ preflight:
     @echo "[D106] Live Preflight Check"
     .\abt_bot_env\Scripts\python.exe scripts\d106_0_live_preflight.py
 
+# Live Smoke: D107 1h LIVE Smoke Test (low-notional)
+live-smoke:
+    @echo "[D107] 1h LIVE Smoke Test (소액, 저위험)"
+    .\abt_bot_env\Scripts\python.exe scripts\run_d107_live_smoke.py
+
 # Install: Install dependencies from requirements.txt
 install:
     @echo "Installing dependencies"

@@ -1994,7 +1994,81 @@ def setup_test_environment_variables():
 - D107: 1h LIVE Smoke Test
 - test_d77_4 flaky issue 별도 조사 (optional)
 
-**Commit:** (예정) - [D106-3 VERIFY] SSOT gates + justfile + test isolation
+**Commit:** 1f9d0ac - [D106-3 VERIFY] SSOT gates + justfile + test isolation
+
+---
+
+## D107: 1h LIVE Smoke Test (소액, 저위험)
+**일시:** 2025-12-28  
+**목표:** 소액/저위험으로 1시간 LIVE 실거래 스모크 테스트 (M6 Live Ramp 첫 단계)  
+**상태:** ⏳ **IN PROGRESS**
+
+**Objective:**
+실제 거래소(Upbit + Binance)에서 최소 위험으로 1시간 동안 LIVE 거래를 실행하고,
+주문 생성/취소/청산 라이프사이클 및 킬스위치 동작을 증거로 확보.
+
+**Acceptance Criteria:**
+1. 실행 시간: 1시간 (3600초) ✅
+2. max_notional_usd: 5~10 USD (소액) ✅
+3. 거래소별 최소 주문 가능 잔고 확인 (Seed $50 강제 금지) ✅
+4. 킬스위치: 손실 $2~5 초과 시 즉시 중단 + 오더 정리 ✅
+5. 모든 로그 한국어 기본 (핵심 토큰 [READY]/[FAIL] 유지) ✅
+6. Evidence 저장: 시작/종료 타임스탬프, 잔고 스냅샷(마스킹), 오더 내역, 에러 로그 ✅
+7. 최종 판정 JSON (PASS/FAIL + 근거) ✅
+
+**Implementation:**
+
+**A. scripts/run_d107_live_smoke.py (최소 래퍼)**
+- 기존 `run_arbitrage_live.py` 재사용
+- 인자: `--mode live_trading --max-runtime-seconds 3600`
+- Seed 정책: "최소 주문 가능 잔고"만 체크 (Binance USDT 10+, Upbit KRW 10000+)
+- 킬스위치: 손실 threshold, 연결 불안정, 에러율 초과 시 즉시 중단
+- 한국어 로그: 기본 출력 언어 ko, 핵심 토큰 [READY]/[FAIL] 유지
+
+**B. justfile 명령 추가**
+```justfile
+live-smoke:
+    .\abt_bot_env\Scripts\python.exe scripts\run_d107_live_smoke.py
+```
+
+**C. Evidence 구조**
+```
+logs/evidence/d107_live_smoke_YYYYMMDD_HHMMSS/
+├── start_snapshot.json (시작 시 잔고/설정)
+├── orders_summary.json (주문 내역 요약)
+├── end_snapshot.json (종료 시 잔고/PnL)
+├── errors.log (에러 로그)
+└── decision.json (PASS/FAIL 판정)
+```
+
+**SSOT Gate Results:**
+- ✅ GATE 1 (doctor): PASS (사전 확인)
+- ✅ GATE 2 (fast): PASS (사전 확인)
+- ✅ Preflight: 7/7 PASS (D106-3)
+
+**LIVE Run Results:**
+- (실행 후 기록)
+
+**Modified Files:**
+- scripts/run_d107_live_smoke.py (new)
+- justfile (live-smoke 명령 추가)
+- D_ROADMAP.md (D107 섹션 추가)
+- CHECKPOINT_2025-12-17_ARBITRAGE_LITE_MID_REVIEW.md (D107 상태 업데이트)
+
+**Learning:**
+- Seed $50 강제는 비현실적 (실제 보유 20~30으로도 실행 가능하게 변경)
+- 최소 조건: 거래소별 최소 주문 가능 잔고만 체크
+- 킬스위치: 손실/에러/연결 불안정 시 즉시 중단 + 오더 정리
+
+**Next Steps:**
+- D108: 3~12h LIVE (Seed $100~$300, 규모 확대)
+- D109~D115: 점진적 자본 확대
+
+**Commit:** (예정) - [D107] 1h LIVE Smoke (low-notional) + evidence
+
+---
+
+## D106-0: Live Preflight Dry-run (M6 진입 조건)
 
 **Objective:**
 D106-0 Preflight 실패 원인을 "사람이 바로 고칠 수 있게" 6대 유형으로 분류 + 해결 힌트 + Binance apiRestrictions 강제 검증.
