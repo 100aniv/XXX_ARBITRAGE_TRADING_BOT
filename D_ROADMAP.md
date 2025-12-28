@@ -2300,5 +2300,346 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
+## V2 아키텍처 전환 (D200~D206)
+
+**배경:** V1 arbitrage-lite는 D106-4.1 HOTFIX로 종료. V2는 Engine-Centric 아키텍처로 전면 재설계.
+
+**핵심 원칙:**
+- SSOT 강제 (도메인당 1개 SSOT, 중복/분기 금지)
+- READ_ONLY 기본 (실거래는 D206+ 이후 재검토)
+- Gate 100% PASS 필수 (doctor/fast/regression)
+- V1과 공존 (파괴적 이동/삭제 금지)
+
+---
+
+### D200: V2 Foundation (기초 확립)
+
+#### D200-0: V2 Kickoff ✅ DONE
+**상태:** DONE  
+**날짜:** 2025-12-29  
+**문서:** `docs/v2/SSOT_RULES.md`, `docs/v2/V2_ARCHITECTURE.md`, `docs/v1/README.md`
+
+**목표:**
+- V2 Engine-Centric 아키텍처 뼈대 구현
+- SSOT 문서 공간 확정 (docs/v2/)
+- OrderIntent/Adapter/Engine 최소 구현
+- Smoke Harness v2 (READ_ONLY)
+
+**AC (Acceptance Criteria):**
+- [x] SSOT_RULES.md 생성 (강제 규칙)
+- [x] V2_ARCHITECTURE.md 생성 (설계 계약)
+- [x] OrderIntent/Adapter/Engine 구현
+- [x] Smoke Harness 5/5 PASS
+- [x] Gate 100% PASS (doctor/fast/regression)
+
+**증거:**
+- 커밋: 594f799 (2025-12-29)
+- Smoke 결과: `logs/evidence/v2_smoke_20251229_001124/smoke_evidence.json`
+- 코드: `arbitrage/v2/core/`, `arbitrage/v2/adapters/`, `arbitrage/v2/harness/`
+
+---
+
+#### D200-1: V2 SSOT Rebuild ⏳ IN_PROGRESS
+**상태:** IN_PROGRESS  
+**날짜:** 2025-12-29  
+**문서:** `docs/v2/design/INFRA_REUSE_INVENTORY.md`, `docs/v2/design/SSOT_MAP.md`, `docs/v2/design/V2_MIGRATION_STRATEGY.md`
+
+**목표:**
+- SSOT 경계/파일 위치/로드맵/설정/인프라 재사용 확정
+- README 정리 (루트 README를 V2 프로젝트 설명으로 재작성)
+- Runtime Config SSOT 생성 (config/v2/config.yml)
+- 인프라 재사용 인벤토리 3종 생성
+
+**AC (Acceptance Criteria):**
+- [x] 프로젝트 스캔 + 중복 리포트 (567 폴더, 49 모듈)
+- [x] 인프라 인벤토리 3종 (INFRA/SSOT_MAP/MIGRATION)
+- [x] README 정리 (루트 README 새로 작성, 기존은 docs/v1/ 백업)
+- [x] Runtime Config SSOT (config/v2/config.yml + config.py)
+- [x] .env.v2.example 템플릿 생성
+- [ ] D_ROADMAP.md V2 섹션 상세 추가 (현재 작업 중)
+- [ ] Gate 100% PASS 검증
+- [ ] 커밋 + 푸시
+
+**증거:**
+- 스캔 리포트: `logs/evidence/v2_kickoff_scan_20251229_013151/`
+- 인벤토리: `docs/v2/design/` (3종 문서)
+- 설정: `config/v2/config.yml`, `arbitrage/v2/core/config.py`
+
+---
+
+#### D200-2: V2 Harness 표준화 + Evidence 포맷 SSOT
+**상태:** PLANNED  
+**문서:** (생성 예정) `docs/v2/design/HARNESS_STANDARD.md`
+
+**목표:**
+- Smoke/Paper 테스트 하네스 표준화
+- Evidence 저장 포맷 SSOT 확정
+- Preflight v2 테스트 생성
+
+**AC (Acceptance Criteria):**
+- [ ] Smoke/Paper Harness 인터페이스 통일
+- [ ] Evidence JSON schema 정의
+- [ ] Preflight v2 테스트 작성 (test_v2_preflight.py)
+- [ ] Gate 100% PASS
+
+**예상 산출물:**
+- `arbitrage/v2/harness/paper_runner.py`
+- `docs/v2/design/EVIDENCE_FORMAT.md`
+- `tests/test_v2_preflight.py`
+
+---
+
+### D201: Exchange Adapter v2 (거래소 연동)
+
+#### D201-1: OrderIntent/Adapter Contract Tests 100% PASS
+**상태:** PLANNED
+
+**목표:**
+- OrderIntent validation 테스트 작성
+- Adapter 인터페이스 contract 테스트 작성
+- Mock/Upbit Adapter 100% coverage
+
+**AC:**
+- [ ] test_v2_order_intent.py (validation 테스트)
+- [ ] test_v2_adapter_contract.py (인터페이스 테스트)
+- [ ] Mock/Upbit Adapter 100% PASS
+
+---
+
+#### D201-2: UpbitAdapter MARKET 규약 + Read-only Payload 검증
+**상태:** PLANNED
+
+**목표:**
+- UpbitAdapter 완성 (V1 upbit_spot.py 참조)
+- MARKET BUY/SELL payload 검증 100%
+- Read-only 모드 강제
+
+**AC:**
+- [ ] MARKET BUY: price (KRW 금액) 검증
+- [ ] MARKET SELL: volume (코인 수량) 검증
+- [ ] Symbol 변환 (BTC/KRW → KRW-BTC)
+- [ ] test_upbit_adapter.py 100% PASS
+
+---
+
+#### D201-3: BinanceAdapter MARKET 규약 + Read-only Payload 검증
+**상태:** PLANNED
+
+**목표:**
+- BinanceAdapter 구현 (V1 binance_futures.py 참조)
+- MARKET 주문 규약 (quantity 기반)
+- Read-only 모드 강제
+
+**AC:**
+- [ ] MARKET BUY/SELL: quantity 검증
+- [ ] Symbol 변환 (BTC/USDT)
+- [ ] test_binance_adapter.py 100% PASS
+
+---
+
+### D202: MarketData v2 (시장 데이터)
+
+#### D202-1: REST 최소 데이터 (호가/체결/티커) 표준 인터페이스
+**상태:** PLANNED
+
+**목표:**
+- REST API Provider 구현
+- Redis cache 통합 (TTL 100ms)
+- 멀티 거래소 지원
+
+**AC:**
+- [ ] RestProvider 인터페이스 정의
+- [ ] Upbit/Binance REST 구현
+- [ ] Redis cache 동작 확인
+- [ ] test_rest_provider.py 100% PASS
+
+---
+
+#### D202-2: WS(L2) 통합 + Reconnect/Health
+**상태:** PLANNED
+
+**목표:**
+- WebSocket Provider 구현
+- L2 orderbook 통합
+- Reconnect 로직 + health check
+
+**AC:**
+- [ ] WsProvider 인터페이스 정의
+- [ ] L2 orderbook parsing
+- [ ] Reconnect 자동화
+- [ ] test_ws_provider.py (연결/재연결 시나리오)
+
+---
+
+### D203: Opportunity Detector v2 (기회 탐지)
+
+#### D203-1: Fee/Slippage 포함 Break-even 공식 (문서+테스트)
+**상태:** PLANNED
+
+**목표:**
+- Break-even spread 계산 공식 정의
+- Fee model 분리
+- Config 기반 threshold 설정
+
+**AC:**
+- [ ] 공식 문서화 (docs/v2/design/FEE_MODEL.md)
+- [ ] OpportunityDetector 구현
+- [ ] test_opportunity_detector.py (수식 검증)
+
+---
+
+#### D203-2: Backtest/Paper Gate (20m→1h) 기준 정의
+**상태:** PLANNED
+
+**목표:**
+- Paper 테스트 duration 기준 정의
+- KPI 수집 표준화
+- Gate 조건 확정
+
+**AC:**
+- [ ] 20m/1h/3h duration 기준 문서화
+- [ ] KPI 수집 자동화
+- [ ] Gate 통과 조건 정의
+
+---
+
+### D204: Paper Execution Loop v2 (모의 실행)
+
+#### D204-1: TopN 20m Smoke (실데이터+Mock order)
+**상태:** PLANNED
+
+**목표:**
+- Top10 심볼 20분 smoke 테스트
+- 실시간 market data + Mock 주문
+- KPI 수집 (entry/exit/pnl)
+
+**AC:**
+- [ ] 20m smoke 완료
+- [ ] KPI JSON 생성
+- [ ] 0개 이상 거래 발생
+
+---
+
+#### D204-2: 1h Baseline
+**상태:** PLANNED
+
+**목표:**
+- 1시간 paper 테스트
+- 안정성 검증
+- PnL 추적
+
+**AC:**
+- [ ] 1h 무정지 실행
+- [ ] PnL 계산 정확성
+- [ ] Evidence 저장
+
+---
+
+#### D204-3: 3h/12h Longrun (중단 없는 자동 evidence)
+**상태:** PLANNED
+
+**목표:**
+- 장시간 안정성 검증
+- 자동 evidence 수집
+- 리소스 누수 확인
+
+**AC:**
+- [ ] 3h/12h 무정지 실행
+- [ ] 메모리/CPU 안정
+- [ ] Evidence 자동 저장
+
+---
+
+### D205: User-Facing Reporting (사용자 리포팅)
+
+#### D205-1: PnL SSOT Schema + Daily/Weekly/Monthly 리포트 생성
+**상태:** PLANNED
+
+**목표:**
+- PnL 데이터 schema 정의
+- PostgreSQL 저장
+- 리포트 자동 생성
+
+**AC:**
+- [ ] PnL schema (v2_pnl_daily, v2_pnl_weekly, v2_pnl_monthly)
+- [ ] 리포트 생성 자동화
+- [ ] CSV/JSON 출력
+
+---
+
+#### D205-2: 대시보드 (로컬 우선: Grafana/HTML/CLI 중 1개 선택) + API Read-only
+**상태:** PLANNED
+
+**목표:**
+- Grafana 대시보드 우선
+- V2 metrics 시각화
+- Read-only API (선택)
+
+**AC:**
+- [ ] Grafana dashboard `v2_overview.json`
+- [ ] Prometheus metrics 연동
+- [ ] (선택) FastAPI read-only endpoint
+
+---
+
+### D206: Ops/Deploy & Reuse Infra (운영/배포)
+
+#### D206-1: 기존 도커/모니터링 재사용 확정 (KEEP/DROP 반영)
+**상태:** PLANNED
+
+**목표:**
+- 인프라 재사용 인벤토리 실행
+- KEEP 항목 활성화
+- DROP 항목 비활성화
+
+**AC:**
+- [ ] infra/docker-compose.yml 업데이트
+- [ ] Prometheus/Grafana 설정
+- [ ] Exporter 활성화 결정
+
+---
+
+#### D206-2: 배포 패키징 (로컬 배포/업데이트/런북)
+**상태:** PLANNED
+
+**목표:**
+- 배포 스크립트 작성
+- 런북 문서화
+- 롤백 절차 정의
+
+**AC:**
+- [ ] 배포 스크립트 (scripts/deploy_v2.sh)
+- [ ] 런북 (docs/v2/RUNBOOK.md)
+- [ ] 롤백 절차 문서화
+
+---
+
+### LIVE Ramp (D207+) - 잠금 섹션
+
+**현재 상태:** 🔒 LOCKED  
+**조건:** D206 완료 + V2 아키텍처 검증 + 리스크 가드 재설계 후 재검토
+
+**원칙:**
+- V2에서 LIVE는 D206 완료 전까지 절대 금지
+- READ_ONLY 모드로만 개발
+- LIVE 준비 시 별도 D 번호 할당 (D207+)
+
+---
+
+## V2 마일스톤 요약
+
+| Phase | D 번호 | 상태 | 목표 |
+|-------|--------|------|------|
+| **Foundation** | D200 | 🔄 IN_PROGRESS | SSOT 확정 + Config + Infra 재사용 |
+| **Adapter** | D201 | ⏳ PLANNED | Upbit/Binance 구현 + Payload 검증 |
+| **MarketData** | D202 | ⏳ PLANNED | REST/WS 통합 + Cache |
+| **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
+| **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
+| **Reporting** | D205 | ⏳ PLANNED | PnL + Dashboard |
+| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
+| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
+
+---
+
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

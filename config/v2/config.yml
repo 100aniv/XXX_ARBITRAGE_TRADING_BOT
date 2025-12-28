@@ -1,0 +1,178 @@
+# V2 Runtime Config SSOT
+# ========================
+# 목적: 하드코딩/스크립트 파라미터 난립 차단
+# 규칙: Secrets(API Key)는 절대 여기 넣지 말고 .env.v2로만
+# 검증: arbitrage.v2.core.config.load_config()로 validation
+
+# 거래소 설정
+exchanges:
+  upbit:
+    name: "upbit"
+    enabled: true
+    
+    # 수수료 (%)
+    taker_fee_bps: 5.0  # 0.05%
+    maker_fee_bps: 5.0  # 0.05%
+    
+    # 최소 주문 금액 (KRW)
+    min_order_krw: 5000
+    
+    # MARKET 주문 규약
+    market_order_rules:
+      buy_uses: "quote_amount"   # MARKET BUY는 KRW 금액
+      sell_uses: "base_qty"      # MARKET SELL은 코인 수량
+    
+    # Rate Limit (미구현, 참조용)
+    rate_limit:
+      orders_per_second: 8
+      requests_per_second: 30
+  
+  binance:
+    name: "binance"
+    enabled: true
+    
+    # 수수료 (%)
+    taker_fee_bps: 4.0  # 0.04%
+    maker_fee_bps: 4.0  # 0.04%
+    
+    # 최소 주문 금액 (USDT)
+    min_notional_usdt: 10.0
+    
+    # MARKET 주문 규약
+    market_order_rules:
+      buy_uses: "quantity"   # MARKET BUY는 수량
+      sell_uses: "quantity"  # MARKET SELL도 수량
+    
+    # Rate Limit (미구현, 참조용)
+    rate_limit:
+      orders_per_second: 10
+      requests_per_second: 50
+
+# Universe (거래 대상)
+universe:
+  # Top N 심볼 선택 (거래량 기준)
+  symbols_top_n: 10
+  
+  # Allowlist (명시적 허용, 비어있으면 Top N 사용)
+  allowlist: []
+  # 예시:
+  # - "BTC/KRW"
+  # - "ETH/KRW"
+  
+  # Denylist (명시적 차단)
+  denylist:
+    - "DOGE/KRW"  # 변동성 과다
+    - "SHIB/KRW"  # 유동성 부족
+
+# Strategy (전략 파라미터)
+strategy:
+  # Threshold 계산식: break_even_spread = fee_a + fee_b + slippage + buffer
+  threshold:
+    # 수수료 (거래소 설정에서 자동 로드)
+    use_exchange_fees: true
+    
+    # Slippage 예상 (%)
+    slippage_bps: 5.0  # 0.05%
+    
+    # Buffer (안전 마진, %)
+    buffer_bps: 10.0   # 0.1%
+  
+  # Order Size Policy (주문 크기 결정)
+  order_size_policy:
+    # "fixed_quote": 고정 금액 (KRW/USDT)
+    # "risk_based": 리스크 기반 (max_position * risk_factor)
+    mode: "fixed_quote"
+    
+    # Fixed Quote 설정
+    fixed_quote:
+      upbit_krw: 5000     # 업비트 고정 주문 금액
+      binance_usdt: 10.0  # 바이낸스 고정 주문 금액
+
+# Execution (실행 설정)
+execution:
+  # Engine cycle 주기 (초)
+  cycle_interval_seconds: 1.0
+  
+  # 동시 실행 가능 주문 수
+  max_concurrent_orders: 1
+  
+  # Dry-run 모드 (실제 주문 없이 로그만)
+  dry_run: true
+
+# Safety (안전 장치)
+safety:
+  # 일일 최대 손실 (KRW)
+  max_daily_loss_krw: 100000  # 10만원
+  
+  # 최대 포지션 크기 (USD 기준)
+  max_position_usd: 1000.0
+  
+  # Cooldown (연속 손실 후 대기 시간, 초)
+  cooldown_after_loss_seconds: 300  # 5분
+  
+  # Emergency stop (즉시 중단 조건)
+  emergency_stop:
+    enabled: true
+    max_consecutive_losses: 3  # 연속 손실 3회 시 중단
+
+# Reporting (리포팅 설정)
+reporting:
+  # PnL 집계 윈도우
+  pnl_windows:
+    - "daily"
+    - "weekly"
+    - "monthly"
+  
+  # Snapshot 저장 경로
+  snapshot_path: "logs/evidence"
+  
+  # 리포트 생성 주기 (초, 0이면 비활성화)
+  report_interval_seconds: 3600  # 1시간마다
+
+# Monitoring (모니터링 설정)
+monitoring:
+  # Prometheus exporter 활성화
+  prometheus_enabled: false
+  
+  # Metrics 엔드포인트
+  metrics_endpoint: "0.0.0.0:9100"
+  
+  # Health check 주기 (초)
+  health_check_interval_seconds: 30
+
+# Logging (로깅 설정)
+logging:
+  # 로그 레벨 (DEBUG, INFO, WARNING, ERROR)
+  level: "INFO"
+  
+  # 로그 파일 경로
+  file_path: "logs/v2_engine.log"
+  
+  # 로그 rotation
+  rotation:
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+
+# Database (DB 설정, 미구현 시 null)
+database:
+  enabled: false
+  # 추후 구현 시:
+  # host: "localhost"
+  # port: 5432
+  # name: "arbitrage"
+  # 주의: user/password는 .env.v2에서만
+
+# Cache (캐시 설정)
+cache:
+  # Redis 사용 여부
+  redis_enabled: false
+  
+  # Market data cache TTL (밀리초)
+  market_data_ttl_ms: 100
+
+# 메타 정보
+meta:
+  version: "2.0.0"
+  config_name: "v2_baseline"
+  created_at: "2025-12-29"
+  description: "V2 Engine-Centric 기본 설정"

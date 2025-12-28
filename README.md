@@ -1,144 +1,301 @@
-# Arbitrage-Lite
+# XXX 차익거래 트레이딩 봇 V2
 
-**업비트–바이낸스 간 단일 전략 아비트라지 전용 봇**
+**업비트–바이낸스 간 암호화폐 차익거래 자동화 시스템 (V2 Engine-Centric 아키텍처)**
 
-## 프로젝트 개요
+---
 
-이 프로젝트는 업비트(현물)와 바이낸스(선물) 간 가격 스프레드를 기반으로 한 아비트라지 전략을 실행하는 **단일 전략 전용 봇**입니다.
+## 📋 프로젝트 소개
 
-- **목표**: 단순하고 명확한 구조로 MVP 수준의 거래/시뮬레이션 달성
-- **특징**: 
-  - 복잡한 플랫폼/프레임워크 구조 금지
-  - 기존 앙상블 트레이딩 봇의 Collector/Exchange 로직 재사용
-  - 나중에 앙상블 엔진에 전략 모듈로 포팅 가능한 최소 모듈화
+이 프로젝트는 업비트(현물)와 바이낸스(선물) 간 가격 차이를 이용한 **차익거래 자동화 봇**입니다.
 
-## 프로젝트 구조
+### 핵심 특징
 
-```
-arbitrage-lite/
-  README.md
-  requirements.txt
-  
-  config/
-    base.yml                  # 기본 설정 (거래소 URL, 심볼, 스프레드 임계값 등)
-    secrets.example.yml       # API 키 템플릿 (실제 키는 secrets.yml에 저장, .gitignore 처리)
-  
-  arbitrage/
-    __init__.py
-    models.py                 # 데이터 모델 (Ticker, SpreadOpportunity, Position 등)
-    collectors.py             # 기존 Collector/Exchange 코드 래핑 모듈
-    normalizer.py             # 업비트/바이낸스 시세 공통 포맷 변환
-    engine.py                 # 스프레드 계산 및 진입/청산 시그널 생성
-    risk.py                   # 리스크 관리 (노출 한도, 주문 금액 제한 등)
-    executor.py               # 주문 실행 인터페이스
-    storage.py                # 간단한 저장 계층 (CSV/JSON 기반)
-  
-  scripts/
-    run_collect_only.py       # 가격 수집 + 스프레드 계산만 출력 (MVP 1단계)
-    run_paper.py              # 가상 체결 모드 (PHASE A-3)
-    run_live.py               # 실거래 모드 (PHASE A-4)
-```
+- **V2 Engine-Centric 아키텍처**: OrderIntent → Adapter → Engine 표준 플로우
+- **READ_ONLY 기본**: 실거래 영구 차단, Mock/Paper 모드 우선
+- **SSOT 강제**: 단일 진실 공급원 원칙 (중복/분기 금지)
+- **Gate 검증**: doctor/fast/regression 100% PASS 필수
+- **인프라 재사용**: Docker/PostgreSQL/Redis/Prometheus/Grafana 즉시 활용
 
-## 설치 및 실행
+---
 
-### 1. Python 가상환경 설정
+## 🚀 빠른 시작 (Quickstart)
 
-**macOS/Linux:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+### 1. 환경 설정
 
-**Windows (PowerShell):**
+**Python 3.13.11 설치 확인:**
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+python --version  # 3.13.11 권장
+```
+
+**가상환경 생성 및 활성화:**
+```powershell
+cd c:\work\XXX_ARBITRAGE_TRADING_BOT
+python -m venv abt_bot_env
+.\abt_bot_env\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2. 설정 파일 구성
+### 2. Gate 검증 (개발 시작 전 필수)
 
-1. `config/secrets.example.yml`을 `config/secrets.yml`로 복사
-2. `secrets.yml`에 실제 API 키 입력
-3. `config/base.yml`에서 거래 설정 조정 (심볼, 스프레드 임계값, 주문 금액 등)
-
-**주의**: `secrets.yml`은 `.gitignore`에 등록하여 절대 커밋하지 마세요.
-
-### 3. 실행
-
-#### PHASE A-2 (MVP 1단계): 가격 수집 + 스프레드 계산
-```bash
-python scripts/run_collect_only.py
+**Doctor Gate (테스트 수집 확인):**
+```powershell
+.\abt_bot_env\Scripts\python.exe -m pytest --collect-only -q
 ```
 
-업비트와 바이낸스에서 현재가를 조회하고, 스프레드를 계산하여 콘솔에 출력합니다.
-
-#### PHASE A-3 (향후): Paper Trading
-```bash
-python scripts/run_paper.py
+**Fast Gate (핵심 테스트):**
+```powershell
+.\abt_bot_env\Scripts\python.exe -m pytest tests/test_d48_upbit_order_payload.py -v
 ```
 
-가상 체결 모드로 실제 주문 없이 거래 시뮬레이션을 수행합니다.
-
-#### PHASE A-4 (향후): Live Trading
-```bash
-python scripts/run_live.py
+**Regression Gate (전체 회귀 테스트):**
+```powershell
+.\abt_bot_env\Scripts\python.exe -m pytest tests/test_d98_preflight.py -v
 ```
 
-실제 API 키를 사용하여 실거래를 수행합니다. (주의: 실제 자금 사용)
+### 3. V2 Smoke Harness 실행
 
-## 기존 Collector 재사용 전략
+**V2 엔진 검증 (READ_ONLY 모드):**
+```powershell
+.\abt_bot_env\Scripts\python.exe -m arbitrage.v2.harness.smoke_runner
+```
 
-이 프로젝트는 **기존 앙상블 트레이딩 봇 프로젝트의 Collector/Exchange 모듈을 재사용**합니다.
+**출력 예시:**
+```
+[V2 Smoke] ✅ Mock MARKET BUY: mock-abc123
+[V2 Smoke] ✅ Mock MARKET SELL: mock-def456
+[V2 Smoke] ✅ Upbit MARKET BUY payload: {'market': 'KRW-BTC', 'side': 'buy', ...}
+[V2 Smoke] ✅ SMOKE TEST PASSED
+```
 
-- `arbitrage/collectors.py`는 기존 프로젝트의 Collector 코드를 thin wrapper로 감싸는 역할
-- HTTP 요청/서명 로직을 새로 작성하지 않고, 이미 검증된 코드를 이식
-- 인터페이스와 함수 시그니처를 먼저 정의하고, "기존 프로젝트의 XXX 함수를 붙여 넣는다"는 TODO 주석으로 명확히 표시
+---
 
-**작업 방식:**
-1. 현재는 인터페이스와 TODO만 정의
-2. 나중에 기존 앙상블 프로젝트에서 Collector 관련 코드 조각을 복사/이식
-3. 이식 위치와 방법은 코드 주석에 상세히 명시
+## 📂 프로젝트 구조 (V2 기준)
 
-## 개발 단계 (PHASE)
+```
+XXX_ARBITRAGE_TRADING_BOT/
+├── arbitrage/
+│   ├── v2/                          # ⭐ V2 코어 (Engine-Centric)
+│   │   ├── core/                    # 핵심 컴포넌트
+│   │   │   ├── order_intent.py     # OrderIntent, OrderSide, OrderType
+│   │   │   ├── adapter.py          # ExchangeAdapter 인터페이스
+│   │   │   ├── engine.py           # ArbitrageEngine (오케스트레이터)
+│   │   │   └── config.py           # V2 설정 로더 (신규 생성 예정)
+│   │   ├── adapters/                # 거래소 어댑터
+│   │   │   ├── mock_adapter.py     # Mock (테스트용)
+│   │   │   ├── upbit_adapter.py    # 업비트 구현
+│   │   │   └── binance_adapter.py  # 바이낸스 (생성 예정)
+│   │   └── harness/                 # 테스트 하네스
+│   │       └── smoke_runner.py     # Smoke 테스트 자동화
+│   └── (V1 legacy 코드...)         # V1 레거시 (참조용)
+├── config/
+│   └── v2/                          # ⭐ V2 설정 SSOT
+│       └── config.yml               # Runtime 설정 (생성 예정)
+├── docs/
+│   ├── D_ROADMAP.md                 # ⭐ 프로젝트 로드맵 SSOT
+│   ├── v2/                          # V2 문서 공간
+│   │   ├── SSOT_RULES.md           # V2 개발 규칙
+│   │   ├── V2_ARCHITECTURE.md      # 설계 계약
+│   │   └── design/                 # 설계 문서
+│   │       ├── INFRA_REUSE_INVENTORY.md
+│   │       ├── SSOT_MAP.md
+│   │       └── V2_MIGRATION_STRATEGY.md
+│   └── v1/                          # V1 레거시 문서
+├── infra/
+│   └── docker-compose.yml           # ⭐ 인프라 SSOT
+├── .env.v2.example                  # Secrets 템플릿 (생성 예정)
+└── README.md                        # 현재 문서
 
-### PHASE A-1: 프로젝트 스캐폴딩 ✅ (현재 단계)
-- 폴더 구조 생성
-- venv 설정 방법 문서화
-- config 스키마 설계
-- 데이터 모델 설계
-- 각 모듈의 책임 정의 및 TODO 작성
+⭐ = V2 SSOT (Single Source of Truth)
+```
 
-### PHASE A-2: Collector/Normalizer/Engine MVP
-- 실제 시세 1회 조회 기능 구현
-- 스프레드 계산 로직 구현
-- `run_collect_only.py` 스크립트 완성
+---
 
-### PHASE A-3: Paper 모드
-- 가상 체결 로직 추가
-- Position 관리 구현
-- `run_paper.py` 스크립트 완성
+## 📚 SSOT 문서 (반드시 읽기)
 
-### PHASE A-4: Live Executor 뼈대
-- 실거래 주문 실행 구조 구현
-- 리스크 관리 강화
-- `run_live.py` 스크립트 완성
+V2 개발 시 참조할 SSOT 문서:
 
-## 주의사항
+| 도메인 | SSOT 파일 | 역할 |
+|--------|-----------|------|
+| **프로세스** | `docs/D_ROADMAP.md` | 전체 로드맵 (D1~D206+) |
+| **개발 규칙** | `docs/v2/SSOT_RULES.md` | V2 강제 규칙 (Gate, 경로, 금지 사항) |
+| **아키텍처** | `docs/v2/V2_ARCHITECTURE.md` | Engine-Centric 설계 계약 |
+| **런타임 설정** | `config/v2/config.yml` | 거래소/전략/안전 설정 |
+| **Secrets** | `.env.v2.example` → `.env.v2` | API Keys (gitignore) |
+| **인프라** | `infra/docker-compose.yml` | Docker 서비스 정의 |
+| **테스트** | `pytest.ini` | pytest 설정 |
 
-- **단일 전략 전용**: 이 프로젝트는 여러 전략을 올리는 플랫폼이 아니라, 업비트-바이낸스 아비트라지만 수행하는 전용 봇입니다.
-- **최소 의존성**: 필요한 라이브러리만 사용하고, 추가 시 이유를 명시합니다.
-- **명확한 구조**: 복잡한 계층 구조 없이, 얕고 명확한 구조를 유지합니다.
+**중요:** SSOT는 도메인당 1개만 존재. 분기/중복 절대 금지.
 
-## TODO (향후 추가)
+---
 
-- [ ] WebSocket 기반 실시간 시세 수집 (현재는 REST API 폴링)
-  - 필요 시 `websockets` 또는 `websocket-client` 라이브러리 추가
-- [ ] SQLite/PostgreSQL 기반 저장 계층 (현재는 CSV/JSON)
-- [ ] 거래 내역 시각화 대시보드
-- [ ] Telegram/Discord 알림 봇 연동
+## 🎯 V2 핵심 개념
 
-## 라이선스
+### 1. Engine-Centric 플로우
 
-MIT License (또는 프로젝트에 맞는 라이선스 명시)
+```
+사용자 요청
+    ↓
+OrderIntent (Semantic Layer)
+    ↓
+ExchangeAdapter (Implementation Layer)
+    ↓
+거래소 API
+```
+
+### 2. MARKET 주문 규약
+
+- **MARKET BUY**: `quote_amount` 사용 (예: 5000 KRW)
+- **MARKET SELL**: `base_qty` 사용 (예: 0.001 BTC)
+- **검증**: OrderIntent.validate()로 강제
+
+### 3. READ_ONLY 원칙
+
+- 모든 Adapter는 `read_only=True` 기본값
+- 실거래는 D206+ 이후 재검토
+- Smoke/Paper는 Mock 또는 READ_ONLY 모드만
+
+---
+
+## 🛠️ 개발 워크플로우
+
+### 1. 코드 작성 전
+
+1. **SSOT 확인**: `docs/v2/SSOT_RULES.md` 읽기
+2. **아키텍처 계약**: `docs/v2/V2_ARCHITECTURE.md` 인터페이스 확인
+3. **로드맵 확인**: `docs/D_ROADMAP.md`에서 현재 Phase 확인
+
+### 2. 코드 작성
+
+```python
+# 올바른 import (V2)
+from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
+from arbitrage.v2.adapters import UpbitAdapter
+
+# 금지된 import (V1 직접 사용 금지)
+# from arbitrage.live_runner import ...  # ❌ 금지
+```
+
+### 3. 테스트 작성
+
+```powershell
+# V2 테스트 작성
+tests/test_v2_order_intent.py
+tests/test_v2_upbit_adapter.py
+
+# 실행
+pytest tests/test_v2_*.py -v
+```
+
+### 4. Gate 검증 (커밋 전 필수)
+
+```powershell
+# 순서대로 실행, 하나라도 FAIL 시 커밋 금지
+pytest --collect-only         # Doctor
+pytest tests/test_d48_*.py    # Fast
+pytest tests/test_d98_*.py    # Regression
+```
+
+### 5. 커밋 & 푸시
+
+```powershell
+git add .
+git commit -m "[D20X-Y] 작업 내용"
+git push origin rescue/d99_15_fullreg_zero_fail
+```
+
+---
+
+## 🐳 인프라 실행 (Docker)
+
+### PostgreSQL + Redis + Prometheus + Grafana 시작
+
+```powershell
+cd c:\work\XXX_ARBITRAGE_TRADING_BOT
+docker-compose -f infra/docker-compose.yml up -d postgres redis prometheus grafana
+```
+
+### 서비스 확인
+
+- **Adminer (DB 관리)**: http://localhost:8080
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (admin/admin)
+
+### 중지
+
+```powershell
+docker-compose -f infra/docker-compose.yml down
+```
+
+---
+
+## 📊 현재 상태 (2025-12-29 기준)
+
+### ✅ 완료 (D200-0)
+
+- V2 Kickoff 완료
+- SSOT 문서 3종 생성
+- OrderIntent/Adapter/Engine 구현
+- Smoke Harness 5/5 PASS
+- Gate 100% PASS
+
+### 🔄 진행 중 (D200-1)
+
+- Runtime Config SSOT 생성
+- .env.v2.example 템플릿 생성
+- 인프라 재사용 인벤토리 확정
+- README 정리
+
+### ⏳ 계획 (D201~D206)
+
+- D201: Adapter Contract Tests + Upbit/Binance 구현
+- D202: MarketData REST/WS 통합
+- D203: Opportunity Detector + Fee 모델
+- D204: Paper Execution (20m/1h/3h)
+- D205: PnL 리포트 + Grafana 대시보드
+- D206: Ops/Deploy + 배포 런북
+
+---
+
+## 🚨 금지 사항
+
+### ❌ 절대 금지
+
+1. **SSOT 분기**: D_ROADMAP_V2.md, SSOT_RULES_v2.md 등 생성 금지
+2. **V1 직접 import**: V2 코드에서 `from arbitrage.live_runner import ...` 금지
+3. **Secrets 커밋**: .env.v2를 Git에 절대 커밋 금지
+4. **파괴적 이동**: V1 코드 삭제/이동 금지 (V2와 공존)
+5. **Gate 무시**: doctor/fast/regression FAIL 상태로 커밋 금지
+
+### ⚠️ 주의 사항
+
+- 환경 변수는 `.env.v2`에만 (config.yml에 Secrets 저장 금지)
+- 새 파라미터 추가 시 `config/v2/config.yml` + dataclass 동시 수정
+- 인터페이스 변경 시 `V2_ARCHITECTURE.md` 먼저 수정 후 코드 동기화
+
+---
+
+## 🔗 주요 링크
+
+- **GitHub 저장소**: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT
+- **로드맵**: `docs/D_ROADMAP.md`
+- **V2 규칙**: `docs/v2/SSOT_RULES.md`
+- **V2 아키텍처**: `docs/v2/V2_ARCHITECTURE.md`
+- **V1 문서**: `docs/v1/README.md`
+
+---
+
+## 📞 문의 & 기여
+
+- 이슈: GitHub Issues
+- 커밋 컨벤션: `[D번호] 작업 내용`
+- 코드 리뷰: SSOT 규칙 준수 확인 필수
+
+---
+
+## 📜 라이선스
+
+MIT License
+
+---
+
+**V2는 Engine-Centric, SSOT 강제, READ_ONLY 기본, Gate 100% PASS 필수.** 🚀
