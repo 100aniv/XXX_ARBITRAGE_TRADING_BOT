@@ -14,11 +14,13 @@ import logging
 import time
 import os
 from typing import Dict, List, Optional, Any
-import requests
+import time
 import hmac
 import hashlib
 import uuid
 import json
+import jwt
+import requests
 from urllib.parse import urlencode
 
 from arbitrage.exchanges.base import (
@@ -203,23 +205,15 @@ class UpbitSpotExchange(BaseExchange):
             raise AuthenticationError("Upbit API key/secret not configured")
         
         try:
-            # Upbit API 인증 헤더 생성
-            nonce = str(uuid.uuid4())
-            timestamp = str(int(time.time() * 1000))
-            
-            # 요청 서명
-            message = f"{nonce}{timestamp}"
-            signature = hmac.new(
-                self.api_secret.encode(),
-                message.encode(),
-                hashlib.sha256
-            ).hexdigest()
+            # Upbit API 인증 헤더 생성 (D106-3: JWT 표준 사용)
+            payload = {
+                'access_key': self.api_key,
+                'nonce': str(uuid.uuid4()),
+            }
+            jwt_token = jwt.encode(payload, self.api_secret, algorithm='HS256')
             
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "X-Nonce": nonce,
-                "X-Timestamp": timestamp,
-                "X-Signature": signature,
+                "Authorization": f"Bearer {jwt_token}",
             }
             
             url = f"{self.base_url}/v1/accounts"
@@ -335,23 +329,17 @@ class UpbitSpotExchange(BaseExchange):
             # None 값 제거
             params = {k: v for k, v in params.items() if v is not None}
             
-            # 인증 헤더 생성
-            nonce = str(uuid.uuid4())
-            timestamp = str(int(time.time() * 1000))
+            # 인증 헤더 생성 (D106-3: JWT 표준 사용)
             query_string = urlencode(params)
-            message = f"{nonce}{timestamp}{query_string}"
-            
-            signature = hmac.new(
-                self.api_secret.encode(),
-                message.encode(),
-                hashlib.sha256
-            ).hexdigest()
+            payload = {
+                'access_key': self.api_key,
+                'nonce': str(uuid.uuid4()),
+                'query': query_string,
+            }
+            jwt_token = jwt.encode(payload, self.api_secret, algorithm='HS256')
             
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "X-Nonce": nonce,
-                "X-Timestamp": timestamp,
-                "X-Signature": signature,
+                "Authorization": f"Bearer {jwt_token}",
             }
             
             # HTTP 요청 (레이트리밋/재시도 포함)
@@ -442,25 +430,40 @@ class UpbitSpotExchange(BaseExchange):
             # Upbit API 요청 구성
             url = f"{self.base_url}/v1/orders/{order_id}"
             
-            # 인증 헤더 생성
-            nonce = str(uuid.uuid4())
-            timestamp = str(int(time.time() * 1000))
-            message = f"{nonce}{timestamp}"
+            try:
+                # Upbit API 인증 헤더 생성 (D106-3: JWT 표준 사용)
+                payload = {
+                    'access_key': self.api_key,
+                    'nonce': str(uuid.uuid4()),
+                }
+                jwt_token = jwt.encode(payload, self.api_secret, algorithm='HS256')
+                
+                # DEBUG: JWT 토큰 확인
+                logger.debug(f"[D106-3] JWT payload: {payload}")
+                logger.debug(f"[D106-3] JWT token (first 50 chars): {jwt_token[:50]}")
+                
+                headers = {
+                    "Authorization": f"Bearer {jwt_token}",
+                }
+                
+                # HTTP 요청 (레이트리밋/재시도 포함)
+                response = self.http_client.delete(
+                    url,
+                    headers=headers,
+                    timeout=self.timeout,
+                )
+                
+                response.raise_for_status()
+                
+                logger.info(f"[D48_UPBIT] Order cancelled: {order_id}")
+                return True
             
-            signature = hmac.new(
-                self.api_secret.encode(),
-                message.encode(),
-                hashlib.sha256
-            ).hexdigest()
-            
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "X-Nonce": nonce,
-                "X-Timestamp": timestamp,
-                "X-Signature": signature,
-            }
-            
-            # HTTP 요청 (레이트리밋/재시도 포함)
+            except requests.RequestException as e:
+                logger.error(f"[D48_UPBIT] Network error: {e}")
+                raise NetworkError(f"Upbit API request failed: {e}")
+            except (KeyError, ValueError, json.JSONDecodeError) as e:
+                logger.error(f"[D48_UPBIT] Parse error: {e}")
+                raise NetworkError(f"Upbit API response parse failed: {e}")
             response = self.http_client.delete(
                 url,
                 headers=headers,

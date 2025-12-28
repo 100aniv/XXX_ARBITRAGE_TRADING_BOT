@@ -1795,7 +1795,99 @@ def get_public_ip() -> Optional[str]:
 - Upbit API 키 재발급 또는 유효성 확인
 - D107: 1h LIVE smoke (Seed $50, Kill Switch)
 
-**Commit:** (예정) - [D106-2] Deterministic env loading + 401 root-cause instrumentation
+**Commit:** `4117696` - [D106-2] Deterministic env loading + 401 root-cause instrumentation
+
+---
+
+## D106-3: Upbit JWT 인증 수정 + 7/7 PASS 달성
+**일시:** 2025-12-28  
+**목표:** Upbit API JWT 표준 인증 적용 + Preflight 7/7 PASS 완료  
+**상태:** ✅ **COMPLETE**
+
+**Objective:**
+D106-2에서 `error.name` 파싱 로직은 작성했으나 Upbit 연결이 실패하는 문제 해결. 원인은 `arbitrage/exchanges/upbit_spot.py`의 커스텀 HMAC 인증이 Upbit API JWT 표준과 불일치했기 때문. PyJWT 라이브러리로 전환하여 7/7 PASS 달성.
+
+**Acceptance Criteria:**
+1. Upbit API 인증을 PyJWT 표준으로 수정 ✅
+2. Preflight 7/7 PASS (Upbit + Binance 모두 성공) ✅
+3. Evidence에 모든 체크 PASS 기록 ✅
+4. 문서 동기화 (ROADMAP/CHECKPOINT) + Git 커밋/푸시 ⏳
+
+**Root Cause Analysis:**
+- **문제:** `arbitrage/exchanges/upbit_spot.py`가 커스텀 HMAC 서명 사용 → Upbit API 401 Unauthorized
+- **원인:** Upbit API는 **JWT (RFC 7519)** 표준 요구, 커스텀 `X-Nonce` + `X-Signature` 헤더는 미지원
+- **증거:** 
+  - `test_upbit.py` (PyJWT 사용): ✅ 200 OK
+  - `upbit_spot.py` (커스텀 HMAC): ❌ 401 Unauthorized, `invalid_jwt`
+
+**Implementation:**
+
+**A. PyJWT 라이브러리 설치**
+```bash
+pip install PyJWT
+```
+
+**B. upbit_spot.py 수정 (Lines 22, 208-217, 340-351, 441-450)**
+```python
+import jwt  # 추가
+
+# get_balance() - 기존
+headers = {
+    "Authorization": f"Bearer {self.api_key}",  # 틀림
+    "X-Nonce": nonce,
+    "X-Signature": signature,
+}
+
+# get_balance() - 수정 후
+payload = {
+    'access_key': self.api_key,
+    'nonce': str(uuid.uuid4()),
+}
+jwt_token = jwt.encode(payload, self.api_secret, algorithm='HS256')
+
+headers = {
+    "Authorization": f"Bearer {jwt_token}",  # JWT 토큰
+}
+```
+
+**C. create_order() / cancel_order() 동일 수정**
+- `create_order()`: query string을 JWT payload에 포함
+- `cancel_order()`: 단순 JWT 토큰 생성
+
+**Modified Files:**
+1. `arbitrage/exchanges/upbit_spot.py` (517 → 528 lines, +11 lines)
+   - Line 22: `import jwt` 추가
+   - Line 23: `import requests` 추가
+   - Lines 208-217: `get_balance()` JWT 인증
+   - Lines 340-351: `create_order()` JWT 인증
+   - Lines 441-450: `cancel_order()` JWT 인증
+
+**Evidence:** (최종)
+- `logs/evidence/d106_0_live_preflight_20251228_114320/`
+- **Preflight: 7/7 PASS** ✅
+  - ✅ ENV_FILE_LOAD (conflicts_detected: false)
+  - ✅ REQUIRED_KEYS (placeholder 없음)
+  - ✅ READONLY_MODE (주문 차단)
+  - ✅ **UPBIT_CONNECTION** (JWT 인증 성공)
+  - ✅ BINANCE_CONNECTION (PASS + apiRestrictions PASS)
+  - ✅ POSTGRES_CONNECTION
+  - ✅ REDIS_CONNECTION
+
+**Upbit API 키 변경 이력:**
+1. 첫 번째 키 (`dH36fDPa...`): 403 Forbidden, `out_of_scope` (자산조회 권한 OFF)
+2. 두 번째 키 (`y7kpQsmk...`): ✅ 200 OK (자산조회 권한 ON)
+
+**Learning:**
+- Upbit API는 JWT 표준 (RFC 7519) 필수. 커스텀 HMAC 서명은 `invalid_jwt` 에러
+- PyJWT 라이브러리 사용으로 표준 준수
+- `test_upbit.py`로 API 키 직접 테스트 → Exchange 클래스 디버깅 효과적
+- 가상환경 활성화 필수 (`abt_bot_env\Scripts\python.exe`)
+
+**Next Steps:**
+- D107: 1h LIVE Smoke Test (Seed $50, Kill Switch)
+- 현재 상태: **READY FOR LIVE** ✅
+
+**Commit:** (예정) - [D106-3] Upbit JWT auth + 7/7 PASS
 
 **Objective:**
 D106-0 Preflight 실패 원인을 "사람이 바로 고칠 수 있게" 6대 유형으로 분류 + 해결 힌트 + Binance apiRestrictions 강제 검증.

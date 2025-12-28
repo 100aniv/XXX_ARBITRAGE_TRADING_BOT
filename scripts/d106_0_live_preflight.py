@@ -426,21 +426,60 @@ class D106LivePreflightChecker:
                 }
             )
         except Exception as e:
-            # D106-2: 에러 원인 분류 + 401 분해 강화
+            # D106-3: Upbit 에러 바디 파싱 강화 (error.name 추출)
             error_msg = str(e)
             status_code = None
-            exchange_error_code = None
+            upbit_error_name = None
+            upbit_error_message = None
+            body_text = None
             
-            # HTTP status code 추출
-            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+            # HTTP status code + body 추출 (NetworkError 래핑 대응)
+            original_exc = e.__cause__ or e.__context__ or e
+            
+            if hasattr(original_exc, 'response') and hasattr(original_exc.response, 'status_code'):
+                status_code = original_exc.response.status_code
+                try:
+                    body_text = original_exc.response.text[:2048]  # 2KB까지만
+                    # Upbit JSON 파싱: {"error":{"name":"...","message":"..."}}
+                    resp_json = json.loads(body_text)
+                    if "error" in resp_json:
+                        upbit_error_name = resp_json["error"].get("name")
+                        upbit_error_message = resp_json["error"].get("message")
+                except:
+                    pass
+            elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
                 status_code = e.response.status_code
+                try:
+                    body_text = e.response.text[:2048]
+                    resp_json = json.loads(body_text)
+                    if "error" in resp_json:
+                        upbit_error_name = resp_json["error"].get("name")
+                        upbit_error_message = resp_json["error"].get("message")
+                except:
+                    pass
             elif "401" in error_msg:
                 status_code = 401
             elif "403" in error_msg:
                 status_code = 403
             
-            error_type = classify_api_error(e, error_msg, status_code)
-            error_hint = get_error_hint(error_type, "upbit")
+            # D106-3: Upbit 401 정확 분류
+            if status_code == 401 and upbit_error_name:
+                if upbit_error_name == "expired_access_key":
+                    error_type_str = "expired_access_key"
+                    error_hint = "[해결] Upbit API 키 만료\n  - Open API 관리에서 키 재발급\n  - 기존 키 삭제 후 신규 발급 권장"
+                elif upbit_error_name == "jwt_verification":
+                    error_type_str = "jwt_verification"
+                    error_hint = "[해결] Upbit JWT 서명 검증 실패\n  - Secret Key 오류 (복사/붙여넣기 확인)\n  - API 키 재발급 시도"
+                elif upbit_error_name == "invalid_query_payload":
+                    error_type_str = "invalid_query_payload"
+                    error_hint = "[해결] Upbit 요청 파라미터 오류\n  - 쿼리 스트링 포맷 확인\n  - nonce/timestamp 중복 확인"
+                else:
+                    error_type_str = "unauthorized_unknown"
+                    error_hint = f"[해결] Upbit 인증 실패 ({upbit_error_name})\n  - API 키/시크릿/IP/권한 재확인\n  - Upbit 고객센터 문의"
+            else:
+                error_type = classify_api_error(e, error_msg, status_code)
+                error_type_str = error_type.value
+                error_hint = get_error_hint(error_type, "upbit")
             
             # D106-2: 공인 IP 정보 포함
             public_ip = get_public_ip()
@@ -451,18 +490,23 @@ class D106LivePreflightChecker:
                 message=f"Upbit connection failed: {error_msg[:200]}",
                 details={
                     "error": error_msg[:500],
-                    "error_type": error_type.value,
+                    "error_type": error_type_str,
                     "error_hint": error_hint,
                     "next_action": "위 [해결] 가이드를 따라 Upbit Open API 설정 확인",
                     "http_status_code": status_code,
+                    "upbit_error_name": upbit_error_name,
+                    "upbit_error_message": upbit_error_message,
+                    "body_text": body_text[:500] if body_text else None,
                     "public_ip": public_ip,
                     "env_conflicts": ENV_CONFLICTS["detected"]
                 }
             )
             print(f"\n[Upbit 연결 실패]")
-            print(f"원인 유형: {error_type.value}")
+            print(f"원인 유형: {error_type_str}")
             if status_code:
                 print(f"HTTP Status: {status_code}")
+            if upbit_error_name:
+                print(f"Upbit Error Name: {upbit_error_name}")
             if public_ip:
                 print(f"현재 공인 IP: {public_ip}")
             print(error_hint)
