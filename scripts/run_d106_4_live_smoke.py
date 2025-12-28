@@ -63,26 +63,32 @@ def get_safe_test_symbol(exchange_a) -> Optional[str]:
     """
     try:
         balances = exchange_a.get_balance()
-        held_symbols = [sym for sym in balances.keys() if balances[sym].total > 0]
+        
+        # 보유 심볼 필터링 (KRW 제외 + threshold 적용)
+        held_symbols = set()
+        for sym, bal in balances.items():
+            if sym != "KRW" and bal.total > 0.00000001:  # dust 무시
+                held_symbols.add(sym)
+                logger.info(f"[D106-4] 보유 심볼: {sym} (잔고: {bal.total:.8f})")
         
         # 보호 대상 확인
         for sym in PROTECTED_SYMBOLS:
             if sym in held_symbols:
-                logger.info(f"[D106-4] 보호 대상 심볼: {sym} (잔고: {balances[sym].total:.8f})")
+                logger.warning(f"[D106-4] 보호 대상 심볼: {sym} (거래 금지)")
         
-        # 테스트 후보
-        candidates = ["BTC", "ETH", "ADA"]
+        # 테스트 후보 (보유 가능성 낮은 중소형 코인 우선)
+        candidates = ["SOL", "XRP", "AVAX", "MATIC", "DOT", "ADA", "ETH", "BTC"]
         
         for sym in candidates:
             if sym not in held_symbols and sym not in PROTECTED_SYMBOLS:
                 logger.info(f"[D106-4] ✅ 테스트 심볼 선택: KRW-{sym} (보유 없음)")
                 return f"KRW-{sym}"
         
-        logger.error(f"[D106-4] ❌ 안전한 테스트 심볼 없음 (모두 보유 중)")
+        logger.error(f"[D106-4] ❌ 안전한 테스트 심볼 없음 (모두 보유 중: {held_symbols})")
         return None
     
     except Exception as e:
-        logger.error(f"[D106-4] 심볼 선택 실패: {e}")
+        logger.error(f"[D106-4] 심볼 선택 실패: {e}", exc_info=True)
         return None
 
 
@@ -438,8 +444,8 @@ def main():
     parser.add_argument(
         "--order-krw",
         type=float,
-        default=10000.0,
-        help="주문 금액 (KRW, 기본값: 10000)",
+        default=15000.0,
+        help="주문 금액 (KRW, 기본값: 15000)",
     )
     
     parser.add_argument(
