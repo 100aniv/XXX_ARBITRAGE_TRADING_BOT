@@ -8,6 +8,8 @@
 ## 📜 SSOT 원칙
 
 1. **1 도메인 = 1 SSOT**: 같은 정보를 여러 곳에 중복 저장 금지
+   - **예외:** `.windsurfrule`에는 Step0 부트스트랩(읽을 문서/순서/충돌 시 중단)만 허용
+   - 나머지 SSOT 정의/상세는 `SSOT_MAP.md`, `SSOT_RULES.md`가 유일 SSOT
 2. **SSOT 변경 시 전파**: SSOT 수정 후 참조 문서 동기화 필수
 3. **SSOT 위치 명확화**: 모든 팀원이 SSOT 위치를 알아야 함
 4. **SSOT 검증**: Gate 테스트로 SSOT 정합성 검증

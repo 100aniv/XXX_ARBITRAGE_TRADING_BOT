@@ -4,6 +4,42 @@
 
 ---
 
+## [BOOTSTRAP] 부트스트랩 강제 규칙 (모든 작업 시작 시 필수)
+
+**매 D 작업 시작 시 아래 4개 SSOT 문서를 반드시 먼저 열고 확인:**
+
+1. **docs/v2/SSOT_RULES.md** (개발 규칙 SSOT)
+   - 경로: docs/v2/SSOT_RULES.md
+   - 역할: V2 강제 규칙, 금지 사항, 경로 규칙
+   - 확인: 현재 작업이 금지 사항과 충돌하는지 체크
+
+2. **docs/v2/V2_ARCHITECTURE.md** (아키텍처 계약 SSOT)
+   - 경로: docs/v2/V2_ARCHITECTURE.md
+   - 역할: Engine-Centric 설계, OrderIntent 규약, Adapter 패턴
+   - 확인: 구현 방향이 아키텍처와 일치하는지 체크
+
+3. **D_ROADMAP.md** (프로세스 SSOT)
+   - 경로: D_ROADMAP.md (루트, docs/ 아님)
+   - 역할: 전체 로드맵, D 번호 정의, AC/증거 경로
+   - 확인: 현재 D와 다음 D가 로드맵과 일치하는지 체크
+
+4. **docs/v2/design/SSOT_MAP.md** (SSOT 맵 SSOT)
+   - 경로: docs/v2/design/SSOT_MAP.md
+   - 역할: 도메인별 SSOT 위치, 중복 금지 규칙
+   - 확인: 신규 파일/설정이 SSOT_MAP의 도메인과 일치하는지 체크
+
+**충돌 발견 시 절차:**
+1. 문서 4개의 불일치 부분을 특정
+2. 코드 작업 금지 (문서 정합 우선)
+3. 불일치 수정 → Gate 검증 → 커밋 후에만 다음 단계 진행
+
+**주의:**
+- .windsurfrule은 링크/순서 강제만 함 (SSOT 정의 복붙 금지)
+- 각 SSOT의 상세 정의는 해당 문서에서만 관리
+- 변경 시 "4개 문서 간 일관성" 검증 필수
+
+---
+
 ## 0) 절대 규칙 (Non-Negotiable)
 - (SSOT) D 번호 체계만 사용. PHASE 표기 혼용 금지. 다음 단계 번호는 D_ROADMAP에 있는 것만 사용(임의로 늘리지 말 것).
 - (무스킵) "시간 오래걸리니 스킵" 금지. “선택적/DEFERRED” 표기 금지(승인 없는 미룸 금지).
