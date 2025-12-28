@@ -318,13 +318,33 @@ class UpbitSpotExchange(BaseExchange):
             ord_type_str = "limit" if order_type == OrderType.LIMIT else "market"
             side_str = "bid" if side == OrderSide.BUY else "ask"
             
-            params = {
-                "market": symbol,
-                "side": side_str,
-                "volume": str(qty),
-                "price": str(int(price)) if price else None,
-                "ord_type": ord_type_str,
-            }
+            # D106-4.1: MARKET 주문 타입별 파라미터 분기
+            if order_type == OrderType.MARKET:
+                if side == OrderSide.BUY:
+                    # 시장가 매수: price=KRW금액 (volume 없음)
+                    params = {
+                        "market": symbol,
+                        "side": side_str,
+                        "price": str(int(price)) if price else None,
+                        "ord_type": ord_type_str,
+                    }
+                else:
+                    # 시장가 매도: volume=수량 (price 없음)
+                    params = {
+                        "market": symbol,
+                        "side": side_str,
+                        "volume": str(qty),
+                        "ord_type": ord_type_str,
+                    }
+            else:
+                # 지정가 주문: volume + price 모두 필요
+                params = {
+                    "market": symbol,
+                    "side": side_str,
+                    "volume": str(qty),
+                    "price": str(int(price)) if price else None,
+                    "ord_type": ord_type_str,
+                }
             
             # None 값 제거
             params = {k: v for k, v in params.items() if v is not None}

@@ -266,26 +266,22 @@ def execute_real_trade(
         mid_price = (best_ask + best_bid) / 2.0
         logger.info(f"[D106-4] 호가: ask={best_ask:.0f}, bid={best_bid:.0f}, mid={mid_price:.0f}")
         
-        # 2. 시장가 매수 (Upbit: LIMIT 주문, ask*1.05로 즉시 체결)
-        buy_price = int(best_ask * 1.05)  # 5% 프리미엄
-        buy_qty_target = order_krw / buy_price
-        buy_qty = round(buy_qty_target, 8)
-        
-        logger.info(f"[D106-4] Step 2) 시장가 매수: {buy_qty:.8f} @ {buy_price} KRW")
+        # 2. 시장가 매수 (D106-4.1: MARKET 타입, price=KRW금액)
+        logger.info(f"[D106-4] Step 2) 시장가 매수: {order_krw:.0f} KRW (MARKET BUY)")
         
         buy_order = exchange_a.create_order(
             symbol=symbol,
             side=OrderSide.BUY,
-            qty=buy_qty,
-            price=buy_price,
-            order_type=OrderType.LIMIT,  # Upbit 시장가는 LIMIT으로 구현
+            qty=0,  # MARKET 매수는 qty 무시
+            price=order_krw,  # KRW 금액
+            order_type=OrderType.MARKET,
         )
         
         order_log.append({
             "action": "BUY",
             "order_id": buy_order.order_id,
-            "qty": buy_qty,
-            "price": buy_price,
+            "qty": "MARKET",  # 체결 후 확정
+            "price": order_krw,  # KRW 금액
             "timestamp": datetime.now().isoformat(),
         })
         
@@ -323,33 +319,32 @@ def execute_real_trade(
         result["buy_qty"] = buy_filled_qty
         logger.info(f"[D106-4] 매수 완료: {buy_filled_qty:.8f}")
         
-        # 4. 시장가 매도 (Upbit: LIMIT 주문, bid*0.95로 즉시 체결)
-        sell_price = int(best_bid * 0.95)  # 5% 할인
-        sell_qty = round(buy_filled_qty, 8)
+        # 4. 시장가 매도 (D106-4.1: MARKET 타입, volume=체결수량)
+        sell_qty = buy_filled_qty
         
-        # 최소 주문 금액 체크 (5,000 KRW)
-        sell_total_krw = sell_price * sell_qty
-        if sell_total_krw < 5000.0:
-            logger.error(f"[D106-4] ❌ 매도 금액 미달: {sell_total_krw:.0f} < 5,000 KRW")
+        # 최소 주문 금액 체크 (5,000 KRW, 대략 추정)
+        estimated_krw = sell_qty * mid_price
+        if estimated_krw < 5000.0:
+            logger.error(f"[D106-4] ❌ 매도 금액 미달 (추정): {estimated_krw:.0f} < 5,000 KRW")
             result["error"] = "sell_min_notional"
-            result["detail"] = f"매도 금액 미달 ({sell_total_krw:.0f} < 5,000 KRW)"
+            result["detail"] = f"매도 금액 미달 (추정 {estimated_krw:.0f} < 5,000 KRW)"
             return result
         
-        logger.info(f"[D106-4] Step 4) 시장가 매도: {sell_qty:.8f} @ {sell_price} KRW (total: {sell_total_krw:.0f} KRW)")
+        logger.info(f"[D106-4] Step 4) 시장가 매도: {sell_qty:.8f} (MARKET SELL, 추정 {estimated_krw:.0f} KRW)")
         
         sell_order = exchange_a.create_order(
             symbol=symbol,
             side=OrderSide.SELL,
             qty=sell_qty,
-            price=sell_price,
-            order_type=OrderType.LIMIT,
+            price=None,  # MARKET 매도는 price 무시
+            order_type=OrderType.MARKET,
         )
         
         order_log.append({
             "action": "SELL",
             "order_id": sell_order.order_id,
             "qty": sell_qty,
-            "price": sell_price,
+            "price": "MARKET",  # 시장가 매도
             "timestamp": datetime.now().isoformat(),
         })
         
@@ -484,17 +479,21 @@ def main():
     logger.info(f"[D106-4] 최대 시도: {args.max_attempts}회")
     logger.info("="*60)
     
+    # D106-4.1: READ_ONLY 가드 (영구 차단, 실거래 금지)
+    read_only_enforced = os.getenv("READ_ONLY_ENFORCED", "true").lower()
+    if read_only_enforced in ["true", "1", "yes"]:
+        logger.error("[D106-4] ❌ READ_ONLY_ENFORCED=true (실거래 차단)")
+        logger.error("[D106-4] 이 스크립트는 코드 검증용이며, 실거래는 금지됩니다.")
+        logger.error("[D106-4] D106-4.1은 'adapter MARKET 지원 구현'이 목표입니다.")
+        return 0  # 정상 종료 (실거래 차단은 성공)
+    
     # 안전 플래그 체크 (2중)
     if not args.enable_live or not args.i_understand_live_trading:
         logger.error("[D106-4] ❌ 안전 플래그 미설정")
         logger.error("[D106-4] --enable-live --i-understand-live-trading 필수")
         return 1
     
-    # READ_ONLY 프로세스 내부에서만 해제
-    logger.info("[D106-4] ⚠️  READ_ONLY 프로세스 내부 해제")
-    os.environ["READ_ONLY_ENFORCED"] = "false"
-    
-    logger.info("[D106-4] ✅ 안전 플래그 확인 완료")
+    logger.info("[D106-4] ⚠️  경고: READ_ONLY_ENFORCED=false 감지")
     logger.info("[D106-4] ⚠️  주의: 실제 자금이 사용됩니다!")
     logger.info("="*60)
     

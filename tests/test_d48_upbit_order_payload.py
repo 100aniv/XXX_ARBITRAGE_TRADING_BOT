@@ -255,14 +255,14 @@ class TestD48UpbitOrderPayload:
             )
 
     @patch('arbitrage.exchanges.upbit_spot.HTTPClient.post')
-    def test_upbit_create_order_market_type(self, mock_post):
-        """시장가 주문 (MARKET 타입)"""
+    def test_upbit_create_order_market_buy(self, mock_post):
+        """시장가 매수 (D106-4.1: price=KRW금액, volume 없음)"""
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {
             "uuid": "order_123",
             "state": "wait",
-            "executed_volume": 0.0,
+            "executed_volume": 0.01,
         }
         mock_post.return_value = mock_response
         
@@ -277,7 +277,8 @@ class TestD48UpbitOrderPayload:
         exchange.create_order(
             symbol="KRW-BTC",
             side=OrderSide.BUY,
-            qty=0.01,
+            qty=0,  # MARKET 매수는 qty 무시
+            price=15000.0,  # KRW 금액
             order_type=OrderType.MARKET,
         )
         
@@ -286,4 +287,43 @@ class TestD48UpbitOrderPayload:
         params = call_kwargs["params"]
         
         assert params["ord_type"] == "market"
-        assert "price" not in params  # 시장가는 가격 없음
+        assert params["side"] == "bid"
+        assert params["price"] == "15000"  # KRW 금액
+        assert "volume" not in params  # MARKET BUY는 volume 없음
+
+    @patch('arbitrage.exchanges.upbit_spot.HTTPClient.post')
+    def test_upbit_create_order_market_sell(self, mock_post):
+        """시장가 매도 (D106-4.1: volume=수량, price 없음)"""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {
+            "uuid": "order_456",
+            "state": "done",
+            "executed_volume": 0.5,
+        }
+        mock_post.return_value = mock_response
+        
+        config = {
+            "api_key": "test_key",
+            "api_secret": "test_secret",
+            "base_url": "https://api.upbit.com",
+            "live_enabled": True,
+        }
+        
+        exchange = UpbitSpotExchange(config)
+        exchange.create_order(
+            symbol="KRW-BTC",
+            side=OrderSide.SELL,
+            qty=0.5,  # 매도 수량
+            price=None,  # MARKET 매도는 price 무시
+            order_type=OrderType.MARKET,
+        )
+        
+        # 페이로드 검증
+        call_kwargs = mock_post.call_args[1]
+        params = call_kwargs["params"]
+        
+        assert params["ord_type"] == "market"
+        assert params["side"] == "ask"
+        assert params["volume"] == "0.5"  # 매도 수량
+        assert "price" not in params  # MARKET SELL은 price 없음

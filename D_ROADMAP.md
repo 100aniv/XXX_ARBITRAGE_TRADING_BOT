@@ -2001,9 +2001,16 @@ def setup_test_environment_variables():
 ## D106-4: LIVE Smoke Test (Market Round-trip + Flat Guarantee)
 **일시:** 2025-12-28  
 **목표:** 시장가 주문으로 1회 왕복 + 플랫 보장 + NAV 기반 손익  
-**상태:** ✅ **READY (Implementation Complete)**
+**상태:** ✅ **READY (D106-4.1 HOTFIX 완료: 설계 결함 제거)**
 
 **NOTE:** D107은 D106-4로 흡수되었습니다 (ROADMAP SSOT 기준)
+
+**D106-4.1 HOTFIX (2025-12-28 22:10):**
+- **문제:** 3회 연속 실패 (LIMIT 주문으로 시장가 흉내, volume 소수점 제약 위반)
+- **해결:** Upbit adapter MARKET 타입 정식 지원 (BUY: price=KRW, SELL: volume=수량)
+- **테스트:** SSOT Gates 100% PASS (doctor/fast/regression)
+- **상태:** 설계 결함 제거 완료, 실거래 재개 준비 완료
+- **문서:** `docs/D106/D106_4_1_FINAL_REPORT.md`
 
 **Objective:**
 실제 거래소(Upbit)에서 시장가 주문으로 1회 왕복 거래를 실행하고,
@@ -2061,18 +2068,26 @@ logs/evidence/d106_4_live_smoke_YYYYMMDD_HHMMSS/
 
 **Modified Files:**
 - scripts/tools/flatten_upbit_symbol.py (new, 353 lines)
-- scripts/run_d106_4_live_smoke.py (renamed from run_d107_live_smoke.py, 637 lines)
+- scripts/run_d106_4_live_smoke.py (renamed from run_d107_live_smoke.py, 643 lines)
+- arbitrage/exchanges/upbit_spot.py (D106-4.1: MARKET 타입 분기 추가, Lines 321-348)
+- tests/test_d48_upbit_order_payload.py (D106-4.1: MARKET BUY/SELL 테스트 추가)
 - docs/D106/D106_4_LIVE_SMOKE.md (new)
+- docs/D106/D106_4_1_FINAL_REPORT.md (D106-4.1: HOTFIX 최종 보고서)
+- docs/D106/D106_4_EMERGENCY_ANALYSIS.md (3회 실패 분석)
 - docs/D107/ (deleted, absorbed into D106)
-- D_ROADMAP.md (D107 삭제, D106-4 추가)
+- D_ROADMAP.md (D107 삭제, D106-4 추가, D106-4.1 반영)
 
-**Next Steps:**
-1. Flatten 유틸로 ADA 잔여 청산
-2. D106-4 LIVE Smoke 실행 (`--order-krw 10000 --enable-live --i-understand-live-trading`)
-3. Evidence 검증 (decision.json PASS, NAV diff, 플랫 보장)
-4. D106-5+: 1h/3h/12h LIVE 확장 (향후)
+**Next Steps (D106-4.1 완료 후):**
+1. ✅ D106-4.1 HOTFIX: Upbit MARKET 지원 완료 (설계 결함 제거)
+2. ⏳ 잔고 충전 (최소 50,000 KRW 권장)
+3. ⏳ D106-4 LIVE Smoke 재실행 (READ_ONLY_ENFORCED=false 일시 설정 필요)
+4. ⏳ Evidence 검증 (decision.json PASS, NAV diff, 플랫 보장)
+5. ⏳ D106-5+: 1h/3h/12h LIVE 확장 (향후)
 
-**Commit:** (예정) - [D106-4] LIVE smoke: market round-trip + flat guarantee + D107 absorption
+**Commits:**
+- 67e86f1: [D106-4] LIVE smoke: market round-trip + flat guarantee + D107 absorption
+- a868574: [D106-4] 긴급 중단: 3회 연속 실패 (설계 결함)
+- (예정): [D106-4.1] HOTFIX: Upbit MARKET 지원 (설계 결함 제거)
 
 ---
 
