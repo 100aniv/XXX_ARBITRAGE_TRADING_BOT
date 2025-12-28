@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D107: 1h LIVE Smoke Test (소액, 저위험)
+D107-0: 10분 LIVE Smoke Test (실체결 검증)
 
-최소 위험으로 1시간 LIVE 거래 실행 + 증거 확보
+목표: 보유 심볼 제외, 실제 체결 1회 왕복 + 플랫 복귀
 
 Usage:
-    python scripts/run_d107_live_smoke.py
-    python scripts/run_d107_live_smoke.py --duration-minutes 60 --max-notional-usd 5
+    python scripts/run_d107_live_smoke.py --duration-seconds 600 --i-understand-live-trading
 """
 
 import argparse
@@ -18,12 +17,14 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
+
+from arbitrage.exchanges.base import OrderSide, OrderType, OrderStatus
 
 # .env.live 로드
 env_file = Path(__file__).parent.parent / ".env.live"
@@ -127,9 +128,200 @@ def save_snapshot(evidence_dir: Path, filename: str, data: Dict[str, Any]):
             masked_data[key] = "***MASKED***"
     
     with open(snapshot_path, "w", encoding="utf-8") as f:
-        json.dump(masked_data, f, indent=2, ensure_ascii=False)
+        json.dump(masked_data, f, indent=2, ensure_ascii=False, default=str)
     
-    logger.info(f"[D107] 스냅샷 저장: {snapshot_path}")
+    logger.info(f"[D107-0] 스냅샷 저장: {snapshot_path}")
+
+
+def execute_real_trade(
+    exchange_a,
+    symbol: str,
+    order_krw: float,
+    max_loss_krw: float,
+    duration_seconds: int,
+    evidence_dir: Path,
+) -> Dict[str, Any]:
+    """
+    실체결 로직: BUY → SELL 1회 왕복
+    
+    Returns:
+        dict: {"success": bool, "orders": List, ...}
+    """
+    result = {
+        "success": False,
+        "orders": [],
+        "error": None,
+        "detail": None,
+    }
+    
+    start_time = time.time()
+    order_log = []
+    
+    try:
+        # 1. 호가 조회
+        logger.info(f"[D107-0] Step 1) 호가 조회: {symbol}")
+        orderbook = exchange_a.get_orderbook(symbol)
+        best_ask = orderbook.best_ask()
+        best_bid = orderbook.best_bid()
+        
+        if not best_ask or not best_bid:
+            result["error"] = "orderbook_empty"
+            result["detail"] = "호가 정보 없음"
+            return result
+        
+        logger.info(f"[D107-0] 호가: ask={best_ask:.2f}, bid={best_bid:.2f}")
+        
+        # 2. 매수 (시장가 주문으로 즉시 전량 체결)
+        # Upbit 시장가 매수: 금액(KRW) 기준
+        buy_krw = order_krw * 1.1  # 여유 10%
+        
+        logger.info(f"[D107-0] Step 2) 시장가 매수: {buy_krw:.0f} KRW")
+        
+        # Upbit 시장가 매수는 price=None, qty는 사용하지 않음
+        # 대신 order_krw 파라미터 사용 (추후 구현 필요)
+        # 임시: 예상 수량 계산
+        est_qty = buy_krw / best_ask
+        est_qty = round(est_qty, 8)
+        
+        buy_order = exchange_a.create_order(
+            symbol=symbol,
+            side=OrderSide.BUY,
+            qty=est_qty,
+            price=int(best_ask * 1.02),  # 즉시 체결 가격
+            order_type=OrderType.LIMIT,
+        )
+        
+        order_log.append({
+            "action": "BUY",
+            "order_id": buy_order.order_id,
+            "qty": buy_qty,
+            "price": buy_price,
+            "timestamp": datetime.now().isoformat(),
+        })
+        
+        logger.info(f"[D107-0] ✅ 매수 주문 생성: {buy_order.order_id}")
+        
+        # 3. 체결 대기 (최대 10초, 5초마다 체크)
+        logger.info("[D107-0] Step 3) 매수 체결 대기")
+        filled_qty = 0.0
+        
+        for i in range(2):  # 2회 체크 (0초, 5초)
+            time.sleep(5 if i > 0 else 0)
+            status = exchange_a.get_order_status(buy_order.order_id)
+            filled_qty = status.filled_qty
+            
+            if filled_qty > 0:
+                potential_sell_krw = filled_qty * best_bid * 0.98
+                logger.info(f"[D107-0] 체결: {filled_qty:.8f} ADA (매도 시 예상 {potential_sell_krw:.0f} KRW)")
+                
+                if potential_sell_krw >= 5000.0:
+                    logger.info(f"[D107-0] ✅ 충분한 수량 체결 완료")
+                    # 미체결 주문 취소
+                    try:
+                        exchange_a.cancel_order(buy_order.order_id)
+                        logger.info(f"[D107-0] 미체결 주문 취소 완료")
+                    except:
+                        logger.info(f"[D107-0] 미체결 주문 없음 (전량 체결)")
+                    break
+        
+        # 최소 수량 체크
+        if filled_qty == 0 or (filled_qty * best_bid * 0.98) < 5000.0:
+            logger.error(f"[D107-0] ❌ 매수 체결 부족: {filled_qty:.8f} ADA")
+            try:
+                exchange_a.cancel_order(buy_order.order_id)
+            except:
+                pass
+            result["error"] = "buy_insufficient"
+            result["detail"] = f"매수 체결량 부족 (실제 {filled_qty:.8f} ADA)"
+            return result
+        
+        result["buy_qty"] = filled_qty
+        
+        # 4. 매도 (즉시 체결 위해 bid보다 2% 낮게)
+        sell_price_raw = best_bid * 0.98
+        sell_price = int(sell_price_raw)  # Upbit KRW: 정수만 허용
+        sell_qty = round(filled_qty, 8)  # Upbit: 소수점 8자리까지
+        
+        # 최소 주문 금액 체크
+        sell_total_krw = sell_price * sell_qty
+        logger.info(f"[D107-0] Step 4) 매도 주문: {sell_qty:.8f} @ {sell_price} KRW (total: {sell_total_krw:.0f} KRW)")
+        sell_order = exchange_a.create_order(
+            symbol=symbol,
+            side=OrderSide.SELL,
+            qty=sell_qty,
+            price=sell_price,
+            order_type=OrderType.LIMIT,
+        )
+        
+        order_log.append({
+            "action": "SELL",
+            "order_id": sell_order.order_id,
+            "qty": sell_qty,
+            "price": sell_price,
+            "timestamp": datetime.now().isoformat(),
+        })
+        
+        logger.info(f"[D107-0] ✅ 매도 주문 생성: {sell_order.order_id}")
+        
+        # 5. 매도 체결 대기 (최대 30초)
+        logger.info("[D107-0] Step 5) 매도 체결 대기 (최대 30초)")
+        sell_filled_qty = 0.0
+        for i in range(30):
+            time.sleep(1)
+            status = exchange_a.get_order_status(sell_order.order_id)
+            
+            if status.status == OrderStatus.FILLED:
+                sell_filled_qty = status.filled_qty
+                logger.info(f"[D107-0] ✅ 매도 체결 완료: {sell_filled_qty:.8f}")
+                break
+            elif status.status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
+                result["error"] = "sell_order_failed"
+                result["detail"] = f"매도 주문 실패: {status.status}"
+                result["orders"] = order_log
+                return result
+        
+        if sell_filled_qty == 0:
+            # 미체결 → 취소 시도
+            logger.warning("[D107-0] ⚠️  매도 미체결, 취소 시도")
+            exchange_a.cancel_order(sell_order.order_id)
+            result["error"] = "sell_not_filled"
+            result["detail"] = "매도 주문 미체결 (30초 타임아웃)"
+            result["orders"] = order_log
+            return result
+        
+        result["sell_qty"] = sell_filled_qty
+        
+        # 6. 성공
+        result["success"] = True
+        result["orders"] = order_log
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[D107-0] ✅ 왕복 거래 완료 (소요: {elapsed:.1f}초)")
+        
+        # orders_summary.json 저장
+        save_snapshot(evidence_dir, "orders_summary.json", {
+            "orders": order_log,
+            "buy_qty": filled_qty,
+            "sell_qty": sell_filled_qty,
+            "elapsed_seconds": elapsed,
+        })
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"[D107-0] ❌ 거래 실행 에러: {e}", exc_info=True)
+        result["error"] = "exception"
+        result["detail"] = str(e)
+        result["orders"] = order_log
+        
+        # 에러 로그 저장
+        error_path = evidence_dir / "errors.log"
+        with open(error_path, "w", encoding="utf-8") as f:
+            f.write(f"Error: {e}\n")
+            import traceback
+            f.write(traceback.format_exc())
+        
+        return result
 
 
 def main():
@@ -139,34 +331,66 @@ def main():
     )
     
     parser.add_argument(
-        "--duration-minutes",
+        "--duration-seconds",
         type=int,
-        default=60,
-        help="실행 시간 (분, 기본값: 60)",
+        default=600,
+        help="실행 시간 (초, 기본값: 600 = 10분)",
     )
     
     parser.add_argument(
-        "--max-notional-usd",
-        type=float,
-        default=5.0,
-        help="최대 주문 금액 (USD, 기본값: 5)",
+        "--symbol",
+        type=str,
+        default="KRW-ADA",
+        help="거래 심볼 (기본값: KRW-ADA, 보유 제외)",
     )
     
     parser.add_argument(
-        "--kill-switch-loss-usd",
+        "--order-krw",
         type=float,
-        default=2.0,
-        help="킬스위치 손실 한도 (USD, 기본값: 2)",
+        default=5000.0,
+        help="주문 금액 (KRW, 기본값: 5000 = 최소 주문)",
+    )
+    
+    parser.add_argument(
+        "--max-loss-krw",
+        type=float,
+        default=500.0,
+        help="킬스위치 손실 한도 (KRW, 기본값: 500)",
+    )
+    
+    parser.add_argument(
+        "--i-understand-live-trading",
+        action="store_true",
+        help="실거래 허용 플래그 (필수)",
     )
     
     args = parser.parse_args()
     
     logger.info("="*60)
-    logger.info("[D107] 1h LIVE Smoke Test 시작")
+    logger.info("[D107-0] 10분 LIVE Smoke Test 시작 (실체결 검증)")
     logger.info("="*60)
-    logger.info(f"[D107] 실행 시간: {args.duration_minutes} 분")
-    logger.info(f"[D107] 최대 주문 금액: ${args.max_notional_usd:.2f} USD")
-    logger.info(f"[D107] 킬스위치 손실 한도: ${args.kill_switch_loss_usd:.2f} USD")
+    logger.info(f"[D107-0] 실행 시간: {args.duration_seconds} 초")
+    logger.info(f"[D107-0] 거래 심볼: {args.symbol}")
+    logger.info(f"[D107-0] 주문 금액: {args.order_krw:.0f} KRW")
+    logger.info(f"[D107-0] 킬스위치 손실 한도: {args.max_loss_krw:.0f} KRW")
+    logger.info("="*60)
+    
+    # 실거래 플래그 확인 (2중 체크)
+    if not args.i_understand_live_trading:
+        logger.error("[D107-0] ❌ 실거래 플래그 미설정")
+        logger.error("[D107-0] --i-understand-live-trading 플래그 필수")
+        logger.error("[D107-0] 이 플래그 없이는 실거래 불가")
+        return 1
+    
+    # READ_ONLY_ENFORCED 체크
+    if os.getenv("READ_ONLY_ENFORCED", "false").lower() == "true":
+        logger.error("[D107-0] ❌ READ_ONLY_ENFORCED=true")
+        logger.error("[D107-0] 실거래가 차단된 상태입니다")
+        logger.error("[D107-0] .env.live에서 READ_ONLY_ENFORCED=false로 설정하세요")
+        return 1
+    
+    logger.info("[D107-0] ✅ 실거래 플래그 확인 완료")
+    logger.info("[D107-0] ⚠️  주의: 실제 자금이 사용됩니다!")
     logger.info("="*60)
     
     # Evidence 디렉토리 생성
@@ -181,7 +405,7 @@ def main():
             "api_key": os.getenv("UPBIT_ACCESS_KEY"),
             "api_secret": os.getenv("UPBIT_SECRET_KEY"),
             "base_url": "https://api.upbit.com",
-            "live_enabled": True,
+            "live_enabled": True,  # 실거래 활성화
         }
         
         binance_config = {
@@ -200,67 +424,85 @@ def main():
         balance_check = check_minimum_balance(exchange_a, exchange_b)
         
         # 시작 스냅샷 저장
+        start_time = time.time()
         start_snapshot = {
             "timestamp": datetime.now().isoformat(),
-            "duration_minutes": args.duration_minutes,
-            "max_notional_usd": args.max_notional_usd,
-            "kill_switch_loss_usd": args.kill_switch_loss_usd,
+            "duration_seconds": args.duration_seconds,
+            "symbol": args.symbol,
+            "order_krw": args.order_krw,
+            "max_loss_krw": args.max_loss_krw,
             "balance_check": balance_check,
+            "excluded_symbols": ["DOGE", "XYM", "ETHW", "ETHF"],
         }
         save_snapshot(evidence_dir, "start_snapshot.json", start_snapshot)
         
-        # 최소 조건 충족 확인
-        if not (balance_check["upbit_ok"] and balance_check["binance_ok"]):
-            logger.error("[D107] 최소 주문 가능 잔고 미충족")
-            logger.error("[D107] Upbit: 최소 10,000 KRW 필요")
-            logger.error("[D107] Binance: 최소 10 USDT 필요")
-            logger.error("[D107] 현재 상태로는 실거래 불가")
+        # Upbit 최소 조건만 확인 (Upbit 단독 거래)
+        if not balance_check["upbit_ok"]:
+            logger.error("[D107-0] Upbit 잔고 미충족")
+            logger.error("[D107-0] 최소 10,000 KRW 필요")
             
-            # FAIL 판정 저장
             decision = {
                 "result": "FAIL",
                 "reason": "insufficient_balance",
-                "detail": "최소 주문 가능 잔고 미충족",
+                "detail": "Upbit 최소 주문 가능 잔고 미충족",
                 "balance_check": balance_check,
             }
             save_snapshot(evidence_dir, "decision.json", decision)
-            
             return 1
         
-        # run_arbitrage_live.py 호출 (기존 엔트리포인트 재사용)
-        logger.info("[D107] LIVE 실행 시작 (run_arbitrage_live.py 재사용)")
-        logger.info("[D107] 주의: 실제 자금이 사용됩니다!")
+        # 실체결 로직 실행
+        logger.info("[D107-0] 🚀 실체결 로직 시작")
         logger.info("="*60)
         
-        # TODO: 실제 실행 로직 구현 (Phase 2)
-        # 현재는 스켈레톤만 구현 (증거 구조 확보)
+        trade_result = execute_real_trade(
+            exchange_a=exchange_a,
+            symbol=args.symbol,
+            order_krw=args.order_krw,
+            max_loss_krw=args.max_loss_krw,
+            duration_seconds=args.duration_seconds,
+            evidence_dir=evidence_dir,
+        )
         
-        logger.warning("[D107] 실제 LIVE 실행은 Phase 2에서 구현 예정")
-        logger.warning("[D107] 현재는 증거 구조만 확보")
+        # 종료 스냅샷 저장
+        end_time = time.time()
+        end_balances = exchange_a.get_balance()
+        end_krw = end_balances["KRW"].total if "KRW" in end_balances else 0.0
         
-        # 종료 스냅샷 저장 (임시)
         end_snapshot = {
             "timestamp": datetime.now().isoformat(),
-            "status": "skeleton_only",
-            "note": "실제 LIVE 실행은 Phase 2에서 구현",
+            "duration_actual": end_time - start_time,
+            "balance_end_krw": end_krw,
+            "balance_diff_krw": end_krw - balance_check["upbit_balance_krw"],
+            "trade_result": trade_result,
         }
         save_snapshot(evidence_dir, "end_snapshot.json", end_snapshot)
         
-        # PASS 판정 저장 (임시)
-        decision = {
-            "result": "PASS",
-            "reason": "skeleton_complete",
-            "detail": "D107 스켈레톤 구현 완료, 증거 구조 확보",
-            "evidence_dir": str(evidence_dir),
-        }
+        # 판정
+        if trade_result["success"]:
+            decision = {
+                "result": "PASS",
+                "reason": "trade_completed",
+                "detail": f"체결 완료: BUY {trade_result.get('buy_qty', 0):.8f}, SELL {trade_result.get('sell_qty', 0):.8f}",
+                "orders": trade_result.get("orders", []),
+                "pnl_krw": end_krw - balance_check["upbit_balance_krw"],
+                "evidence_dir": str(evidence_dir),
+            }
+        else:
+            decision = {
+                "result": "FAIL",
+                "reason": trade_result.get("error", "unknown"),
+                "detail": trade_result.get("detail", "Unknown error"),
+                "evidence_dir": str(evidence_dir),
+            }
+        
         save_snapshot(evidence_dir, "decision.json", decision)
         
         logger.info("="*60)
-        logger.info("[D107] 1h LIVE Smoke Test 완료")
-        logger.info(f"[D107] Evidence: {evidence_dir}")
+        logger.info(f"[D107-0] 10분 LIVE Smoke Test 완료: {decision['result']}")
+        logger.info(f"[D107-0] Evidence: {evidence_dir}")
         logger.info("="*60)
         
-        return 0
+        return 0 if decision["result"] == "PASS" else 1
     
     except Exception as e:
         logger.error(f"[D107] 에러 발생: {e}", exc_info=True)
