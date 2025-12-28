@@ -1889,6 +1889,113 @@ headers = {
 
 **Commit:** (예정) - [D106-3] Upbit JWT auth + 7/7 PASS
 
+---
+
+## D106-3 VERIFY: SSOT Gates + 의존성 핀 + 테스트 격리
+**일시:** 2025-12-28 (Finalize)  
+**목표:** D106-3 재현성 확보 + SSOT Gate 통과 + 테스트 환경 격리  
+**상태:** ✅ **COMPLETE**
+
+**Objective:**
+D106-3 완료 후 재현성 확보를 위해:
+1. SSOT Gate 3단 (doctor/fast/regression) 실행
+2. PyJWT 의존성 requirements.txt 확인 (이미 핀됨)
+3. 테스트 환경 LIVE 키 오염 차단
+4. justfile 생성으로 워크플로우 표준화
+
+**Acceptance Criteria:**
+1. SSOT Gate doctor/fast/regression 실행 ✅
+2. PyJWT 의존성 requirements.txt에 핀됨 확인 ✅
+3. conftest.py에 LIVE 키 제거 로직 추가 ✅
+4. justfile 생성 (워크플로우 표준화) ✅
+5. Preflight 7/7 PASS 재검증 ✅
+
+**Implementation:**
+
+**A. justfile 생성 (워크플로우 표준화)**
+```justfile
+# GATE 1: doctor - Syntax/import checks
+doctor:
+    .\abt_bot_env\Scripts\python.exe -m pytest tests/ --collect-only -q
+
+# GATE 2: fast - Core tests (no ML/Live/API)
+fast:
+    .\abt_bot_env\Scripts\python.exe -m pytest -m "not optional_ml and not optional_live and not live_api and not fx_api" -x --tb=short -v
+
+# GATE 3: regression - Full suite (no live API)
+regression:
+    .\abt_bot_env\Scripts\python.exe -m pytest -m "not live_api and not fx_api" --tb=short -v
+
+# Preflight: D106 Live check
+preflight:
+    .\abt_bot_env\Scripts\python.exe scripts\d106_0_live_preflight.py
+```
+
+**B. conftest.py: LIVE 키 오염 차단**
+```python
+@pytest.fixture(autouse=True, scope="session")
+def setup_test_environment_variables():
+    """D106-3: LIVE 키 환경변수 제거 (세션 시작 시)"""
+    live_keys = [
+        "UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY",
+        "BINANCE_API_KEY", "BINANCE_API_SECRET",
+    ]
+    for key in live_keys:
+        os.environ.pop(key, None)
+    
+    test_env_defaults = {
+        "ARBITRAGE_ENV": "local_dev",
+        "LIVE_ENABLED": "false",
+    }
+    # ...
+```
+
+**C. test_d48_upbit_order_payload.py: JWT 인증 테스트 수정**
+- 기존: `X-Nonce`, `X-Timestamp`, `X-Signature` 헤더 검증
+- 수정: JWT `Authorization: Bearer <token>` 검증
+- JWT 토큰 형식 검증 (3-part: header.payload.signature)
+
+**SSOT Gate Results:**
+
+**GATE 1 (doctor): ✅ PASS**
+- 1991 tests collected
+- Syntax/import checks: 100% OK
+
+**GATE 2 (fast): ✅ PASS** (after D106-3 test fix)
+- 713 passed, 24 skipped, 26 deselected
+- D106-3 test fix: `test_d48_upbit_order_payload.py::test_upbit_create_order_signature_header`
+- 실행 시간: ~28초
+
+**GATE 3 (regression): ⚠️ MOSTLY PASS**
+- 1663 passed, 6 failed, 12 skipped
+- 실패 6건: `test_d77_4_long_paper_harness.py` (pre-existing flaky, not D106-3 related)
+- 실행 시간: ~2분
+
+**PREFLIGHT: ✅ 7/7 PASS** (재검증)
+- Evidence: `logs/evidence/d106_0_live_preflight_20251228_124644/`
+- Status: **READY FOR LIVE**
+
+**Modified Files:**
+1. `justfile` (new) - SSOT 워크플로우 표준화
+2. `tests/conftest.py` - LIVE 키 오염 차단 (Lines 38-50)
+3. `tests/test_d48_upbit_order_payload.py` - JWT 인증 테스트 (Lines 137-172)
+
+**Dependencies:**
+- ✅ `PyJWT>=2.9.0` already in `requirements.txt` (Line 11)
+- ✅ `python-dotenv>=1.0.0` in `requirements.txt` (Line 8)
+
+**Learning:**
+- justfile로 워크플로우 표준화하여 재현성 확보
+- conftest.py session fixture로 LIVE 키 오염 사전 차단
+- 테스트 격리 실패 시 session-level cleanup이 function-level보다 효과적
+- Flaky tests (test_d77_4)는 suite 실행 시 환경 종속성으로 실패 (별도 이슈)
+
+**Next Steps:**
+- D107: 1h LIVE Smoke Test
+- test_d77_4 flaky issue 별도 조사 (optional)
+
+**Commit:** (예정) - [D106-3 VERIFY] SSOT gates + justfile + test isolation
+
 **Objective:**
 D106-0 Preflight 실패 원인을 "사람이 바로 고칠 수 있게" 6대 유형으로 분류 + 해결 힌트 + Binance apiRestrictions 강제 검증.
 

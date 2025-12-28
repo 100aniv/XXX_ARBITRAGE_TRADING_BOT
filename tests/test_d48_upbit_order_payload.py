@@ -135,7 +135,7 @@ class TestD48UpbitOrderPayload:
 
     @patch('arbitrage.exchanges.upbit_spot.HTTPClient.post')
     def test_upbit_create_order_signature_header(self, mock_post):
-        """서명 헤더 검증"""
+        """서명 헤더 검증 (D106-3: JWT 인증)"""
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {
@@ -160,15 +160,16 @@ class TestD48UpbitOrderPayload:
             price=50000000,
         )
         
-        # 헤더 검증
+        # 헤더 검증 (D106-3: JWT 표준 인증)
         call_kwargs = mock_post.call_args[1]
         headers = call_kwargs["headers"]
         
+        # JWT Authorization 헤더만 존재
         assert "Authorization" in headers
         assert headers["Authorization"].startswith("Bearer ")
-        assert "X-Nonce" in headers
-        assert "X-Timestamp" in headers
-        assert "X-Signature" in headers
+        # JWT 토큰 형식 검증 (3개 파트: header.payload.signature)
+        token = headers["Authorization"].split("Bearer ")[1]
+        assert len(token.split(".")) == 3
 
     @patch('arbitrage.exchanges.upbit_spot.HTTPClient.delete')
     def test_upbit_cancel_order_success(self, mock_delete):

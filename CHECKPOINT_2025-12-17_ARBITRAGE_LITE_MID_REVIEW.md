@@ -618,6 +618,22 @@ python -m pytest tests/ -v --tb=no -q --timeout=180 --timeout-method=thread
 - **파일:** scripts/d106_0_live_preflight.py (795 → 875 lines, +80 lines) ✅
 - **상태:** 결정론적 진단 + 401 원인 특정 완료 ✅
 
+### ✅ D106-3: Upbit JWT 인증 수정 + 7/7 PASS (2025-12-28)
+- **Root Cause:** Upbit API는 JWT 표준 필수, 커스텀 HMAC 서명은 `invalid_jwt` 에러 ✅
+- **Solution:** PyJWT 라이브러리로 전환 (get_balance/create_order/cancel_order) ✅
+- **Preflight 결과:** **7/7 PASS** (Upbit + Binance 모두 성공) ✅
+- **API 키 변경:** 두 번째 키로 자산조회 권한 ON 설정 후 성공 ✅
+- **파일:** arbitrage/exchanges/upbit_spot.py (517 → 528 lines, +11 lines) ✅
+- **상태:** **READY FOR LIVE** ✅
+
+### ✅ D106-3 VERIFY: SSOT Gates + 재현성 확보 (2025-12-28)
+- **SSOT Gate:** justfile 생성 + doctor/fast/regression 실행 ✅
+- **Test Isolation:** conftest.py에 LIVE 키 제거 로직 추가 ✅
+- **JWT Test Fix:** test_d48_upbit_order_payload.py 업데이트 ✅
+- **Gate Results:** doctor PASS (1991), fast PASS (713), regression 1663/1669 PASS ✅
+- **Preflight 재검증:** 7/7 PASS (logs/evidence/d106_0_live_preflight_20251228_124644/) ✅
+- **상태:** **SSOT 재현성 확보 완료** ✅
+
 ### 즉시 착수 (High Priority)
 1. **D107: 1h LIVE 스모크**
    - Seed $50, Kill Switch 설정

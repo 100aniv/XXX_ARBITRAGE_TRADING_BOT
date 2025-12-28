@@ -28,15 +28,25 @@ if str(project_root) not in sys.path:
 @pytest.fixture(autouse=True, scope="session")
 def setup_test_environment_variables():
     """
-    D99-16 P15: 테스트 환경 기본 환경변수 설정 (최소화)
+    D99-16 P15 + D106-3: 테스트 환경 기본 환경변수 설정 (최소화)
     
     - production secrets 검증 충돌 방지를 위해 DB/API keys 제외
     - 필요한 테스트는 개별적으로 monkeypatch 사용
     - 환경 기본값만 설정 (ARBITRAGE_ENV=local_dev)
+    - D106-3: LIVE 키 오염 차단 (paper/test에서 .env.live 로드 방지)
     """
+    # D106-3: LIVE 키 환경변수 제거 (세션 시작 시)
+    live_keys = [
+        "UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY",
+        "BINANCE_API_KEY", "BINANCE_API_SECRET",
+    ]
+    for key in live_keys:
+        os.environ.pop(key, None)
+    
     test_env_defaults = {
         # Environment (기본값만)
         "ARBITRAGE_ENV": "local_dev",
+        "LIVE_ENABLED": "false",
     }
     
     # 기존 값이 없을 때만 설정
