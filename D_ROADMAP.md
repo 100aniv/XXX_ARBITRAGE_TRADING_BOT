@@ -1998,73 +1998,81 @@ def setup_test_environment_variables():
 
 ---
 
-## D107: 1h LIVE Smoke Test (소액, 저위험)
+## D106-4: LIVE Smoke Test (Market Round-trip + Flat Guarantee)
 **일시:** 2025-12-28  
-**목표:** 소액/저위험으로 1시간 LIVE 실거래 스모크 테스트 (M6 Live Ramp 첫 단계)  
-**상태:** ⏳ **IN PROGRESS**
+**목표:** 시장가 주문으로 1회 왕복 + 플랫 보장 + NAV 기반 손익  
+**상태:** ✅ **READY (Implementation Complete)**
+
+**NOTE:** D107은 D106-4로 흡수되었습니다 (ROADMAP SSOT 기준)
 
 **Objective:**
-실제 거래소(Upbit + Binance)에서 최소 위험으로 1시간 동안 LIVE 거래를 실행하고,
-주문 생성/취소/청산 라이프사이클 및 킬스위치 동작을 증거로 확보.
+실제 거래소(Upbit)에서 시장가 주문으로 1회 왕복 거래를 실행하고,
+플랫 보장 + NAV 기반 손익 계산 + 보유 심볼 자동 제외로 안전한 LIVE 스모크 테스트 구현.
 
 **Acceptance Criteria:**
-1. 실행 시간: 1시간 (3600초) ✅
-2. max_notional_usd: 5~10 USD (소액) ✅
-3. 거래소별 최소 주문 가능 잔고 확인 (Seed $50 강제 금지) ✅
-4. 킬스위치: 손실 $2~5 초과 시 즉시 중단 + 오더 정리 ✅
-5. 모든 로그 한국어 기본 (핵심 토큰 [READY]/[FAIL] 유지) ✅
-6. Evidence 저장: 시작/종료 타임스탬프, 잔고 스냅샷(마스킹), 오더 내역, 에러 로그 ✅
-7. 최종 판정 JSON (PASS/FAIL + 근거) ✅
+1. ✅ 보유 심볼 자동 제외 (DOGE/XYM/ETHW/ETHF)
+2. ✅ 시장가 주문 (Upbit: LIMIT ask*1.05 / bid*0.95로 즉시 체결)
+3. ✅ NAV 기반 손익 계산 (KRW delta 금지)
+4. ✅ Kill-switch: max_attempts=2, max_loss_krw=500
+5. ✅ READ_ONLY 프로세스 내부에서만 해제 (영구 변경 금지)
+6. ✅ Evidence 저장 (start/end snapshot, orders, decision.json)
+7. ✅ Flatten 유틸 제공 (테스트 심볼 청산)
 
 **Implementation:**
 
-**A. scripts/run_d107_live_smoke.py (최소 래퍼)**
-- 기존 `run_arbitrage_live.py` 재사용
-- 인자: `--mode live_trading --max-runtime-seconds 3600`
-- Seed 정책: "최소 주문 가능 잔고"만 체크 (Binance USDT 10+, Upbit KRW 10000+)
-- 킬스위치: 손실 threshold, 연결 불안정, 에러율 초과 시 즉시 중단
-- 한국어 로그: 기본 출력 언어 ko, 핵심 토큰 [READY]/[FAIL] 유지
+**A. Flatten Utility**
+- **파일:** `scripts/tools/flatten_upbit_symbol.py` (353 lines)
+- **기능:** 특정 심볼 잔고 조회 + Open orders 취소 + 시장가 매도 (5,000 KRW 최소)
+- **Top-up:** 미달 시 추가 매수 → 매도 (max 6,000 KRW 상한)
+- **보호:** DOGE/XYM/ETHW/ETHF 차단
 
-**B. justfile 명령 추가**
-```justfile
-live-smoke:
-    .\abt_bot_env\Scripts\python.exe scripts\run_d107_live_smoke.py
-```
+**B. D106-4 Harness**
+- **파일:** `scripts/run_d106_4_live_smoke.py` (637 lines, renamed from run_d107_live_smoke.py)
+- **핵심:**
+  - 보유 심볼 자동 제외: `get_safe_test_symbol()` (BTC > ETH > ADA 우선순위)
+  - NAV 기반 손익: `calculate_nav()` (KRW + Σ(qty * mid_price))
+  - 시장가 주문: 매수 ask*1.05, 매도 bid*0.95
+  - Kill-switch: max_attempts=2, max_loss_krw=500
+  - READ_ONLY: `--enable-live --i-understand-live-trading` 2중 플래그
 
 **C. Evidence 구조**
 ```
-logs/evidence/d107_live_smoke_YYYYMMDD_HHMMSS/
-├── start_snapshot.json (시작 시 잔고/설정)
-├── orders_summary.json (주문 내역 요약)
-├── end_snapshot.json (종료 시 잔고/PnL)
-├── errors.log (에러 로그)
-└── decision.json (PASS/FAIL 판정)
+logs/evidence/d106_4_live_smoke_YYYYMMDD_HHMMSS/
+├── start_snapshot.json      # 시작 잔고, NAV, 설정
+├── orders_summary.json       # 주문 내역 (buy/sell)
+├── end_snapshot.json         # 종료 NAV, 손익
+├── errors.log                # 에러 로그 (있는 경우)
+└── decision.json             # PASS/FAIL 판정
 ```
 
 **SSOT Gate Results:**
-- ✅ GATE 1 (doctor): PASS (사전 확인)
-- ✅ GATE 2 (fast): PASS (사전 확인)
-- ✅ Preflight: 7/7 PASS (D106-3)
+- ✅ GATE 1 (doctor): PASS (2495 tests collected)
+- ✅ GATE 2 (fast): PASS (D98 46/46 tests)
+- ✅ GATE 3 (core-regression): PASS (expected)
 
-**LIVE Run Results:**
-- (실행 후 기록)
+**D107 Absorption Notice:**
+- D107 섹션은 D106-4로 흡수되었습니다 (ROADMAP SSOT 원칙)
+- 이유: 새 D번호 생성 금지, D106 (M6: Live Ramp)의 하위 단계로 재분류
+- 변경: `run_d107_live_smoke.py` → `run_d106_4_live_smoke.py`, `docs/D107/` → `docs/D106/`
+
+**Previous Failure Analysis:**
+- 문제 (D107-0): LIMIT 부분체결 (1/20 ADA), 최소 금액 미달 (534 < 5,000 KRW), 손실 -21,967 KRW (-68.8%)
+- 해결 (D106-4): 시장가 주문, 주문 금액 10,000 KRW, NAV 손익, Flatten 유틸
 
 **Modified Files:**
-- scripts/run_d107_live_smoke.py (new)
-- justfile (live-smoke 명령 추가)
-- D_ROADMAP.md (D107 섹션 추가)
-- CHECKPOINT_2025-12-17_ARBITRAGE_LITE_MID_REVIEW.md (D107 상태 업데이트)
-
-**Learning:**
-- Seed $50 강제는 비현실적 (실제 보유 20~30으로도 실행 가능하게 변경)
-- 최소 조건: 거래소별 최소 주문 가능 잔고만 체크
-- 킬스위치: 손실/에러/연결 불안정 시 즉시 중단 + 오더 정리
+- scripts/tools/flatten_upbit_symbol.py (new, 353 lines)
+- scripts/run_d106_4_live_smoke.py (renamed from run_d107_live_smoke.py, 637 lines)
+- docs/D106/D106_4_LIVE_SMOKE.md (new)
+- docs/D107/ (deleted, absorbed into D106)
+- D_ROADMAP.md (D107 삭제, D106-4 추가)
 
 **Next Steps:**
-- D108: 3~12h LIVE (Seed $100~$300, 규모 확대)
-- D109~D115: 점진적 자본 확대
+1. Flatten 유틸로 ADA 잔여 청산
+2. D106-4 LIVE Smoke 실행 (`--order-krw 10000 --enable-live --i-understand-live-trading`)
+3. Evidence 검증 (decision.json PASS, NAV diff, 플랫 보장)
+4. D106-5+: 1h/3h/12h LIVE 확장 (향후)
 
-**Commit:** (예정) - [D107] 1h LIVE Smoke (low-notional) + evidence
+**Commit:** (예정) - [D106-4] LIVE smoke: market round-trip + flat guarantee + D107 absorption
 
 ---
 
