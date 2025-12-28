@@ -318,18 +318,24 @@ class UpbitSpotExchange(BaseExchange):
             ord_type_str = "limit" if order_type == OrderType.LIMIT else "market"
             side_str = "bid" if side == OrderSide.BUY else "ask"
             
-            # D106-4.1: MARKET 주문 타입별 파라미터 분기
+            # D106-4.1: MARKET 주문 타입별 파라미터 분기 + 안전장치
             if order_type == OrderType.MARKET:
                 if side == OrderSide.BUY:
                     # 시장가 매수: price=KRW금액 (volume 없음)
+                    # 안전장치: price 필수
+                    if not price or price <= 0:
+                        raise ValueError(f"MARKET BUY requires positive price (KRW amount), got: {price}")
                     params = {
                         "market": symbol,
                         "side": side_str,
-                        "price": str(int(price)) if price else None,
+                        "price": str(int(price)),
                         "ord_type": ord_type_str,
                     }
                 else:
                     # 시장가 매도: volume=수량 (price 없음)
+                    # 안전장치: qty 필수
+                    if not qty or qty <= 0:
+                        raise ValueError(f"MARKET SELL requires positive qty (volume), got: {qty}")
                     params = {
                         "market": symbol,
                         "side": side_str,

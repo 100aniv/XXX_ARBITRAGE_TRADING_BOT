@@ -84,18 +84,24 @@ params = {
 
 **변경 내용:**
 ```python
-# D106-4.1: MARKET 주문 타입별 파라미터 분기
+# D106-4.1: MARKET 주문 타입별 파라미터 분기 + 안전장치
 if order_type == OrderType.MARKET:
     if side == OrderSide.BUY:
         # 시장가 매수: price=KRW금액 (volume 없음)
+        # 안전장치: price 필수
+        if not price or price <= 0:
+            raise ValueError(f"MARKET BUY requires positive price (KRW amount), got: {price}")
         params = {
             "market": symbol,
             "side": side_str,
-            "price": str(int(price)) if price else None,
+            "price": str(int(price)),
             "ord_type": ord_type_str,
         }
     else:
         # 시장가 매도: volume=수량 (price 없음)
+        # 안전장치: qty 필수
+        if not qty or qty <= 0:
+            raise ValueError(f"MARKET SELL requires positive qty (volume), got: {qty}")
         params = {
             "market": symbol,
             "side": side_str,
@@ -116,6 +122,7 @@ else:
 **효과:**
 - ✅ MARKET BUY: volume 소수점 제약 회피 (Upbit이 자동 계산)
 - ✅ MARKET SELL: price 없음 (즉시 체결)
+- ✅ **안전장치**: price/qty 검증 (None/0 차단)
 
 ---
 
@@ -125,26 +132,9 @@ else:
 
 **변경 내용:**
 
-**Before (LIMIT 흉내):**
-```python
-# LIMIT 주문으로 시장가 흉내
-buy_price = int(best_ask * 1.05)
-buy_qty = round(order_krw / buy_price, 8)
-
-buy_order = exchange_a.create_order(
-    symbol=symbol,
-    side=OrderSide.BUY,
-    qty=buy_qty,
-    price=buy_price,
-    order_type=OrderType.LIMIT,
-)
-```
-
-**After (MARKET 타입):**
+**MARKET 타입 사용:**
 ```python
 # D106-4.1: MARKET 타입, price=KRW금액
-logger.info(f"[D106-4] Step 2) 시장가 매수: {order_krw:.0f} KRW (MARKET BUY)")
-
 buy_order = exchange_a.create_order(
     symbol=symbol,
     side=OrderSide.BUY,
@@ -152,18 +142,34 @@ buy_order = exchange_a.create_order(
     price=order_krw,  # KRW 금액
     order_type=OrderType.MARKET,
 )
+
+# 매도: 체결 수량 기반
+sell_order = exchange_a.create_order(
+    symbol=symbol,
+    side=OrderSide.SELL,
+    qty=buy_filled_qty,  # 체결된 수량
+    price=None,  # MARKET 매도는 price 무시
+    order_type=OrderType.MARKET,
+)
 ```
 
-**READ_ONLY 가드 강화:**
+**실거래 절대 금지 (D106-4.1 정책):**
 ```python
-# D106-4.1: READ_ONLY 가드 (영구 차단, 실거래 금지)
-read_only_enforced = os.getenv("READ_ONLY_ENFORCED", "true").lower()
-if read_only_enforced in ["true", "1", "yes"]:
-    logger.error("[D106-4] ❌ READ_ONLY_ENFORCED=true (실거래 차단)")
-    logger.error("[D106-4] 이 스크립트는 코드 검증용이며, 실거래는 금지됩니다.")
-    logger.error("[D106-4] D106-4.1은 'adapter MARKET 지원 구현'이 목표입니다.")
-    return 0  # 정상 종료 (실거래 차단은 성공)
+# D106-4.1: 실거래 절대 금지 (payload 검증이 목적)
+logger.error("="*60)
+logger.error("[D106-4.1] ❌ 실거래 영구 차단 (HOTFIX 정책)")
+logger.error("[D106-4.1] 이 스크립트는 'Upbit MARKET payload 검증'이 목표입니다.")
+logger.error("[D106-4.1] 실제 거래 실행은 D106-4 (본 버전)에서만 가능합니다.")
+logger.error("[D106-4.1] Payload 분기/테스트는 test_d48_upbit_order_payload.py로 검증됩니다.")
+logger.error("="*60)
+return 0  # 정상 종료 (payload 검증은 테스트로 수행)
 ```
+
+**핵심 변경:**
+- ✅ LIMIT 로직 완전 제거
+- ✅ MARKET 타입 전환
+- ⚠️ **실거래 영구 차단**: READ_ONLY 여부와 무관하게 실행 즉시 종료
+- ℹ️ **Payload 검증**: 유닛 테스트로만 수행 (test_d48_upbit_order_payload.py)
 
 ---
 
@@ -281,15 +287,20 @@ python -m pytest tests/test_d98_preflight.py tests/test_d48_upbit_order_payload.
 
 ---
 
-## 남은 작업 (D106-4 재개 조건)
+## 다음 단계 (V2 전환 권장)
 
-D106-4.1은 **"설계 결함 제거"**가 목표이며, **실거래는 포함되지 않음**.
+D106-4.1은 **"Upbit MARKET payload 검증"**이 목표이며, **실거래는 영구 차단됨**.
 
-D106-4 재개를 위한 조건:
+**V2 전환 우선 (권장):**
+- D106-4.1 완료로 arbitrage-lite V1의 마지막 핫픽스 종료
+- V2 아키텍처로 전환 (새 채팅방에서 진행)
+- V2에서 실거래 재개 검토
+
+**D106-4 재개 (대안, 비권장):**
 1. ✅ Upbit adapter MARKET 지원 완료 (D106-4.1)
-2. ⏳ 잔고 충전 (최소 50,000 KRW 권장)
-3. ⏳ READ_ONLY_ENFORCED=false 설정 (일시적, 프로세스 내부)
-4. ⏳ 실거래 재시도 (--enable-live --i-understand-live-trading)
+2. ⏳ scripts/run_d106_4_live_smoke.py 실거래 차단 제거
+3. ⏳ 잔고 충전 (최소 50,000 KRW)
+4. ⏳ 실거래 재시도 (READ_ONLY_ENFORCED=false)
 
 ---
 

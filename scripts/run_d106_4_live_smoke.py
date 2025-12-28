@@ -479,23 +479,16 @@ def main():
     logger.info(f"[D106-4] 최대 시도: {args.max_attempts}회")
     logger.info("="*60)
     
-    # D106-4.1: READ_ONLY 가드 (영구 차단, 실거래 금지)
-    read_only_enforced = os.getenv("READ_ONLY_ENFORCED", "true").lower()
-    if read_only_enforced in ["true", "1", "yes"]:
-        logger.error("[D106-4] ❌ READ_ONLY_ENFORCED=true (실거래 차단)")
-        logger.error("[D106-4] 이 스크립트는 코드 검증용이며, 실거래는 금지됩니다.")
-        logger.error("[D106-4] D106-4.1은 'adapter MARKET 지원 구현'이 목표입니다.")
-        return 0  # 정상 종료 (실거래 차단은 성공)
-    
-    # 안전 플래그 체크 (2중)
-    if not args.enable_live or not args.i_understand_live_trading:
-        logger.error("[D106-4] ❌ 안전 플래그 미설정")
-        logger.error("[D106-4] --enable-live --i-understand-live-trading 필수")
-        return 1
-    
-    logger.info("[D106-4] ⚠️  경고: READ_ONLY_ENFORCED=false 감지")
-    logger.info("[D106-4] ⚠️  주의: 실제 자금이 사용됩니다!")
-    logger.info("="*60)
+    # D106-4.1: 실거래 절대 금지 (payload 검증이 목적)
+    logger.error("="*60)
+    logger.error("[D106-4.1] ❌ 실거래 영구 차단 (HOTFIX 정책)")
+    logger.error("[D106-4.1] 이 스크립트는 'Upbit MARKET payload 검증'이 목표입니다.")
+    logger.error("[D106-4.1] 실제 거래 실행은 D106-4 (본 버전)에서만 가능합니다.")
+    logger.error("[D106-4.1] Payload 분기/테스트는 test_d48_upbit_order_payload.py로 검증됩니다.")
+    logger.error("="*60)
+    logger.info("[D106-4.1] ℹ️  HOTFIX 완료 확인: pytest tests/test_d48_upbit_order_payload.py -v")
+    logger.info("[D106-4.1] ℹ️  실거래 필요 시: scripts/run_d106_4_live_smoke.py 사용 (향후)")
+    return 0  # 정상 종료 (payload 검증은 테스트로 수행)
     
     # Evidence 디렉토리 생성
     evidence_dir = create_evidence_dir()

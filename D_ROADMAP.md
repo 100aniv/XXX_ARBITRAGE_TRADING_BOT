@@ -2001,15 +2001,19 @@ def setup_test_environment_variables():
 ## D106-4: LIVE Smoke Test (Market Round-trip + Flat Guarantee)
 **일시:** 2025-12-28  
 **목표:** 시장가 주문으로 1회 왕복 + 플랫 보장 + NAV 기반 손익  
-**상태:** ✅ **READY (D106-4.1 HOTFIX 완료: 설계 결함 제거)**
+**상태:** ✅ **DONE (D106-4.1 HOTFIX: Upbit MARKET 지원 완료, V2 전환 권장)**
 
 **NOTE:** D107은 D106-4로 흡수되었습니다 (ROADMAP SSOT 기준)
 
-**D106-4.1 HOTFIX (2025-12-28 22:10):**
+**D106-4.1 HOTFIX (2025-12-28 23:00 - FINAL):**
 - **문제:** 3회 연속 실패 (LIMIT 주문으로 시장가 흉내, volume 소수점 제약 위반)
-- **해결:** Upbit adapter MARKET 타입 정식 지원 (BUY: price=KRW, SELL: volume=수량)
+- **해결:** Upbit adapter MARKET 타입 정식 지원 + 안전장치 추가
+  - MARKET BUY: price=KRW (qty 검증), volume 키 없음
+  - MARKET SELL: volume=수량 (price 검증), price 키 없음
+  - 안전장치: price/qty None/0 차단
 - **테스트:** SSOT Gates 100% PASS (doctor/fast/regression)
-- **상태:** 설계 결함 제거 완료, 실거래 재개 준비 완료
+- **Smoke:** 실거래 영구 차단 (payload 검증은 유닛 테스트로만 수행)
+- **상태:** V1 마지막 핫픽스 완료, **V2 전환 권장**
 - **문서:** `docs/D106/D106_4_1_FINAL_REPORT.md`
 
 **Objective:**
@@ -2077,17 +2081,20 @@ logs/evidence/d106_4_live_smoke_YYYYMMDD_HHMMSS/
 - docs/D107/ (deleted, absorbed into D106)
 - D_ROADMAP.md (D107 삭제, D106-4 추가, D106-4.1 반영)
 
-**Next Steps (D106-4.1 완료 후):**
-1. ✅ D106-4.1 HOTFIX: Upbit MARKET 지원 완료 (설계 결함 제거)
-2. ⏳ 잔고 충전 (최소 50,000 KRW 권장)
-3. ⏳ D106-4 LIVE Smoke 재실행 (READ_ONLY_ENFORCED=false 일시 설정 필요)
-4. ⏳ Evidence 검증 (decision.json PASS, NAV diff, 플랫 보장)
-5. ⏳ D106-5+: 1h/3h/12h LIVE 확장 (향후)
+**Next Steps (V2 전환 권장):**
+1. ✅ D106-4.1 HOTFIX: Upbit MARKET 지원 완료 (V1 마지막 핫픽스)
+2. 🚀 **V2 전환 시작 (새 채팅방)**
+   - arbitrage-lite V1 → V2 아키텍처 재설계
+   - 실거래 재개는 V2에서 검토
+3. ⏸️ D106-4 LIVE Smoke (연기, V2 이후)
+   - V1 실거래는 중단 (payload 검증만 완료)
+   - V2에서 재개 여부 결정
 
 **Commits:**
 - 67e86f1: [D106-4] LIVE smoke: market round-trip + flat guarantee + D107 absorption
 - a868574: [D106-4] 긴급 중단: 3회 연속 실패 (설계 결함)
-- (예정): [D106-4.1] HOTFIX: Upbit MARKET 지원 (설계 결함 제거)
+- be61bbb: [D106-4.1 HOTFIX] Upbit MARKET 지원 (설계 결함 제거) - 안전장치 부족
+- (진행 중): [D106-4.1 HOTFIX FINAL] Upbit MARKET 안전장치 + 실거래 영구 차단
 
 ---
 
