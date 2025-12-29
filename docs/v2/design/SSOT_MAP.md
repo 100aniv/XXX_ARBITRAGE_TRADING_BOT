@@ -515,6 +515,8 @@ docs/v2/V2_ARCHITECTURE_NEW.md # 금지!
 | Engine-Centric Flow | `arbitrage/v2/engine.py` | V1에 없던 중앙 엔진 패턴 |
 | OrderIntent | `arbitrage/v2/domain/order_intent.py` | V1에 없던 주문 의도 추상화 |
 | MarketData Interfaces | `arbitrage/v2/marketdata/interfaces.py` | V1에 없던 데이터 계약 |
+| Break-even Threshold (D203-1) | `arbitrage/v2/domain/break_even.py` | V1에 공식 없음, V1 FeeModel 재사용 |
+| Opportunity Detector (D203-2) | `arbitrage/v2/opportunity/detector.py` | V1에 detector 없음, SpreadModel 로직 참조 |
 
 ### 금지 사항
 

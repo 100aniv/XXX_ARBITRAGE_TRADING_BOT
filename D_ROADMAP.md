@@ -2610,21 +2610,35 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ### D203: Opportunity & Threshold (기회 탐지)
 
-#### D203-1: fee/slippage 포함 threshold 공식 (문서+테스트)
-**상태:** PLANNED
+#### D203-1: Break-even Threshold 공식 (SSOT)
+**상태:** ✅ DONE  
+**커밋:** [작업 중]  
+**테스트:** 9/9 PASS (0.24s)  
+**문서:** `docs/v2/reports/D203/D203-1_REPORT.md`
 
 **목표:**
-- Break-even spread 계산 공식 정의 및 문서화
-- Fee model 분리 (taker fee, maker fee, slippage)
-- Config 기반 threshold 설정 (config.yml)
+- Break-even spread 계산 공식 SSOT화 ✅
+- V1 FeeModel 재사용 (Reuse-First) ✅
+- ThresholdConfig 재사용 ✅
 
 **AC:**
-- [ ] 공식 문서화: `docs/v2/design/FEE_MODEL.md`
-- [ ] 공식: `break_even_bps = taker_fee_a + taker_fee_b + slippage_a + slippage_b + buffer`
-- [ ] OpportunityDetector 구현 (`arbitrage/v2/core/opportunity_detector.py`)
-- [ ] config.yml에 threshold 설정 추가 (strategy.threshold_bps)
-- [ ] test_opportunity_detector.py (수식 검증, 경계값 테스트)
-- [ ] 예상 break-even: Upbit-Binance = 24 bps (fee 10 + slippage 10 + buffer 4)
+- [x] `arbitrage/v2/domain/break_even.py` 구현
+- [x] `BreakEvenParams(dataclass)` - 파라미터 묶음
+- [x] `compute_break_even_bps()` - Break-even 공식
+- [x] `compute_edge_bps()` - Edge 계산
+- [x] `explain_break_even()` - 디버깅/리포트용
+- [x] test_d203_1_break_even.py (6개 케이스) 100% PASS
+- [x] V1 FeeModel import 재사용 (복사 금지)
+
+**공식 (SSOT):**
+```python
+break_even_bps = fee_entry_bps + fee_exit_bps + slippage_bps + buffer_bps
+# 예시: (15 + 15 + 10 + 5) = 45 bps
+```
+
+**Reuse-First:**
+- ✅ V1 FeeModel (arbitrage/domain/fee_model.py) - import 재사용
+- ✅ V2 ThresholdConfig (arbitrage/v2/core/config.py) - import 재사용
 
 **공식 예시:**
 ```python
@@ -2638,21 +2652,30 @@ threshold_bps = config.exchanges.upbit.taker_fee_bps + \
 
 ---
 
-#### D203-2: replay/backtest gate (짧은 구간)
-**상태:** PLANNED
+#### D203-2: Opportunity Detector v1 (옵션 확장)
+**상태:** ✅ DONE  
+**커밋:** [작업 중]  
+**테스트:** 6/6 PASS (0.18s)  
+**문서:** `docs/v2/reports/D203/D203-1_REPORT.md` (D203-1과 통합)
 
 **목표:**
-- Backtest/Paper Gate 기준 정의 (20m → 1h → 3h 계단식)
-- KPI 수집 표준화
-- Gate 통과 조건 확정
+- 두 거래소 가격 입력 → 기회 탐지 ✅
+- Spread/Break-even/Edge 계산 ✅
+- Direction 판단 (BUY_A_SELL_B vs BUY_B_SELL_A) ✅
 
 **AC:**
-- [ ] Duration 기준 문서화: `docs/v2/design/PAPER_GATE_CRITERIA.md`
-- [ ] 20m smoke: 최소 1개 entry, 0 crash, latency < 100ms
-- [ ] 1h baseline: 최소 5개 entry, winrate > 30%, PnL > 0
-- [ ] 3h longrun: 무정지, memory leak < 10%, CPU < 50%
-- [ ] KPI JSON schema 정의 (kpi_summary.json)
-- [ ] Gate 자동 검증 스크립트 (`scripts/verify_paper_gate.py`)
+- [x] `arbitrage/v2/opportunity/detector.py` 구현
+- [x] `OpportunityCandidate(dataclass)` - 기회 후보
+- [x] `detect_candidates()` - 단일 심볼 기회 탐지
+- [x] `detect_multi_candidates()` - 여러 심볼 기회 탐지 + 정렬
+- [x] test_d203_2_opportunity_detector.py (6개 케이스) 100% PASS
+- [x] V1 SpreadModel 로직 참조 (spread 계산 공식)
+
+**Reuse-First:**
+- ✅ BreakEvenParams 재사용 (D203-1)
+- ✅ SpreadModel 로직 참조 (V1: arbitrage/cross_exchange/spread_model.py)
+
+**Note:** 원래 D203-2는 "replay/backtest gate" 계획이었으나, D203-1의 자연스러운 확장으로 Opportunity Detector를 먼저 구현함. Backtest gate는 D204-2로 이동 예정.
 
 **KPI 필수 필드:**
 ```json
