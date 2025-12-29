@@ -201,7 +201,17 @@
 
 ### ✅ KEEP
 
-#### 1. Migration Scripts
+#### 1. PostgreSQL Alert Storage
+- **위치:** `arbitrage/alerting/storage/postgres_storage.py`
+- **V2 활용:**
+  - Alert history 저장 (D202-2에서 재사용)
+  - UTC-naive timestamp 정규화 (FIX-0)
+- **조치:**
+  - 그대로 재사용 (UTC-naive 정규화 완료)
+  - **SSOT:** `arbitrage/alerting/storage/postgres_storage.py`
+  - **검증:** `tests/test_postgres_storage.py` (12/12 PASS)
+
+#### 2. Migration Scripts
 - **위치:** `db/migrations/*.sql`
 - **V2 활용:**
   - V1 스키마 참조

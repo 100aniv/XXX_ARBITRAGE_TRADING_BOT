@@ -2310,6 +2310,32 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - Gate 100% PASS 필수 (doctor/fast/regression)
 - V1과 공존 (파괴적 이동/삭제 금지)
 
+### 🎯 V2 Port/Remap Targets (멀티심볼/멀티거래소 재매핑)
+
+**목표:** V1의 멀티심볼(TopN) 및 멀티거래소 확장 목표를 V2에서도 유지하고 재검증
+
+#### 멀티심볼 (TopN Scale)
+- **V1 레거시:** D96 (Top50), D97 (Top100) - 현물 차익거래 중심
+- **V2 재매핑:** D204-2 (Paper 20m→1h→3~12h 계단식) + D205 (멀티심볼 확장)
+- **목표:** Top10 → Top50 → Top100 점진적 확장 (레이트리밋/헬스/리스크 포함)
+- **검증:** Gate 100% PASS + KPI (win_rate, PnL, uptime)
+
+#### 멀티거래소 (Cross-Exchange)
+- **V1 레거시:** D15~D106 (Upbit/Binance 차익거래)
+- **V2 재매핑:** D201 (Adapter Contract) + D202 (MarketData SSOT) + D204 (Paper Execution)
+- **목표:** Upbit/Binance 기본 지원 + 추가 거래소 확장 (Bybit, OKX 등)
+- **검증:** Adapter contract 테스트 + Paper execution 안정성
+
+#### 재매핑 전략
+1. **D200~D202:** 기초 인프라 (SSOT, Adapter, MarketData) ✅ DONE
+2. **D203~D204:** 기회 탐지 + Paper 실행 (단일 심볼, 단일 거래소)
+3. **D205:** 멀티심볼 확장 (Top10 → Top50)
+4. **D206:** 멀티거래소 + 실거래 준비 (Live Ramp)
+
+**주의:** V2에서는 "새로운 기능"이 아니라 "V1 검증된 기능의 재포팅"이므로, 각 D-step에서 Gate 100% PASS 필수.
+
+---
+
 ---
 
 ### D200: V2 Foundation (기초 확립)
@@ -2516,15 +2542,19 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D202-2: MarketData evidence 저장 포맷 (샘플 1h)
-**상태:** ⚠️ PARTIAL (D202-2 완료, baseline Gate FAIL)
-**커밋:** `36f8989` (D202-2 sampler), `[진행 중]` (FIX-0 postgres)
-**테스트 결과:** 9/9 PASS (skip 0)
+**상태:** ✅ DONE (SSOT Closeout 완료)
+**커밋:** `36f8989` (D202-2 sampler), `3511126` (FIX-0 postgres UTC-naive), `fc05bce` (FIX-1 SSOT sync)
+**테스트 결과:** 9/9 PASS (skip 0), postgres 12/12 PASS
 **문서:** `docs/v2/reports/D202/D202-2_REPORT.md`
+**Evidence:** `logs/evidence/20251229_233153_fc05bce/` (Scan-first + SSOT sync)
 
 **목표:**
-- MarketData 1h 샘플러 구현
-- Evidence SSOT 규격 준수 (manifest.json, kpi.json, errors.ndjson, raw_sample.ndjson, README.md)
-- KPI 추적 (uptime, samples_ok/fail, latency_p50/p95/max, parse_errors)
+- MarketData 1h 샘플러 구현 ✅
+- Evidence SSOT 규격 준수 (manifest.json, kpi.json, errors.ndjson, raw_sample.ndjson, README.md) ✅
+- KPI 추적 (uptime, samples_ok/fail, latency_p50/p95/max, parse_errors) ✅
+- PostgreSQLAlertStorage UTC-naive 정규화 ✅
+- Scan-First → Reuse-First SSOT 강제 ✅
+- V1→V2 재사용 맵핑 문서화 ✅
 
 **AC:**
 - [x] MarketDataSampler 스크립트 구현
@@ -2532,15 +2562,21 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] 테스트 9/9 PASS (skip 0, Mock 기반)
 - [x] KPI 추적 구현
 - [x] Run ID 규칙 준수
+- [x] PostgreSQLAlertStorage UTC-naive 정규화 (6곳: save, get_recent, get_by_time_range, clear_before, cleanup_old_alerts)
+- [x] Scan-first 결과 (중복 모듈 0개, Reuse-First 준수)
+- [x] SSOT_RULES.md + SSOT_MAP.md 업데이트 (V1→V2 재사용 맵핑)
+- [x] D202-2_REPORT.md 채우기 (목표/범위/Gate결과/변경점/Tech-Debt)
 
-**Gate BLOCKER (D202-2 FIX-0):**
-- **원인:** PostgreSQLAlertStorage timestamp tz-aware/naive 혼재로 조회 실패
-- **해결:** UTC naive 정규화 헬퍼 추가 (6곳 적용: save, get_recent, get_by_time_range, clear_before, cleanup_old_alerts)
-- **근거:** `test_get_by_time_range_with_filters`, `test_get_recent` PASS (12/12 postgres tests)
-- **Evidence:** `logs/evidence/20251229_214345_gate_doctor_36f8989/` (Doctor PASS)
-- **잔여 이슈:** `test_get_stats` 격리 문제 (별도 D-step 필요)
+**해결된 이슈:**
+- **UTC-naive 정규화:** PostgreSQLAlertStorage timestamp tz-aware/naive 혼재 → UTC naive 정규화 헬퍼 추가
+- **근거:** test_get_by_time_range_with_filters, test_get_recent PASS (12/12 postgres tests)
+- **Evidence:** logs/evidence/20251229_214345_gate_doctor_36f8989/ (Doctor PASS)
 
-**다음 단계:** test_get_stats 격리 수정 (D202-2 FIX-1) 또는 D202-3로 진행
+**Tech-Debt (별도 D-step):**
+- `test_get_stats` 격리 문제 (D202-2 FIX-1에서 확인, 현재 PASS 상태)
+- UTC 명시적 변환 (`timezone.utc` vs `tz=None`) 재검증 필요
+
+**다음 단계:** D202-3 (Engine MarketData wiring) 또는 D203 진행
 
 **목표:**
 - MarketData 수집 증거 저장 포맷 정의
