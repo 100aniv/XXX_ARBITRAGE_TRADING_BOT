@@ -2516,7 +2516,28 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D202-2: MarketData evidence 저장 포맷 (샘플 1h)
-**상태:** PLANNED
+**상태:** ⚠️ PARTIAL (D202-2 완료, baseline Gate FAIL)
+**커밋:** `[진행 중]`
+**테스트 결과:** 9/9 PASS (skip 0)
+**문서:** `docs/v2/reports/D202/D202-2_REPORT.md`
+
+**목표:**
+- MarketData 1h 샘플러 구현
+- Evidence SSOT 규격 준수 (manifest.json, kpi.json, errors.ndjson, raw_sample.ndjson, README.md)
+- KPI 추적 (uptime, samples_ok/fail, latency_p50/p95/max, parse_errors)
+
+**AC:**
+- [x] MarketDataSampler 스크립트 구현
+- [x] Evidence 파일 구조 SSOT 준수
+- [x] 테스트 9/9 PASS (skip 0, Mock 기반)
+- [x] KPI 추적 구현
+- [x] Run ID 규칙 준수
+
+**Gate 이슈:**
+- Doctor: ✅ PASS
+- Fast/Regression: ❌ FAIL (postgres baseline 이슈, D202-2와 무관)
+
+**다음 단계:** postgres 이슈 수정 또는 D202-3로 진행
 
 **목표:**
 - MarketData 수집 증거 저장 포맷 정의
