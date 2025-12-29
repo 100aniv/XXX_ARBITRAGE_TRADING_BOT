@@ -1,3 +1,11 @@
+# ⚠️ DEPRECATED - 이 파일은 더 이상 사용되지 않습니다
+
+**Status:** DEPRECATED (2025-12-29)  
+**Reason:** ROADMAP SSOT 단일화 - D95 내용은 D_ROADMAP.md에 통합됨  
+**SSOT:** `/D_ROADMAP.md`
+
+---
+
 ## D95: 1h PAPER 성능 Gate
 
 **Status**: ❌ **FAIL** (2025-12-16 19:41 KST - 성능 기준 미달, 재실행 필요)

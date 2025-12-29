@@ -189,7 +189,7 @@ class EvidencePacker:
         header += f"# Execution: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} UTC+9\n\n"
         self.cmd_history_path.write_text(header)
 
-        print(f"✅ Evidence 폴더 생성: {self.evidence_dir}")
+        print(f"[OK] Evidence folder created: {self.evidence_dir}")
 
     def add_command(self, step: str, command: str, status: str = "PASS"):
         """커맨드 기록"""
@@ -250,11 +250,11 @@ class EvidencePacker:
                 "zip",
                 self.evidence_dir
             )
-            print(f"✅ Evidence 압축: {zip_path}")
+            print(f"[OK] Evidence archive created: {zip_path}")
         except Exception as e:
-            print(f"⚠️ Evidence 압축 실패: {e}")
-
-        print(f"✅ Evidence 완료: {self.evidence_dir}")
+            print(f"[WARN] Evidence archive failed: {e}")
+        
+        print(f"[OK] Evidence completed: {self.evidence_dir}")
         print(f"   Status: {status}")
         print(f"   Duration: {self.manifest['duration_seconds']}s")
 

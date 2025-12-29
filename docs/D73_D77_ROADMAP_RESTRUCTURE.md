@@ -1,3 +1,11 @@
+# ⚠️ DEPRECATED - 이 파일은 더 이상 사용되지 않습니다
+
+**Status:** DEPRECATED (2025-12-29)  
+**Reason:** ROADMAP SSOT 단일화 - 재구조화 내용은 D_ROADMAP.md에 반영 완료  
+**SSOT:** `/D_ROADMAP.md`
+
+---
+
 # D73-D77 로드맵 재구조화
 
 이 문서는 기존 D_ROADMAP.md의 D73-D89 섹션을 재구조화한 내용입니다.
