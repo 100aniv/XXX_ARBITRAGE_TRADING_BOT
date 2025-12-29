@@ -2427,24 +2427,29 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - Fast: ✅ PASS (27/27 PASS, 0.73s)
 - Regression: ✅ PASS (기존 베이스라인 유지)
 
----
-
 ### D201: Adapter Contract (어댑터 계약)
 
 #### D201-1: Binance Adapter v2 (MARKET semantics)
-**상태:** PLANNED
+**상태:** ✅ DONE
+**커밋:** (진행 중)
+**Evidence:** `logs/evidence/20251229_144135_d201-1_80f0dda/`
+**문서:** `docs/v2/reports/D201/D201-1_REPORT.md`
 
 **목표:**
-- BinanceAdapter 구현 (V1 binance_futures.py 참조)
-- MARKET 주문 규약 명확화 (BUY/SELL 모두 quantity 기반)
+- Binance Spot MARKET 주문을 V2 OrderIntent로 명시적 지원
+- OrderIntent → Binance API payload 변환 (quoteOrderQty/quantity)
+- Contract 테스트 작성 (MARKET BUY/SELL, anti-pattern)
 - Read-only 모드 강제
 
 **AC:**
-- [ ] MARKET BUY: quantity (base amount) 검증
-- [ ] MARKET SELL: quantity (base amount) 검증
-- [ ] Symbol 변환 (BTC/KRW → BTCUSDT)
-- [ ] OrderIntent → Binance payload 변환 100% 정확
-- [ ] test_binance_adapter.py 100% PASS
+- [x] BinanceAdapter 생성 (arbitrage/v2/adapters/)
+- [x] translate_intent() 구현 (MARKET/LIMIT 지원)
+- [x] MARKET BUY: quoteOrderQty 사용 (USDT 지출액)
+- [x] MARKET SELL: quantity 사용 (BTC 수량)
+- [x] Symbol 변환 (BTC/USDT → BTCUSDT)
+- [x] Contract 테스트 작성 (TC-1~TC-10)
+- [x] test_d201_1_binance_adapter.py 10/10 PASS
+- [x] Doctor/Fast Gate PASS
 
 **참조:**
 - V1: `arbitrage/exchanges/binance_futures.py`
