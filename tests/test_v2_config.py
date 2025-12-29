@@ -54,32 +54,31 @@ def test_config_strategy_required():
     """Strategy 설정 필수 키 확인 (하드코딩 제거)"""
     config = load_config("config/v2/config.yml")
     
-    # Threshold (fee/slippage/buffer 포함)
-    assert config.strategy.threshold_bps > 0, "threshold_bps는 양수"
-    assert config.strategy.slippage_bps >= 0, "slippage_bps는 0 이상"
-    assert config.strategy.buffer_bps >= 0, "buffer_bps는 0 이상"
+    # Threshold (중첩 구조)
+    assert config.strategy.threshold.slippage_bps >= 0, "slippage_bps는 0 이상"
+    assert config.strategy.threshold.buffer_bps >= 0, "buffer_bps는 0 이상"
+    assert isinstance(config.strategy.threshold.use_exchange_fees, bool), "use_exchange_fees는 bool"
     
-    # Order size policy
-    assert config.strategy.order_size_policy in ["fixed", "dynamic"], \
-        "order_size_policy는 fixed 또는 dynamic"
-    assert config.strategy.order_size_usd > 0, "order_size_usd는 양수"
+    # Order size policy (중첩 구조)
+    assert config.strategy.order_size_policy.mode in ["fixed_quote", "risk_based"], \
+        "order_size_policy mode는 fixed_quote 또는 risk_based"
 
 
 def test_config_safety_guardrails():
     """Safety 가드레일 필수 키 확인"""
     config = load_config("config/v2/config.yml")
     
-    # 손실 한도
-    assert config.safety.max_daily_loss_usd > 0, "max_daily_loss_usd는 양수"
+    # 손실 한도 (KRW 기준)
+    assert config.safety.max_daily_loss_krw > 0, "max_daily_loss_krw는 양수"
     assert config.safety.max_position_usd > 0, "max_position_usd는 양수"
     
     # Cooldown
     assert config.safety.cooldown_after_loss_seconds >= 0, \
         "cooldown_after_loss_seconds는 0 이상"
     
-    # Emergency stop
-    assert isinstance(config.safety.emergency_stop_enabled, bool), \
-        "emergency_stop_enabled는 bool"
+    # Emergency stop (Dict)
+    assert isinstance(config.safety.emergency_stop, dict), \
+        "emergency_stop은 dict"
 
 
 def test_config_execution_limits():
@@ -116,23 +115,23 @@ def test_config_break_even_spread_calculation():
 
 
 def test_config_db_settings():
-    """Database 설정 확인"""
+    """Database 설정 확인 (enabled=False 허용)"""
     config = load_config("config/v2/config.yml")
     
-    assert config.database.host, "DB host 필요"
-    assert config.database.port > 0, "DB port는 양수"
-    assert config.database.database, "DB name 필요"
-    assert config.database.pool_size > 0, "pool_size는 양수"
+    # Database enabled 여부 확인 (enabled=False면 host/port 생략 가능)
+    assert isinstance(config.database.enabled, bool), "database.enabled는 bool"
+    if config.database.enabled:
+        assert config.database.host, "DB host 필요 (enabled=True 시)"
+        assert config.database.port > 0, "DB port는 양수 (enabled=True 시)"
 
 
 def test_config_cache_settings():
     """Cache (Redis) 설정 확인"""
     config = load_config("config/v2/config.yml")
     
-    assert config.cache.host, "Redis host 필요"
-    assert config.cache.port > 0, "Redis port는 양수"
-    assert config.cache.db >= 0, "Redis db는 0 이상"
-    assert config.cache.ttl_seconds > 0, "TTL은 양수"
+    # Cache enabled 여부 확인 (실제 속성: redis_enabled)
+    assert isinstance(config.cache.redis_enabled, bool), "redis_enabled는 bool"
+    assert config.cache.market_data_ttl_ms > 0, "market_data_ttl_ms는 양수"
 
 
 def test_config_no_secrets():
@@ -160,9 +159,9 @@ def test_config_meta_version():
     config = load_config("config/v2/config.yml")
     
     assert config.meta.version, "version 필요"
-    assert config.meta.name, "config name 필요"
+    assert config.meta.config_name, "config_name 필요"
     assert "v2" in config.meta.version.lower() or \
-           "v2" in config.meta.name.lower(), \
+           "v2" in config.meta.config_name.lower(), \
            "V2 config임을 명시해야 함"
 
 

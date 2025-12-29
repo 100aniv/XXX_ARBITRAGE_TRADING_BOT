@@ -2461,7 +2461,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 #### D201-2: Contract Tests 100% PASS (BUY quote_amount / SELL base_qty)
 **상태:** ✅ DONE
 **커밋:** (진행 중)
-**Evidence:** `logs/evidence/20251229_160222_gate_doctor_109407c/`
+**Evidence:** `logs/evidence/20251229_173344_gate_doctor_3b393ca/` (Doctor), `logs/evidence/20251229_175329_gate_fast_3b393ca/` (Fast), `logs/evidence/20251229_175331_gate_regression_3b393ca/` (Regression)
 **문서:** `docs/v2/reports/D201/D201-2_REPORT.md`
 
 **목표:**

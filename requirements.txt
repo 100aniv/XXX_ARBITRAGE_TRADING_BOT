@@ -2,6 +2,11 @@
 # Python Version: 3.11 - 3.13 (권장: 3.13)
 # ⚠️ Python 3.14는 asyncio/pydantic 호환 이슈로 Full Regression timeout 발생
 
+# 테스트 의존성
+pytest>=9.0.0
+pytest-asyncio>=0.25.0
+anyio>=4.0.0
+
 # 필수 의존성
 pyyaml>=6.0
 requests>=2.31.0
