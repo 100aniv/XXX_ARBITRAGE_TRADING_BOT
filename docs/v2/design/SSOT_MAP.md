@@ -43,14 +43,12 @@
 - V1/V2 마일스톤 정의
 - Phase별 완료 조건
 
-**금지 사항:**
-- ❌ D_ROADMAP_V2.md 생성 금지
-- ❌ D_ROADMAP_D95.md 등 분기 금지
-- ❌ 로컬 로드맵 문서 생성 금지
+**주의사항:**
+- 로드맵은 D_ROADMAP.md가 유일 SSOT
+- 로컬 로드맵 복사본 생성 금지
+- 프로젝트 진행 상황은 D_ROADMAP.md에만 기록
 
-**참조자:**
-- 모든 개발자 (로드맵 확인 시)
-- CI/CD (마일스톤 체크)
+---
 - 문서 작성 시 (D 번호 인용)
 
 **업데이트 규칙:**
@@ -490,6 +488,46 @@ docs/v2/V2_ARCHITECTURE_NEW.md # 금지!
 - ⏳ .env.v2.example 생성 (Secrets 템플릿)
 - ⏳ infra/docker-compose.yml SSOT 확정
 - ⏳ D_ROADMAP.md에 V2 섹션 상세 추가
+
+---
+
+## 🔁 V1→V2 재사용 맵핑 (Reuse-First 강제)
+
+**목적:** V2는 "리셋"이 아니라 "수술"이다. V1 인프라를 최대한 재사용한다.
+
+### 재사용 대상 모듈 (V1 → V2 매핑)
+
+| V2 기능 | V1 재사용 모듈 | 재사용 방식 | 비고 |
+|---------|---------------|------------|------|
+| Alert Storage | `arbitrage/alerting/storage/postgres_storage.py` | 그대로 재사용 | PostgreSQL 기반 알림 저장소 |
+| Alert Manager | `arbitrage/alerting/manager.py` | 그대로 재사용 | 알림 관리자 |
+| Rate Limiter | `arbitrage/infrastructure/rate_limiter.py` | 그대로 재사용 | 거래소별 레이트 리밋 |
+| Prometheus Exporter | `arbitrage/monitoring/prometheus_exporter.py` | 그대로 재사용 | 메트릭 수집 |
+| Evidence Pack | `arbitrage/monitoring/evidence_pack.py` | 그대로 재사용 | 실행 증거 저장 |
+| Gate Runner | `scripts/run_gate_with_evidence.py` | 그대로 재사용 | Gate 3단 검증 |
+| Config Loader | `config/base.py` | 확장 (V2 섹션 추가) | 설정 관리 |
+| Exchange Adapters | `arbitrage/exchanges/*.py` | 확장 (OrderIntent 지원) | 거래소 어댑터 |
+
+### 신규 생성 허용 모듈 (V1 없음)
+
+| V2 기능 | 신규 파일 | 근거 |
+|---------|----------|------|
+| Engine-Centric Flow | `arbitrage/v2/engine.py` | V1에 없던 중앙 엔진 패턴 |
+| OrderIntent | `arbitrage/v2/domain/order_intent.py` | V1에 없던 주문 의도 추상화 |
+| MarketData Interfaces | `arbitrage/v2/marketdata/interfaces.py` | V1에 없던 데이터 계약 |
+
+### 금지 사항
+
+- ❌ `arbitrage/v2/alerting/postgres_storage_v2.py` 같은 중복 모듈 생성
+- ❌ `arbitrage/v2/monitoring/new_prometheus_exporter.py` 같은 재발명
+- ❌ V1 모듈 대체 없이 새 모듈로 전환
+
+### 예외 처리
+
+신규 모듈 생성 시:
+1. `docs/v2/design/INFRA_REUSE_INVENTORY.md`에 사유 기록
+2. D 리포트에 "왜 기존 것을 못 쓰는지" 명시
+3. Gate PASS 후에만 진행
 
 ---
 
