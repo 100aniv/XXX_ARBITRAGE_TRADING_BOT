@@ -2612,7 +2612,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 #### D203-1: Break-even Threshold 공식 (SSOT)
 **상태:** ✅ DONE  
-**커밋:** [작업 중]  
+**커밋:** `228eef2`  
 **테스트:** 9/9 PASS (0.24s)  
 **문서:** `docs/v2/reports/D203/D203-1_REPORT.md`
 
@@ -2654,9 +2654,9 @@ threshold_bps = config.exchanges.upbit.taker_fee_bps + \
 
 #### D203-2: Opportunity Detector v1 (옵션 확장)
 **상태:** ✅ DONE  
-**커밋:** [작업 중]  
+**커밋:** `228eef2`  
 **테스트:** 6/6 PASS (0.18s)  
-**문서:** `docs/v2/reports/D203/D203-1_REPORT.md` (D203-1과 통합)
+**문서:** `docs/v2/reports/D203/D203-2_REPORT.md`
 
 **목표:**
 - 두 거래소 가격 입력 → 기회 탐지 ✅
@@ -2675,7 +2675,7 @@ threshold_bps = config.exchanges.upbit.taker_fee_bps + \
 - ✅ BreakEvenParams 재사용 (D203-1)
 - ✅ SpreadModel 로직 참조 (V1: arbitrage/cross_exchange/spread_model.py)
 
-**Note:** 원래 D203-2는 "replay/backtest gate" 계획이었으나, D203-1의 자연스러운 확장으로 Opportunity Detector를 먼저 구현함. Backtest gate는 D204-2로 이동 예정.
+**Note:** 원래 D203-2는 "replay/backtest gate" 계획이었으나, D203-1의 자연스러운 확장으로 Opportunity Detector를 먼저 구현함. **Backtest gate는 D204-2 (계단식 Paper 테스트)로 이동 완료.**
 
 **KPI 필수 필드:**
 ```json
