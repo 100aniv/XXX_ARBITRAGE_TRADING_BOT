@@ -2459,7 +2459,10 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D201-2: Contract Tests 100% PASS (BUY quote_amount / SELL base_qty)
-**상태:** PLANNED
+**상태:** ✅ DONE
+**커밋:** (진행 중)
+**Evidence:** `logs/evidence/20251229_160222_gate_doctor_109407c/`
+**문서:** `docs/v2/reports/D201/D201-2_REPORT.md`
 
 **목표:**
 - Adapter 인터페이스 contract 테스트 작성
@@ -2467,15 +2470,16 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - Mock/Upbit/Binance Adapter 100% coverage
 
 **AC:**
-- [ ] test_v2_order_intent.py (OrderIntent validation)
-- [ ] test_v2_adapter_contract.py (인터페이스 contract)
-- [ ] MARKET BUY: quote_amount 필수 검증
-- [ ] MARKET SELL: base_qty 필수 검증
-- [ ] Mock/Upbit/Binance 모두 100% PASS
+- [x] test_v2_order_intent.py (OrderIntent validation) - 14/14 PASS
+- [x] test_v2_adapter_contract.py (인터페이스 contract) - 17/17 PASS
+- [x] MARKET BUY: quote_amount 필수 검증
+- [x] MARKET SELL: base_qty 필수 검증
+- [x] Mock/Upbit/Binance 모두 100% PASS (41/41 total)
 
-**테스트 케이스:**
-- UpbitAdapter: BUY uses price (KRW amount), SELL uses volume (coin qty)
-- BinanceAdapter: BUY/SELL both use quantity (coin qty)
+**테스트 케이스 (SSOT 계약):**
+- OrderIntent: MARKET BUY는 quote_amount 필수, MARKET SELL은 base_qty 필수
+- UpbitAdapter: BUY uses price (KRW amount = quote), SELL uses volume (coin qty = base)
+- BinanceAdapter: BUY uses quoteOrderQty (USDT amount = quote), SELL uses quantity (coin qty = base)
 - 규약 위반 시 즉시 ValueError
 
 ---

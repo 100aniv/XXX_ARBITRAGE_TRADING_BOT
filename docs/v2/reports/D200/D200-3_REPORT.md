@@ -3,11 +3,12 @@
 **작성일:** 2025-12-29  
 **상태:** ✅ DONE (증거로 PASS)  
 **커밋:** a0003ba  
-**Evidence run_id:** `20251229_131600_d200-3_a0003ba`
+**Evidence:** `logs/evidence/20251229_131600_d200-3_a0003ba/`  
+**Patch (Evidence 포맷 정합):** `logs/evidence/20251229_152630_gate_doctor_6424c85/`
 
 ---
 
-## 📋 목표 (Goal)
+## 목표 (Goal)
 
 V2 SSOT(문서/룰/로드맵/테스트/증거)가 서로 100% 일치하도록 정합성 구멍을 닫고, watchdog/just 게이트 실행 시 evidence가 실제로 남는 최소 통합을 완료한다.
 
