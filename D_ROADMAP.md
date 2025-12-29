@@ -2517,7 +2517,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 #### D202-2: MarketData evidence 저장 포맷 (샘플 1h)
 **상태:** ⚠️ PARTIAL (D202-2 완료, baseline Gate FAIL)
-**커밋:** `[진행 중]`
+**커밋:** `36f8989` (D202-2 sampler), `[진행 중]` (FIX-0 postgres)
 **테스트 결과:** 9/9 PASS (skip 0)
 **문서:** `docs/v2/reports/D202/D202-2_REPORT.md`
 
@@ -2533,11 +2533,14 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] KPI 추적 구현
 - [x] Run ID 규칙 준수
 
-**Gate 이슈:**
-- Doctor: ✅ PASS
-- Fast/Regression: ❌ FAIL (postgres baseline 이슈, D202-2와 무관)
+**Gate BLOCKER (D202-2 FIX-0):**
+- **원인:** PostgreSQLAlertStorage timestamp tz-aware/naive 혼재로 조회 실패
+- **해결:** UTC naive 정규화 헬퍼 추가 (6곳 적용: save, get_recent, get_by_time_range, clear_before, cleanup_old_alerts)
+- **근거:** `test_get_by_time_range_with_filters`, `test_get_recent` PASS (12/12 postgres tests)
+- **Evidence:** `logs/evidence/20251229_214345_gate_doctor_36f8989/` (Doctor PASS)
+- **잔여 이슈:** `test_get_stats` 격리 문제 (별도 D-step 필요)
 
-**다음 단계:** postgres 이슈 수정 또는 D202-3로 진행
+**다음 단계:** test_get_stats 격리 수정 (D202-2 FIX-1) 또는 D202-3로 진행
 
 **목표:**
 - MarketData 수집 증거 저장 포맷 정의

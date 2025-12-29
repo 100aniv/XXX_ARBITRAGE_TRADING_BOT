@@ -11,6 +11,28 @@ from arbitrage.alerting.models import AlertRecord, AlertSeverity, AlertSource
 from arbitrage.alerting.storage.base import StorageBase
 
 
+def _normalize_to_utc_naive(dt: datetime) -> datetime:
+    """
+    Normalize datetime to UTC naive (SSOT for TIMESTAMP columns)
+    
+    Args:
+        dt: datetime (tz-aware or naive)
+        
+    Returns:
+        UTC naive datetime (tzinfo removed)
+        
+    Examples:
+        - 2025-12-29 12:00:00+09:00 → 2025-12-29 03:00:00 (naive)
+        - 2025-12-29 03:00:00 (naive) → 2025-12-29 03:00:00 (unchanged)
+    """
+    if dt.tzinfo is not None:
+        # tz-aware: convert to UTC and remove tzinfo
+        return dt.astimezone(tz=None).replace(tzinfo=None)
+    else:
+        # naive: assume UTC and return as-is
+        return dt
+
+
 class PostgreSQLAlertStorage(StorageBase):
     """
     PostgreSQL-based alert storage
@@ -277,7 +299,7 @@ class PostgreSQLAlertStorage(StorageBase):
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(delete_sql, [before])
+                    cur.execute(delete_sql, [_normalize_to_utc_naive(before)])
                     deleted = cur.rowcount
                 conn.commit()
             return deleted
@@ -291,7 +313,7 @@ class PostgreSQLAlertStorage(StorageBase):
         Returns:
             Number of alerts deleted
         """
-        cutoff_time = datetime.now() - timedelta(days=self.retention_days)
+        cutoff_time = _normalize_to_utc_naive(datetime.now()) - timedelta(days=self.retention_days)
         return self.clear_before(cutoff_time)
         
     def get_stats(self) -> Dict[str, Any]:
