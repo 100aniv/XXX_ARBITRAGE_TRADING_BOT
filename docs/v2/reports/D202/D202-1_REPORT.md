@@ -130,9 +130,10 @@ REST/WebSocket Provider 최소 구현 + Redis cache + Rate limit + Reconnect 기
 - RestProvider (Upbit/Binance) 구현 완료 ✅
 - WsProvider (Upbit/Binance) + reconnect 구현 완료 ✅
 - Redis cache (TTL 100ms) + Rate limit 구현 완료 ✅
-- test_market_data_provider.py 14/14 PASS ✅
+- **test_market_data_provider.py 18/18 PASS (skip 0)** ✅
 - Gate 3단 모두 PASS (Doctor/Fast/Regression) ✅
 - SSOT 키 포맷 (REDIS_KEYSPACE.md) 준수 ✅
+- **SSOT Hardening: Mock 기반 테스트로 재작성 (fakeredis/sleep 의존 제거)** ✅
 
 ---
 

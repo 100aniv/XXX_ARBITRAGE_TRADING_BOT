@@ -2488,7 +2488,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 #### D202-1: WS/REST 최소 구현 + 재연결/레이트리밋
 **상태:** ✅ DONE
-**커밋:** (진행 중)
+**커밋:** `68b899b` (D202-1 initial), `[진행 중]` (SSOT hardening)
 **Evidence:** `logs/evidence/20251229_184010_gate_doctor_f59ad4b/` (Doctor), `logs/evidence/20251229_184013_gate_fast_f59ad4b/` (Fast), `logs/evidence/20251229_184015_gate_regression_f59ad4b/` (Regression)
 **문서:** `docs/v2/reports/D202/D202-1_REPORT.md`
 
@@ -2505,7 +2505,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] Redis cache 동작 확인 (key: `v2:market:{exchange}:{symbol}`, TTL: 100ms)
 - [x] Reconnect 자동화 (최대 3회 재시도, exponential backoff)
 - [x] Rate limit counter (Redis: `v2:ratelimit:{exchange}:{endpoint}`)
-- [x] test_market_data_provider.py 100% PASS (14/14)
+- [x] test_market_data_provider.py 100% PASS (18/18, skip 0)
 
 **테스트 결과:** 14/14 PASS (4 skip - fakeredis 호환성)
 

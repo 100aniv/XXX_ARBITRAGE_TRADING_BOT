@@ -256,9 +256,10 @@ class TestWsProviderContract:
         assert provider._reconnect_count == 3
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="D202-1: asyncio sleep 타이밍 이슈로 skip (기능 검증됨)")
     async def test_binance_ws_reconnect_backoff(self):
-        """Binance WS reconnect backoff 증가 검증"""
+        """Binance WS reconnect backoff 증가 검증 (Mock asyncio.sleep)"""
+        from unittest.mock import AsyncMock, patch
+        
         provider = BinanceWsProvider(max_reconnect_attempts=2, reconnect_backoff=2.0)
         provider._is_connected = False
         
@@ -274,26 +275,28 @@ class TestWsProviderContract:
         
         provider.connect = mock_connect_retry
         
-        # Execute reconnect
-        start_time = time.time()
-        result = await provider._reconnect()
-        elapsed = time.time() - start_time
-        
-        # Assert: backoff 2^1 = 2초 (여유 있게 1.8초 이상)
-        assert result is True
-        assert provider._reconnect_count == 1
-        assert elapsed >= 1.8  # 최소 1.8초 대기 (여유)
+        # Patch asyncio.sleep to verify backoff timing
+        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await provider._reconnect()
+            
+            # Assert: 첫 실패 후 재시도(count=2), 두 번째는 성공
+            assert result is True
+            assert provider._reconnect_count == 2
+            # sleep은 2번 호출 (2^1=2s, 2^2=4s)
+            assert mock_sleep.call_count == 2
+            mock_sleep.assert_any_call(2.0)  # 첫 재시도
+            mock_sleep.assert_any_call(4.0)  # 두 번째 재시도
 
 
 class TestMarketDataCache:
     """Redis cache 테스트 (TTL 100ms)"""
     
-    @pytest.mark.skip(reason="D202-1: fakeredis TTL 동작 차이로 skip (실제 Redis에서 검증)")
     def test_ticker_cache_ttl(self):
-        """Ticker cache TTL 100ms 검증"""
-        # FakeRedis (in-memory) - decode_responses=True for JSON
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
-        cache = MarketDataCache(redis_client, env="test", run_id="cache_test", ttl_ms=100)
+        """Ticker cache PSETEX 호출 검증 (Mock Redis)"""
+        from unittest.mock import MagicMock
+        
+        mock_redis = MagicMock()
+        cache = MarketDataCache(mock_redis, env="test", run_id="cache_test", ttl_ms=100)
         
         # Set ticker
         ticker = Ticker(
@@ -307,23 +310,21 @@ class TestMarketDataCache:
         )
         cache.set_ticker(ticker)
         
-        # Get immediately (should exist)
-        cached = cache.get_ticker("upbit", "BTC/KRW")
-        assert cached is not None
-        assert cached.bid == 50000000.0
+        # Assert: PSETEX called with correct key, TTL (100ms), and JSON value
+        assert mock_redis.psetex.called
+        call_args = mock_redis.psetex.call_args
+        key, ttl_ms, value = call_args[0]
         
-        # Wait 200ms (TTL 100ms + margin)
-        time.sleep(0.2)
-        
-        # Get after TTL (should be None)
-        expired = cache.get_ticker("upbit", "BTC/KRW")
-        assert expired is None
+        assert key == "v2:test:cache_test:market:upbit:BTC/KRW:ticker"
+        assert ttl_ms == 100
+        assert "50000000.0" in value  # JSON serialized bid
     
-    @pytest.mark.skip(reason="D202-1: fakeredis TTL 동작 차이로 skip (실제 Redis에서 검증)")
     def test_orderbook_cache_ttl(self):
-        """Orderbook cache TTL 100ms 검증"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
-        cache = MarketDataCache(redis_client, env="test", run_id="cache_test", ttl_ms=100)
+        """Orderbook cache PSETEX 호출 검증 (Mock Redis)"""
+        from unittest.mock import MagicMock
+        
+        mock_redis = MagicMock()
+        cache = MarketDataCache(mock_redis, env="test", run_id="cache_test", ttl_ms=100)
         
         # Set orderbook
         orderbook = Orderbook(
@@ -335,23 +336,21 @@ class TestMarketDataCache:
         )
         cache.set_orderbook(orderbook)
         
-        # Get immediately
-        cached = cache.get_orderbook("binance", "BTC/USDT")
-        assert cached is not None
-        assert len(cached.bids) == 1
+        # Assert: PSETEX called with correct key, TTL (100ms), and JSON value
+        assert mock_redis.psetex.called
+        call_args = mock_redis.psetex.call_args
+        key, ttl_ms, value = call_args[0]
         
-        # Wait 200ms
-        time.sleep(0.2)
-        
-        # Get after TTL
-        expired = cache.get_orderbook("binance", "BTC/USDT")
-        assert expired is None
+        assert key == "v2:test:cache_test:market:binance:BTC/USDT:orderbook"
+        assert ttl_ms == 100
+        assert "50000.0" in value  # JSON serialized bid price
     
-    @pytest.mark.skip(reason="D202-1: fakeredis keys() 동작 차이로 skip (기능 검증됨)")
     def test_redis_key_format_ssot(self):
-        """Redis key 포맷 SSOT 규칙 준수 검증"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
-        cache = MarketDataCache(redis_client, env="prod", run_id="d202_1_test", ttl_ms=100)
+        """Redis key 포맷 SSOT 규칙 준수 검증 (Mock Redis)"""
+        from unittest.mock import MagicMock
+        
+        mock_redis = MagicMock()
+        cache = MarketDataCache(mock_redis, env="prod", run_id="d202_1_test", ttl_ms=100)
         
         # Set ticker
         ticker = Ticker(
@@ -365,9 +364,12 @@ class TestMarketDataCache:
         )
         cache.set_ticker(ticker)
         
-        # Check key format: v2:{env}:{run_id}:market:{exchange}:{symbol}:{data_type}
+        # Assert: PSETEX called with SSOT key format
+        call_args = mock_redis.psetex.call_args
+        key = call_args[0][0]
+        
         expected_key = "v2:prod:d202_1_test:market:upbit:BTC/KRW:ticker"
-        assert expected_key in redis_client.keys()
+        assert key == expected_key
 
 
 class TestRateLimitCounter:
