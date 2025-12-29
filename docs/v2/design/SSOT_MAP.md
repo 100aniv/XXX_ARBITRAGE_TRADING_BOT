@@ -215,7 +215,7 @@
 - 변경 시 커밋 메시지에 "[EVIDENCE]" 태그
 
 **현재 상태:**
-- ✅ D200-2에서 EVIDENCE_SPEC.md 생성 (→ EVIDENCE_FORMAT.md로 rename 예정)
+- ✅ D200-2에서 EVIDENCE_FORMAT.md 생성 (EVIDENCE_SPEC.md는 DEPRECATED)
 - ✅ tools/evidence_pack.py 유틸 생성
 - 🔄 D200-3에서 실동작 통합 진행 중
 

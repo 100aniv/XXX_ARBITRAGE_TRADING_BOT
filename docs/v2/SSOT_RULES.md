@@ -183,7 +183,7 @@ logs/evidence/
 
 ### 4. Evidence (logs/evidence/에만 저장)
 - **경로:** `logs/evidence/<run_id>/`
-- **포맷:** SSOT = `docs/v2/design/EVIDENCE_FORMAT.md` (또는 EVIDENCE_SPEC.md)
+- **포맷:** SSOT = `docs/v2/design/EVIDENCE_FORMAT.md`
 - **자동 생성:** watchdog/just 실행 시 자동으로 증거 폴더 생성
 
 ---

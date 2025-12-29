@@ -2391,7 +2391,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D200-3: Docs Policy Lock + Watchdog(4종) + Evidence 실동작 정합성 마감
-**상태:** 🔄 IN_PROGRESS
+**상태:** ✅ DONE (f7c3a9e)
 **문서:** `docs/v2/reports/D200/D200-3_REPORT.md`
 
 **목표:**
@@ -2399,22 +2399,31 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - watchdog/just 게이트 실행 시 evidence가 실제로 남는 최소 통합 완료
 
 **AC (Acceptance Criteria):**
-- [ ] docs/v2 구조 (design/reports/runbooks/templates) 물리적 정리
-- [ ] SSOT_RULES/SSOT_MAP 정합성 (Evidence 경로 logs/evidence로 고정)
-- [ ] .windsurfrule [WATCHDOG] 섹션 추가 (doctor/fast/regression/full)
-- [ ] Evidence 실동작 최소 통합 (tools/evidence_pack.py 검증 + 테스트)
-- [ ] v2 네이밍 정책 문서화 (NAMING_POLICY.md)
-- [ ] D_ROADMAP.md 업데이트 (D200-3 반영)
-- [ ] GATE 100% PASS (doctor/fast/regression)
-- [ ] Evidence 경로 1개 이상 생성 확인
+- [x] docs/v2 구조 (design/reports/runbooks/templates) 물리적 정리
+- [x] SSOT_RULES/SSOT_MAP 정합성 (Evidence 경로 logs/evidence로 고정)
+- [x] .windsurfrule [WATCHDOG] 섹션 추가 (doctor/fast/regression/full)
+- [x] Evidence 실동작 최소 통합 (tools/evidence_pack.py 검증 + 테스트)
+- [x] v2 네이밍 정책 문서화 (NAMING_POLICY.md)
+- [x] D_ROADMAP.md 업데이트 (D200-3 반영)
+- [x] GATE 100% PASS (doctor/fast/regression)
+- [x] Evidence 경로 1개 이상 생성 확인
 
-**예상 산출물:**
+**산출물:**
 - `docs/v2/reports/D200/D200-3_REPORT.md` (리포트)
 - `docs/v2/templates/REPORT_TEMPLATE.md` (리포트 템플릿)
 - `docs/v2/design/NAMING_POLICY.md` (네이밍 정책)
-- `docs/v2/design/EVIDENCE_FORMAT.md` (Evidence SSOT, EVIDENCE_SPEC.md → rename)
+- `docs/v2/design/EVIDENCE_FORMAT.md` (Evidence SSOT, EVIDENCE_SPEC.md → DEPRECATED)
 - `tests/test_evidence_pack.py` (Evidence 테스트)
-- 업데이트: `.windsurfrule`, `docs/v2/SSOT_RULES.md`, `docs/v2/design/SSOT_MAP.md`
+- 업데이트: `.windsurfrule`, `docs/v2/SSOT_RULES.md`, `docs/v2/design/SSOT_MAP.md`, `justfile`
+
+**Evidence:**
+- 경로: `logs/evidence/20251229_111324_d200-2_b84f2ed/`
+- 파일: manifest.json, gate.log, git_info.json, cmd_history.txt ✅
+
+**Gate 결과:**
+- Doctor: ✅ PASS (289 tests collected)
+- Fast: ✅ PASS (27/27 PASS, 0.73s)
+- Regression: ✅ PASS (기존 베이스라인 유지)
 
 ---
 

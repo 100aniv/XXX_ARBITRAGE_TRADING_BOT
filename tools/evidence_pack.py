@@ -69,75 +69,97 @@ class EvidencePacker:
             return "unknown"
 
     def _get_git_info(self) -> Dict[str, Any]:
-        """Git 상태 스냅샷"""
+        """Git 정보 조회 (방어적 처리)"""
+        git_info = {
+            "timestamp": self.timestamp.isoformat(),
+            "branch": "unknown",
+            "commit": "unknown",
+            "commit_message": "unknown",
+            "status": "unknown",
+            "remote": {
+                "origin": "https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT.git",
+                "tracking_branch": "unknown"
+            },
+            "modified_files": [],
+            "added_files": [],
+            "error": None
+        }
+        
         try:
             # Branch
             branch_result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
+                timeout=5
             )
-            branch = branch_result.stdout.strip()
+            if branch_result.returncode == 0 and branch_result.stdout:
+                git_info["branch"] = branch_result.stdout.strip()
+                git_info["remote"]["tracking_branch"] = git_info["branch"]
 
-            # Commit
+            # Commit SHA
             commit_result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
+                timeout=5
             )
-            commit = commit_result.stdout.strip()
+            if commit_result.returncode == 0 and commit_result.stdout:
+                git_info["commit"] = commit_result.stdout.strip()
 
-            # Commit message
-            msg_result = subprocess.run(
+            # Commit Message
+            message_result = subprocess.run(
                 ["git", "log", "-1", "--pretty=%B"],
                 capture_output=True,
                 text=True,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
+                timeout=5
             )
-            commit_message = msg_result.stdout.strip()
+            if message_result.returncode == 0 and message_result.stdout:
+                git_info["commit_message"] = message_result.stdout.strip()
 
             # Status
             status_result = subprocess.run(
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
+                timeout=5
             )
-            status = "clean" if not status_result.stdout.strip() else "dirty"
+            if status_result.returncode == 0:
+                status_output = status_result.stdout.strip() if status_result.stdout else ""
+                git_info["status"] = "clean" if not status_output else "dirty"
 
-            # Modified files
-            modified = []
-            added = []
-            for line in status_result.stdout.strip().split("\n"):
-                if not line:
-                    continue
-                prefix = line[:2]
-                filename = line[3:]
-                if prefix.startswith("M"):
-                    modified.append(filename)
-                elif prefix.startswith("A"):
-                    added.append(filename)
-
-            return {
-                "timestamp": self.timestamp.isoformat(),
-                "branch": branch,
-                "commit": commit,
-                "commit_message": commit_message,
-                "status": status,
-                "remote": {
-                    "origin": "https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT.git",
-                    "tracking_branch": branch
-                },
-                "modified_files": modified,
-                "added_files": added
-            }
+                # Modified files
+                modified = []
+                added = []
+                for line in status_output.split("\n"):
+                    if not line:
+                        continue
+                    prefix = line[:2]
+                    filename = line[3:]
+                    if prefix.startswith("M"):
+                        modified.append(filename)
+                    elif prefix.startswith("A"):
+                        added.append(filename)
+                
+                git_info["modified_files"] = modified
+                git_info["added_files"] = added
+        
+        except subprocess.TimeoutExpired:
+            git_info["error"] = "Git command timeout"
+        except FileNotFoundError:
+            git_info["error"] = "Git not installed"
         except Exception as e:
-            return {
-                "timestamp": self.timestamp.isoformat(),
-                "error": str(e)
-            }
+            git_info["error"] = str(e)
+        
+        # error 필드가 None이면 제거 (깔끔함)
+        if git_info["error"] is None:
+            del git_info["error"]
+        
+        return git_info
 
     def start(self):
         """Evidence 폴더 생성 및 초기화"""

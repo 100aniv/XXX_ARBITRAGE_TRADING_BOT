@@ -1,13 +1,3 @@
-# ⚠️ DEPRECATED: EVIDENCE_SPEC.md
-
-**상태:** DEPRECATED (2025-12-29)  
-**대체:** `docs/v2/design/EVIDENCE_FORMAT.md` 참조
-
-이 문서는 역사 보존 목적으로 유지됩니다.  
-모든 새로운 참조는 **EVIDENCE_FORMAT.md**를 사용하세요.
-
----
-
 # V2 Evidence SSOT (Single Source of Truth)
 
 **작성일:** 2025-12-29  
