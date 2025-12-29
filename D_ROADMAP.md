@@ -2370,8 +2370,8 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D200-2: V2 Harness 표준화 + Evidence 포맷 SSOT
-**상태:** PLANNED  
-**문서:** (생성 예정) `docs/v2/design/HARNESS_STANDARD.md`
+**상태:** ✅ DONE (b84f2ed)
+**문서:** `docs/v2/design/EVIDENCE_SPEC.md`
 
 **목표:**
 - Smoke/Paper 테스트 하네스 표준화
@@ -2379,15 +2379,42 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - Preflight v2 테스트 생성
 
 **AC (Acceptance Criteria):**
-- [ ] Smoke/Paper Harness 인터페이스 통일
-- [ ] Evidence JSON schema 정의
-- [ ] Preflight v2 테스트 작성 (test_v2_preflight.py)
-- [ ] Gate 100% PASS
+- [x] Smoke/Paper Harness 인터페이스 통일
+- [x] Evidence JSON schema 정의
+- [x] Preflight v2 테스트 작성 (test_v2_preflight.py)
+- [x] Gate 100% PASS
+
+**산출물:**
+- `docs/v2/design/EVIDENCE_SPEC.md` (Evidence SSOT)
+- `tools/evidence_pack.py` (Evidence 자동 생성 유틸)
+
+---
+
+#### D200-3: Docs Policy Lock + Watchdog(4종) + Evidence 실동작 정합성 마감
+**상태:** 🔄 IN_PROGRESS
+**문서:** `docs/v2/reports/D200/D200-3_REPORT.md`
+
+**목표:**
+- V2 SSOT(문서/룰/로드맵/테스트/증거)가 서로 100% 일치하도록 정합성 구멍 닫기
+- watchdog/just 게이트 실행 시 evidence가 실제로 남는 최소 통합 완료
+
+**AC (Acceptance Criteria):**
+- [ ] docs/v2 구조 (design/reports/runbooks/templates) 물리적 정리
+- [ ] SSOT_RULES/SSOT_MAP 정합성 (Evidence 경로 logs/evidence로 고정)
+- [ ] .windsurfrule [WATCHDOG] 섹션 추가 (doctor/fast/regression/full)
+- [ ] Evidence 실동작 최소 통합 (tools/evidence_pack.py 검증 + 테스트)
+- [ ] v2 네이밍 정책 문서화 (NAMING_POLICY.md)
+- [ ] D_ROADMAP.md 업데이트 (D200-3 반영)
+- [ ] GATE 100% PASS (doctor/fast/regression)
+- [ ] Evidence 경로 1개 이상 생성 확인
 
 **예상 산출물:**
-- `arbitrage/v2/harness/paper_runner.py`
-- `docs/v2/design/EVIDENCE_FORMAT.md`
-- `tests/test_v2_preflight.py`
+- `docs/v2/reports/D200/D200-3_REPORT.md` (리포트)
+- `docs/v2/templates/REPORT_TEMPLATE.md` (리포트 템플릿)
+- `docs/v2/design/NAMING_POLICY.md` (네이밍 정책)
+- `docs/v2/design/EVIDENCE_FORMAT.md` (Evidence SSOT, EVIDENCE_SPEC.md → rename)
+- `tests/test_evidence_pack.py` (Evidence 테스트)
+- 업데이트: `.windsurfrule`, `docs/v2/SSOT_RULES.md`, `docs/v2/design/SSOT_MAP.md`
 
 ---
 

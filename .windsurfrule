@@ -40,6 +40,41 @@
 
 ---
 
+## [WATCHDOG] 게이트 4종세트 운용 규칙
+
+**테스트는 watchdog/just 기반 4종세트(doctor/fast/regression/full)로 수행:**
+
+1. **just doctor** - Syntax/Import 검사 (빠름, ~5초)
+   - 명령: `just doctor`
+   - 목적: 코드 수집 가능 여부만 확인
+   - 실패 시: 즉시 중단, 구문 오류 수정
+
+2. **just fast** - 핵심 테스트 (빠름, ~10초)
+   - 명령: `just fast`
+   - 목적: 코어 로직 검증 (ML/Live/API 제외)
+   - 실패 시: 즉시 중단, 원인 수정
+
+3. **just regression** - 전체 테스트 (중간, ~1분)
+   - 명령: `just regression`
+   - 목적: 베이스라인 회귀 검증 (Live API 제외)
+   - 실패 시: 즉시 중단, 회귀 원인 분석
+
+4. **just full** (선택) - 전체 테스트 (느림, ~5분+)
+   - 명령: `just full` (미구현 시 생략)
+   - 목적: Live API 포함 전체 검증
+   - 실패 시: 즉시 중단, 환경 재확인
+
+**자세한 정책/명령은 아래 문서 링크로만 참조 (복붙 금지):**
+- GATE 정책: `docs/v2/SSOT_RULES.md` (검증 규칙)
+- Evidence 포맷: `docs/v2/design/EVIDENCE_FORMAT.md` (증거 저장 규칙)
+
+**주의:**
+- [BOOTSTRAP]과 충돌 없게 정리 (부트스트랩 먼저, 게이트 나중)
+- Evidence는 자동 생성 (logs/evidence/<run_id>/)
+- FAIL 시 우회 금지 (원인 확정 → 수정 → 재실행)
+
+---
+
 ## 0) 절대 규칙 (Non-Negotiable)
 - (SSOT) D 번호 체계만 사용. PHASE 표기 혼용 금지. 다음 단계 번호는 D_ROADMAP에 있는 것만 사용(임의로 늘리지 말 것).
 - (무스킵) "시간 오래걸리니 스킵" 금지. “선택적/DEFERRED” 표기 금지(승인 없는 미룸 금지).

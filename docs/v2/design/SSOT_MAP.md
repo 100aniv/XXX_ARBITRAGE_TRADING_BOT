@@ -193,15 +193,16 @@
 #### 📄 `docs/v2/design/EVIDENCE_FORMAT.md`
 
 **역할:**
-- Evidence 저장 경로 규칙: `logs/evidence/{task}_YYYYMMDD_HHMM/`
-- JSON schema 정의 (smoke_evidence.json, kpi_summary.json)
-- 파일명 규칙 (snake_case, 타임스탬프 포함)
-- 필수 필드 (run_id, duration, status, metrics)
+- Evidence 저장 경로 규칙: `logs/evidence/<run_id>/` (YYYYMMDD_HHMMSS_<d-number>_<short_hash>)
+- 필수 산출물: manifest.json, gate.log, git_info.json, cmd_history.txt
+- 선택 산출물: kpi_summary.json (Paper), error.log (실패 시)
+- 자동 생성 규칙: watchdog/just 실행 시 evidence 자동 생성
 
 **금지 사항:**
+- ❌ docs/v2/evidence/ 경로 사용 금지 (logs/evidence/만 사용)
 - ❌ 규칙 무시한 임의 경로 저장
-- ❌ JSON schema 없는 커스텀 포맷
 - ❌ 민감 정보 포함 (API key, password)
+- ❌ 증거 없는 PASS 선언
 
 **참조자:**
 - Smoke/Paper Harness (evidence 저장)
@@ -209,12 +210,14 @@
 - 사후 분석 (KPI 집계)
 
 **업데이트 규칙:**
-- 새 evidence 타입 추가 시 → EVIDENCE_FORMAT.md 업데이트 + schema 정의
+- 새 evidence 필드 추가 시 → EVIDENCE_FORMAT.md 업데이트 + schema 정의
+- 자동 생성 규칙 변경 시 → tools/evidence_pack.py 동시 업데이트
 - 변경 시 커밋 메시지에 "[EVIDENCE]" 태그
 
 **현재 상태:**
-- ⏳ D200-2에서 EVIDENCE_FORMAT.md 생성 예정
-- 🔄 D204-1에서 Paper evidence 본격 구현
+- ✅ D200-2에서 EVIDENCE_SPEC.md 생성 (→ EVIDENCE_FORMAT.md로 rename 예정)
+- ✅ tools/evidence_pack.py 유틸 생성
+- 🔄 D200-3에서 실동작 통합 진행 중
 
 ---
 

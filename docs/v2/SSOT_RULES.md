@@ -86,22 +86,29 @@ arbitrage/
 ```
 docs/
   ├── v2/                     # V2 신규 문서
-  │   ├── SSOT_RULES.md
-  │   ├── V2_ARCHITECTURE.md
-  │   └── design/
+  │   ├── SSOT_RULES.md       # 개발 규칙 SSOT
+  │   ├── V2_ARCHITECTURE.md  # 아키텍처 SSOT
+  │   ├── design/             # 설계 문서 (새 계약/표준)
+  │   ├── reports/            # 검증 리포트 (매 D마다 1개)
+  │   ├── runbooks/           # 운영 런북
+  │   └── templates/          # 문서 템플릿
   ├── v1/                     # V1 마커
   │   └── README.md           # "레거시, Read-only"
   ├── D15~D106/               # V1 실제 문서 (이동 금지)
   └── D_ROADMAP.md            # SSOT (유일)
 ```
 
-### 증거 저장 경로
+### 증거 저장 경로 (SSOT)
 ```
 logs/evidence/
-  ├── v2_kickoff_scan_YYYYMMDD_HHMM/
-  ├── v2_smoke_YYYYMMDD_HHMM/
-  └── v2_*_YYYYMMDD_HHMM/     # 모든 V2 증거는 v2_ prefix
+  └── <run_id>/               # YYYYMMDD_HHMMSS_<d-number>_<short_hash>
+      ├── manifest.json       # 실행 메타데이터
+      ├── gate.log            # Gate 실행 로그
+      ├── git_info.json       # Git 상태 스냅샷
+      └── cmd_history.txt     # 실행 커맨드 기록
 ```
+
+**중요:** Evidence는 **logs/evidence/**에만 저장. docs/v2/evidence/ 금지.
 
 ---
 
@@ -156,16 +163,28 @@ logs/evidence/
 
 ## 📝 문서 작성 규칙
 
-### 1. 모든 설계는 docs/v2/design/에 작성
-- 파일명: `DXXX_FEATURE_NAME_DESIGN.md`
-- 템플릿: Problem → Solution → Interface → Validation
+### 1. Report (매 D마다 1개 필수)
+- **경로:** `docs/v2/reports/D<번호>/D<번호>-<부제>_REPORT.md`
+- **템플릿:** `docs/v2/templates/REPORT_TEMPLATE.md` 참조
+- **필수 섹션:** Goal, AC, Plan, Execution Notes, GATE Result, Evidence, Diff Summary, PASS/FAIL
+- **예:** `docs/v2/reports/D200/D200-3_REPORT.md`
 
-### 2. 모든 검증은 docs/v2/reports/에 작성
-- 파일명: `DXXX_FEATURE_NAME_REPORT.md`
-- 필수 섹션: Acceptance Criteria, Evidence, Decision
+### 2. Design (새 계약/표준이 생길 때만)
+- **경로:** `docs/v2/design/<의미있는_이름>.md`
+- **파일명:** D 번호 강제 제거, 의미 기반 이름 권장
+  - ✅ `EVIDENCE_FORMAT.md`, `NAMING_POLICY.md`, `SSOT_MAP.md`
+  - ❌ `D200_EVIDENCE_FORMAT.md` (D 번호 강제 금지)
+- **필수 섹션:** Problem, Solution, Interface, Validation, SSOT 선언
+- **필요 시:** ADR(Architecture Decision Record) 형식으로 의사결정 기록
 
-### 3. 증거는 logs/evidence/v2_*/ 저장
-- 실행 로그, KPI JSON, 스크린샷
+### 3. Runbook (운영 절차)
+- **경로:** `docs/v2/runbooks/<절차명>.md`
+- **예:** `INCIDENT_RESPONSE.md`, `DEPLOYMENT_CHECKLIST.md`
+
+### 4. Evidence (logs/evidence/에만 저장)
+- **경로:** `logs/evidence/<run_id>/`
+- **포맷:** SSOT = `docs/v2/design/EVIDENCE_FORMAT.md` (또는 EVIDENCE_SPEC.md)
+- **자동 생성:** watchdog/just 실행 시 자동으로 증거 폴더 생성
 
 ---
 
