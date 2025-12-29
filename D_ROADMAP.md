@@ -2696,20 +2696,28 @@ threshold_bps = config.exchanges.upbit.taker_fee_bps + \
 ### D204: Paper Execution (모의 실행)
 
 #### D204-1: DB ledger 기록 (orders/fills/trades) "필수"
-**상태:** PLANNED
+**상태:** ✅ DONE  
+**커밋:** [작업 중]  
+**테스트:** 11/11 PASS (PostgreSQL 필요)  
+**문서:** `docs/v2/reports/D204/D204-1_REPORT.md`
 
 **목표:**
-- DB ledger 구현 (PostgreSQL: v2_orders, v2_fills, v2_trades)
-- Paper 실행 시 모든 주문/체결/거래를 DB에 기록
-- PnL 계산을 DB 기반으로 수행
+- DB ledger 구현 (PostgreSQL: v2_orders, v2_fills, v2_trades) ✅
+- Python DAO 레이어 (V2LedgerStorage) ✅
+- D203 Hygiene 마감 (SSOT 정합 + 입력값 가드) ✅
 
 **AC:**
-- [ ] DB 스키마 생성: `db/migrations/v2_schema.sql`
-- [ ] 테이블: v2_orders, v2_fills, v2_trades, v2_ledger
-- [ ] 필수 컬럼: run_id, timestamp, exchange, symbol, side, order_type, quantity, price, status
-- [ ] Paper 실행 시 DB insert 자동화
-- [ ] PnL aggregation 쿼리 작성 (daily/weekly/monthly)
-- [ ] test_db_ledger.py 100% PASS
+- [x] DB 스키마: `db/migrations/v2_schema.sql` (이미 존재, 재사용)
+- [x] V2LedgerStorage 클래스 구현 (arbitrage/v2/storage/ledger_storage.py)
+- [x] Orders/Fills/Trades DAO 메서드 (insert, get, update)
+- [x] test_d204_1_ledger_storage.py 11/11 PASS
+- [x] PostgreSQL 연결 패턴 재사용 (PostgreSQLAlertStorage)
+- [x] Gate 3단 PASS (회귀 0)
+
+**Reuse-First:**
+- ✅ v2_schema.sql (스키마 그대로 사용, 수정 금지)
+- ✅ PostgreSQLAlertStorage 패턴 (연결/쿼리)
+- ✅ TradeLogEntry 필드 참조 (v2_trades 매핑)
 
 **스키마 예시:**
 ```sql

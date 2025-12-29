@@ -348,3 +348,61 @@ class TestOpportunityToOrderIntent:
         )
         
         assert len(intents) == 0  # ✅ Unprofitable → 빈 리스트
+    
+    def test_case10_market_buy_none_quote_amount_raises(self, params):
+        """
+        Case 10: MARKET BUY with None quote_amount → ValueError
+        
+        Policy (SSOT):
+            - MARKET BUY requires positive quote_amount
+            - None or 0 → ValueError (조기 실패)
+        """
+        candidate = build_candidate(
+            symbol="BTC/KRW",
+            exchange_a="upbit",
+            exchange_b="binance",
+            price_a=49_000_000.0,
+            price_b=50_000_000.0,
+            params=params,
+        )
+        
+        assert candidate is not None
+        assert candidate.profitable is True
+        
+        # None quote_amount → ValueError
+        with pytest.raises(ValueError, match="MARKET BUY requires positive quote_amount"):
+            candidate_to_order_intents(
+                candidate=candidate,
+                base_qty=0.01,
+                quote_amount=None,  # ❌ None
+                order_type=OrderType.MARKET,
+            )
+    
+    def test_case11_market_sell_none_base_qty_raises(self, params):
+        """
+        Case 11: MARKET SELL with None base_qty → ValueError
+        
+        Policy (SSOT):
+            - MARKET SELL requires positive base_qty
+            - None or 0 → ValueError (조기 실패)
+        """
+        candidate = build_candidate(
+            symbol="BTC/KRW",
+            exchange_a="upbit",
+            exchange_b="binance",
+            price_a=49_000_000.0,
+            price_b=50_000_000.0,
+            params=params,
+        )
+        
+        assert candidate is not None
+        assert candidate.profitable is True
+        
+        # None base_qty → ValueError
+        with pytest.raises(ValueError, match="MARKET SELL requires positive base_qty"):
+            candidate_to_order_intents(
+                candidate=candidate,
+                base_qty=None,  # ❌ None
+                quote_amount=500_000.0,
+                order_type=OrderType.MARKET,
+            )

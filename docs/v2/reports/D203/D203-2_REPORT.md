@@ -13,7 +13,7 @@
 
 **Note:** 
 - 원래 D203-2는 "Replay/Backtest Gate" 계획이었으나, D203-1의 자연스러운 확장으로 Opportunity Detector를 먼저 구현
-- Backtest Gate는 D204-2로 이동 예정
+- **Backtest Gate는 D204-2로 이동 완료** (D_ROADMAP.md SSOT 동기화)
 
 ---
 

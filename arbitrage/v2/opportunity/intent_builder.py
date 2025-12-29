@@ -119,6 +119,12 @@ def candidate_to_order_intents(
     
     # 1. BUY Intent
     if order_type == OrderType.MARKET:
+        # MARKET BUY: quote_amount 필수
+        if quote_amount is None or quote_amount <= 0:
+            raise ValueError(
+                f"MARKET BUY requires positive quote_amount, got: {quote_amount}"
+            )
+        
         buy_intent = OrderIntent(
             exchange=buy_exchange,
             symbol=candidate.symbol,
@@ -140,6 +146,12 @@ def candidate_to_order_intents(
     
     # 2. SELL Intent
     if order_type == OrderType.MARKET:
+        # MARKET SELL: base_qty 필수
+        if base_qty is None or base_qty <= 0:
+            raise ValueError(
+                f"MARKET SELL requires positive base_qty, got: {base_qty}"
+            )
+        
         sell_intent = OrderIntent(
             exchange=sell_exchange,
             symbol=candidate.symbol,
