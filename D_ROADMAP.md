@@ -2825,7 +2825,7 @@ CREATE TABLE v2_pnl_daily (
 | Phase | D 번호 | 상태 | 목표 |
 |-------|--------|------|------|
 | **Foundation** | D200 | 🔄 IN_PROGRESS | SSOT 확정 + Config + Infra 재사용 |
-| **Adapter** | D201 | ⏳ PLANNED | Upbit/Binance 구현 + Payload 검증 |
+| **Adapter** | D201 | ✅ DONE | Upbit/Binance 구현 + Payload 검증 |
 | **MarketData** | D202 | ⏳ PLANNED | REST/WS 통합 + Cache |
 | **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
 | **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
