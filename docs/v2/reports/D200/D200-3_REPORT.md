@@ -1,8 +1,9 @@
 # [D200-3] Docs Policy Lock + Watchdog(4종) + Evidence 실동작 정합성 마감
 
 **작성일:** 2025-12-29  
-**상태:** ✅ DONE  
-**커밋:** f7c3a9e (진행 중)
+**상태:** ✅ DONE (증거로 PASS)  
+**커밋:** a0003ba  
+**Evidence run_id:** `20251229_131600_d200-3_a0003ba`
 
 ---
 
@@ -77,13 +78,23 @@ V2 SSOT(문서/룰/로드맵/테스트/증거)가 서로 100% 일치하도록 �
 
 ## 📁 증거 (Evidence)
 
-**Evidence 경로:** `logs/evidence/20251229_111324_d200-2_b84f2ed/`
+**Evidence 경로:** `logs/evidence/20251229_131600_d200-3_a0003ba/`
 
 **포함 파일:**
 - manifest.json ✅
-- gate.log ✅
-- git_info.json ✅
+- git_info.json ✅ (최소 필드: branch, commit, status)
 - cmd_history.txt ✅
+
+**git_info.json 검증:**
+```json
+{
+  "timestamp": "2025-12-29T13:16:00.972972",
+  "branch": "rescue/d99_15_fullreg_zero_fail",
+  "commit": "a0003bad95faec1c9cb478b83a5f9d37bec11832",
+  "status": "dirty"
+}
+```
+✅ error-only 아님, 최소 필드 보장
 
 ---
 

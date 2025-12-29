@@ -75,6 +75,12 @@ function Run-Gate {
 Write-Host "Running gates in sequence: doctor → fast → regression" -ForegroundColor Cyan
 Write-Host ""
 
+# Initialize Evidence Packer (d200-3)
+Write-Host ""
+Write-Host "Initializing Evidence Packer (d200-3)..." -ForegroundColor Cyan
+$evidenceOutput = & ".\abt_bot_env\Scripts\python.exe" -c "from tools.evidence_pack import EvidencePacker; p = EvidencePacker('d200-3', 'watchdog'); p.start(); print(f'Evidence: {p.run_id}')" 2>&1
+Write-Host $evidenceOutput -ForegroundColor Gray
+
 # Gate 1: Doctor
 $doctorResult = Run-Gate -GateName "doctor" `
     -Command { & ".\abt_bot_env\Scripts\python.exe" -m pytest tests/ --collect-only -q } `

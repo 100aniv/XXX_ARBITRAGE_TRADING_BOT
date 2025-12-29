@@ -2391,7 +2391,9 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D200-3: Docs Policy Lock + Watchdog(4종) + Evidence 실동작 정합성 마감
-**상태:** ✅ DONE (f7c3a9e)
+**상태:** ✅ DONE (증거로 PASS)
+**커밋:** a0003ba
+**Evidence:** `logs/evidence/20251229_131600_d200-3_a0003ba/`
 **문서:** `docs/v2/reports/D200/D200-3_REPORT.md`
 
 **목표:**
