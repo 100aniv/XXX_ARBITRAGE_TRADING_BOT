@@ -1,0 +1,168 @@
+"""
+D202-1: Upbit REST Provider
+
+V2 계약:
+- ticker/orderbook/trades 조회
+- Rate limit 준수 (30 req/s)
+- 에러 핸들링
+"""
+
+import logging
+import requests
+from typing import List, Optional
+from datetime import datetime
+
+from arbitrage.v2.marketdata.interfaces import (
+    RestProvider,
+    Ticker,
+    Orderbook,
+    OrderbookLevel,
+    Trade,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class UpbitRestProvider(RestProvider):
+    """
+    Upbit REST API Provider
+    
+    API 문서: https://docs.upbit.com/reference
+    Rate limit: 30 req/s (추정)
+    """
+    
+    BASE_URL = "https://api.upbit.com/v1"
+    
+    def __init__(self, timeout: float = 5.0):
+        """
+        Args:
+            timeout: HTTP 요청 타임아웃 (초)
+        """
+        self.timeout = timeout
+        self.session = requests.Session()
+    
+    def get_ticker(self, symbol: str) -> Optional[Ticker]:
+        """
+        Ticker 조회
+        
+        Args:
+            symbol: "BTC/KRW" 형식
+        
+        Returns:
+            Ticker 또는 None (에러 시)
+        """
+        try:
+            # BTC/KRW → KRW-BTC
+            market = symbol.replace("/", "-")
+            
+            url = f"{self.BASE_URL}/ticker"
+            params = {"markets": market}
+            
+            resp = self.session.get(url, params=params, timeout=self.timeout)
+            resp.raise_for_status()
+            
+            data = resp.json()[0]
+            
+            return Ticker(
+                exchange="upbit",
+                symbol=symbol,
+                timestamp=datetime.now(),
+                bid=float(data.get("trade_price", 0)),
+                ask=float(data.get("trade_price", 0)),
+                last=float(data.get("trade_price", 0)),
+                volume=float(data.get("acc_trade_volume_24h", 0)),
+            )
+        
+        except Exception as e:
+            logger.error(f"[D202-1_UPBIT_REST] Ticker error: {e}")
+            return None
+    
+    def get_orderbook(self, symbol: str, depth: int = 20) -> Optional[Orderbook]:
+        """
+        Orderbook 조회 (L2)
+        
+        Args:
+            symbol: "BTC/KRW" 형식
+            depth: 호가 깊이 (기본값: 20)
+        
+        Returns:
+            Orderbook 또는 None (에러 시)
+        """
+        try:
+            # BTC/KRW → KRW-BTC
+            market = symbol.replace("/", "-")
+            
+            url = f"{self.BASE_URL}/orderbook"
+            params = {"markets": market}
+            
+            resp = self.session.get(url, params=params, timeout=self.timeout)
+            resp.raise_for_status()
+            
+            data = resp.json()[0]
+            
+            bids = [
+                OrderbookLevel(
+                    price=float(item["bid_price"]),
+                    quantity=float(item["bid_size"]),
+                )
+                for item in data["orderbook_units"][:depth]
+            ]
+            
+            asks = [
+                OrderbookLevel(
+                    price=float(item["ask_price"]),
+                    quantity=float(item["ask_size"]),
+                )
+                for item in data["orderbook_units"][:depth]
+            ]
+            
+            return Orderbook(
+                exchange="upbit",
+                symbol=symbol,
+                timestamp=datetime.now(),
+                bids=bids,
+                asks=asks,
+            )
+        
+        except Exception as e:
+            logger.error(f"[D202-1_UPBIT_REST] Orderbook error: {e}")
+            return None
+    
+    def get_trades(self, symbol: str, limit: int = 100) -> List[Trade]:
+        """
+        최근 체결 조회
+        
+        Args:
+            symbol: "BTC/KRW" 형식
+            limit: 최대 개수 (기본값: 100)
+        
+        Returns:
+            Trade 리스트
+        """
+        try:
+            # BTC/KRW → KRW-BTC
+            market = symbol.replace("/", "-")
+            
+            url = f"{self.BASE_URL}/trades/ticks"
+            params = {"market": market, "count": min(limit, 500)}
+            
+            resp = self.session.get(url, params=params, timeout=self.timeout)
+            resp.raise_for_status()
+            
+            data = resp.json()
+            
+            return [
+                Trade(
+                    exchange="upbit",
+                    symbol=symbol,
+                    timestamp=datetime.fromisoformat(item["trade_date_utc"] + "T" + item["trade_time_utc"]),
+                    price=float(item["trade_price"]),
+                    quantity=float(item["trade_volume"]),
+                    side="buy" if item["ask_bid"] == "BID" else "sell",
+                )
+                for item in data[:limit]
+            ]
+        
+        except Exception as e:
+            logger.error(f"[D202-1_UPBIT_REST] Trades error: {e}")
+            return []

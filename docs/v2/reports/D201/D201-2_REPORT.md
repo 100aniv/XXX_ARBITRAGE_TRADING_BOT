@@ -3,7 +3,10 @@
 **작성일:** 2025-12-29  
 **상태:** ✅ DONE  
 **커밋:** (진행 중)  
-**Evidence:** `logs/evidence/20251229_160222_gate_doctor_109407c/`
+**Evidence (Gate 3단):**
+- Doctor: `logs/evidence/20251229_173344_gate_doctor_3b393ca/`
+- Fast: `logs/evidence/20251229_175329_gate_fast_3b393ca/`
+- Regression: `logs/evidence/20251229_175331_gate_regression_3b393ca/`
 
 ---
 
@@ -133,9 +136,11 @@ D201-1 Binance Adapter Tests: 10/10 PASS
 - cmd_history.txt ✅
 - gate.log ✅ (Doctor gate: 289 tests collected)
 
-**Gate 결과:**
+**Gate 결과 (pytest-asyncio 설치 후):**
 - Doctor: ✅ PASS (289 tests collected)
-- D201 Tests: ✅ 41/41 PASS (0.25s)
+- Fast: ✅ PASS (1154 passed, 37 skipped, 188s)
+- Regression: ✅ PASS (2482 passed, 43 skipped, 192s)
+- D201 Tests: ✅ 41/41 PASS (test_v2_order_intent 14 + test_v2_adapter_contract 17 + test_d201_1 10)
 
 ---
 
@@ -149,6 +154,8 @@ D201-1 Binance Adapter Tests: 10/10 PASS
 - Adapter contract 17/17 PASS ✅
 - D201-1 베이스라인 유지 10/10 PASS ✅
 - V2 계약 SSOT 정합화 완료 ✅
+- Gate 3단 모두 PASS (Doctor/Fast/Regression) ✅
+- pytest-asyncio 의존성 추가 및 Gate 환경 정합성 확보 ✅
 
 ---
 
