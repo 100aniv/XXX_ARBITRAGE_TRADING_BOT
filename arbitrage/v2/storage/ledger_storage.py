@@ -15,7 +15,7 @@ Date: 2025-12-30
 
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -26,6 +26,10 @@ def _normalize_to_utc_naive(dt: datetime) -> datetime:
     """
     Normalize datetime to UTC naive (SSOT for TIMESTAMP columns)
     
+    **D204-2 Hotfix:** 명확한 UTC 변환 보장
+    - tz-aware → UTC로 변환 후 tzinfo 제거
+    - tz-naive → 이미 UTC naive로 간주 (caller 책임)
+    
     Pattern: PostgreSQLAlertStorage._normalize_to_utc_naive()
     
     Args:
@@ -33,10 +37,25 @@ def _normalize_to_utc_naive(dt: datetime) -> datetime:
         
     Returns:
         UTC naive datetime (tzinfo removed)
+        
+    Examples:
+        >>> from datetime import datetime, timezone, timedelta
+        >>> # tz-aware (UTC+9)
+        >>> dt_kst = datetime(2025, 12, 30, 12, 0, 0, tzinfo=timezone(timedelta(hours=9)))
+        >>> _normalize_to_utc_naive(dt_kst)
+        datetime(2025, 12, 30, 3, 0, 0)  # UTC naive
+        
+        >>> # tz-naive (already UTC)
+        >>> dt_naive = datetime(2025, 12, 30, 3, 0, 0)
+        >>> _normalize_to_utc_naive(dt_naive)
+        datetime(2025, 12, 30, 3, 0, 0)  # unchanged
     """
     if dt.tzinfo is not None:
-        return dt.astimezone(tz=None).replace(tzinfo=None)
+        # tz-aware → UTC로 변환 후 tzinfo 제거
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
     else:
+        # tz-naive → 이미 UTC naive로 간주
+        # 주의: caller가 UTC naive임을 보장해야 함
         return dt
 
 

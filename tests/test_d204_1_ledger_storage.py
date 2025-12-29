@@ -421,3 +421,92 @@ class TestV2LedgerStorageConnection:
             assert storage.connection_string == invalid_conn
         except Exception as e:
             pytest.fail(f"__init__ should not raise: {e}")
+
+
+class TestV2LedgerStorageUTCNaive:
+    """UTC Naive 정규화 테스트 (D204-2 Hotfix)"""
+    
+    def test_normalize_utc_aware_to_naive(self):
+        """
+        Case 12: tz-aware (UTC+9) → UTC naive 변환
+        
+        Verify:
+            - UTC+9 12:00:00 → UTC 03:00:00 (naive)
+            - tzinfo 제거됨
+        """
+        from arbitrage.v2.storage.ledger_storage import _normalize_to_utc_naive
+        from datetime import datetime, timezone, timedelta
+        
+        # UTC+9 (KST) 12:00:00
+        dt_kst = datetime(2025, 12, 30, 12, 0, 0, tzinfo=timezone(timedelta(hours=9)))
+        
+        # 변환
+        dt_utc_naive = _normalize_to_utc_naive(dt_kst)
+        
+        # 검증
+        assert dt_utc_naive.tzinfo is None  # naive
+        assert dt_utc_naive.year == 2025
+        assert dt_utc_naive.month == 12
+        assert dt_utc_naive.day == 30
+        assert dt_utc_naive.hour == 3  # UTC 03:00:00
+        assert dt_utc_naive.minute == 0
+        assert dt_utc_naive.second == 0
+    
+    def test_normalize_utc_naive_unchanged(self):
+        """
+        Case 13: tz-naive → unchanged
+        
+        Verify:
+            - 이미 naive인 경우 그대로 반환
+        """
+        from arbitrage.v2.storage.ledger_storage import _normalize_to_utc_naive
+        from datetime import datetime
+        
+        # naive datetime
+        dt_naive = datetime(2025, 12, 30, 3, 0, 0)
+        
+        # 변환
+        dt_result = _normalize_to_utc_naive(dt_naive)
+        
+        # 검증
+        assert dt_result is dt_naive  # 동일 객체 (수정 없음)
+        assert dt_result.tzinfo is None
+        assert dt_result == dt_naive
+    
+    def test_order_insert_with_tz_aware(self, storage, run_id):
+        """
+        Case 14: insert_order() with tz-aware timestamp
+        
+        Verify:
+            - tz-aware 입력 → UTC naive로 저장
+            - 조회 시 UTC naive로 반환
+        """
+        from datetime import timezone, timedelta
+        
+        order_id = f"order_{run_id}_tz_aware"
+        
+        # UTC+9 timestamp
+        timestamp_kst = datetime(2025, 12, 30, 12, 0, 0, tzinfo=timezone(timedelta(hours=9)))
+        
+        # 삽입
+        storage.insert_order(
+            run_id=run_id,
+            order_id=order_id,
+            timestamp=timestamp_kst,
+            exchange="upbit",
+            symbol="BTC/KRW",
+            side="BUY",
+            order_type="MARKET",
+            quantity=0.01,
+            price=50_000_000.0,
+            status="pending",
+        )
+        
+        # 조회
+        order = storage.get_order_by_id(order_id)
+        assert order is not None
+        
+        # UTC naive로 저장되었는지 확인
+        stored_timestamp = order["timestamp"]
+        assert stored_timestamp.tzinfo is None  # naive
+        assert stored_timestamp.hour == 3  # UTC 03:00:00 (not 12:00:00)
