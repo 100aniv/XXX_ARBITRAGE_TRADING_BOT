@@ -2922,102 +2922,414 @@ CREATE TABLE v2_pnl_daily (
 - ~~D204-1 테스트 회귀 (4 FAIL)~~ → ✅ 0 FAIL 달성
 - ssot_audit.py 개선 (Evidence 패턴 매칭, duration 검증) → D205-3 이후
 
-**Deferred (D205-3+):**
-- Execution Quality: avg_slippage_bps, latency_p50/p95
-- Risk Metrics: max_drawdown, sharpe_ratio
-- Strategy Attribution: route별/symbol별 PnL
-- LIVE 모드: api_errors, rate_limit_hits, reconnects 실제 집계
+**⚠️ 중요 경고:**
+- D205-3은 "측정 도구 확립"이지 **"수익성 검증 완료"가 아님**
+- KPI 필드 존재 ≠ 현실적 수익성 (100% 승률 같은 가짜 낙관 주의)
+- **D205-4~9 (Profit Loop) 통과 전까지는 "Profit Loop INCOMPLETE" 상태**
 
 ---
 
-#### D205-3: Grafana/리포트 뷰 (우선) + API는 DEFER 가능
-**상태:** PLANNED
-
-**목적:** 시각화 우선, API는 조건부
+#### D205-4: Reality Wiring (실데이터 루프 완성)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-4_REPORT.md`
+**Evidence:** `logs/evidence/d205_4_<timestamp>/`
 
 **목표:**
-- Grafana dashboard 생성 (V2 전용)
-- Prometheus metrics 연동
-- Read-only API는 DEFER 가능 (D206+ 이후)
+- 실 MarketData → detector → decision → paper execution(가정 체결) 플로우 완성
+
+**범위 (Do/Don't):**
+- ✅ Do: MarketData Provider 실데이터 연결, Detector 통합, latency 측정
+- ❌ Don't: 체결 모델 정교화 (D205-6에서), parameter tuning (D205-7에서)
+
+**AC (증거 기반 검증):**
+- [ ] MarketData Provider 실데이터 연결 (WebSocket 또는 REST)
+- [ ] Detector → Engine → Paper Executor 플로우 완성
+- [ ] latency p95 < 100ms (기준선)
+- [ ] 기회 발생률 측정 (opportunities/minute per symbol)
+- [ ] edge 분포 측정 (raw spread - threshold)
+
+**Evidence 요구사항:**
+- manifest.json (run_id, timestamp, git info)
+- kpi.json (opportunities_count, latency_p95, edge_mean, edge_std)
+- errors.ndjson (에러 발생 시)
+
+**Gate 조건:**
+- Gate Doctor/Fast/Regression: 0 FAIL
+- latency p95 < 100ms (기준선)
+
+**PASS/FAIL 판단 기준:**
+- PASS: 플로우 완성 + latency 기준 충족 + 기회 발생률 > 0
+- FAIL: 플로우 미완성 또는 latency > 200ms
+
+**의존성:**
+- Depends on: D205-3 (KPI 스키마 확립)
+- Blocks: D205-5 (Record/Replay)
+
+---
+
+#### D205-5: Record/Replay SSOT (NDJSON 기록+리플레이 재현)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-5_REPORT.md`
+**Evidence:** `logs/evidence/d205_5_<timestamp>/`
+
+**목표:**
+- NDJSON 기록 포맷 SSOT 정의
+- 동일 입력 → 동일 결정 재현 (회귀 테스트 기반)
+
+**범위 (Do/Don't):**
+- ✅ Do: market.ndjson/decisions.ndjson 포맷 정의, 리플레이 엔진 구현
+- ❌ Don't: 압축/최적화 (기본 NDJSON만), 분산 리플레이 (단일 프로세스만)
+
+**AC (증거 기반 검증):**
+- [ ] NDJSON 포맷 SSOT 정의 (`docs/v2/design/REPLAY_FORMAT.md`)
+- [ ] market.ndjson 기록 (tick/orderbook 데이터)
+- [ ] decisions.ndjson 기록 (detector output)
+- [ ] 리플레이 엔진: 동일 market.ndjson → 동일 decisions.ndjson 검증
+- [ ] 회귀 테스트 자동화 (replay → diff → PASS/FAIL)
+
+**Evidence 요구사항:**
+- manifest.json
+- logs/replay/<date>/market.ndjson
+- logs/replay/<date>/decisions.ndjson
+- replay_validation.json (input_hash, output_hash, diff_count)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- 리플레이 재현성: diff_count = 0 (100% 동일)
+
+**PASS/FAIL 판단 기준:**
+- PASS: 동일 입력 → 동일 결정 (diff = 0)
+- FAIL: diff > 0 (비결정적 로직 존재)
+
+**의존성:**
+- Depends on: D205-4 (실데이터 플로우)
+- Blocks: D205-6, D205-7 (리플레이 기반 튜닝)
+
+---
+
+#### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-6_REPORT.md`
+**Evidence:** `logs/evidence/d205_6_<timestamp>/`
+
+**목표:**
+- 승률 중심 → **edge_after_cost** 중심 KPI 전환
+- 슬리피지/부분체결/타임아웃 현실 모델 구축
+
+**범위 (Do/Don't):**
+- ✅ Do: slippage_bps, partial_fill_rate, edge_after_cost 지표 정의
+- ❌ Don't: ML 기반 슬리피지 예측 (단순 모델만), LIVE 체결 (PAPER 가정만)
+
+**AC (증거 기반 검증):**
+- [ ] ExecutionQuality 메트릭 SSOT (`docs/v2/design/EXECUTION_QUALITY.md`)
+- [ ] slippage_bps 측정 (가정 체결가 - 실제 호가 차이)
+- [ ] partial_fill_rate, timeout_rate, api_error_rate 측정
+- [ ] **edge_after_cost 분포** (히스토그램)
+- [ ] winrate 100% → FAIL 경고 (가짜 낙관 방지)
+
+**Evidence 요구사항:**
+- manifest.json
+- kpi.json (edge_after_cost_mean, edge_after_cost_std, slippage_bps_p50/p95)
+- execution_quality_histogram.json
+
+**Gate 조건:**
+- Gate 0 FAIL
+- edge_after_cost > 0 비율 > 50% (진짜 수익성)
+
+**PASS/FAIL 판단 기준:**
+- PASS: edge_after_cost > 0 비율 > 50%, slippage 모델 존재
+- FAIL: winrate 100% (현실 미반영) 또는 edge_after_cost < 0 (수익 불가)
+
+**의존성:**
+- Depends on: D205-4, D205-5 (리플레이 기반 측정)
+- Blocks: D205-7 (edge 기반 파라미터 튜닝)
+
+---
+
+#### D205-7: Parameter Sweep v1 (Random/Grid 튜닝 초석)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-7_REPORT.md`
+**Evidence:** `logs/evidence/d205_7_<timestamp>/`
+
+**목표:**
+- threshold/buffer/cooldown 조합 탐색
+- 리플레이 기반 고속 파라미터 sweep
+
+**범위 (Do/Don't):**
+- ✅ Do: Random/Grid search 기초, 리플레이 100+ 조합 테스트
+- ❌ Don't: Bayesian Optimization (Random/Grid만), 분산 실행 (로컬만)
+
+**AC (증거 기반 검증):**
+- [ ] 최소 3개 파라미터 sweep (threshold, buffer, cooldown)
+- [ ] 리플레이로 100+ 조합 고속 테스트 (< 1시간)
+- [ ] Top-5 후보 → paper 1시간 검증
+- [ ] Pareto frontier 시각화 (edge_after_cost vs trades_count)
+- [ ] 최적 파라미터 선정 근거 문서화
+
+**Evidence 요구사항:**
+- manifest.json
+- parameter_sweep_results.json (100+ 조합 결과)
+- top5_candidates.json
+- pareto_frontier.png
+- optimal_params.json (선정 근거 포함)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- Top-1 후보: edge_after_cost > baseline * 1.2 (20% 개선)
+
+**PASS/FAIL 판단 기준:**
+- PASS: 100+ 조합 테스트 완료, Top-1 개선율 > 20%
+- FAIL: 개선율 < 10% (튜닝 효과 없음)
+
+**의존성:**
+- Depends on: D205-5 (리플레이), D205-6 (edge_after_cost)
+- Blocks: D205-8 (최적 파라미터로 확장 테스트)
+
+---
+
+#### D205-8: TopN + Route/Stress (Top10→50→100 확장 검증)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
+**Evidence:** `logs/evidence/d205_8_<timestamp>/`
+
+**목표:**
+- Top10 → Top50 → Top100 확장 시 생존 검증
+- rate_limit/지연/큐 적체 스트레스 테스트
+
+**범위 (Do/Don't):**
+- ✅ Do: Top10/50/100 시나리오, rate_limit_hit 측정, 자동 throttling
+- ❌ Don't: 프로덕션 배포 (PAPER만), 멀티 리전 (로컬만)
+
+**AC (증거 기반 검증):**
+- [ ] Top10: latency p95 < 100ms, rate_limit_hit = 0
+- [ ] Top50: latency p95 < 200ms, rate_limit_hit < 5/hr
+- [ ] Top100: latency p95 < 500ms, rate_limit_hit < 20/hr
+- [ ] 적체 시 자동 throttling 동작 (queue_depth > 100 → pause)
+- [ ] error_rate < 1% (모든 TopN 시나리오)
+
+**Evidence 요구사항:**
+- manifest.json
+- stress_test_top10.json (latency_p95, rate_limit_hit)
+- stress_test_top50.json
+- stress_test_top100.json
+- throttling_events.ndjson
+
+**Gate 조건:**
+- Gate 0 FAIL
+- Top100: latency p95 < 1000ms, error_rate < 1%
+
+**PASS/FAIL 판단 기준:**
+- PASS: Top100 기준 충족, throttling 자동 동작
+- FAIL: Top50에서 error_rate > 5% (확장 불가)
+
+**의존성:**
+- Depends on: D205-7 (최적 파라미터)
+- Blocks: D205-9 (현실적 검증)
+
+---
+
+#### D205-9: Realistic Paper Validation (20m→1h→3h)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
+**Evidence:** `logs/evidence/d205_9_<timestamp>/`
+
+**목표:**
+- 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거)
+- 20m/1h/3h 계단식 검증
+
+**범위 (Do/Don't):**
+- ✅ Do: 현실적 winrate (50~80%), edge_after_cost > 0, PnL 안정성
+- ❌ Don't: LIVE 전환 (아직 PAPER만), 자동 매매 시작 (검증만)
+
+**AC (증거 기반 검증):**
+- [ ] 20m: closed_trades > 10, edge_after_cost > 0
+- [ ] 1h: closed_trades > 30, winrate 50~80% (현실적 범위)
+- [ ] 3h: closed_trades > 100, PnL 안정성 (std < mean)
+- [ ] **가짜 낙관 FAIL:** winrate 100% → 모델 현실 미반영으로 FAIL 처리
+- [ ] error_count = 0, db_inserts_failed = 0
+
+**Evidence 요구사항:**
+- manifest.json
+- kpi_20m.json (closed_trades, edge_after_cost, winrate)
+- kpi_1h.json
+- kpi_3h.json
+- pnl_stability_analysis.json (mean, std, sharpe_ratio)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- 3h: winrate 50~80%, edge_after_cost > 0, closed_trades > 100
+
+**PASS/FAIL 판단 기준:**
+- PASS: 3h 기준 충족, 현실적 winrate, PnL 안정성
+- FAIL: winrate 100% (가짜 낙관) 또는 edge_after_cost < 0 (수익 불가)
+
+**의존성:**
+- Depends on: D205-4~8 (전체 Profit Loop)
+- Blocks: D206 (운영/배포 단계)
+
+**⚠️ D206 진입 조건:**
+- D205-9 PASS 전에는 D206(Grafana/Deploy) 진입 절대 금지
+- "측정 → 튜닝 → 운영" 순서 강제
+
+---
+
+### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
+
+**진입 조건 (강제):**
+- ✅ D205-9 PASS 필수 (Realistic Paper Validation 완료)
+- ✅ "측정 → 튜닝 → 운영" 순서 위반 시 진입 금지
+- ✅ 가짜 낙관 제거 완료 (winrate 50~80%, edge_after_cost > 0)
+
+**조건 미충족 시:** D206 작업 시작 절대 금지
+
+---
+
+#### D206-1: Grafana (튜닝/운영 용도만)
+**상태:** PLANNED
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
+
+**목표:**
+- D205-4~9 지표를 패널로 시각화
+- Admin Control 최소 UI 포함 (Stop/Pause/Blacklist)
+
+**금지:**
+- ❌ 핵심 로직 검증 전 Grafana 먼저 → 절대 금지
 
 **AC:**
 - [ ] Grafana dashboard: `monitoring/grafana/dashboards/v2_overview.json`
-- [ ] Panels: PnL trend, Entry/Exit count, Winrate, Latency, CPU/Memory
-- [ ] Prometheus metrics 정의: `v2_pnl_total`, `v2_trades_count`, `v2_latency_ms`
-- [ ] Dashboard provisioning 자동화
-- [ ] (DEFER) FastAPI read-only endpoint (`/api/v2/pnl`, `/api/v2/trades`)
+- [ ] Panels: edge_after_cost, latency_p95, slippage_bps, PnL trend
+- [ ] Parameter sweep 결과 시각화 패널
+- [ ] Admin Control UI: Stop/Pause/Blacklist 버튼
+- [ ] Prometheus metrics: v2_edge_after_cost, v2_latency_p95_ms, v2_slippage_bps
 
 **Dashboard Panels:**
-1. **PnL Trend** (Time series): v2_pnl_total
-2. **Entry/Exit Count** (Counter): v2_trades_count{type="entry|exit"}
-3. **Winrate** (Gauge): v2_winrate_pct
-4. **Latency** (Histogram): v2_latency_ms
-5. **Resource Usage** (Graph): process_cpu_seconds_total, process_resident_memory_bytes
+1. **edge_after_cost 분포** (Histogram)
+2. **latency p95** (Time series)
+3. **slippage_bps p50/p95** (Gauge)
+4. **PnL Trend** (Time series)
+5. **Parameter Sweep 결과** (Table)
+6. **Admin Control** (Button panel: Stop/Pause/Blacklist)
+
+**의존성:**
+- Depends on: D205-9 PASS
+- Blocks: D206-2 (Docker Compose)
 
 ---
 
-### D206: Ops & Deploy (운영/배포)
-
-#### D206-1: Docker Compose SSOT 고정
+#### D206-2: Docker Compose SSOT (패키징)
 **상태:** PLANNED
-
-**목적:** 인프라 SSOT를 infra/docker-compose.yml로 확정
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D206/D206-2_REPORT.md`
 
 **목표:**
-- 인프라 재사용 인벤토리 실행 (KEEP/DROP 반영)
-- KEEP 항목 활성화 (Postgres, Redis, Prometheus, Grafana)
-- DROP 항목 비활성화 (V1 Engine, Paper Trader)
-- SSOT 확정: `infra/docker-compose.yml`만 수정, `docker/docker-compose.yml`은 보관
+- 운영 포장(컨테이너)은 "돈 버는 로직" 검증 후에만
+- V2 전용 docker-compose.v2.yml 생성
 
 **AC:**
-- [ ] INFRA_REUSE_INVENTORY.md KEEP 11개 항목 활성화
-- [ ] infra/docker-compose.yml 업데이트 (V2 서비스 추가)
-- [ ] V2 서비스: v2-engine (arbitrage.v2.core.engine), v2-paper (arbitrage.v2.harness.paper_runner)
-- [ ] Prometheus/Grafana 설정 업데이트 (v2 scrape config)
-- [ ] Exporter 활성화: Node Exporter, Redis Exporter (Postgres Exporter는 DEFER)
-- [ ] Health check 정의 (v2-engine: HTTP /health, v2-paper: process check)
-- [ ] docker-compose up -d 테스트 (모든 서비스 healthy)
+- [ ] V2 전용 docker-compose.v2.yml 생성
+- [ ] V2 서비스: v2-engine, v2-paper, v2-grafana
+- [ ] Health check (DB/Redis/Engine) 정의
+- [ ] 1-command deploy: docker-compose -f docker-compose.v2.yml up -d
+- [ ] 모든 서비스 healthy 확인 (< 30초)
 
-**KEEP 항목 (11개):**
-1. PostgreSQL + TimescaleDB
-2. Redis
-3. Prometheus
-4. Grafana
-5. Node Exporter
-6. Adminer (DB 관리)
-7. Docker network (arbitrage-net)
-8. Volume (postgres-data, redis-data, grafana-data)
-9. Health check 패턴
-10. 환경 변수 주입 (.env.v2)
-11. 포트 매핑 규칙
+**KEEP 항목 (V1 재사용):**
+- PostgreSQL, Redis, Prometheus, Grafana (V1 infra 재사용)
+
+**의존성:**
+- Depends on: D206-1 (Grafana)
+- Blocks: D206-3 (Failure Injection)
 
 ---
 
-#### D206-2: k8s는 "조건 충족 시" DEFER
+#### D206-3: Failure Injection/Runbook
+**상태:** PLANNED
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
+
+**목표:**
+- 장애 주입 테스트 + 대응 절차 문서화
+- 429/WS disconnect/DB 지연/Redis flush 시나리오
+
+**AC:**
+- [ ] 장애 시나리오 4종: 429 rate limit, WS disconnect, DB timeout, Redis flush
+- [ ] 각 시나리오별 Runbook 작성 (`docs/v2/runbooks/`)
+- [ ] Failure Injection 테스트 자동화 (pytest fixture)
+- [ ] 복구 시간 < 30초 (모든 시나리오)
+- [ ] 장애 발생 시 Admin Control로 즉시 대응 가능
+
+**Runbook 항목:**
+1. 429 Rate Limit 대응: throttling 자동 활성화, manual pause
+2. WS Disconnect: reconnect logic, fallback to REST
+3. DB Timeout: connection pool resize, query timeout adjust
+4. Redis Flush: cache rebuild, graceful degradation
+
+**의존성:**
+- Depends on: D206-2 (Docker Compose)
+- Blocks: D206-4 (Admin Control Panel)
+
+---
+
+#### D206-4: Admin Control Panel (최소 제어)
+**상태:** PLANNED
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D206/D206-4_REPORT.md`
+
+**목표:**
+- 웹 UI든 텔레그램이든 최소 제어 기능 구현
+- Grafana 패널 또는 별도 FastAPI endpoint
+
+**필수 기능:**
+- Start/Stop/Pause (즉시 반영)
+- Symbol blacklist (즉시 거래 중단)
+- Emergency flatten (paper: 포지션 초기화)
+- Risk limit override (노출/동시포지션 조정)
+
+**AC:**
+- [ ] Stop 명령 → 5초 내 전체 중단
+- [ ] Blacklist 추가 → 즉시 해당 심볼 거래 중단
+- [ ] Emergency flatten → 10초 내 모든 포지션 청산(paper: 초기화)
+- [ ] Risk limit override → 실시간 반영 (재시작 불필요)
+- [ ] Admin 명령 audit log (누가/언제/무엇을)
+
+**구현 옵션:**
+- Option 1: Grafana button panel + webhook
+- Option 2: FastAPI admin endpoint + simple UI
+- Option 3: Telegram bot (선택)
+
+**의존성:**
+- Depends on: D206-3 (Failure Injection)
+- Blocks: K8s (DEFER)
+
+---
+
+#### D206-5: k8s는 "조건 충족 시" DEFER
 **상태:** DEFERRED
 
-**목적:** Kubernetes는 조건 충족 시에만 진행
+**이유:** k8s는 "상용급"이 아니라 "상용급처럼 보이는 장식"이 되기 쉬움
 
-**조건 (3가지 모두 충족 필요):**
-1. ✅ D204-2 (1h baseline) 100% 안정 달성
-2. ✅ D205-1 (PnL 리포팅) 완전 자동화
-3. ✅ 실거래 준비 완료 (LIVE Ramp D207+ 시작)
+**조건 (모두 충족 필요):**
+- ✅ LIVE ramp 실제 운영 요구 발생
+- ✅ 멀티 리전 또는 HA 필요성 명확
+- ✅ 로컬 Docker Compose로 불충분한 근거
 
-**목표 (조건 충족 시):**
-- K8s manifest 작성 (Deployment, Service, ConfigMap, Secret)
-- Helm chart 생성 (optional)
-- CI/CD 파이프라인 구축
-- 런북 문서화
-
-**AC (DEFER):**
-- [ ] k8s manifests: `infra/k8s/v2-engine-deployment.yaml`
-- [ ] ConfigMap: v2-config (config.yml)
-- [ ] Secret: v2-secrets (.env.v2)
-- [ ] CI/CD: GitHub Actions (optional)
-- [ ] 런북: `docs/v2/K8S_RUNBOOK.md`
-- [ ] 롤백 절차 문서화
-
-**현재 결정:** D206-2는 DEFER. 로컬 Docker Compose만으로 충분 (D206-1 완료 시).
+**현재 결정:** D206-5는 DEFER. 로컬 Docker Compose만으로 충분
 
 ---
 

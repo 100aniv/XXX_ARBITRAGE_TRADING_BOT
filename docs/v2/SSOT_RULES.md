@@ -77,6 +77,43 @@
 
 ---
 
+## 📊 Profit Loop 강제 규칙 (D205-4~9 필수)
+
+### 1. "측정 → 튜닝 → 운영" 순서 강제
+
+**원칙:** Grafana/Deploy/K8s는 Profit Loop 블록(D205-4~9) 통과 후에만 진행 가능
+
+**강제 규칙:**
+1. **D206 진입 조건:** D205-9 PASS 전에는 D206(Grafana/Deploy) 진입 절대 금지
+2. **순서 위반 검출:** D205-9 미완료 상태에서 D206 작업 시도 → 즉시 FAIL 처리
+3. **SSOT 검증:** D_ROADMAP.md에서 D206 진입 조건 명시 필수
+
+**예외:** 없음 (순서 강제는 절대 원칙)
+
+### 2. Record/Replay 없으면 튜닝/회귀 불가
+
+**원칙:** Parameter tuning은 반드시 Record/Replay 기반으로만 수행
+
+**강제 규칙:**
+1. **D205-5 (Record/Replay) 완료 전:** D205-7 (Parameter Sweep) 진입 금지
+2. **재현성 검증:** 동일 market.ndjson → 동일 decisions.ndjson (diff = 0)
+3. **회귀 테스트:** 파라미터 변경 시 리플레이로 회귀 자동 검증
+
+**근거:** 리플레이 없이 튜닝하면 재현 불가능, 회귀 검증 불가능
+
+### 3. 가짜 낙관 방지 규칙
+
+**원칙:** winrate 100% 같은 비현실적 KPI는 FAIL 처리
+
+**강제 규칙:**
+1. **D205-6 이후:** winrate 100% → "모델이 현실 미반영" 경고 + FAIL
+2. **D205-9 기준:** winrate 50~80% (현실적 범위), edge_after_cost > 0 필수
+3. **PASS 조건:** 현실적 KPI + PnL 안정성 (std < mean)
+
+**근거:** 현실 마찰(수수료/슬리피지/부분체결/429) 미반영 시 가짜 낙관 발생
+
+---
+
 ### 3. 스크립트 중심 실험 폐기
 - ❌ run_d108_*.py, run_v2_test.py 같은 일회성 스크립트
 - ✅ 엔진 기반 Smoke Harness (재사용 가능)
@@ -175,17 +212,17 @@ logs/evidence/
 
 ## 🔄 V1→V2 마이그레이션 규칙
 
-### Phase 0: 공존 (현재)
+### D200~D204: 공존 (현재)
 - V1 코드 유지
 - V2 코드 신규 작성 (v2 네임스페이스)
 - 인터페이스 호환 계층 구축
 
-### Phase 1: 점진적 전환
-- V2 Engine을 V1 LiveRunner에서 호출
+### D205~D206: 점진적 전환
+- V2 Engine 검증 (Profit Loop 통과 필수)
 - Adapter별 검증 (Upbit → Binance → ...)
 - PAPER 모드 100% 검증 후 진행
 
-### Phase 2: V1 Deprecation
+### D207+: V1 Deprecation
 - V2 안정화 후 V1 코드 deprecated 마킹
 - 3개월 유예 후 V1 제거
 

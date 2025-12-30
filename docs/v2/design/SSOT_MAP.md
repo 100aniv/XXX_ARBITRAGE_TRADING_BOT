@@ -31,6 +31,10 @@
 - Rulebook SSOT - `docs/v2/SSOT_RULES.md`
 - Architecture SSOT - `docs/v2/V2_ARCHITECTURE.md`
 - Test SSOT - `pytest.ini`
+- Record/Replay SSOT - `docs/v2/design/REPLAY_FORMAT.md` (D205-5)
+- ExecutionQuality SSOT - `docs/v2/design/EXECUTION_QUALITY.md` (D205-6)
+- Tuning Pipeline SSOT - `docs/v2/design/TUNING_PIPELINE.md` (D205-7)
+- Admin Control SSOT - `docs/v2/design/ADMIN_CONTROL.md` (D206-4)
 
 ---
 
@@ -215,7 +219,128 @@
 **현재 상태:**
 - ✅ D200-2에서 EVIDENCE_FORMAT.md 생성 (EVIDENCE_SPEC.md는 DEPRECATED)
 - ✅ tools/evidence_pack.py 유틸 생성
-- 🔄 D200-3에서 실동작 통합 진행 중
+- 🔄 D205-6 이후 edge_after_cost, slippage_bps 필드 추가 예정
+
+---
+
+### 8️⃣ Record/Replay SSOT (리플레이 기록/재현)
+
+#### 📄 `docs/v2/design/REPLAY_FORMAT.md`
+
+**역할:**
+- NDJSON 기록 포맷 정의 (market.ndjson, decisions.ndjson)
+- 리플레이 엔진 인터페이스
+- 재현성 검증 규칙 (diff = 0)
+
+**금지 사항:**
+- ❌ 압축/최적화 포맷 (기본 NDJSON만)
+- ❌ 비결정적 로직 (동일 입력 → 동일 출력)
+- ❌ 리플레이 없이 파라미터 튜닝 (D205-7 진입 금지)
+
+**참조자:**
+- D205-5 (Record/Replay 구현)
+- D205-7 (Parameter Sweep - 리플레이 기반 튜닝)
+- Gate 테스트 (회귀 검증)
+
+**업데이트 규칙:**
+- 새 필드 추가 시 → REPLAY_FORMAT.md 업데이트 + schema 정의
+- 포맷 변경 시 → 리플레이 엔진 동기화
+- 변경 시 커밋 메시지에 "[REPLAY]" 태그
+
+**현재 상태:**
+- ⏳ D205-5에서 생성 예정
+- 🔄 market.ndjson/decisions.ndjson 포맷 정의
+
+---
+
+### 9️⃣ ExecutionQuality SSOT (실행 품질 지표)
+
+#### 📄 `docs/v2/design/EXECUTION_QUALITY.md`
+
+**역할:**
+- edge_after_cost, slippage_bps, partial_fill_rate 정의
+- 가짜 낙관 방지 규칙 (winrate 100% → FAIL)
+- latency p50/p95 기준
+
+**금지 사항:**
+- ❌ 승률 중심 KPI (edge_after_cost 중심)
+- ❌ winrate 100% PASS 처리 (현실 미반영 경고)
+- ❌ slippage 모델 없이 체결 가정
+
+**참조자:**
+- D205-6 (ExecutionQuality v1 구현)
+- D205-9 (현실적 Paper Validation)
+- KPICollector (edge_after_cost 필드)
+
+**업데이트 규칙:**
+- 새 지표 추가 시 → EXECUTION_QUALITY.md 업데이트
+- 가짜 낙관 방지 규칙 변경 시 → SSOT_RULES.md 동기화
+- 변경 시 커밋 메시지에 "[EXEC_QUALITY]" 태그
+
+**현재 상태:**
+- ⏳ D205-6에서 생성 예정
+- 🔄 edge_after_cost 중심 KPI 전환
+
+---
+
+### 🔟 Tuning Pipeline SSOT (파라미터 튜닝)
+
+#### 📄 `docs/v2/design/TUNING_PIPELINE.md`
+
+**역할:**
+- Parameter Sweep 포맷 (Random/Grid)
+- Pareto frontier 시각화 규칙
+- 최적 파라미터 선정 기준
+
+**금지 사항:**
+- ❌ 리플레이 없이 튜닝 (D205-5 필수)
+- ❌ 수동 파라미터 조정 (자동 sweep 우선)
+- ❌ 단일 지표 최적화 (edge_after_cost + trades_count 균형)
+
+**참조자:**
+- D205-7 (Parameter Sweep v1)
+- 리플레이 엔진 (고속 조합 테스트)
+- Grafana (sweep 결과 시각화)
+
+**업데이트 규칙:**
+- 새 파라미터 추가 시 → sweep 범위 정의
+- 최적화 기준 변경 시 → Pareto frontier 재정의
+- 변경 시 커밋 메시지에 "[TUNING]" 태그
+
+**현재 상태:**
+- ⏳ D205-7에서 생성 예정
+- 🔄 Random/Grid search 기초 구현
+
+---
+
+### 1️⃣1️⃣ Admin Control SSOT (운영자 제어)
+
+#### 📄 `docs/v2/design/ADMIN_CONTROL.md`
+
+**역할:**
+- Stop/Pause/Blacklist 인터페이스
+- Emergency flatten 규칙 (paper: 포지션 초기화)
+- Risk limit override 정책
+- Admin 명령 audit log
+
+**금지 사항:**
+- ❌ Grafana만으로 제어 (별도 Control 인터페이스 필수)
+- ❌ Admin 명령 audit log 누락
+- ❌ 재시작 없이 반영 불가능한 설정 (실시간 반영 필수)
+
+**참조자:**
+- D206-4 (Admin Control Panel 구현)
+- Grafana (button panel)
+- Failure Injection (장애 대응 제어)
+
+**업데이트 규칙:**
+- 새 제어 기능 추가 시 → ADMIN_CONTROL.md 업데이트
+- audit log 포맷 변경 시 → 문서 동기화
+- 변경 시 커밋 메시지에 "[ADMIN]" 태그
+
+**현재 상태:**
+- ⏳ D206-4에서 생성 예정
+- 🔄 최소 제어 기능 (Stop/Pause/Blacklist/Flatten)
 
 ---
 
