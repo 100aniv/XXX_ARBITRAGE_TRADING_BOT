@@ -2984,12 +2984,14 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-5: Record/Replay SSOT (NDJSON 기록+리플레이 재현)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+#### D205-5: Record/Replay SSOT (NDJSON 기록+리플레이 재현) — DONE ✅
+**상태:** DONE ✅
+**커밋:** [이번 턴에서 생성]
+**테스트:** Gate Fast 126/126 PASS (69.06s) + Record/Replay Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-5_REPORT.md`
-**Evidence:** `logs/evidence/d205_5_<timestamp>/`
+**Evidence:** 
+- Record: `logs/evidence/d205_5_record_replay_20251231_014639/` (15 ticks)
+- Replay: `logs/evidence/d205_5_replay_20251231_014700/` (15 decisions, input_hash 일치)
 
 **목표:**
 - NDJSON 기록 포맷 SSOT 정의

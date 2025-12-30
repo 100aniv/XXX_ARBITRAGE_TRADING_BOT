@@ -308,4 +308,69 @@ logs/evidence/
 
 ---
 
+## 📋 Closeout Summary (강제 템플릿)
+
+**모든 D-step 완료 시 반드시 이 템플릿으로 출력**
+
+```markdown
+# D<number> Closeout Summary
+
+## Commit & Branch
+- **Commit SHA:** <full_sha> (short: <short_sha>)
+- **Branch:** <branch_name>
+- **Compare Patch:** https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/<before_sha>...<after_sha>.patch
+
+## Gate Results
+- **Doctor:** <PASS/FAIL> (<count> tests)
+- **Fast:** <PASS/FAIL> (<count>/<total> tests, <duration>s)
+- **Regression:** <PASS/FAIL> (<count>/<total> tests, <duration>s)
+
+## KPI (핵심 지표만)
+- **uptime_sec:** <value>
+- **evaluated_ticks_total:** <value> (MUST > 0 for Reality Wiring tasks)
+- **opportunities_count:** <value>
+- **latency_p95_ms:** <value>
+- **edge_mean:** <value>
+- **error_count:** <value>
+
+## Evidence
+- **Path:** `logs/evidence/<run_id>/`
+- **Files:** manifest.json, kpi.json, decision_trace.json, latency.json, ...
+- **Size:** <total_size_kb> KB
+
+## Status
+- **Degraded:** <YES/NO>
+- **Reason:** <degradation_reason or "N/A">
+- **Unknown Issues:** <list or "None">
+
+## Next Step
+- **D<next>:** <next_task_title_one_line>
+
+**템플릿 준수 규칙:**
+1. ❌ **금지:** "커밋 대기중", "[pending]", "TBD" 같은 placeholder
+2. ✅ **필수:** 모든 필드 채우기 (N/A는 허용)
+3. ✅ **필수:** Compare Patch URL 생성 (GitHub compare/<before>...<after>.patch)
+4. ✅ **필수:** evaluated_ticks_total > 0 확인 (Reality Wiring 작업 시)
+5. ❌ **금지:** Closeout Summary 없이 커밋
+
+---
+
+## 📝 다음 단계
+
+이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.
+
+**업데이트 규칙:**
+1. 새 규칙 추가 시 → 해당 섹션 업데이트 + 예시 추가
+2. 규칙 변경 시 → 커밋 메시지에 `[SSOT_RULES]` 태그
+3. 순서 변경 시 → D_ROADMAP 동기화 필수
+
+**참조:**
+- SSOT_MAP: `docs/v2/design/SSOT_MAP.md`
+- Evidence: `docs/v2/design/EVIDENCE_FORMAT.md`
+- Architecture: `docs/v2/V2_ARCHITECTURE.md` - V2 아키텍처 정의
+- `.windsurfrule` - 프로젝트 전역 규칙
+- `global_rules.md` - 코딩 스타일 규칙
+
+---
+
 **이 규칙은 V2 개발 전반에 걸쳐 강제 적용되며, 위반 시 작업이 차단됩니다.**

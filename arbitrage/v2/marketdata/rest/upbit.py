@@ -52,8 +52,9 @@ class UpbitRestProvider(RestProvider):
             Ticker 또는 None (에러 시)
         """
         try:
-            # BTC/KRW → KRW-BTC
-            market = symbol.replace("/", "-")
+            # BTC/KRW → KRW-BTC (Upbit 마켓 코드 형식)
+            base, quote = symbol.split("/")
+            market = f"{quote}-{base}"
             
             url = f"{self.BASE_URL}/ticker"
             params = {"markets": market}
@@ -89,8 +90,9 @@ class UpbitRestProvider(RestProvider):
             Orderbook 또는 None (에러 시)
         """
         try:
-            # BTC/KRW → KRW-BTC
-            market = symbol.replace("/", "-")
+            # BTC/KRW → KRW-BTC (Upbit 마켓 코드 형식)
+            base, quote = symbol.split("/")
+            market = f"{quote}-{base}"
             
             url = f"{self.BASE_URL}/orderbook"
             params = {"markets": market}

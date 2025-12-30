@@ -139,8 +139,9 @@ class RealityWiringRunner:
                     self.decision_trace.record_gate_ratelimit()
                     continue
                 
-                # 2. Tick 수신 (Binance)
-                binance_ticker = self.binance_rest.get_ticker(symbol)
+                # 2. Tick 수신 (Binance) - 심볼 매핑 (BTC/KRW → BTC/USDT)
+                binance_symbol = symbol.replace("/KRW", "/USDT")
+                binance_ticker = self.binance_rest.get_ticker(binance_symbol)
                 if not binance_ticker:
                     self.decision_trace.record_gate_ratelimit()
                     continue
