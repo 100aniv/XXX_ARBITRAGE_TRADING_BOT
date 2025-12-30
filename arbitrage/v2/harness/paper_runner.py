@@ -431,39 +431,106 @@ class PaperRunner:
                 self.balance.update("USDT", (order_result.filled_qty or 0.01) * (order_result.filled_price or 40_000.0))
     
     def _record_to_db(self, intent: OrderIntent, order_result):
-        """DB 기록 (v2_orders, v2_fills, v2_trades)"""
-        timestamp = datetime.now(timezone.utc)
+        """DB 기록 (v2_orders, v2_fills, v2_trades)
         
-        # v2_orders 기록
-        if self.storage:
-            try:
-                self.storage.insert_order(
-                    run_id=self.config.run_id,
-                    order_id=order_result.order_id,
-                    timestamp=timestamp,
-                    exchange=intent.exchange,
-                    symbol=intent.symbol,
-                    side=intent.side.value,
-                    order_type=intent.order_type.value,
-                    quantity=intent.base_qty or order_result.filled_qty,
-                    price=intent.quote_amount or order_result.filled_price,
-                    status="filled",
-                    route_id=intent.route_id,
-                    strategy_id=intent.strategy_id or "d204_2_paper",
-                )
-                self.kpi.db_inserts_ok += 1
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"[D204-2] Failed to record to DB: {error_msg}")
-                self.kpi.error_count += 1
-                self.kpi.errors.append(f"record_to_db: {error_msg}")
-                self.kpi.db_last_error = error_msg
-                
-                # strict mode: DB insert 실패 시 즉시 종료
-                if self.config.db_mode == "strict" and "relation" in error_msg:
-                    logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
-                    raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
-                self.kpi.db_inserts_failed += 1
+        D205-1 Hotfix:
+        - insert_order + insert_fill + insert_trade (리포팅 재료 확보)
+        - KPI db_inserts_ok = 실제 rows inserted (중복 카운트 제거)
+        """
+        timestamp = datetime.now(timezone.utc)
+        rows_inserted = 0
+        
+        if not self.storage:
+            return
+        
+        try:
+            # 1. v2_orders 기록
+            self.storage.insert_order(
+                run_id=self.config.run_id,
+                order_id=order_result.order_id,
+                timestamp=timestamp,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                order_type=intent.order_type.value,
+                quantity=intent.base_qty or order_result.filled_qty,
+                price=intent.quote_amount or order_result.filled_price,
+                status="filled",
+                route_id=intent.route_id,
+                strategy_id=intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # 2. v2_fills 기록 (D205-1 Hotfix: 리포팅 재료)
+            # fee 계산: FeeModel 활용 (taker_fee_bps)
+            filled_qty = order_result.filled_qty or intent.base_qty or 0.01
+            filled_price = order_result.filled_price or intent.limit_price or 50_000_000.0
+            
+            # exchange별 fee_bps (self.break_even_params.fee_model 사용)
+            if intent.exchange == "upbit":
+                fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
+            else:
+                fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
+            
+            # fee 계산: filled_qty * filled_price * fee_bps / 10000
+            fee = filled_qty * filled_price * fee_bps / 10000.0
+            fee_currency = "KRW" if "KRW" in intent.symbol else "USDT"
+            
+            fill_id = f"{order_result.order_id}_fill_1"
+            
+            self.storage.insert_fill(
+                run_id=self.config.run_id,
+                order_id=order_result.order_id,
+                fill_id=fill_id,
+                timestamp=timestamp,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                filled_quantity=filled_qty,
+                filled_price=filled_price,
+                fee=fee,
+                fee_currency=fee_currency,
+            )
+            rows_inserted += 1
+            
+            # 3. v2_trades 기록 (D205-1 Hotfix: 리포팅 재료)
+            # 단일 주문 → trade entry로 기록 (exit은 나중에)
+            trade_id = f"trade_{self.config.run_id}_{order_result.order_id}"
+            
+            self.storage.insert_trade(
+                run_id=self.config.run_id,
+                trade_id=trade_id,
+                timestamp=timestamp,
+                entry_exchange=intent.exchange,
+                entry_symbol=intent.symbol,
+                entry_side=intent.side.value,
+                entry_order_id=order_result.order_id,
+                entry_quantity=filled_qty,
+                entry_price=filled_price,
+                entry_timestamp=timestamp,
+                status="open",  # paper에서는 즉시 entry만
+                total_fee=fee,
+                route_id=intent.route_id,
+                strategy_id=intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # KPI: 실제 insert rows 수 (order + fill + trade = 3)
+            self.kpi.db_inserts_ok += rows_inserted
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[D204-2] Failed to record to DB: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"record_to_db: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            # strict mode: DB insert 실패 시 즉시 종료
+            if self.config.db_mode == "strict":
+                logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
+                raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
+            
+            self.kpi.db_inserts_failed += rows_inserted  # 실패한 rows 수
     
     def _save_kpi(self):
         """KPI JSON 저장"""
@@ -509,7 +576,7 @@ def main():
     parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols")
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode (strict: FAIL on DB error, optional: skip on DB error, off: no DB)")
-    parser.add_argument("--ensure-schema", action="store_true", default=True, help="Verify DB schema before run (default: True)")
+    parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema before run (default: True, use --no-ensure-schema to disable)")
     
     args = parser.parse_args()
     

@@ -2806,24 +2806,33 @@ python arbitrage\v2\harness\paper_chain.py --durations 20,60,180 --phases smoke,
 ### D205: User Facing Reporting (사용자 리포팅)
 
 #### D205-1: daily/weekly/monthly PnL + DD + winrate (DB 기반)
-**상태:** PLANNED
+**상태:** DONE ✅
 
 **목적:** DB 기반 PnL 리포팅 SSOT 확립
 
 **목표:**
-- PnL 데이터 schema 정의 (PostgreSQL)
-- Daily/Weekly/Monthly aggregation 자동화
-- Drawdown, Winrate, Sharpe ratio 계산
-- CSV/JSON 출력
+- PnL 데이터 schema 정의 (PostgreSQL) ✅
+- Daily aggregation 자동화 ✅
+- Ops metrics (Execution Quality + Risk) ✅
+- JSON 출력 ✅
 
 **AC:**
-- [ ] DB schema: v2_pnl_daily, v2_pnl_weekly, v2_pnl_monthly
-- [ ] 필수 컬럼: date, total_pnl, realized_pnl, unrealized_pnl, num_trades, winrate, max_drawdown
-- [ ] Aggregation 쿼리 작성 (CTE 사용)
-- [ ] 리포트 생성 스크립트: `scripts/generate_pnl_report.py`
-- [ ] CSV 출력: `outputs/pnl_report_YYYYMMDD.csv`
-- [ ] JSON 출력: `outputs/pnl_report_YYYYMMDD.json`
-- [ ] test_pnl_aggregation.py 100% PASS
+- [x] DB schema: v2_pnl_daily, v2_ops_daily ✅
+- [x] 필수 컬럼: date, gross_pnl, net_pnl, fees, volume, trades, wins, losses, winrate_pct ✅
+- [x] Ops 컬럼: orders, fills, rejects, fill_rate, slippage, latency, api_errors ✅
+- [x] Aggregation 쿼리 작성 (CTE 사용) ✅
+- [x] 리포트 생성 스크립트: `arbitrage.v2.reporting.run_daily_report` ✅
+- [x] JSON 출력: `logs/evidence/daily_report_YYYYMMDD.json` ✅
+- [x] test_d205_1_reporting.py 7/7 PASS ✅
+
+**완료일:** 2025-12-30
+**Evidence:** `logs/evidence/d205_1_20251230_1123_654c132/`
+**Commit:** (다음 commit에 포함)
+
+**Note:**
+- D204-2 Hotfix 포함: v2_fills/v2_trades insert 구현 (리포팅 재료 확보)
+- Weekly/Monthly aggregation은 DEFER (D205-2+)
+- Drawdown/Sharpe ratio는 DEFER (rolling PnL 필요)
 
 **스키마 예시:**
 ```sql
