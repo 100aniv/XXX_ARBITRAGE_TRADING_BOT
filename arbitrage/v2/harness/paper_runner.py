@@ -42,8 +42,10 @@ from arbitrage.v2.opportunity import (
 )
 from arbitrage.v2.adapters import MockAdapter
 from arbitrage.v2.storage import V2LedgerStorage
+from arbitrage.v2.utils.timestamp import to_utc_naive, now_utc_naive
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
 
+import uuid
 
 logging.basicConfig(
     level=logging.INFO,
@@ -494,7 +496,8 @@ class PaperRunner:
             fee = filled_qty * filled_price * fee_bps / 10000.0
             fee_currency = "KRW" if "KRW" in intent.symbol else "USDT"
             
-            fill_id = f"{order_result.order_id}_fill_1"
+            # D205-2 REOPEN-2: uuid4 기반 fill_id (충돌 제거)
+            fill_id = f"{order_result.order_id}_fill_{uuid.uuid4().hex[:8]}"
             
             self.storage.insert_fill(
                 run_id=self.config.run_id,
@@ -513,7 +516,8 @@ class PaperRunner:
             
             # 3. v2_trades 기록 (D205-1 Hotfix: 리포팅 재료)
             # 단일 주문 → trade entry로 기록 (exit은 나중에)
-            trade_id = f"trade_{self.config.run_id}_{order_result.order_id}"
+            # D205-2 REOPEN-2: uuid4 기반 trade_id (초 단위 충돌 제거)
+            trade_id = f"trade_{self.config.run_id}_{uuid.uuid4().hex[:8]}"
             
             self.storage.insert_trade(
                 run_id=self.config.run_id,
@@ -574,8 +578,9 @@ class PaperRunner:
                 self._update_mock_balance(intent, order_result)
             return
         
-        timestamp = datetime.now(timezone.utc)
-        trade_id = f"trade_{self.config.run_id}_{candidate.symbol}_{int(timestamp.timestamp())}"
+        # D205-2 REOPEN-2: UTC naive timestamp + uuid4 기반 trade_id
+        timestamp = now_utc_naive()
+        trade_id = f"trade_{self.config.run_id}_{uuid.uuid4().hex[:8]}"
         
         # Entry order (첫 번째)
         entry_intent = intents[0]
@@ -627,6 +632,8 @@ class PaperRunner:
         
         try:
             # Entry order
+            # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
+            order_id = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_entry"
             entry_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
             entry_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
             
@@ -639,6 +646,8 @@ class PaperRunner:
             entry_fee_currency = "KRW" if "KRW" in entry_intent.symbol else "USDT"
             
             # Exit order
+            # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
+            order_id_exit = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_exit"
             exit_qty = exit_result.filled_qty or exit_intent.base_qty or 0.01
             exit_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
             

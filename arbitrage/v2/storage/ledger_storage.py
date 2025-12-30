@@ -14,10 +14,14 @@ Date: 2025-12-30
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import List, Dict, Any, Optional
+
+# D205-2 REOPEN-2: timestamp 유틸
+from arbitrage.v2.utils.timestamp import to_utc_naive
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +204,14 @@ class V2LedgerStorage:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(select_sql, (run_id, limit))
-                    return [dict(row) for row in cur.fetchall()]
+                    # D205-2 REOPEN-2: UTC naive 변환
+                    orders = []
+                    for row in cur.fetchall():
+                        order = dict(row)
+                        if 'timestamp' in order and order['timestamp']:
+                            order['timestamp'] = to_utc_naive(order['timestamp'])
+                        orders.append(order)
+                    return orders
         except Exception as e:
             logger.error(f"Failed to get orders for run_id {run_id}: {e}")
             return []
@@ -226,7 +237,13 @@ class V2LedgerStorage:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(select_sql, (order_id,))
                     row = cur.fetchone()
-                    return dict(row) if row else None
+                    if row:
+                        order = dict(row)
+                        # D205-2 REOPEN-2: UTC naive 변환
+                        if 'timestamp' in order and order['timestamp']:
+                            order['timestamp'] = to_utc_naive(order['timestamp'])
+                        return order
+                    return None
         except Exception as e:
             logger.error(f"Failed to get order {order_id}: {e}")
             return None

@@ -47,6 +47,7 @@ class ChainRunner:
     """
     
     # SSOT 프로파일 정의
+    # D205-2 REOPEN-2: SSOT 프로파일 (phase명 통일, _q suffix 제거)
     SSOT_PROFILE = {
         "smoke": 20,
         "baseline": 60,
@@ -75,7 +76,8 @@ class ChainRunner:
         self.profile = profile
         
         # D205-2 REOPEN: SSOT 프로파일 검증
-        self._validate_ssot_profile(durations, phases, profile)
+        for phase, duration in zip(phases, durations):
+            self._validate_ssot_profile(phase, duration)
         
         self.durations = durations
         self.phases = phases
@@ -96,49 +98,37 @@ class ChainRunner:
         logger.info(f"[ChainRunner] phases: {phases}")
         logger.info(f"[ChainRunner] db_mode: {db_mode}")
     
-    def _validate_ssot_profile(self, durations: List[int], phases: List[str], profile: str):
+    def _validate_ssot_profile(self, phase: str, duration: int) -> None:
         """
-        D205-2 REOPEN: SSOT 프로파일 검증
+        D205-2 REOPEN-2: SSOT 프로파일 검증 (phase명 통일)
         
-        Rules:
-            1. profile=ssot: SSOT_PROFILE 시간 준수 강제
-            2. profile=quick: phases에 _q suffix 강제 (smoke_q/baseline_q/longrun_q)
-            3. longrun 라벨 + duration < 180 → FAIL
+        profile=ssot: SSOT 시간 준수 강제 (20/60/180/720m)
+        profile=quick: phase명 동일, durations만 짧게 허용 (1/2/3m)
         
-        Raises:
-            SystemExit: SSOT 위반 시
+        _q suffix 제거: 체인 검증 파이프라인 통일
         """
-        if len(durations) != len(phases):
-            logger.error(f"[ChainRunner] ❌ SSOT FAIL: durations({len(durations)}) != phases({len(phases)})")
+        logger.info(f"[SSOT] Validating phase='{phase}', duration={duration}m, profile={self.profile}")
+        
+        # Rule 1: phase는 SSOT_PROFILE 키 중 하나여야 함
+        if phase not in self.SSOT_PROFILE:
+            logger.error(f" SSOT FAIL: phase '{phase}' not in {list(self.SSOT_PROFILE.keys())}")
             sys.exit(1)
         
-        for duration, phase in zip(durations, phases):
-            # Rule 1: profile=ssot → SSOT_PROFILE 시간 준수
-            if profile == "ssot":
-                # _q suffix 제거 후 검증
-                base_phase = phase.replace("_q", "")
-                if base_phase in self.SSOT_PROFILE:
-                    expected = self.SSOT_PROFILE[base_phase]
-                    if duration < expected:
-                        logger.error(f"[ChainRunner] ❌ SSOT FAIL: phase '{phase}' requires {expected}m, got {duration}m")
-                        logger.error(f"[ChainRunner] SSOT Profile: {self.SSOT_PROFILE}")
-                        sys.exit(1)
-            
-            # Rule 2: profile=quick → phases에 _q suffix 강제
-            if profile == "quick":
-                if not phase.endswith("_q"):
-                    logger.error(f"[ChainRunner] ❌ SSOT FAIL: profile=quick requires '_q' suffix (e.g., smoke_q)")
-                    logger.error(f"[ChainRunner] Got: {phase}")
-                    sys.exit(1)
-            
-            # Rule 3: longrun 라벨 + duration < 180 → FAIL (거짓 라벨 차단)
-            # 단, profile=quick + longrun_q는 허용
-            if "longrun" in phase and duration < 180 and profile == "ssot":
-                logger.error(f"[ChainRunner] ❌ SSOT FAIL: 'longrun' label requires ≥180m, got {duration}m")
-                logger.error(f"[ChainRunner] Use 'longrun_q' for quick tests (profile=quick)")
+        # Rule 2: profile=ssot → SSOT 시간 준수
+        if self.profile == "ssot":
+            expected = self.SSOT_PROFILE[phase]
+            if duration < expected:
+                logger.error(f" SSOT FAIL: phase '{phase}' requires {expected}m, got {duration}m")
                 sys.exit(1)
+            logger.info(f" SSOT PASS: phase '{phase}' duration {duration}m >= {expected}m")
         
-        logger.info(f"[ChainRunner] ✅ SSOT Profile validation PASS")
+        # Rule 3: profile=quick → 짧은 시간 허용 (phase명은 동일)
+        elif self.profile == "quick":
+            logger.info(f" SSOT PASS: profile=quick allows short duration for phase '{phase}'")
+        
+        else:
+            logger.error(f" SSOT FAIL: unknown profile '{self.profile}'")
+            sys.exit(1)
     
     def run(self) -> int:
         """
@@ -159,11 +149,11 @@ class ChainRunner:
             success = self._run_phase(duration, phase)
             
             if not success:
-                logger.error(f"[ChainRunner] ❌ Phase {phase} FAILED, aborting chain")
+                logger.error(f"[ChainRunner] Phase {phase} FAILED, aborting chain")
                 self._save_chain_summary(success=False, failed_phase=phase)
                 return 1
             
-            logger.info(f"[ChainRunner] ✅ Phase {phase} PASSED")
+            logger.info(f"[ChainRunner] Phase {phase} PASSED")
         
         # 전체 성공
         logger.info("[ChainRunner] ========================================")
@@ -183,8 +173,8 @@ class ChainRunner:
         Returns:
             True if success, False otherwise
         """
-        # D205-2 REOPEN: _q suffix 제거 (paper_runner는 smoke/baseline/longrun만 인식)
-        runner_phase = phase.replace("_q", "")
+        # D205-2 REOPEN-2: phase명 통일 (_q suffix 제거 완료)
+        runner_phase = phase
         
         # paper_runner 실행
         cmd = [

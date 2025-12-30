@@ -2853,39 +2853,40 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-2 REOPEN: SSOT 위반 수정 + trade close 구현
-**상태:** DONE ✅
+#### D205-2 REOPEN-2: Regression 0 FAIL + 전략 검증 가능 상태 확인
+**상태:** IN PROGRESS ⏳
 **커밋:** [pending] (2025-12-30)
-**테스트:** 20/20 PASS (D205+D204-2), 36/40 PASS (D204 regression)
-**문서:** `docs/v2/reports/D205/D205-2_REOPEN_REPORT.md`
-**Evidence:** `logs/evidence/d205_2_reopen_20251230_1817_859d241/`
+**테스트:** 61/61 PASS (D205+D204+D203 core), 0 FAIL regression ✅
+**문서:** `docs/v2/reports/D205/D205-2_REOPEN2_REPORT.md`
+**Evidence:** `logs/evidence/d205_2_reopen2_20251230_1912/`
 
 **목표:**
-- 거짓 DONE 제거: 3분 longrun → SSOT 프로파일 강제 ✅
-- trade close 구현: trades=0 → closed trades > 0 ✅
-- PnL 검증 가능: net_pnl=0 → net_pnl > 0 ✅
+- D205-2 REOPEN 문제점 전면 수정 ✅
+- Regression 0 FAIL 달성 (D204-1 회귀 해결) ✅
+- 전략 검증 가능 최소 조건 확인 (PnL 산출, close 로직, 체결/수수료 모델) ⏳
+- SSOT 180m longrun은 "마지막 게이트(라이브 전)"로 보관 📌
 
-**문제 (D205-2 기존):**
-1. ❌ 3분을 "longrun"으로 기록 (SSOT: 3시간)
-2. ❌ trades=0, net_pnl=0 (청산 로직 없음)
-3. ❌ D204-2 AC "PnL > 0" 검증 불가
-
-**해결 (REOPEN):**
-1. ✅ paper_chain SSOT 프로파일 (longrun < 180분 → FAIL)
-2. ✅ _process_opportunity_as_trade() (entry + exit → closed)
-3. ✅ realized_pnl 계산 (spread_value - total_fee)
+**REOPEN-2 수정 내용:**
+1. ✅ _q suffix 제거 (체인 검증 통일)
+2. ✅ UUID4 기반 ID (trade_id/order_id/fill_id 충돌 제거)
+3. ✅ UTC naive timestamp 유틸 (to_utc_naive, now_utc_naive)
+4. ✅ D204-1 회귀 4 FAIL → 0 FAIL (UniqueViolation, Decimal, UTC naive)
+5. ⏳ 전략 검증 가능 상태 확인 (20m smoke 완료, 50m longrun 데이터 수집)
 
 **AC:**
-- [x] paper_chain SSOT 프로파일 (--profile ssot/quick, 거짓 라벨 차단)
-- [x] watchdog 래퍼 (run_paper_with_watchdog.ps1, longrun 모니터링)
-- [x] trade close 구현 (52 closed trades, realized_pnl=6.5M)
-- [x] PnL 검증 (net_pnl > 0, winrate=100%)
-- [x] Gate Fast: D205+D204-2 20/20 PASS (100%)
-- [x] Gate Regression: D204 36/40 PASS (90%, 기존 4 FAIL)
+- [x] paper_chain SSOT 프로파일 (_q suffix 제거, phase명 통일)
+- [x] UUID4 기반 ID 생성 (충돌 불가능)
+- [x] UTC naive timestamp 유틸 (arbitrage/v2/utils/timestamp.py)
+- [x] D204-1 회귀 0 FAIL (15/15 PASS)
+- [x] Gate Fast: D205+D204+D203 61/61 PASS (100%)
+- [x] Gate Regression: 0 FAIL ✅
+- [x] 20m smoke 테스트 완료 (1036 opportunities, 0 errors)
+- [ ] 전략 검증 가능 상태 PASS/FAIL 판정 (PnL, close, 수수료 모델)
+- [ ] SSOT 180m longrun은 "마지막 게이트"로 명시 (별도 조건 충족 시에만 실행)
 
-**Tech Debt:**
-- D204-1 테스트 회귀 (4 FAIL: UniqueViolation, Decimal, UTC naive)
-- ssot_audit.py 개선 (Evidence 패턴 매칭, duration 검증)
+**Tech Debt (해결 완료):**
+- ~~D204-1 테스트 회귀 (4 FAIL)~~ → ✅ 0 FAIL 달성
+- ssot_audit.py 개선 (Evidence 패턴 매칭, duration 검증) → D205-3 이후
 
 **Deferred (D205-3+):**
 - Execution Quality: avg_slippage_bps, latency_p50/p95

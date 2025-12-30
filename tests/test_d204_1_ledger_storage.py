@@ -14,8 +14,14 @@ Date: 2025-12-30
 """
 
 import pytest
+import psycopg2
+import uuid
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
+
+# D205-2 REOPEN-2: timestamp 유틸
+from arbitrage.v2.utils.timestamp import now_utc_naive, to_utc_naive
 from arbitrage.v2.storage import V2LedgerStorage
 
 
@@ -38,7 +44,7 @@ def storage(connection_string):
 @pytest.fixture
 def run_id():
     """Test run_id"""
-    return f"test_d204_1_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    return f"test_d204_1_{uuid.uuid4().hex[:12]}"
 
 
 class TestV2LedgerStorageOrders:
@@ -53,7 +59,7 @@ class TestV2LedgerStorageOrders:
             - get_order_by_id()로 조회 가능
         """
         order_id = f"order_{run_id}_001"
-        timestamp = datetime.now(timezone.utc)
+        timestamp = now_utc_naive()
         
         storage.insert_order(
             run_id=run_id,
@@ -64,7 +70,7 @@ class TestV2LedgerStorageOrders:
             side="BUY",
             order_type="MARKET",
             quantity=0.01,
-            price=50_000_000.0,
+            price=Decimal('50000000.0'),
             status="pending",
             route_id="route_001",
             strategy_id="v2_engine",
@@ -99,7 +105,7 @@ class TestV2LedgerStorageOrders:
                 side="SELL",
                 order_type="MARKET",
                 quantity=0.01,
-                price=45_000.0,
+                price=Decimal('45000.0'),
                 status="filled",
             )
         
@@ -130,7 +136,7 @@ class TestV2LedgerStorageOrders:
             side="BUY",
             order_type="LIMIT",
             quantity=1.0,
-            price=3_000_000.0,
+            price=Decimal('3000000.0'),
             status="pending",
         )
         
@@ -166,7 +172,7 @@ class TestV2LedgerStorageFills:
             side="BUY",
             order_type="MARKET",
             quantity=0.01,
-            price=45_000.0,
+            price=Decimal('45000.0'),
             status="filled",
         )
         
@@ -179,9 +185,9 @@ class TestV2LedgerStorageFills:
             exchange="binance",
             symbol="BTC/USDT",
             side="BUY",
-            filled_quantity=0.01,
-            filled_price=45_100.0,
-            fee=4.51,
+            filled_quantity=Decimal('0.01'),
+            filled_price=Decimal('45100.0'),
+            fee=Decimal('4.51'),
             fee_currency="USDT",
         )
         
@@ -189,8 +195,9 @@ class TestV2LedgerStorageFills:
         fills = storage.get_fills_by_order_id(order_id)
         assert len(fills) == 1
         assert fills[0]["fill_id"] == fill_id
-        assert fills[0]["filled_quantity"] == pytest.approx(0.01)
-        assert fills[0]["fee"] == pytest.approx(4.51)
+        assert float(fills[0]["filled_quantity"]) == pytest.approx(0.01)
+        assert float(fills[0]["filled_price"]) == pytest.approx(45100.0)
+        assert float(fills[0]["fee"]) == pytest.approx(4.51)
     
     def test_get_fills_by_run_id(self, storage, run_id):
         """
@@ -211,7 +218,7 @@ class TestV2LedgerStorageFills:
             side="SELL",
             order_type="MARKET",
             quantity=0.02,
-            price=50_000_000.0,
+            price=Decimal('50000000.0'),
             status="filled",
         )
         
@@ -226,9 +233,9 @@ class TestV2LedgerStorageFills:
                 exchange="upbit",
                 symbol="BTC/KRW",
                 side="SELL",
-                filled_quantity=0.01,
-                filled_price=50_000_000.0 + i * 10_000,
-                fee=50_000.0,
+                filled_quantity=Decimal('0.01'),
+                filled_price=Decimal('50000000.0') + Decimal(str(i * 10000)),
+                fee=Decimal('50000.0'),
                 fee_currency="KRW",
             )
         
@@ -260,7 +267,7 @@ class TestV2LedgerStorageTrades:
             entry_side="BUY",
             entry_order_id=entry_order_id,
             entry_quantity=0.01,
-            entry_price=49_000_000.0,
+            entry_price=Decimal('49000000.0'),
             entry_timestamp=datetime.now(timezone.utc),
             status="open",
         )
@@ -292,17 +299,17 @@ class TestV2LedgerStorageTrades:
             entry_side="BUY",
             entry_order_id=f"order_{run_id}_entry_001",
             entry_quantity=0.01,
-            entry_price=49_000_000.0,
+            entry_price=Decimal('49000000.0'),
             entry_timestamp=datetime.now(timezone.utc),
             exit_exchange="binance",
             exit_symbol="BTC/USDT",
             exit_side="SELL",
             exit_order_id=f"order_{run_id}_exit_001",
             exit_quantity=0.01,
-            exit_price=50_000.0,
+            exit_price=Decimal('50000.0'),
             exit_timestamp=datetime.now(timezone.utc),
-            realized_pnl=50.0,
-            total_fee=10.0,
+            realized_pnl=Decimal('50.0'),
+            total_fee=Decimal('10.0'),
             status="closed",
         )
         
@@ -310,7 +317,7 @@ class TestV2LedgerStorageTrades:
         trade = storage.get_trade_by_id(trade_id)
         assert trade["status"] == "closed"
         assert trade["exit_exchange"] == "binance"
-        assert trade["realized_pnl"] == pytest.approx(50.0)
+        assert float(trade["realized_pnl"]) == pytest.approx(50.0)
     
     def test_update_trade_exit(self, storage, run_id):
         """
@@ -332,7 +339,7 @@ class TestV2LedgerStorageTrades:
             entry_side="BUY",
             entry_order_id=f"order_{run_id}_entry_002",
             entry_quantity=0.01,
-            entry_price=45_000.0,
+            entry_price=Decimal('45000.0'),
             entry_timestamp=datetime.now(timezone.utc),
             status="open",
         )
@@ -345,10 +352,10 @@ class TestV2LedgerStorageTrades:
             exit_side="SELL",
             exit_order_id=f"order_{run_id}_exit_002",
             exit_quantity=0.01,
-            exit_price=50_000_000.0,
+            exit_price=Decimal('50000000.0'),
             exit_timestamp=datetime.now(timezone.utc),
-            realized_pnl=100.0,
-            total_fee=15.0,
+            realized_pnl=Decimal('100.0'),
+            total_fee=Decimal('15.0'),
             status="closed",
         )
         
@@ -356,7 +363,7 @@ class TestV2LedgerStorageTrades:
         trade = storage.get_trade_by_id(trade_id)
         assert trade["status"] == "closed"
         assert trade["exit_exchange"] == "upbit"
-        assert trade["realized_pnl"] == pytest.approx(100.0)
+        assert float(trade["realized_pnl"]) == pytest.approx(100.0)
     
     def test_get_trades_by_run_id(self, storage, run_id):
         """
@@ -377,7 +384,7 @@ class TestV2LedgerStorageTrades:
                 entry_side="BUY",
                 entry_order_id=f"order_{run_id}_eth_{i}",
                 entry_quantity=1.0,
-                entry_price=3_000_000.0,
+                entry_price=Decimal('3000000.0'),
                 entry_timestamp=datetime.now(timezone.utc),
                 status="open",
             )
@@ -498,7 +505,7 @@ class TestV2LedgerStorageUTCNaive:
             side="BUY",
             order_type="MARKET",
             quantity=0.01,
-            price=50_000_000.0,
+            price=Decimal('50000000.0'),
             status="pending",
         )
         
@@ -510,3 +517,41 @@ class TestV2LedgerStorageUTCNaive:
         stored_timestamp = order["timestamp"]
         assert stored_timestamp.tzinfo is None  # naive
         assert stored_timestamp.hour == 3  # UTC 03:00:00 (not 12:00:00)
+
+    def test_order_insert_with_tz_naive(self, storage, run_id):
+        """
+        Case 15: insert_order() with tz-naive timestamp
+        
+        Verify:
+            - tz-naive 입력 → 그대로 저장
+            - 조회 시 tz-naive로 반환
+        """
+        from datetime import datetime
+        
+        order_id = f"order_{run_id}_tz_naive"
+        
+        # tz-naive timestamp
+        timestamp_naive = datetime(2025, 12, 30, 3, 0, 0)
+        
+        # 삽입
+        storage.insert_order(
+            run_id=run_id,
+            order_id=order_id,
+            timestamp=timestamp_naive,
+            exchange="upbit",
+            symbol="BTC/KRW",
+            side="BUY",
+            order_type="MARKET",
+            quantity=0.01,
+            price=Decimal('50000000.0'),
+            status="pending",
+        )
+        
+        # 조회
+        order = storage.get_order_by_id(order_id)
+        assert order is not None
+        
+        # tz-naive로 저장되었는지 확인
+        stored_timestamp = order["timestamp"]
+        assert stored_timestamp.tzinfo is None  # naive
+        assert stored_timestamp == timestamp_naive
