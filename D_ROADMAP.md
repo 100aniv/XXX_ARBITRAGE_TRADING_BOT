@@ -2882,8 +2882,8 @@ CREATE TABLE v2_pnl_daily (
 
 #### D205-3: KPI/Reporting SSOT 복구 (DONE ✅)
 **상태:** DONE ✅
-**커밋:** [closeout 예정] (2025-12-30)
-**테스트:** Gate 0 FAIL + Quick/Smoke PASS
+**커밋:** `542c11b` (2025-12-30)
+**테스트:** Gate Doctor/Fast/Regression PASS(0 FAIL) + Quick 1m PASS + Smoke 5m PASS
 **문서:** `docs/v2/reports/D205/D205-3_REUSE_AUDIT.md`
 **Evidence:** `logs/evidence/20251230_2340_d205_3_closeout/`
 
@@ -3182,6 +3182,149 @@ CREATE TABLE v2_pnl_daily (
 **⚠️ D206 진입 조건:**
 - D205-9 PASS 전에는 D206(Grafana/Deploy) 진입 절대 금지
 - "측정 → 튜닝 → 운영" 순서 강제
+
+---
+
+#### D205-10: Profitability Threshold Optimization (수익성 기준 재정의)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-10_REPORT.md`
+**Evidence:** `logs/evidence/d205_10_<timestamp>/`
+
+**목표:**
+- 수수료 + 슬리피지 + 레이턴시를 포함한 **진짜 break-even(threshold) 재정의**
+- 보수/공격 균형점 찾기 (threshold/buffer 민감도 테스트)
+
+**범위 (Do/Don't):**
+- ✅ Do: 실제 비용 모델 적용, threshold 재정의, 민감도 분석
+- ❌ Don't: ML 기반 최적화 (단순 모델만), 실거래 (PAPER만)
+
+**AC (증거 기반 검증):**
+- [ ] 수수료 모델 정의 (maker/taker bps per exchange)
+- [ ] 슬리피지 모델 적용 (D205-6에서 정의한 모델)
+- [ ] 레이턴시 비용 계산 (missed opportunity 기준)
+- [ ] break-even threshold 재정의 (기존 대비 ±X% 범위)
+- [ ] threshold/buffer 민감도 분석 (10개 조합 이상)
+- [ ] 보수/공격 시나리오별 수익성 비교
+
+**Evidence 요구사항:**
+- manifest.json
+- cost_model.json (수수료/슬리피지/레이턴시 정의)
+- threshold_sensitivity_analysis.json (10+ 조합)
+- profitability_by_scenario.json (conservative/aggressive)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- break-even threshold 재정의 완료
+
+**PASS/FAIL 판단 기준:**
+- PASS: 실제 비용 모델 적용 + threshold 재정의 + 민감도 분석 완료
+- FAIL: 비용 모델 미적용 또는 threshold 재정의 없음
+
+**의존성:**
+- Depends on: D205-9 (현실적 KPI 기준)
+- Blocks: D205-11 (레이턴시 프로파일링)
+
+---
+
+#### D205-11: Latency Profiling & Execution Tuning (ms 단위 계측)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-11_REPORT.md`
+**Evidence:** `logs/evidence/d205_11_<timestamp>/`
+
+**목표:**
+- Tick(시세 수신) → Order(주문 전송) → Fill까지 **ms 단위 계측**
+- DB I/O, 로깅이 코어 루프를 막는지 **프로파일링**
+- 목표치(p50/p95) 달성
+
+**범위 (Do/Don't):**
+- ✅ Do: 엔드-투-엔드 레이턴시 계측, 병목 분석, 최적화
+- ❌ Don't: 하드웨어 업그레이드 (소프트웨어 최적화만), 멀티프로세싱 (단일 프로세스만)
+
+**AC (증거 기반 검증):**
+- [ ] Tick 수신 → Detector 처리 시간 (ms)
+- [ ] Detector → Engine 시간 (ms)
+- [ ] Engine → Paper Executor 시간 (ms)
+- [ ] Paper Executor → Ledger 저장 시간 (ms)
+- [ ] 전체 latency p50/p95 측정
+- [ ] 병목 지점 식별 (DB/로깅/계산 중 어디인지)
+- [ ] 최적화 후 latency 개선율 > 10%
+
+**Evidence 요구사항:**
+- manifest.json
+- latency_profile.json (각 단계별 p50/p95/p99)
+- bottleneck_analysis.json (병목 지점 + 원인)
+- optimization_results.json (최적화 전후 비교)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- latency p95 < 100ms (목표치)
+
+**PASS/FAIL 판단 기준:**
+- PASS: 엔드-투-엔드 계측 완료 + 병목 분석 + 최적화 > 10%
+- FAIL: 병목 분석 없음 또는 개선율 < 5%
+
+**의존성:**
+- Depends on: D205-10 (비용 모델 기반)
+- Blocks: D205-12 (제어 인터페이스)
+
+---
+
+#### D205-12: Admin Control Minimal Set (제어 인터페이스)
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-12_REPORT.md`
+**Evidence:** `logs/evidence/d205_12_<timestamp>/`
+
+**목표:**
+- 최소 제어 기능 구현 (Start/Stop/Panic/Blacklist/Close)
+- **D206(배포) 전에 최소 제어면 확보**
+
+**범위 (Do/Don't):**
+- ✅ Do: CLI/API 기반 제어, audit log, 즉시 반영
+- ❌ Don't: Grafana만으로 제어 (별도 인터페이스 필수), 재시작 필요 (실시간 반영만)
+
+**필수 제어 기능:**
+1. **Start/Stop:** 즉시 시작/중단 (5초 이내)
+2. **Panic:** 긴급 중단 (모든 포지션 청산 또는 초기화)
+3. **Symbol Blacklist:** 특정 심볼 거래 중단 (즉시 반영)
+4. **Emergency Close:** 모든 포지션 강제 청산 (paper: 초기화)
+5. **Risk Limit Override:** 노출/동시포지션 조정 (재시작 불필요)
+
+**AC (증거 기반 검증):**
+- [ ] Start/Stop API 또는 CLI 구현
+- [ ] Panic 명령 → 5초 내 중단 검증
+- [ ] Symbol blacklist → 즉시 거래 중단 검증
+- [ ] Emergency close → 10초 내 청산 검증
+- [ ] Admin 명령 audit log (누가/언제/무엇을)
+- [ ] 모든 제어 기능 스모크 테스트 (4개 시나리오)
+
+**Evidence 요구사항:**
+- manifest.json
+- admin_control_api.md (API 명세)
+- control_scenarios.json (4개 시나리오 테스트 결과)
+- audit_log_sample.ndjson (제어 명령 로그)
+
+**Gate 조건:**
+- Gate 0 FAIL
+- 모든 제어 기능 스모크 PASS
+
+**PASS/FAIL 판단 기준:**
+- PASS: 5개 제어 기능 모두 구현 + audit log + 스모크 PASS
+- FAIL: 제어 기능 미구현 또는 스모크 FAIL
+
+**의존성:**
+- Depends on: D205-11 (레이턴시 프로파일링)
+- Blocks: D206 (운영/배포 단계)
+
+**⚠️ D206 진입 조건 (재강화):**
+- D205-10/11/12 모두 PASS 필수
+- "돈버는 알고리즘 우선" 원칙 확인
+- 제어 인터페이스 최소 요건 충족
 
 ---
 
