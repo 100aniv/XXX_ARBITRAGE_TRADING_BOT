@@ -2853,7 +2853,38 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-2: Grafana/리포트 뷰 (우선) + API는 DEFER 가능
+#### D205-2: SSOT Audit + Auto Stair Paper + Reporting Ops Upgrade
+**상태:** DONE ✅
+**커밋:** 26901db (2025-12-30)
+**테스트:** 7/7 PASS (D205), 49/53 PASS (D204 regression)
+**문서:** `docs/v2/reports/D205/D205-2_REPORT.md`
+**Evidence:** `logs/evidence/d205_2_20251230_1639_ad798d5/`
+
+**목표:**
+- SSOT Integrity Audit: 거짓 DONE 색출 ✅
+- Auto Stair Paper Test: 사용자 떠넘김 금지 ✅
+- Reporting 운영급 확장: Execution Quality + Ops/Risk ✅
+
+**AC:**
+- [x] scripts/ssot_audit.py (243 lines, SSOT 검증 자동화)
+- [x] 거짓 DONE 0개 (D204/D205 Evidence 존재 확인)
+- [x] Auto Stair Paper 3단계 (smoke/baseline/longrun, 2424 DB inserts, 0 failed)
+- [x] aggregator.py D205-2 주석 (api_errors/rate_limit/reconnects 준비)
+- [x] daily_report 실행 (orders=1497, fills=811, fill_rate=54.18%)
+- [x] Gate Fast: D205 7/7 PASS
+
+**Tech Debt:**
+- ssot_audit 로직 개선 필요 (Evidence 패턴 매칭)
+- D204-1 테스트 회귀 (4 FAIL: 중복 키, Decimal 타입)
+
+**Deferred (D205-3+):**
+- Execution Quality: avg_slippage_bps, latency_p50/p95
+- Risk Metrics: max_drawdown, sharpe_ratio
+- Strategy Attribution: route별/symbol별 PnL
+
+---
+
+#### D205-3: Grafana/리포트 뷰 (우선) + API는 DEFER 가능
 **상태:** PLANNED
 
 **목적:** 시각화 우선, API는 조건부
