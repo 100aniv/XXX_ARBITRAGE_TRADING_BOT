@@ -331,16 +331,26 @@ class ChainRunner:
             self._generate_daily_report()
     
     def _generate_daily_report(self):
-        """Daily report 자동 생성 (D205-3)"""
+        """
+        Daily report 자동 생성 (D205-3 CLOSEOUT)
+        
+        증거 SSOT:
+        - 성공/실패 모두 evidence 폴더에 기록
+        - 실패해도 체인을 FAIL로 만들지 않음 (운영상)
+        - 대신 daily_report_status.json에 실패 원인 명확히 기록
+        """
+        today = datetime.now().date().strftime("%Y-%m-%d")
+        report_path = self.chain_dir / f"daily_report_{today}.json"
+        status_path = self.chain_dir / "daily_report_status.json"
+        
         try:
             logger.info("[ChainRunner] Generating daily report...")
-            
-            today = datetime.now().date().strftime("%Y-%m-%d")
+            logger.info(f"[ChainRunner] Target: {report_path}")
             
             cmd = [
                 sys.executable, "-m", "arbitrage.v2.reporting.run_daily_report",
                 "--date", today,
-                "--run-id-prefix", self.chain_id.split("_20")[0],  # d204_2_chain → d204_2_
+                "--run-id-prefix", self.chain_id.split("_20")[0],
                 "--output-dir", str(self.chain_dir),
             ]
             
@@ -351,14 +361,46 @@ class ChainRunner:
                 timeout=30,
             )
             
+            # 증거 SSOT: 성공/실패 상태 기록
+            status = {
+                "timestamp": datetime.now().isoformat(),
+                "command": " ".join(cmd),
+                "returncode": result.returncode,
+                "report_path": str(report_path),
+                "report_exists": report_path.exists(),
+            }
+            
             if result.returncode == 0:
-                logger.info(f"[ChainRunner] Daily report generated successfully")
-                logger.info(f"[ChainRunner] Report: {self.chain_dir}/daily_report_{today}.json")
+                logger.info(f"[ChainRunner] Daily report generated: {report_path}")
+                status["status"] = "SUCCESS"
+                status["stdout"] = result.stdout[-500:] if result.stdout else ""
             else:
-                logger.warning(f"[ChainRunner] Daily report generation failed: {result.stderr}")
+                logger.warning(f"[ChainRunner] Daily report generation failed (rc={result.returncode})")
+                logger.warning(f"[ChainRunner] stderr: {result.stderr}")
+                status["status"] = "FAILED"
+                status["stderr"] = result.stderr
+                status["stdout"] = result.stdout
+            
+            # 증거 저장
+            with open(status_path, "w", encoding="utf-8") as f:
+                json.dump(status, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"[ChainRunner] Daily report status saved: {status_path}")
         
         except Exception as e:
-            logger.warning(f"[ChainRunner] Failed to generate daily report: {e}")
+            logger.error(f"[ChainRunner] Daily report generation exception: {e}")
+            
+            # 예외 발생 시에도 증거 기록
+            status = {
+                "timestamp": datetime.now().isoformat(),
+                "status": "EXCEPTION",
+                "error": str(e),
+                "report_path": str(report_path),
+                "report_exists": report_path.exists(),
+            }
+            
+            with open(status_path, "w", encoding="utf-8") as f:
+                json.dump(status, f, indent=2, ensure_ascii=False)
 
 
 def main():

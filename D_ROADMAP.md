@@ -2880,28 +2880,37 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-3: KPI/Reporting SSOT 복구
-**상태:** IN PROGRESS ⏳
-**커밋:** [pending] (2025-12-30)
-**테스트:** [pending]
+#### D205-3: KPI/Reporting SSOT 복구 (DONE ✅)
+**상태:** DONE ✅
+**커밋:** [closeout 예정] (2025-12-30)
+**테스트:** Gate 0 FAIL + Quick/Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-3_REUSE_AUDIT.md`
+**Evidence:** `logs/evidence/20251230_2340_d205_3_closeout/`
 
 **목표:**
 - KPI 스키마에 PnL 필드 추가 (net_pnl, closed_trades, winrate_pct) ✅
 - paper_runner → paper_chain → daily_report 자동 생성 ✅
-- Patch 파일 레포 정리 ✅
-- Gate 0 FAIL 검증 ⏳
-- Quick (1분) + Smoke (5-10분) PnL 증거 확보 ⏳
+- Patch 파일 레포 정리 (git rm -r patch/) ✅
+- Gate 0 FAIL 검증 ✅
+- Quick (1분) + Smoke (5분) PnL 증거 확보 ✅
 
-**AC:**
+**AC (증거 기반 검증 완료):**
 - [x] KPICollector PnL 필드 추가 (7개 필드)
 - [x] _record_trade_complete() KPI 업데이트 로직
-- [x] paper_chain daily_report 자동 호출
-- [x] patch/*.patch.txt 제거 + .gitignore 추가
-- [ ] Gate Doctor/Fast/Regression 0 FAIL
-- [ ] kpi_test_1min.json PnL 필드 존재 확인
-- [ ] kpi_smoke.json closed_trades > 0 확인
-- [ ] daily_report_{date}.json 자동 생성 확인
+- [x] paper_chain daily_report 자동 호출 (daily_report_status.json)
+- [x] patch/*.patch.txt 제거 (git rm) + .gitignore 추가
+- [x] Gate Doctor/Fast/Regression 0 FAIL (3f2c3ac 기준)
+- [x] kpi_test_1min.json PnL 필드 존재 (closed_trades=52, net_pnl=6,520,023.77)
+- [x] kpi_smoke.json closed_trades > 0 (closed_trades=259, net_pnl=32,475,596.68)
+- [x] daily_report 자동 생성 확인 (paper_chain.py:333-403)
+
+**증거 매핑:**
+- Gate Doctor: `logs/evidence/20251230_234303_gate_doctor_3f2c3ac/`
+- Gate Fast: `logs/evidence/20251230_234313_gate_fast_3f2c3ac/`
+- Gate Regression: `logs/evidence/20251230_234736_gate_regression_3f2c3ac/`
+- Quick 1분: `logs/evidence/d204_2_test_1min_20251230_2352/kpi_test_1min.json`
+- Smoke 5분: `logs/evidence/d204_2_smoke_20251230_2353/kpi_smoke.json`
+- Validation: `logs/evidence/20251230_2340_d205_3_closeout/VALIDATION_SUMMARY.md`
 
 **SSOT 180m Longrun 정책:**
 - 목적: 운영 안정성 검증 (메모리 누수, DB 성능, 핸들 누적)
