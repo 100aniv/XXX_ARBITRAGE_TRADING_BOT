@@ -40,7 +40,19 @@ class ChainRunner:
         1. smoke (20m) → baseline (60m) → longrun (180m)
         2. 각 phase별 자동 검증
         3. 실패 시 즉시 중단
+    
+    D205-2 REOPEN: SSOT 프로파일 강제
+        - longrun 라벨 + duration < 180 → FAIL (SSOT 위반)
+        - quick 프로파일 (1,2,3)은 _q suffix 강제 (smoke_q/baseline_q/longrun_q)
     """
+    
+    # SSOT 프로파일 정의
+    SSOT_PROFILE = {
+        "smoke": 20,
+        "baseline": 60,
+        "longrun": 180,
+        "extended": 720,
+    }
     
     def __init__(
         self,
@@ -48,6 +60,7 @@ class ChainRunner:
         phases: List[str],
         db_mode: str = "strict",
         evidence_root: str = "logs/evidence",
+        profile: str = "ssot",
     ):
         """
         Initialize Chain Runner
@@ -57,7 +70,13 @@ class ChainRunner:
             phases: 각 phase 이름 ["smoke", "baseline", "longrun"]
             db_mode: DB 모드 (strict/optional/off)
             evidence_root: Evidence 루트 경로
+            profile: SSOT 프로파일 (ssot/quick)
         """
+        self.profile = profile
+        
+        # D205-2 REOPEN: SSOT 프로파일 검증
+        self._validate_ssot_profile(durations, phases, profile)
+        
         self.durations = durations
         self.phases = phases
         self.db_mode = db_mode
@@ -72,9 +91,54 @@ class ChainRunner:
         
         logger.info(f"[ChainRunner] Initialized")
         logger.info(f"[ChainRunner] chain_id: {self.chain_id}")
+        logger.info(f"[ChainRunner] profile: {profile}")
         logger.info(f"[ChainRunner] durations: {durations}")
         logger.info(f"[ChainRunner] phases: {phases}")
         logger.info(f"[ChainRunner] db_mode: {db_mode}")
+    
+    def _validate_ssot_profile(self, durations: List[int], phases: List[str], profile: str):
+        """
+        D205-2 REOPEN: SSOT 프로파일 검증
+        
+        Rules:
+            1. profile=ssot: SSOT_PROFILE 시간 준수 강제
+            2. profile=quick: phases에 _q suffix 강제 (smoke_q/baseline_q/longrun_q)
+            3. longrun 라벨 + duration < 180 → FAIL
+        
+        Raises:
+            SystemExit: SSOT 위반 시
+        """
+        if len(durations) != len(phases):
+            logger.error(f"[ChainRunner] ❌ SSOT FAIL: durations({len(durations)}) != phases({len(phases)})")
+            sys.exit(1)
+        
+        for duration, phase in zip(durations, phases):
+            # Rule 1: profile=ssot → SSOT_PROFILE 시간 준수
+            if profile == "ssot":
+                # _q suffix 제거 후 검증
+                base_phase = phase.replace("_q", "")
+                if base_phase in self.SSOT_PROFILE:
+                    expected = self.SSOT_PROFILE[base_phase]
+                    if duration < expected:
+                        logger.error(f"[ChainRunner] ❌ SSOT FAIL: phase '{phase}' requires {expected}m, got {duration}m")
+                        logger.error(f"[ChainRunner] SSOT Profile: {self.SSOT_PROFILE}")
+                        sys.exit(1)
+            
+            # Rule 2: profile=quick → phases에 _q suffix 강제
+            if profile == "quick":
+                if not phase.endswith("_q"):
+                    logger.error(f"[ChainRunner] ❌ SSOT FAIL: profile=quick requires '_q' suffix (e.g., smoke_q)")
+                    logger.error(f"[ChainRunner] Got: {phase}")
+                    sys.exit(1)
+            
+            # Rule 3: longrun 라벨 + duration < 180 → FAIL (거짓 라벨 차단)
+            # 단, profile=quick + longrun_q는 허용
+            if "longrun" in phase and duration < 180 and profile == "ssot":
+                logger.error(f"[ChainRunner] ❌ SSOT FAIL: 'longrun' label requires ≥180m, got {duration}m")
+                logger.error(f"[ChainRunner] Use 'longrun_q' for quick tests (profile=quick)")
+                sys.exit(1)
+        
+        logger.info(f"[ChainRunner] ✅ SSOT Profile validation PASS")
     
     def run(self) -> int:
         """
@@ -119,12 +183,15 @@ class ChainRunner:
         Returns:
             True if success, False otherwise
         """
+        # D205-2 REOPEN: _q suffix 제거 (paper_runner는 smoke/baseline/longrun만 인식)
+        runner_phase = phase.replace("_q", "")
+        
         # paper_runner 실행
         cmd = [
             sys.executable,
             "-m", "arbitrage.v2.harness.paper_runner",
             "--duration", str(duration),
-            "--phase", phase,
+            "--phase", runner_phase,
             "--db-mode", self.db_mode,
         ]
         
@@ -272,11 +339,11 @@ class ChainRunner:
 
 def main():
     """CLI 엔트리포인트"""
-    parser = argparse.ArgumentParser(description="D204-2 Paper Execution Chain Runner")
+    parser = argparse.ArgumentParser(description="D204-2 Paper Execution Chain Runner (D205-2 REOPEN: SSOT 프로파일 강제)")
     parser.add_argument(
         "--durations",
         type=str,
-        default="1,2,3",
+        default="20,60,180",
         help="Duration for each phase (comma-separated, in minutes). Example: 20,60,180"
     )
     parser.add_argument(
@@ -290,6 +357,12 @@ def main():
         default="strict",
         choices=["strict", "optional", "off"],
         help="DB mode"
+    )
+    parser.add_argument(
+        "--profile",
+        default="ssot",
+        choices=["ssot", "quick"],
+        help="SSOT profile: 'ssot' (20,60,180) or 'quick' (1,2,3 with _q suffix)"
     )
     
     args = parser.parse_args()
@@ -307,6 +380,7 @@ def main():
         durations=durations,
         phases=phases,
         db_mode=args.db_mode,
+        profile=args.profile,
     )
     
     exit_code = runner.run()

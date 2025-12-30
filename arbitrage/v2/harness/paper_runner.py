@@ -187,6 +187,9 @@ class PaperRunner:
         self.balance = MockBalance()
         self.kpi = KPICollector()
         
+        # D205-2 REOPEN: trade tracking (opportunity 단위)
+        self.open_trades: Dict[str, Dict[str, Any]] = {}  # trade_id -> {entry_*, candidate, orders_executed}
+        
         # V2 Storage (PostgreSQL) - D204-2 REOPEN: strict mode
         if config.db_mode == "off":
             logger.info(f"[D204-2] DB mode: OFF (no DB operations)")
@@ -303,10 +306,8 @@ class PaperRunner:
                     intents = self._convert_to_intents(candidate)
                     self.kpi.intents_created += len(intents)
                     
-                    # 3. 모의 실행
-                    for intent in intents:
-                        self._execute_mock_order(intent)
-                        self.kpi.mock_executions += 1
+                    # D205-2 REOPEN: opportunity 단위 trade 처리 (entry + exit)
+                    self._process_opportunity_as_trade(candidate, intents)
                 
                 # 1분 단위 KPI 출력
                 if iteration % 10 == 0:
@@ -377,6 +378,23 @@ class PaperRunner:
             logger.warning(f"[D204-2] Failed to convert to intents: {e}")
             self.kpi.errors.append(f"candidate_to_order_intents: {e}")
             return []
+    
+    def _execute_order(self, intent: OrderIntent):
+        """Mock 주문 실행 (DB 기록 없이 순수 실행만)
+        
+        D205-2 REOPEN: trade close를 위해 분리
+        """
+        # 1. MockAdapter로 변환
+        payload = self.mock_adapter.translate_intent(intent)
+        
+        # 2. Mock 체결 (항상 성공)
+        response = self.mock_adapter.submit_order(payload)
+        order_result = self.mock_adapter.parse_response(response)
+        
+        # 3. KPI 업데이트
+        self.kpi.mock_executions += 1
+        
+        return order_result
     
     def _execute_mock_order(self, intent: OrderIntent):
         """Mock 주문 실행 + DB 기록"""
@@ -531,6 +549,227 @@ class PaperRunner:
                 raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
             
             self.kpi.db_inserts_failed += rows_inserted  # 실패한 rows 수
+    
+    def _process_opportunity_as_trade(
+        self,
+        candidate,
+        intents: List[OrderIntent],
+    ):
+        """
+        D205-2 REOPEN: Opportunity를 하나의 trade로 처리 (entry + exit)
+        
+        Args:
+            candidate: OpportunityCandidate
+            intents: 2개의 OrderIntent (entry, exit)
+        
+        Flow:
+            1. 첫 번째 order: entry 기록 (trade status=open)
+            2. 두 번째 order: exit 기록 + trade close (status=closed, realized_pnl 계산)
+        """
+        if len(intents) != 2:
+            logger.warning(f"[D205-2] Expected 2 intents, got {len(intents)}")
+            # Fallback: 기존 로직
+            for intent in intents:
+                order_result = self._execute_order(intent)
+                self._update_mock_balance(intent, order_result)
+            return
+        
+        timestamp = datetime.now(timezone.utc)
+        trade_id = f"trade_{self.config.run_id}_{candidate.symbol}_{int(timestamp.timestamp())}"
+        
+        # Entry order (첫 번째)
+        entry_intent = intents[0]
+        entry_result = self._execute_order(entry_intent)
+        self._update_mock_balance(entry_intent, entry_result)
+        
+        # Exit order (두 번째)
+        exit_intent = intents[1]
+        exit_result = self._execute_order(exit_intent)
+        self._update_mock_balance(exit_intent, exit_result)
+        
+        # DB 기록 (entry + exit + trade close)
+        self._record_trade_complete(
+            trade_id=trade_id,
+            candidate=candidate,
+            entry_intent=entry_intent,
+            entry_result=entry_result,
+            exit_intent=exit_intent,
+            exit_result=exit_result,
+            timestamp=timestamp,
+        )
+    
+    def _record_trade_complete(
+        self,
+        trade_id: str,
+        candidate,
+        entry_intent: OrderIntent,
+        entry_result,
+        exit_intent: OrderIntent,
+        exit_result,
+        timestamp: datetime,
+    ):
+        """
+        D205-2 REOPEN: 완전한 trade 기록 (entry + exit + close)
+        
+        Args:
+            trade_id: Trade ID
+            candidate: OpportunityCandidate
+            entry_intent: Entry order intent
+            entry_result: Entry order result
+            exit_intent: Exit order intent
+            exit_result: Exit order result
+            timestamp: Trade timestamp
+        """
+        if not self.storage:
+            return
+        
+        rows_inserted = 0
+        
+        try:
+            # Entry order
+            entry_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
+            entry_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
+            
+            # Entry fee
+            if entry_intent.exchange == "upbit":
+                entry_fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
+            else:
+                entry_fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
+            entry_fee = entry_qty * entry_price * entry_fee_bps / 10000.0
+            entry_fee_currency = "KRW" if "KRW" in entry_intent.symbol else "USDT"
+            
+            # Exit order
+            exit_qty = exit_result.filled_qty or exit_intent.base_qty or 0.01
+            exit_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
+            
+            # Exit fee
+            if exit_intent.exchange == "upbit":
+                exit_fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
+            else:
+                exit_fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
+            exit_fee = exit_qty * exit_price * exit_fee_bps / 10000.0
+            exit_fee_currency = "KRW" if "KRW" in exit_intent.symbol else "USDT"
+            
+            total_fee = entry_fee + exit_fee
+            
+            # realized_pnl 계산 (간단 버전: candidate spread 활용)
+            # spread_bps를 realized_pnl로 변환
+            spread_value = candidate.spread_bps * entry_price * entry_qty / 10000.0
+            realized_pnl = spread_value - total_fee
+            
+            # 1. v2_orders: entry
+            self.storage.insert_order(
+                run_id=self.config.run_id,
+                order_id=entry_result.order_id,
+                timestamp=timestamp,
+                exchange=entry_intent.exchange,
+                symbol=entry_intent.symbol,
+                side=entry_intent.side.value,
+                order_type=entry_intent.order_type.value,
+                quantity=entry_qty,
+                price=entry_price,
+                status="filled",
+                route_id=entry_intent.route_id,
+                strategy_id=entry_intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # 2. v2_orders: exit
+            self.storage.insert_order(
+                run_id=self.config.run_id,
+                order_id=exit_result.order_id,
+                timestamp=timestamp,
+                exchange=exit_intent.exchange,
+                symbol=exit_intent.symbol,
+                side=exit_intent.side.value,
+                order_type=exit_intent.order_type.value,
+                quantity=exit_qty,
+                price=exit_price,
+                status="filled",
+                route_id=exit_intent.route_id,
+                strategy_id=exit_intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # 3. v2_fills: entry
+            entry_fill_id = f"{entry_result.order_id}_fill_1"
+            self.storage.insert_fill(
+                run_id=self.config.run_id,
+                order_id=entry_result.order_id,
+                fill_id=entry_fill_id,
+                timestamp=timestamp,
+                exchange=entry_intent.exchange,
+                symbol=entry_intent.symbol,
+                side=entry_intent.side.value,
+                filled_quantity=entry_qty,
+                filled_price=entry_price,
+                fee=entry_fee,
+                fee_currency=entry_fee_currency,
+            )
+            rows_inserted += 1
+            
+            # 4. v2_fills: exit
+            exit_fill_id = f"{exit_result.order_id}_fill_1"
+            self.storage.insert_fill(
+                run_id=self.config.run_id,
+                order_id=exit_result.order_id,
+                fill_id=exit_fill_id,
+                timestamp=timestamp,
+                exchange=exit_intent.exchange,
+                symbol=exit_intent.symbol,
+                side=exit_intent.side.value,
+                filled_quantity=exit_qty,
+                filled_price=exit_price,
+                fee=exit_fee,
+                fee_currency=exit_fee_currency,
+            )
+            rows_inserted += 1
+            
+            # 5. v2_trades: closed trade
+            self.storage.insert_trade(
+                run_id=self.config.run_id,
+                trade_id=trade_id,
+                timestamp=timestamp,
+                entry_exchange=entry_intent.exchange,
+                entry_symbol=entry_intent.symbol,
+                entry_side=entry_intent.side.value,
+                entry_order_id=entry_result.order_id,
+                entry_quantity=entry_qty,
+                entry_price=entry_price,
+                entry_timestamp=timestamp,
+                exit_exchange=exit_intent.exchange,
+                exit_symbol=exit_intent.symbol,
+                exit_side=exit_intent.side.value,
+                exit_order_id=exit_result.order_id,
+                exit_quantity=exit_qty,
+                exit_price=exit_price,
+                exit_timestamp=timestamp,
+                realized_pnl=realized_pnl,
+                unrealized_pnl=0.0,  # Paper에서는 즉시 close
+                total_fee=total_fee,
+                status="closed",  # D205-2 REOPEN: closed trade
+                route_id=entry_intent.route_id,
+                strategy_id=entry_intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # KPI 업데이트
+            self.kpi.db_inserts_ok += rows_inserted
+            
+            logger.debug(f"[D205-2] Trade closed: {trade_id}, realized_pnl={realized_pnl:.2f}, total_fee={total_fee:.2f}")
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[D205-2] Failed to record trade: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"record_trade: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            if self.config.db_mode == "strict":
+                logger.error(f"[D205-2] ❌ FAIL: Trade record failed in strict mode")
+                raise RuntimeError(f"Trade record failed in strict mode: {error_msg}")
+            
+            self.kpi.db_inserts_failed += rows_inserted
     
     def _save_kpi(self):
         """KPI JSON 저장"""
