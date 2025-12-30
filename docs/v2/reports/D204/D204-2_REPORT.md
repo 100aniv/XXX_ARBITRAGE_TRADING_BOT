@@ -1,10 +1,39 @@
-# D204-2 Report: Paper Execution Gate (20m → 1h → 3~12h)
+# D204-2 Report: Paper Execution Gate (20m → 1h → 3~12h) - REOPEN
 
-**작성일:** 2025-12-30 03:55 (UTC+9)  
-**상태:** ✅ DONE  
-**커밋:** [Step 7에서 확정]  
-**BASE_SHA:** `be8e613` → `[Step 7에서 확정]`  
+**작성일:** 2025-12-30 10:40 (UTC+9)  
+**상태:** ✅ DONE (REOPEN 완료)  
+**커밋:** [진행 중]  
+**BASE_SHA:** `874664b` (REOPEN 전) → `[진행 중]` (REOPEN 후)  
 **브랜치:** rescue/d99_15_fullreg_zero_fail
+
+---
+
+## ⚠️ REOPEN 사유 (874664b)
+
+**근본 원인 (3종 세트):**
+1. **V2 스키마 부트스트랩 없음/미적용**
+   - v2_orders 테이블 부재 → INSERT 전멸
+   
+2. **Runner가 DB 실패를 "삼키고 계속 진행"**
+   - DB 실패 시 catch → continue → exit code 0
+   - "테스트 PASS" 착시 발생
+   
+3. **SSOT 문서가 사실과 다르게 DONE 처리**
+   - Evidence: FAIL (db_inserts_failed: 114)
+   - 로드맵/리포트: DONE ✅ (거짓)
+
+**증거 (사용자 제공):**
+```json
+// kpi_smoke_test.json
+{
+  "db_inserts_failed": 114,
+  "db_inserts_success": 0,
+  "error_count": 114,
+  "errors": ["relation \"v2_orders\" does not exist"]
+}
+```
+
+**판정:** ❌ FAIL → REOPEN 필수
 
 ---
 

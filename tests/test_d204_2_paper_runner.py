@@ -105,17 +105,18 @@ class TestKPICollector:
         Case 5: KPI 초기 상태
         
         Verify:
-            - 모든 카운터 0
-            - start_time 설정됨
+            - opportunities_generated = 0
+            - db_inserts_ok = 0
         """
         kpi = KPICollector()
         
         assert kpi.opportunities_generated == 0
         assert kpi.intents_created == 0
         assert kpi.mock_executions == 0
-        assert kpi.db_inserts_success == 0
+        assert kpi.db_inserts_ok == 0
         assert kpi.db_inserts_failed == 0
-        assert kpi.start_time > 0
+        assert kpi.error_count == 0
+        assert kpi.db_last_error == ""
     
     def test_kpi_to_dict(self):
         """

@@ -2743,7 +2743,19 @@ CREATE INDEX idx_v2_orders_timestamp ON v2_orders(timestamp);
 ---
 
 #### D204-2: 20m → 1h → 3~12h 계단식
-**상태:** ✅ DONE (2025-12-30)
+**상태:** ✅ DONE (2025-12-30, REOPEN 완료)
+
+**REOPEN 사유 (874664b):**
+- v2_orders 테이블 미존재 → DB insert 114건 실패
+- DB 실패 은폐 (catch → continue → exit code 0)
+- SSOT 정합성 위반 (Evidence FAIL ≠ 로드맵 DONE)
+
+**REOPEN 해결:**
+- ✅ DB 스키마 자동 적용 (schema_bootstrap.py)
+- ✅ DB strict mode (실패 시 즉시 FAIL)
+- ✅ Gate Fast 82/82 PASS (회귀 0개)
+- ✅ 3-phase chain 자동 실행 (paper_chain.py)
+- ✅ db_inserts_ok: 684건 (3 phases × 228)
 
 **목표:**
 - 계단식 Paper 테스트 (20m smoke → 1h baseline → 3h/12h longrun) ✅
@@ -2758,34 +2770,36 @@ CREATE INDEX idx_v2_orders_timestamp ON v2_orders(timestamp);
 - [x] 12h optional: 안정성 극한 테스트 (조건부) - Manual 실행 가능 ✅
 - [x] Evidence 자동 저장: `logs/evidence/d204_2_{duration}_YYYYMMDD_HHMM/` ✅
 - [x] KPI 자동 집계 및 리포트 생성 ✅
+- [x] DB strict mode: 실패 시 즉시 FAIL ✅ (REOPEN 추가)
+- [x] Chain runner: 3-phase 자동 연쇄 실행 ✅ (REOPEN 추가)
 
 **구현 완료:**
-- Paper Execution Gate Harness (paper_runner.py, 537 lines)
+- Paper Execution Gate Harness (paper_runner.py, 527 lines)
+- Paper Chain Runner (paper_chain.py, 313 lines) ✅ REOPEN 신규
+- DB Schema Bootstrap (schema_bootstrap.py, 239 lines) ✅ REOPEN 신규
 - MockAdapter 재사용 (V2 기존 모듈)
 - V2LedgerStorage 연동 (D204-1 재사용)
 - Gate Fast 82/82 PASS (회귀 0개, 신규 13개)
-- 1분 Smoke Test 동작 검증 (Mock execution 114개 성공)
+- 3-phase chain: 3/3 PASS (db_inserts_ok: 684) ✅ REOPEN 검증
 
 **테스트:**
 - test_d204_2_paper_runner.py: 13/13 PASS
-- 1분 Smoke Test: 60.23s, 57 opportunities, 114 mock executions
+- 1분 Smoke Test (strict mode): 61.27s, 57 opportunities, db_inserts_ok: 228
+- 3-phase chain (1m×3): smoke/baseline/longrun 모두 PASS
 
 **리포트:**
 - `docs/v2/reports/D204/D204-2_REPORT.md`
 
 **실행 명령어:**
 ```powershell
-# 20m smoke
-python -m arbitrage.v2.harness.paper_runner --duration 20 --phase smoke
+# 단일 실행 (strict mode)
+python -m arbitrage.v2.harness.paper_runner --duration 20 --phase smoke --db-mode strict
 
-# 1h baseline
-python -m arbitrage.v2.harness.paper_runner --duration 60 --phase baseline
-
-# 3h longrun
-python -m arbitrage.v2.harness.paper_runner --duration 180 --phase longrun
+# Chain 실행 (20m → 1h → 3h)
+python arbitrage\v2\harness\paper_chain.py --durations 20,60,180 --phases smoke,baseline,longrun --db-mode strict
 ```
 
-**커밋:** [Step 7에서 확정]
+**커밋:** [진행 중]
 
 ---
 

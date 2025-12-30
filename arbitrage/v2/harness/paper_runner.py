@@ -73,6 +73,8 @@ class PaperRunnerConfig:
     symbols_top: int = 10
     db_connection_string: str = ""
     read_only: bool = True
+    db_mode: str = "strict"  # strict/optional/off
+    ensure_schema: bool = True  # strict면 강제 True
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
@@ -88,6 +90,10 @@ class PaperRunnerConfig:
                 "POSTGRES_CONNECTION_STRING",
                 "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
             )
+        
+        # strict mode면 ensure_schema 강제
+        if self.db_mode == "strict":
+            self.ensure_schema = True
 
 
 @dataclass
@@ -116,9 +122,13 @@ class KPICollector:
     opportunities_generated: int = 0
     intents_created: int = 0
     mock_executions: int = 0
-    db_inserts_success: int = 0
+    db_inserts_ok: int = 0
     db_inserts_failed: int = 0
+    error_count: int = 0
     errors: List[str] = field(default_factory=list)
+    db_last_error: str = ""
+    memory_mb: float = 0.0
+    cpu_pct: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """KPI를 dict로 변환"""
@@ -131,10 +141,13 @@ class KPICollector:
             "opportunities_generated": self.opportunities_generated,
             "intents_created": self.intents_created,
             "mock_executions": self.mock_executions,
-            "db_inserts_success": self.db_inserts_success,
+            "db_inserts_ok": self.db_inserts_ok,
             "db_inserts_failed": self.db_inserts_failed,
-            "error_count": len(self.errors),
+            "error_count": self.error_count,
             "errors": self.errors[:10],  # 최대 10개만
+            "db_last_error": self.db_last_error,
+            "memory_mb": self.memory_mb,
+            "cpu_pct": self.cpu_pct,
         }
         
         # 시스템 메트릭 (psutil 있으면)
@@ -174,13 +187,29 @@ class PaperRunner:
         self.balance = MockBalance()
         self.kpi = KPICollector()
         
-        # V2 Storage (PostgreSQL)
-        try:
-            self.storage = V2LedgerStorage(config.db_connection_string)
-            logger.info(f"[D204-2] V2LedgerStorage initialized: {config.db_connection_string}")
-        except Exception as e:
-            logger.warning(f"[D204-2] V2LedgerStorage init failed (will skip DB): {e}")
+        # V2 Storage (PostgreSQL) - D204-2 REOPEN: strict mode
+        if config.db_mode == "off":
+            logger.info(f"[D204-2] DB mode: OFF (no DB operations)")
             self.storage = None
+        else:
+            try:
+                self.storage = V2LedgerStorage(config.db_connection_string)
+                logger.info(f"[D204-2] V2LedgerStorage initialized: {config.db_connection_string}")
+                
+                # strict mode: 스키마 체크 필수
+                if config.ensure_schema:
+                    self._verify_schema()
+                    
+            except Exception as e:
+                error_msg = f"V2LedgerStorage init failed: {e}"
+                logger.error(f"[D204-2] {error_msg}")
+                
+                if config.db_mode == "strict":
+                    logger.error(f"[D204-2] ❌ FAIL: DB mode is strict, cannot continue")
+                    raise RuntimeError(f"DB init failed in strict mode: {e}")
+                else:
+                    logger.warning(f"[D204-2] DB mode: optional, will skip DB operations")
+                    self.storage = None
         
         # BreakEvenParams (기본값)
         # FeeStructure + FeeModel 생성 (V1 재사용)
@@ -206,7 +235,39 @@ class PaperRunner:
         logger.info(f"[D204-2] run_id: {config.run_id}")
         logger.info(f"[D204-2] output_dir: {self.output_dir}")
         logger.info(f"[D204-2] duration: {config.duration_minutes} min")
-        logger.info(f"[D204-2] READ_ONLY: {config.read_only}")
+        logger.info(f"[D204-2] db_mode: {config.db_mode}")
+        logger.info(f"[D204-2] ensure_schema: {config.ensure_schema}")
+    
+    def _verify_schema(self):
+        """스키마 검증 (strict mode)"""
+        required_tables = ["v2_orders", "v2_fills", "v2_trades"]
+        
+        try:
+            # V2LedgerStorage는 connection pool 사용, _execute_query() 메서드로 쿼리 실행
+            for table_name in required_tables:
+                query = "SELECT to_regclass(%s) IS NOT NULL AS exists"
+                
+                # 직접 psycopg2 연결 사용
+                import psycopg2
+                conn = psycopg2.connect(self.config.db_connection_string)
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(query, (f"public.{table_name}",))
+                        row = cur.fetchone()
+                        exists = row[0] if row else False
+                        
+                        if not exists:
+                            raise RuntimeError(f"Required table '{table_name}' does not exist")
+                        
+                        logger.info(f"[D204-2] ✅ {table_name} exists")
+                finally:
+                    conn.close()
+            
+            logger.info(f"[D204-2] Schema verification: PASS")
+            
+        except Exception as e:
+            logger.error(f"[D204-2] Schema verification: FAIL - {e}")
+            raise
     
     def run(self):
         """
@@ -333,13 +394,21 @@ class PaperRunner:
             # 4. DB 기록 (V2LedgerStorage)
             if self.storage:
                 self._record_to_db(intent, order_result)
-                self.kpi.db_inserts_success += 1
+                self.kpi.db_inserts_ok += 1
             
             logger.debug(f"[D204-2] Mock executed: {order_result.order_id}")
         
         except Exception as e:
-            logger.error(f"[D204-2] Failed to execute mock order: {e}")
-            self.kpi.errors.append(f"execute_mock_order: {e}")
+            error_msg = str(e)
+            logger.error(f"[D204-2] Failed to execute mock order: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"execute_mock_order: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            # strict mode: DB insert 실패 시 즉시 종료
+            if self.config.db_mode == "strict" and "relation" in error_msg:
+                logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
+                raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
             self.kpi.db_inserts_failed += 1
     
     def _update_mock_balance(self, intent: OrderIntent, order_result):
@@ -366,36 +435,35 @@ class PaperRunner:
         timestamp = datetime.now(timezone.utc)
         
         # v2_orders 기록
-        self.storage.insert_order(
-            run_id=self.config.run_id,
-            order_id=order_result.order_id,
-            timestamp=timestamp,
-            exchange=intent.exchange,
-            symbol=intent.symbol,
-            side=intent.side.value,
-            order_type=intent.order_type.value,
-            quantity=intent.base_qty or order_result.filled_qty,
-            price=intent.quote_amount or order_result.filled_price,
-            status="filled",
-            route_id=intent.route_id,
-            strategy_id=intent.strategy_id or "d204_2_paper",
-        )
-        
-        # v2_fills 기록
-        fill_id = f"{order_result.order_id}_fill_1"
-        self.storage.insert_fill(
-            run_id=self.config.run_id,
-            order_id=order_result.order_id,
-            fill_id=fill_id,
-            timestamp=timestamp,
-            exchange=intent.exchange,
-            symbol=intent.symbol,
-            side=intent.side.value,
-            filled_quantity=order_result.filled_qty or 0.01,
-            filled_price=order_result.filled_price or 50_000_000.0,
-            fee=0.0025 * (order_result.filled_qty or 0.01) * (order_result.filled_price or 50_000_000.0),
-            fee_currency="KRW" if "KRW" in intent.symbol else "USDT",
-        )
+        if self.storage:
+            try:
+                self.storage.insert_order(
+                    run_id=self.config.run_id,
+                    order_id=order_result.order_id,
+                    timestamp=timestamp,
+                    exchange=intent.exchange,
+                    symbol=intent.symbol,
+                    side=intent.side.value,
+                    order_type=intent.order_type.value,
+                    quantity=intent.base_qty or order_result.filled_qty,
+                    price=intent.quote_amount or order_result.filled_price,
+                    status="filled",
+                    route_id=intent.route_id,
+                    strategy_id=intent.strategy_id or "d204_2_paper",
+                )
+                self.kpi.db_inserts_ok += 1
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"[D204-2] Failed to record to DB: {error_msg}")
+                self.kpi.error_count += 1
+                self.kpi.errors.append(f"record_to_db: {error_msg}")
+                self.kpi.db_last_error = error_msg
+                
+                # strict mode: DB insert 실패 시 즉시 종료
+                if self.config.db_mode == "strict" and "relation" in error_msg:
+                    logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
+                    raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
+                self.kpi.db_inserts_failed += 1
     
     def _save_kpi(self):
         """KPI JSON 저장"""
@@ -436,10 +504,12 @@ class PaperRunner:
 def main():
     """CLI 엔트리포인트"""
     parser = argparse.ArgumentParser(description="D204-2 Paper Execution Gate Runner")
-    parser.add_argument("--duration", type=int, required=True, help="Duration in minutes (20/60/180)")
-    parser.add_argument("--phase", type=str, default="smoke", help="Phase: smoke/baseline/longrun")
-    parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols (default: 10)")
-    parser.add_argument("--db-connection", type=str, default="", help="PostgreSQL connection string")
+    parser.add_argument("--duration", type=int, required=True, help="Duration in minutes")
+    parser.add_argument("--phase", default="smoke", choices=["smoke", "smoke_test", "baseline", "longrun", "test_1min"], help="Execution phase")
+    parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols")
+    parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
+    parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode (strict: FAIL on DB error, optional: skip on DB error, off: no DB)")
+    parser.add_argument("--ensure-schema", action="store_true", default=True, help="Verify DB schema before run (default: True)")
     
     args = parser.parse_args()
     
@@ -447,8 +517,9 @@ def main():
         duration_minutes=args.duration,
         phase=args.phase,
         symbols_top=args.symbols_top,
-        db_connection_string=args.db_connection,
-        read_only=True,
+        db_connection_string=args.db_connection_string or "",
+        db_mode=args.db_mode,
+        ensure_schema=args.ensure_schema,
     )
     
     runner = PaperRunner(config)
