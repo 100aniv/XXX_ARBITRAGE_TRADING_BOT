@@ -132,6 +132,15 @@ class KPICollector:
     memory_mb: float = 0.0
     cpu_pct: float = 0.0
     
+    # D205-3: PnL 필드 추가
+    closed_trades: int = 0
+    gross_pnl: float = 0.0
+    net_pnl: float = 0.0
+    fees: float = 0.0
+    wins: int = 0
+    losses: int = 0
+    winrate_pct: float = 0.0
+    
     def to_dict(self) -> Dict[str, Any]:
         """KPI를 dict로 변환"""
         duration_seconds = time.time() - self.start_time
@@ -150,6 +159,14 @@ class KPICollector:
             "db_last_error": self.db_last_error,
             "memory_mb": self.memory_mb,
             "cpu_pct": self.cpu_pct,
+            # D205-3: PnL 필드
+            "closed_trades": self.closed_trades,
+            "gross_pnl": round(self.gross_pnl, 2),
+            "net_pnl": round(self.net_pnl, 2),
+            "fees": round(self.fees, 2),
+            "wins": self.wins,
+            "losses": self.losses,
+            "winrate_pct": round(self.winrate_pct, 2),
         }
         
         # 시스템 메트릭 (psutil 있으면)
@@ -764,6 +781,20 @@ class PaperRunner:
             
             # KPI 업데이트
             self.kpi.db_inserts_ok += rows_inserted
+            
+            # D205-3: PnL KPI 업데이트
+            self.kpi.closed_trades += 1
+            self.kpi.gross_pnl += realized_pnl
+            self.kpi.fees += total_fee
+            self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
+            
+            if realized_pnl > 0:
+                self.kpi.wins += 1
+            else:
+                self.kpi.losses += 1
+            
+            if self.kpi.closed_trades > 0:
+                self.kpi.winrate_pct = (self.kpi.wins / self.kpi.closed_trades) * 100
             
             logger.debug(f"[D205-2] Trade closed: {trade_id}, realized_pnl={realized_pnl:.2f}, total_fee={total_fee:.2f}")
             

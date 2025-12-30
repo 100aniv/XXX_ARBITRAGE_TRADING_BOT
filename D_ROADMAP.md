@@ -2853,9 +2853,9 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-2 REOPEN-2: Regression 0 FAIL + 전략 검증 가능 상태 확인
-**상태:** IN PROGRESS ⏳
-**커밋:** [pending] (2025-12-30)
+#### D205-2 REOPEN-2: Regression 0 FAIL (DONE ✅)
+**상태:** DONE ✅
+**커밋:** 305c768 (2025-12-30)
 **테스트:** 61/61 PASS (D205+D204+D203 core), 0 FAIL regression ✅
 **문서:** `docs/v2/reports/D205/D205-2_REOPEN2_REPORT.md`
 **Evidence:** `logs/evidence/d205_2_reopen2_20251230_1912/`
@@ -2863,26 +2863,51 @@ CREATE TABLE v2_pnl_daily (
 **목표:**
 - D205-2 REOPEN 문제점 전면 수정 ✅
 - Regression 0 FAIL 달성 (D204-1 회귀 해결) ✅
-- 전략 검증 가능 최소 조건 확인 (PnL 산출, close 로직, 체결/수수료 모델) ⏳
-- SSOT 180m longrun은 "마지막 게이트(라이브 전)"로 보관 📌
 
 **REOPEN-2 수정 내용:**
 1. ✅ _q suffix 제거 (체인 검증 통일)
 2. ✅ UUID4 기반 ID (trade_id/order_id/fill_id 충돌 제거)
 3. ✅ UTC naive timestamp 유틸 (to_utc_naive, now_utc_naive)
 4. ✅ D204-1 회귀 4 FAIL → 0 FAIL (UniqueViolation, Decimal, UTC naive)
-5. ⏳ 전략 검증 가능 상태 확인 (20m smoke 완료, 50m longrun 데이터 수집)
 
-**AC:**
+**AC (완료):**
 - [x] paper_chain SSOT 프로파일 (_q suffix 제거, phase명 통일)
 - [x] UUID4 기반 ID 생성 (충돌 불가능)
 - [x] UTC naive timestamp 유틸 (arbitrage/v2/utils/timestamp.py)
 - [x] D204-1 회귀 0 FAIL (15/15 PASS)
 - [x] Gate Fast: D205+D204+D203 61/61 PASS (100%)
 - [x] Gate Regression: 0 FAIL ✅
-- [x] 20m smoke 테스트 완료 (1036 opportunities, 0 errors)
-- [ ] 전략 검증 가능 상태 PASS/FAIL 판정 (PnL, close, 수수료 모델)
-- [ ] SSOT 180m longrun은 "마지막 게이트"로 명시 (별도 조건 충족 시에만 실행)
+
+---
+
+#### D205-3: KPI/Reporting SSOT 복구
+**상태:** IN PROGRESS ⏳
+**커밋:** [pending] (2025-12-30)
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-3_REUSE_AUDIT.md`
+
+**목표:**
+- KPI 스키마에 PnL 필드 추가 (net_pnl, closed_trades, winrate_pct) ✅
+- paper_runner → paper_chain → daily_report 자동 생성 ✅
+- Patch 파일 레포 정리 ✅
+- Gate 0 FAIL 검증 ⏳
+- Quick (1분) + Smoke (5-10분) PnL 증거 확보 ⏳
+
+**AC:**
+- [x] KPICollector PnL 필드 추가 (7개 필드)
+- [x] _record_trade_complete() KPI 업데이트 로직
+- [x] paper_chain daily_report 자동 호출
+- [x] patch/*.patch.txt 제거 + .gitignore 추가
+- [ ] Gate Doctor/Fast/Regression 0 FAIL
+- [ ] kpi_test_1min.json PnL 필드 존재 확인
+- [ ] kpi_smoke.json closed_trades > 0 확인
+- [ ] daily_report_{date}.json 자동 생성 확인
+
+**SSOT 180m Longrun 정책:**
+- 목적: 운영 안정성 검증 (메모리 누수, DB 성능, 핸들 누적)
+- 시점: 마지막 게이트 (LIVE 배포 직전)
+- 조건: Gate 0 FAIL + Quick/Smoke PnL 증거 확보 후
+- 현재: DEFER (D205-3에서는 실행 안 함)
 
 **Tech Debt (해결 완료):**
 - ~~D204-1 테스트 회귀 (4 FAIL)~~ → ✅ 0 FAIL 달성

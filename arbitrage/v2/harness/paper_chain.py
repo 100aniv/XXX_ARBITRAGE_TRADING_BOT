@@ -325,6 +325,40 @@ class ChainRunner:
             json.dump(summary, f, indent=2, ensure_ascii=False)
         
         logger.info(f"[ChainRunner] Chain summary saved: {summary_file}")
+        
+        # D205-3: daily_report 자동 생성
+        if success:
+            self._generate_daily_report()
+    
+    def _generate_daily_report(self):
+        """Daily report 자동 생성 (D205-3)"""
+        try:
+            logger.info("[ChainRunner] Generating daily report...")
+            
+            today = datetime.now().date().strftime("%Y-%m-%d")
+            
+            cmd = [
+                sys.executable, "-m", "arbitrage.v2.reporting.run_daily_report",
+                "--date", today,
+                "--run-id-prefix", self.chain_id.split("_20")[0],  # d204_2_chain → d204_2_
+                "--output-dir", str(self.chain_dir),
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"[ChainRunner] Daily report generated successfully")
+                logger.info(f"[ChainRunner] Report: {self.chain_dir}/daily_report_{today}.json")
+            else:
+                logger.warning(f"[ChainRunner] Daily report generation failed: {result.stderr}")
+        
+        except Exception as e:
+            logger.warning(f"[ChainRunner] Failed to generate daily report: {e}")
 
 
 def main():
