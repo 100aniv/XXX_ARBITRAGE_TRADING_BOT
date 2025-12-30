@@ -2930,11 +2930,11 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-4: Reality Wiring (실데이터 루프 완성) — DONE ✅
-**상태:** DONE ✅
-**커밋:** [pending - 이번 턴에서 생성]
-**테스트:** Gate Fast 114/114 PASS (68.21s) + Smoke Run PASS
+**상태:** DONE ✅  
+**커밋:** f7f9fd2 (FIX: 버그 수정 커밋 대기)
+**테스트:** Gate Fast 126/126 PASS (69.06s) + Smoke Run PASS (evaluated_ticks=5)
 **문서:** `docs/v2/reports/D205/D205-4_REPORT.md`
-**Evidence:** `logs/evidence/d205_4_reality_wiring_20251231_005724/`
+**Evidence:** `logs/evidence/d205_4_reality_wiring_20251231_014139/` (수정 후)
 
 **완료 내용:**
 - ✅ MarketData Provider 실데이터 연결 (Upbit/Binance REST)
@@ -2986,7 +2986,7 @@ CREATE TABLE v2_pnl_daily (
 
 #### D205-5: Record/Replay SSOT (NDJSON 기록+리플레이 재현) — DONE ✅
 **상태:** DONE ✅
-**커밋:** [이번 턴에서 생성]
+**커밋:** 7a95ca7 (Record/Replay SSOT + SSOT manifest 메타 추가)
 **테스트:** Gate Fast 126/126 PASS (69.06s) + Record/Replay Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-5_REPORT.md`
 **Evidence:** 
@@ -3028,12 +3028,14 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+#### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화) — DONE ✅
+**상태:** DONE ✅
+**커밋:** [이번 턴에서 생성]
+**테스트:** Gate Fast 137/137 PASS (69.52s) + Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-6_REPORT.md`
-**Evidence:** `logs/evidence/d205_6_<timestamp>/`
+**Evidence:** 
+- Record: `logs/evidence/d205_5_record_replay_20251231_022642/` (10 ticks, git_sha 포함)
+- Replay: `logs/evidence/d205_6_replay_smoke_20251231_022705/` (10 decisions, ExecutionQuality 통합)
 
 **목표:**
 - 승률 중심 → **edge_after_cost** 중심 KPI 전환

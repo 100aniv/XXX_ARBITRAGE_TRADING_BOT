@@ -6,6 +6,9 @@ D205-5: Market Recorder
 
 import json
 import logging
+import sys
+import platform
+import subprocess
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -55,3 +58,56 @@ class MarketRecorder:
     def close(self):
         """Recorder 종료"""
         logger.info(f"[D205-5_RECORDER] Closed: {self.tick_count} ticks recorded")
+    
+    def save_manifest(self, symbols: list, duration_sec: float):
+        """
+        Record manifest 저장 (git_sha, branch 등 메타 포함)
+        
+        Args:
+            symbols: 기록한 심볼 리스트
+            duration_sec: 기록 시간 (초)
+        """
+        # Git 메타 정보 수집
+        git_sha_full = ""
+        git_sha_short = ""
+        git_branch = ""
+        try:
+            git_sha_full = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+            git_sha_short = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+            git_branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+        except Exception as e:
+            logger.warning(f"[D205-5_RECORDER] Git info collection failed: {e}")
+        
+        manifest = {
+            "run_id": self.output_path.parent.name,
+            "mode": "record",
+            "timestamp": datetime.now().isoformat(),
+            "duration_sec": round(duration_sec, 2),
+            "symbols": symbols,
+            "ticks_recorded": self.tick_count,
+            "output_path": str(self.output_path.relative_to(Path.cwd())) if self.output_path.is_relative_to(Path.cwd()) else str(self.output_path),
+            "git_sha_full": git_sha_full,
+            "git_sha_short": git_sha_short,
+            "branch": git_branch,
+            "cmdline": " ".join(sys.argv),
+            "python_version": sys.version.split()[0],
+            "platform": platform.platform(),
+        }
+        
+        manifest_path = self.output_path.parent / "manifest.json"
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"[D205-5_RECORDER] Saved manifest to {manifest_path}")

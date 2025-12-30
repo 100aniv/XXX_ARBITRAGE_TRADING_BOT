@@ -1,14 +1,11 @@
 # D205-4: Reality Wiring — Real Market Data → Detector → Paper Intent + Latency/KPI Evidence
 
-**작성일:** 2025-12-31  
-**상태:** IN_PROGRESS  
-**목표:** 리얼 마켓 데이터 → Opportunity Detection → Paper OrderIntent 플로우 완성 + DecisionTrace/Latency 증거
+**작성일:** 2025-12-31 ## Status
 
----
+**Current:** DONE ✅  
+**Last Updated:** 2025-12-31  
+**Commit:** f7f9fd2 (버그 수정 포함)리얼 마켓 데이터 → Opportunity Detection → Paper OrderIntent 플로우 완성 + DecisionTrace/Latency 증거
 
-## 📋 재사용 모듈 목록
-
-### ✅ 재사용 (기존 코드)
 - **Market Data Provider:** `arbitrage/v2/marketdata/rest/upbit.py`, `arbitrage/v2/marketdata/rest/binance.py`
   - Ticker/Orderbook/Trades 조회 인터페이스 완성
   - Rate limit 준수 (Upbit 30req/s, Binance 20req/s)

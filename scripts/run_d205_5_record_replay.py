@@ -128,8 +128,11 @@ class RecordReplayRunner:
         finally:
             recorder.close()
             
-            # Evidence 저장
-            self._save_record_evidence(tick_count, time.time() - start_time)
+            # Manifest 저장 (git_sha 포함)
+            recorder.save_manifest(self.symbols, time.time() - start_time)
+            
+            # KPI 저장
+            self._save_record_kpi(tick_count, time.time() - start_time)
             
             logger.info(f"[D205-5_RECORD] Completed: {tick_count} ticks recorded")
             
@@ -166,20 +169,8 @@ class RecordReplayRunner:
             logger.error(f"[D205-5_REPLAY] FAIL: {result.get('reason', 'Unknown')}")
             sys.exit(1)
     
-    def _save_record_evidence(self, tick_count: int, duration: float):
-        """Record 모드 Evidence 저장"""
-        manifest = {
-            "run_id": self.output_dir.name,
-            "mode": "record",
-            "timestamp": datetime.now().isoformat(),
-            "duration_sec": round(duration, 2),
-            "symbols": self.symbols,
-            "ticks_recorded": tick_count,
-        }
-        
-        with open(self.output_dir / "manifest.json", "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2, ensure_ascii=False)
-        
+    def _save_record_kpi(self, tick_count: int, duration: float):
+        """Record 모드 KPI 저장 (manifest는 recorder.save_manifest()로 이미 저장됨)"""
         kpi = {
             "mode": "record",
             "ticks_recorded": tick_count,

@@ -8,6 +8,9 @@ import json
 import logging
 import time
 import hashlib
+import sys
+import platform
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
@@ -16,6 +19,7 @@ from arbitrage.v2.replay.schemas import MarketTick, DecisionRecord
 from arbitrage.v2.opportunity.detector import detect_candidates
 from arbitrage.v2.domain.break_even import BreakEvenParams, compute_break_even_bps
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
+from arbitrage.v2.execution_quality.model_v1 import SimpleExecutionQualityModel
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +178,46 @@ class ReplayRunner:
         
         logger.info(f"[D205-5_REPLAY] Saved {len(self.decisions)} decisions to {self.decisions_path}")
         
-        # 2. manifest.json
+        # 실제 입력 tick 수를 manifest에 저장 (결정 수와 구분)
+        actual_ticks_count = len(self.decisions)  # 현재 replay에서 처리한 tick 수
+        
+        # Git 메타 정보 수집
+        git_sha_full = ""
+        git_sha_short = ""
+        git_branch = ""
+        try:
+            git_sha_full = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+            git_sha_short = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+            git_branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], 
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+        except Exception as e:
+            logger.warning(f"[D205-5_REPLAY] Git info collection failed: {e}")
+        
         manifest = {
             "run_id": f"replay_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "input_path": str(self.input_path),
+            "mode": "replay",
+            "input_path": str(self.input_path.relative_to(Path.cwd())) if self.input_path.is_relative_to(Path.cwd()) else str(self.input_path),
             "input_hash": self.input_hash,
-            "ticks_count": len(self.decisions),
+            "ticks_count": actual_ticks_count,
             "decisions_count": len(self.decisions),
             "timestamp": datetime.now().isoformat(),
+            "git_sha_full": git_sha_full,
+            "git_sha_short": git_sha_short,
+            "branch": git_branch,
+            "cmdline": " ".join(sys.argv),
+            "python_version": sys.version.split()[0],
+            "platform": platform.platform(),
         }
         
         with open(self.manifest_path, "w", encoding="utf-8") as f:
