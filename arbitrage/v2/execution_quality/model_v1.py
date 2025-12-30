@@ -31,7 +31,7 @@ class SimpleExecutionQualityModel:
         default_spread_cost_bps: 기본 스프레드 비용 (default: 25 bps)
         slippage_alpha: 슬리피지 계수 (default: 10.0 bps per unit impact)
         partial_fill_penalty_bps: 부분체결 페널티 (default: 20 bps)
-        min_size_ratio: 최소 size ratio (notional/top_size < 이 값이면 페널티) (default: 0.3)
+        max_safe_ratio: 최대 안전 size ratio (notional/top_size > 이 값이면 페널티) (default: 0.3)
     """
     
     def __init__(
@@ -39,19 +39,19 @@ class SimpleExecutionQualityModel:
         default_spread_cost_bps: float = 25.0,
         slippage_alpha: float = 10.0,
         partial_fill_penalty_bps: float = 20.0,
-        min_size_ratio: float = 0.3,
+        max_safe_ratio: float = 0.3,
     ):
         self.default_spread_cost_bps = default_spread_cost_bps
         self.slippage_alpha = slippage_alpha
         self.partial_fill_penalty_bps = partial_fill_penalty_bps
-        self.min_size_ratio = min_size_ratio
+        self.max_safe_ratio = max_safe_ratio
         
         logger.info(
             f"[D205-6_EXEC_QUALITY] Initialized v1: "
             f"spread={default_spread_cost_bps}bps, "
             f"alpha={slippage_alpha}, "
             f"partial_penalty={partial_fill_penalty_bps}bps, "
-            f"min_ratio={min_size_ratio}"
+            f"max_safe_ratio={max_safe_ratio}"
         )
     
     def compute_execution_cost(
@@ -206,12 +206,12 @@ class SimpleExecutionQualityModel:
         if avg_size <= 0:
             return self.partial_fill_penalty_bps
         
-        # Size ratio
+        # Size ratio (주문 크기 / 시장 유동성)
         size_ratio = notional / avg_size
         
-        # min_size_ratio보다 크면 OK (페널티 없음)
-        if size_ratio >= self.min_size_ratio:
+        # max_safe_ratio보다 작으면 안전 (페널티 없음)
+        if size_ratio <= self.max_safe_ratio:
             return 0.0
         
-        # 작으면 페널티
+        # 크면 페널티 (주문이 시장 대비 너무 큼 → 부분체결 리스크)
         return self.partial_fill_penalty_bps

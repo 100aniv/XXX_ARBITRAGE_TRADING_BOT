@@ -30,13 +30,13 @@ class TestSimpleExecutionQualityModel:
             default_spread_cost_bps=25.0,
             slippage_alpha=10.0,
             partial_fill_penalty_bps=20.0,
-            min_size_ratio=0.3,
+            max_safe_ratio=0.3,
         )
         
         assert model.default_spread_cost_bps == 25.0
         assert model.slippage_alpha == 10.0
         assert model.partial_fill_penalty_bps == 20.0
-        assert model.min_size_ratio == 0.3
+        assert model.max_safe_ratio == 0.3
     
     def test_compute_execution_cost_no_size(self):
         """Size 정보 없을 때 보수적 페널티 적용 검증"""
@@ -61,29 +61,29 @@ class TestSimpleExecutionQualityModel:
     
     def test_compute_execution_cost_with_size(self):
         """Size 정보 있을 때 슬리피지 계산 검증"""
-        model = SimpleExecutionQualityModel(slippage_alpha=10.0, min_size_ratio=0.3)
+        model = SimpleExecutionQualityModel(slippage_alpha=10.0, max_safe_ratio=0.3)
         
         result = model.compute_execution_cost(
             edge_bps=100.0,
-            notional=400000.0,  # 40만원 (size ratio = 0.4 >= 0.3 → no penalty)
+            notional=200000.0,  # 20만원 (size ratio = 0.2 <= 0.3 → no penalty)
             upbit_bid_size=1000000.0,  # 100만원 (충분)
             upbit_ask_size=1000000.0,
             binance_bid_size=1000000.0,
             binance_ask_size=1000000.0,
         )
         
-        # notional / avg_size = 400000 / 1000000 = 0.4
-        # slippage_cost = 10.0 * 0.4 = 4.0 bps
-        assert result.slippage_cost_bps == pytest.approx(4.0, abs=0.1)
+        # notional / avg_size = 200000 / 1000000 = 0.2
+        # slippage_cost = 10.0 * 0.2 = 2.0 bps
+        assert result.slippage_cost_bps == pytest.approx(2.0, abs=0.1)
         
-        # size ratio = 0.4 >= min_size_ratio(0.3) → no partial fill penalty
+        # size ratio = 0.2 <= max_safe_ratio(0.3) → no partial fill penalty
         assert result.partial_fill_risk_bps == 0.0
         
-        # total = 25 (spread) + 4 (slippage) + 0 (partial) = 29
-        assert result.total_exec_cost_bps == pytest.approx(29.0, abs=0.1)
+        # total = 25 (spread) + 2 (slippage) + 0 (partial) = 27
+        assert result.total_exec_cost_bps == pytest.approx(27.0, abs=0.1)
         
-        # net edge = 100 - 29 = 71
-        assert result.net_edge_after_exec_bps == pytest.approx(71.0, abs=0.1)
+        # net edge = 100 - 27 = 73
+        assert result.net_edge_after_exec_bps == pytest.approx(73.0, abs=0.1)
     
     def test_slippage_monotonicity(self):
         """슬리피지 단조성 검증 (notional 증가 → cost 비감소)"""
@@ -108,13 +108,13 @@ class TestSimpleExecutionQualityModel:
             assert costs[i] <= costs[i + 1], f"Slippage cost decreased: {costs[i]} > {costs[i + 1]}"
     
     def test_partial_fill_penalty_threshold(self):
-        """부분체결 페널티 임계값 검증"""
+        """부분체결 페널티 임계값 검증 (큰 주문에 페널티)"""
         model = SimpleExecutionQualityModel(
-            min_size_ratio=0.3,
+            max_safe_ratio=0.3,
             partial_fill_penalty_bps=20.0,
         )
         
-        # Case 1: notional / avg_size = 0.2 < 0.3 → 페널티 적용
+        # Case 1: notional / avg_size = 0.2 <= 0.3 → 안전 (페널티 없음)
         result1 = model.compute_execution_cost(
             edge_bps=100.0,
             notional=200000.0,
@@ -123,9 +123,9 @@ class TestSimpleExecutionQualityModel:
             binance_bid_size=1000000.0,
             binance_ask_size=1000000.0,
         )
-        assert result1.partial_fill_risk_bps == 20.0
+        assert result1.partial_fill_risk_bps == 0.0
         
-        # Case 2: notional / avg_size = 0.4 >= 0.3 → 페널티 없음
+        # Case 2: notional / avg_size = 0.4 > 0.3 → 위험 (페널티 적용)
         result2 = model.compute_execution_cost(
             edge_bps=100.0,
             notional=400000.0,
@@ -134,7 +134,41 @@ class TestSimpleExecutionQualityModel:
             binance_bid_size=1000000.0,
             binance_ask_size=1000000.0,
         )
-        assert result2.partial_fill_risk_bps == 0.0
+        assert result2.partial_fill_risk_bps == 20.0
+
+
+    def test_large_order_penalty_inverse_logic(self):
+        """큰 주문에 페널티 검증 (Inverse Logic Check)"""
+        model = SimpleExecutionQualityModel(max_safe_ratio=0.3, partial_fill_penalty_bps=20.0)
+        
+        # Small order (safe): notional=100k, avg_size=1000k → ratio=0.1
+        result_small = model.compute_execution_cost(
+            edge_bps=100.0,
+            notional=100000.0,
+            upbit_bid_size=1000000.0,
+            upbit_ask_size=1000000.0,
+            binance_bid_size=1000000.0,
+            binance_ask_size=1000000.0,
+        )
+        
+        # Large order (risky): notional=500k, avg_size=1000k → ratio=0.5
+        result_large = model.compute_execution_cost(
+            edge_bps=100.0,
+            notional=500000.0,
+            upbit_bid_size=1000000.0,
+            upbit_ask_size=1000000.0,
+            binance_bid_size=1000000.0,
+            binance_ask_size=1000000.0,
+        )
+        
+        # Small order: no penalty
+        assert result_small.partial_fill_risk_bps == 0.0
+        
+        # Large order: penalty applied
+        assert result_large.partial_fill_risk_bps == 20.0
+        
+        # Large order should have higher total cost
+        assert result_large.total_exec_cost_bps > result_small.total_exec_cost_bps
 
 
 class TestMarketTickSizeCompatibility:

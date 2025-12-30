@@ -55,6 +55,9 @@ class ReplayRunner:
         self.decisions: List[DecisionRecord] = []
         self.input_hash = ""
         
+        # D205-7: ExecutionQuality model 초기화
+        self.exec_quality_model = SimpleExecutionQualityModel()
+        
         logger.info(f"[D205-5_REPLAY] Initialized: input={input_path}, output={output_dir}")
     
     def run(self) -> Dict[str, Any]:
@@ -150,7 +153,23 @@ class ReplayRunner:
                 latency_ms = replay_end_ms - replay_start_ms
                 
                 if candidate:
-                    # 의사결정 기록
+                    # D205-7: ExecutionQuality 실전 주입 (실제 계산)
+                    exec_cost_breakdown = self.exec_quality_model.compute_execution_cost(
+                        edge_bps=candidate.edge_bps,
+                        notional=100000.0,  # 기본 10만원 주문 가정
+                        upbit_bid_size=tick.upbit_bid_size,
+                        upbit_ask_size=tick.upbit_ask_size,
+                        binance_bid_size=tick.binance_bid_size,
+                        binance_ask_size=tick.binance_ask_size,
+                    )
+                    
+                    # Fallback 처리: size 없으면 fallback 태그
+                    gate_reasons_with_fallback = []
+                    if (tick.upbit_bid_size is None and tick.upbit_ask_size is None and
+                        tick.binance_bid_size is None and tick.binance_ask_size is None):
+                        gate_reasons_with_fallback.append("exec_quality_fallback")
+                    
+                    # 의사결정 기록 (D205-7: execution quality 실제 값 포함)
                     decision = DecisionRecord(
                         timestamp=tick.timestamp,
                         symbol=tick.symbol,
@@ -158,8 +177,11 @@ class ReplayRunner:
                         break_even_bps=compute_break_even_bps(self.break_even_params),
                         edge_bps=candidate.edge_bps,
                         profitable=candidate.profitable,
-                        gate_reasons=[],  # D205-5에서는 gate 로직 없음 (단순 detector만)
+                        gate_reasons=gate_reasons_with_fallback,
                         latency_ms=latency_ms,
+                        exec_cost_bps=exec_cost_breakdown.total_exec_cost_bps,
+                        net_edge_after_exec_bps=exec_cost_breakdown.net_edge_after_exec_bps,
+                        exec_model_version=exec_cost_breakdown.exec_model_version,
                     )
                     
                     self.decisions.append(decision)

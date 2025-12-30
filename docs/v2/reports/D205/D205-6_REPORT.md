@@ -6,7 +6,8 @@
 
 **Current:** DONE ✅  
 **Last Updated:** 2025-12-31  
-**Commit:** [이번 턴에서 생성]
+**Commit:** 135a224dbf614513d7bf55301716094c4bd8d460  
+**Branch:** rescue/d99_15_fullreg_zero_fail
 
 ## 목표
 

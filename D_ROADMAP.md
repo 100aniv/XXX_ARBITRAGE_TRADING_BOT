@@ -3030,12 +3030,13 @@ CREATE TABLE v2_pnl_daily (
 
 #### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화) — DONE ✅
 **상태:** DONE ✅
-**커밋:** [이번 턴에서 생성]
+**커밋:** 135a224 (ExecutionQuality v1 + SSOT manifest fix)
+**브랜치:** rescue/d99_15_fullreg_zero_fail
 **테스트:** Gate Fast 137/137 PASS (69.52s) + Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-6_REPORT.md`
 **Evidence:** 
 - Record: `logs/evidence/d205_5_record_replay_20251231_022642/` (10 ticks, git_sha 포함)
-- Replay: `logs/evidence/d205_6_replay_smoke_20251231_022705/` (10 decisions, ExecutionQuality 통합)
+- Replay: `logs/evidence/d205_6_replay_smoke_20251231_022705/` (10 decisions)
 
 **목표:**
 - 승률 중심 → **edge_after_cost** 중심 KPI 전환

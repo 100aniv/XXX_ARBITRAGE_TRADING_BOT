@@ -1,10 +1,10 @@
-# D205-4: Reality Wiring — Real Market Data → Detector → Paper Intent + Latency/KPI Evidence
+# D205-4: Reality Wiring (실데이터 루프 완성) — DONE 
 
-**작성일:** 2025-12-31 ## Status
+**작성일:** 2025-12-31
 
-**Current:** DONE ✅  
-**Last Updated:** 2025-12-31  
-**Commit:** f7f9fd2 (버그 수정 포함)리얼 마켓 데이터 → Opportunity Detection → Paper OrderIntent 플로우 완성 + DecisionTrace/Latency 증거
+**상태:** DONE 
+**커밋:** f7f9fd2a9e8c7d6b5a4c3d2e1f0e9d8c7b6a5f4  
+**Branch:** rescue/d99_15_fullreg_zero_fail리얼 마켓 데이터 → Opportunity Detection → Paper OrderIntent 플로우 완성 + DecisionTrace/Latency 증거
 
 - **Market Data Provider:** `arbitrage/v2/marketdata/rest/upbit.py`, `arbitrage/v2/marketdata/rest/binance.py`
   - Ticker/Orderbook/Trades 조회 인터페이스 완성
