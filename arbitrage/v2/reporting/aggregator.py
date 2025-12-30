@@ -167,53 +167,46 @@ def aggregate_ops_daily(
             "fills_count": int,
             "rejects_count": int,
             "fill_rate_pct": float,
-            "avg_slippage_bps": float (or None),
-            "latency_p50_ms": float (or None),
-            "latency_p95_ms": float (or None),
-            "api_errors": int,
-            "rate_limit_hits": int,
-            "reconnects": int,
-            "avg_cpu_pct": float (or None),
-            "avg_memory_mb": float (or None),
-        }
     
-    Logic:
-        - v2_orders에서 orders_count, rejects (status='failed')
-        - v2_fills에서 fills_count
-        - fill_rate = fills / orders
-        - latency/slippage는 향후 v2_orders/fills에 컬럼 추가 필요
+    Returns:
+        Dict with ops metrics
+        
+    Note (D205-2):
+        - api_errors, rate_limit_hits, reconnects는 현재 Paper runner에서 추적 안 함 (기본값 0)
+        - LIVE 모드 전환 시 실제 값 집계 예정 (v2_orders/v2_fills 테이블에 컬럼 추가 필요)
     """
     query = """
-    WITH daily_orders AS (
-        SELECT
-            DATE(timestamp) AS order_date,
-            COUNT(*) AS orders_count,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS rejects_count
-        FROM v2_orders
-        WHERE DATE(timestamp) = %s
-            AND (%s IS NULL OR run_id LIKE %s)
-        GROUP BY DATE(timestamp)
-    ),
-    daily_fills AS (
-        SELECT
-            DATE(timestamp) AS fill_date,
-            COUNT(*) AS fills_count
-        FROM v2_fills
-        WHERE DATE(timestamp) = %s
-            AND (%s IS NULL OR run_id LIKE %s)
-        GROUP BY DATE(timestamp)
-    )
-    SELECT
-        o.order_date AS date,
-        COALESCE(o.orders_count, 0) AS orders_count,
-        COALESCE(f.fills_count, 0) AS fills_count,
-        COALESCE(o.rejects_count, 0) AS rejects_count,
-        CASE 
-            WHEN o.orders_count > 0 THEN ROUND((f.fills_count::NUMERIC / o.orders_count * 100), 2)
-            ELSE 0
-        END AS fill_rate_pct
-    FROM daily_orders o
-    LEFT JOIN daily_fills f ON o.order_date = f.fill_date
+        WITH orders_agg AS (
+            SELECT 
+                DATE(timestamp) AS date,
+                COUNT(*) AS orders_count,
+                COUNT(CASE WHEN status = 'rejected' THEN 1 END) AS rejects_count
+            FROM v2_orders
+            WHERE DATE(timestamp) = %s
+              AND (%s IS NULL OR run_id LIKE %s)
+            GROUP BY DATE(timestamp)
+        ),
+        fills_agg AS (
+            SELECT 
+                DATE(timestamp) AS date,
+                COUNT(*) AS fills_count
+            FROM v2_fills
+            WHERE DATE(timestamp) = %s
+              AND (%s IS NULL OR run_id LIKE %s)
+            GROUP BY DATE(timestamp)
+        )
+        SELECT 
+            COALESCE(o.date, f.date) AS date,
+            COALESCE(o.orders_count, 0) AS orders_count,
+            COALESCE(o.rejects_count, 0) AS rejects_count,
+            COALESCE(f.fills_count, 0) AS fills_count,
+            CASE 
+                WHEN COALESCE(o.orders_count, 0) > 0 
+                THEN ROUND((COALESCE(f.fills_count, 0)::NUMERIC / o.orders_count) * 100, 2)
+                ELSE 0.0
+            END AS fill_rate_pct
+        FROM orders_agg o
+        FULL OUTER JOIN fills_agg f ON o.date = f.date
     """
     
     run_id_like = f"{run_id_prefix}%" if run_id_prefix else None
@@ -228,7 +221,7 @@ def aggregate_ops_daily(
                 row = cur.fetchone()
                 
                 if not row:
-                    logger.warning(f"No Ops data for {target_date}")
+                    logger.warning(f"No ops data for {target_date}")
                     return {
                         "date": target_date,
                         "orders_count": 0,
@@ -245,22 +238,28 @@ def aggregate_ops_daily(
                         "avg_memory_mb": None,
                     }
                 
+                # D205-2: 운영급 확장 계획
+                # - api_errors: 현재 Paper에서 0, LIVE 전환 시 실제 API error log 집계
+                # - rate_limit_hits: 현재 Paper에서 0, LIVE 전환 시 429 error 집계
+                # - reconnects: 현재 Paper에서 0, LIVE 전환 시 WS reconnect 이벤트 집계
+                # 구현 방향: v2_orders/v2_fills 테이블에 error_type 컬럼 추가, CTE 쿼리 확장
+                
                 return {
                     "date": row["date"],
                     "orders_count": int(row["orders_count"]),
                     "fills_count": int(row["fills_count"]),
                     "rejects_count": int(row["rejects_count"]),
                     "fill_rate_pct": float(row["fill_rate_pct"]),
-                    "avg_slippage_bps": None,  # TODO: v2_fills에 slippage 컬럼 추가 필요
-                    "latency_p50_ms": None,  # TODO: v2_orders에 latency 컬럼 추가 필요
-                    "latency_p95_ms": None,  # TODO: v2_orders에 latency 컬럼 추가 필요
-                    "api_errors": 0,  # TODO: v2_orders에 error_code 컬럼 추가 필요
-                    "rate_limit_hits": 0,  # TODO: 별도 로깅 필요
-                    "reconnects": 0,  # TODO: WebSocket 로깅 필요
-                    "avg_cpu_pct": None,  # TODO: 시스템 메트릭 수집 필요
-                    "avg_memory_mb": None,  # TODO: 시스템 메트릭 수집 필요
+                    "avg_slippage_bps": None,  # TODO D205-3: v2_fills.slippage_bps 컬럼 추가
+                    "latency_p50_ms": None,  # TODO D205-3: v2_orders.latency_ms 컬럼 추가
+                    "latency_p95_ms": None,  # TODO D205-3: v2_orders.latency_ms 컬럼 추가
+                    "api_errors": 0,  # D205-2: Paper=0, LIVE 전환 시 error_type='api_error' COUNT
+                    "rate_limit_hits": 0,  # D205-2: Paper=0, LIVE 전환 시 error_type='rate_limit' COUNT
+                    "reconnects": 0,  # D205-2: Paper=0, LIVE 전환 시 reconnect 이벤트 테이블 필요
+                    "avg_cpu_pct": None,  # TODO D205-3: 시스템 메트릭 테이블 추가
+                    "avg_memory_mb": None,  # TODO D205-3: 시스템 메트릭 테이블 추가
                 }
     
     except Exception as e:
-        logger.error(f"Failed to aggregate Ops for {target_date}: {e}")
+        logger.error(f"Failed to aggregate ops for {target_date}: {e}")
         raise
