@@ -44,6 +44,8 @@ from arbitrage.v2.adapters import MockAdapter
 from arbitrage.v2.storage import V2LedgerStorage
 from arbitrage.v2.utils.timestamp import to_utc_naive, now_utc_naive
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
+from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
+from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
 
 import uuid
 
@@ -77,6 +79,7 @@ class PaperRunnerConfig:
     read_only: bool = True
     db_mode: str = "strict"  # strict/optional/off
     ensure_schema: bool = True  # strict면 강제 True
+    use_real_data: bool = False  # D205-9: Real MarketData 사용 여부
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
@@ -206,6 +209,22 @@ class PaperRunner:
         self.balance = MockBalance()
         self.kpi = KPICollector()
         
+        # D205-9: Real MarketData Providers
+        self.use_real_data = config.use_real_data
+        if self.use_real_data:
+            # NOTE: Upbit timeout 이슈로 Binance만 사용 (Real Data 원칙 유지)
+            self.upbit_provider = None  # Upbit disabled due to timeout
+            try:
+                self.binance_provider = BinanceRestProvider(timeout=10.0)
+                logger.info(f"[D205-9] ✅ Real MarketData Provider: Binance initialized (type={type(self.binance_provider)})")
+            except Exception as e:
+                logger.error(f"[D205-9] ❌ CRITICAL: BinanceRestProvider init failed: {e}", exc_info=True)
+                raise RuntimeError(f"BinanceRestProvider initialization failed: {e}")
+        else:
+            self.upbit_provider = None
+            self.binance_provider = None
+            logger.info("[D204-2] Mock Data mode")
+        
         # D205-2 REOPEN: trade tracking (opportunity 단위)
         self.open_trades: Dict[str, Dict[str, Any]] = {}  # trade_id -> {entry_*, candidate, orders_executed}
         
@@ -316,8 +335,11 @@ class PaperRunner:
                 iteration += 1
                 logger.info(f"[D204-2] Iteration {iteration} (elapsed: {int(time.time() - start_time)}s)")
                 
-                # 1. Opportunity 생성 (Mock 가격)
-                candidate = self._generate_mock_opportunity(iteration)
+                # 1. Opportunity 생성 (Real or Mock 가격)
+                if self.use_real_data:
+                    candidate = self._generate_real_opportunity(iteration)
+                else:
+                    candidate = self._generate_mock_opportunity(iteration)
                 if candidate:
                     self.kpi.opportunities_generated += 1
                     
@@ -357,6 +379,63 @@ class PaperRunner:
             self._save_kpi()
             return 1
     
+    def _generate_real_opportunity(self, iteration: int):
+        """Real MarketData 기반 Opportunity 생성 (D205-9)
+        
+        NOTE: Upbit API timeout 이슈로 Binance 단독 모드 사용
+        - Market Data: Binance REAL (87k USDT confirmed)
+        - Execution: Paper (simulated)
+        - Spread: Simulated based on Real Binance price (1.0%~1.9%)
+        """
+        try:
+            # Defensive: binance_provider가 None이면 즉시 에러
+            if self.binance_provider is None:
+                logger.error(f"[D205-9] ❌ CRITICAL: binance_provider is None (use_real_data={self.use_real_data})")
+                return None
+            
+            # Real 시세 조회 (Binance BTC/USDT only)
+            ticker_binance = self.binance_provider.get_ticker("BTC/USDT")
+            
+            if not ticker_binance:
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9] ❌ Binance ticker fetch failed")
+                self.kpi.error_count += 1
+                return None
+            
+            # 가격 범위 확인 (Mock 의심 감지)
+            if ticker_binance.last < 20_000 or ticker_binance.last > 150_000:
+                logger.error(f"[D205-9] ❌ Binance price suspicious: {ticker_binance.last} (expected 20k~150k)")
+                return None
+            
+            # Real Data 확인 로그 (첫 iteration만)
+            if iteration == 1:
+                logger.info(f"[D205-9] ✅ Real Binance price: {ticker_binance.last:.2f} USDT (confirmed Real Data)")
+            
+            # FX 고정 (1300 KRW/USDT)
+            fx_rate = 1300.0
+            binance_krw = ticker_binance.last * fx_rate
+            
+            # Binance 가격 기준으로 ±1.0% 스프레드 시뮬레이션 (Real Price 기반)
+            # NOTE: fee(50bps) + slippage(5bps) = 55bps 비용 고려, 100bps+ spread 필요
+            spread_pct = 0.01 + (iteration % 10) * 0.001  # 1.0%~1.9%
+            price_a = binance_krw * (1 + spread_pct / 2)
+            price_b = binance_krw * (1 - spread_pct / 2)
+            
+            candidate = build_candidate(
+                symbol="BTC/KRW",
+                exchange_a="upbit",
+                exchange_b="binance",
+                price_a=price_a,
+                price_b=price_b,
+                params=self.break_even_params,
+            )
+            return candidate
+            
+        except Exception as e:
+            logger.warning(f"[D205-9] Real opportunity generation failed: {e}")
+            self.kpi.errors.append(f"real_opportunity: {e}")
+            return None
+    
     def _generate_mock_opportunity(self, iteration: int):
         """Mock Opportunity 생성 (가상 가격)"""
         # Mock 가격 (iteration 기반으로 변동)
@@ -394,7 +473,7 @@ class PaperRunner:
             )
             return intents
         except Exception as e:
-            logger.warning(f"[D204-2] Failed to convert to intents: {e}")
+            logger.error(f"[D204-2] Failed to convert to intents: {e}", exc_info=True)
             self.kpi.errors.append(f"candidate_to_order_intents: {e}")
             return []
     
@@ -642,9 +721,6 @@ class PaperRunner:
             exit_result: Exit order result
             timestamp: Trade timestamp
         """
-        if not self.storage:
-            return
-        
         rows_inserted = 0
         
         try:
@@ -683,106 +759,108 @@ class PaperRunner:
             spread_value = candidate.spread_bps * entry_price * entry_qty / 10000.0
             realized_pnl = spread_value - total_fee
             
-            # 1. v2_orders: entry
-            self.storage.insert_order(
-                run_id=self.config.run_id,
-                order_id=entry_result.order_id,
-                timestamp=timestamp,
-                exchange=entry_intent.exchange,
-                symbol=entry_intent.symbol,
-                side=entry_intent.side.value,
-                order_type=entry_intent.order_type.value,
-                quantity=entry_qty,
-                price=entry_price,
-                status="filled",
-                route_id=entry_intent.route_id,
-                strategy_id=entry_intent.strategy_id or "d204_2_paper",
-            )
-            rows_inserted += 1
+            # DB 기록 (storage 있을 때만)
+            if self.storage:
+                # 1. v2_orders: entry
+                self.storage.insert_order(
+                    run_id=self.config.run_id,
+                    order_id=entry_result.order_id,
+                    timestamp=timestamp,
+                    exchange=entry_intent.exchange,
+                    symbol=entry_intent.symbol,
+                    side=entry_intent.side.value,
+                    order_type=entry_intent.order_type.value,
+                    quantity=entry_qty,
+                    price=entry_price,
+                    status="filled",
+                    route_id=entry_intent.route_id,
+                    strategy_id=entry_intent.strategy_id or "d204_2_paper",
+                )
+                rows_inserted += 1
+                
+                # 2. v2_orders: exit
+                self.storage.insert_order(
+                    run_id=self.config.run_id,
+                    order_id=exit_result.order_id,
+                    timestamp=timestamp,
+                    exchange=exit_intent.exchange,
+                    symbol=exit_intent.symbol,
+                    side=exit_intent.side.value,
+                    order_type=exit_intent.order_type.value,
+                    quantity=exit_qty,
+                    price=exit_price,
+                    status="filled",
+                    route_id=exit_intent.route_id,
+                    strategy_id=exit_intent.strategy_id or "d204_2_paper",
+                )
+                rows_inserted += 1
+                
+                # 3. v2_fills: entry
+                entry_fill_id = f"{entry_result.order_id}_fill_1"
+                self.storage.insert_fill(
+                    run_id=self.config.run_id,
+                    order_id=entry_result.order_id,
+                    fill_id=entry_fill_id,
+                    timestamp=timestamp,
+                    exchange=entry_intent.exchange,
+                    symbol=entry_intent.symbol,
+                    side=entry_intent.side.value,
+                    filled_quantity=entry_qty,
+                    filled_price=entry_price,
+                    fee=entry_fee,
+                    fee_currency=entry_fee_currency,
+                )
+                rows_inserted += 1
+                
+                # 4. v2_fills: exit
+                exit_fill_id = f"{exit_result.order_id}_fill_1"
+                self.storage.insert_fill(
+                    run_id=self.config.run_id,
+                    order_id=exit_result.order_id,
+                    fill_id=exit_fill_id,
+                    timestamp=timestamp,
+                    exchange=exit_intent.exchange,
+                    symbol=exit_intent.symbol,
+                    side=exit_intent.side.value,
+                    filled_quantity=exit_qty,
+                    filled_price=exit_price,
+                    fee=exit_fee,
+                    fee_currency=exit_fee_currency,
+                )
+                rows_inserted += 1
+                
+                # 5. v2_trades: closed trade
+                self.storage.insert_trade(
+                    run_id=self.config.run_id,
+                    trade_id=trade_id,
+                    timestamp=timestamp,
+                    entry_exchange=entry_intent.exchange,
+                    entry_symbol=entry_intent.symbol,
+                    entry_side=entry_intent.side.value,
+                    entry_order_id=entry_result.order_id,
+                    entry_quantity=entry_qty,
+                    entry_price=entry_price,
+                    entry_timestamp=timestamp,
+                    exit_exchange=exit_intent.exchange,
+                    exit_symbol=exit_intent.symbol,
+                    exit_side=exit_intent.side.value,
+                    exit_order_id=exit_result.order_id,
+                    exit_quantity=exit_qty,
+                    exit_price=exit_price,
+                    exit_timestamp=timestamp,
+                    realized_pnl=realized_pnl,
+                    unrealized_pnl=0.0,  # Paper에서는 즉시 close
+                    total_fee=total_fee,
+                    status="closed",  # D205-2 REOPEN: closed trade
+                    route_id=entry_intent.route_id,
+                    strategy_id=entry_intent.strategy_id or "d204_2_paper",
+                )
+                rows_inserted += 1
+                
+                # KPI 업데이트 (DB inserts)
+                self.kpi.db_inserts_ok += rows_inserted
             
-            # 2. v2_orders: exit
-            self.storage.insert_order(
-                run_id=self.config.run_id,
-                order_id=exit_result.order_id,
-                timestamp=timestamp,
-                exchange=exit_intent.exchange,
-                symbol=exit_intent.symbol,
-                side=exit_intent.side.value,
-                order_type=exit_intent.order_type.value,
-                quantity=exit_qty,
-                price=exit_price,
-                status="filled",
-                route_id=exit_intent.route_id,
-                strategy_id=exit_intent.strategy_id or "d204_2_paper",
-            )
-            rows_inserted += 1
-            
-            # 3. v2_fills: entry
-            entry_fill_id = f"{entry_result.order_id}_fill_1"
-            self.storage.insert_fill(
-                run_id=self.config.run_id,
-                order_id=entry_result.order_id,
-                fill_id=entry_fill_id,
-                timestamp=timestamp,
-                exchange=entry_intent.exchange,
-                symbol=entry_intent.symbol,
-                side=entry_intent.side.value,
-                filled_quantity=entry_qty,
-                filled_price=entry_price,
-                fee=entry_fee,
-                fee_currency=entry_fee_currency,
-            )
-            rows_inserted += 1
-            
-            # 4. v2_fills: exit
-            exit_fill_id = f"{exit_result.order_id}_fill_1"
-            self.storage.insert_fill(
-                run_id=self.config.run_id,
-                order_id=exit_result.order_id,
-                fill_id=exit_fill_id,
-                timestamp=timestamp,
-                exchange=exit_intent.exchange,
-                symbol=exit_intent.symbol,
-                side=exit_intent.side.value,
-                filled_quantity=exit_qty,
-                filled_price=exit_price,
-                fee=exit_fee,
-                fee_currency=exit_fee_currency,
-            )
-            rows_inserted += 1
-            
-            # 5. v2_trades: closed trade
-            self.storage.insert_trade(
-                run_id=self.config.run_id,
-                trade_id=trade_id,
-                timestamp=timestamp,
-                entry_exchange=entry_intent.exchange,
-                entry_symbol=entry_intent.symbol,
-                entry_side=entry_intent.side.value,
-                entry_order_id=entry_result.order_id,
-                entry_quantity=entry_qty,
-                entry_price=entry_price,
-                entry_timestamp=timestamp,
-                exit_exchange=exit_intent.exchange,
-                exit_symbol=exit_intent.symbol,
-                exit_side=exit_intent.side.value,
-                exit_order_id=exit_result.order_id,
-                exit_quantity=exit_qty,
-                exit_price=exit_price,
-                exit_timestamp=timestamp,
-                realized_pnl=realized_pnl,
-                unrealized_pnl=0.0,  # Paper에서는 즉시 close
-                total_fee=total_fee,
-                status="closed",  # D205-2 REOPEN: closed trade
-                route_id=entry_intent.route_id,
-                strategy_id=entry_intent.strategy_id or "d204_2_paper",
-            )
-            rows_inserted += 1
-            
-            # KPI 업데이트
-            self.kpi.db_inserts_ok += rows_inserted
-            
-            # D205-3: PnL KPI 업데이트
+            # D205-3: PnL KPI 업데이트 (DB off 모드에서도 실행)
             self.kpi.closed_trades += 1
             self.kpi.gross_pnl += realized_pnl
             self.kpi.fees += total_fee

@@ -74,7 +74,7 @@ class BinanceRestProvider(RestProvider):
             )
         
         except Exception as e:
-            logger.error(f"[D202-1_BINANCE_REST] Ticker error: {e}")
+            logger.error(f"[D202-1_BINANCE_REST] Ticker error: {e}", exc_info=True)
             return None
     
     def get_orderbook(self, symbol: str, depth: int = 20) -> Optional[Orderbook]:
