@@ -3132,9 +3132,56 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-8: Quote Normalization v1 + SanityGuard — DONE ✅ (⚠️ FX CLI broken in dd61f84)
-**상태:** DONE ✅ (⚠️ D205-8-2에서 FX CLI plumbing 수정 중)
-**커밋:** a27d275 (initial) + dd61f84 (SSOT recovery, partial) + [D205-8-2 pending]
+#### D205-8: TopN + Route/Stress (Top10→50→100 확장 검증) — PLANNED ⏳
+**상태:** PLANNED ⏳
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
+**Evidence:** `logs/evidence/d205_8_<timestamp>/`
+
+**목표:**
+- Top10 → Top50 → Top100 확장 시 생존 검증
+- rate_limit/지연/큐 적체 스트레스 테스트
+
+**범위 (Do/Don't):**
+- ✅ Do: Top10/50/100 시나리오, rate_limit_hit 측정, 자동 throttling
+- ❌ Don't: 프로덕션 배포 (PAPER만), 멀티 리전 (로컬만)
+
+**AC (증거 기반 검증):**
+- [ ] Top10: latency p95 < 100ms, rate_limit_hit = 0
+- [ ] Top50: latency p95 < 200ms, rate_limit_hit < 5/hr
+- [ ] Top100: latency p95 < 500ms, rate_limit_hit < 20/hr
+- [ ] 적체 시 자동 throttling 동작 (queue_depth > 100 → pause)
+- [ ] error_rate < 1% (모든 TopN 시나리오)
+
+**Evidence 요구사항:**
+- manifest.json
+- stress_test_top10.json (latency_p95, rate_limit_hit)
+- stress_test_top50.json
+- stress_test_top100.json
+- throttling_events.ndjson
+
+**Gate 조건:**
+- Gate 0 FAIL
+- Top100: latency p95 < 1000ms, error_rate < 1%
+
+**PASS/FAIL 판단 기준:**
+- PASS: Top100 기준 충족, throttling 자동 동작
+- FAIL: Top50에서 error_rate > 5% (확장 불가)
+
+**의존성:**
+- Depends on: D205-7 (최적 파라미터), **D205-8-1 (Quote Normalization prerequisite) ✅**
+- Blocks: D205-9 (현실적 검증)
+
+**Prerequisites (필수 선행 조건):**
+- ✅ D205-8-1: Quote Normalization (DONE) — spread_bps 정상 범위 필수
+- 🚧 D205-8-2: FX CLI plumbing fix + SSOT lockdown (IN PROGRESS)
+
+---
+
+##### D205-8-1: Quote Normalization v1 + SanityGuard — DONE ✅
+**상태:** DONE ✅
+**커밋:** a27d275 (initial) + dd61f84 (SSOT recovery)
 **브랜치:** rescue/d99_15_fullreg_zero_fail
 **문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
 **Evidence:** `logs/evidence/D205_8_smoke_20251231_120000/`
@@ -3159,25 +3206,44 @@ CREATE TABLE v2_pnl_daily (
 - [x] Reality Wiring CLI 인자 추가 (run_d205_4_reality_wiring.py)
 - [x] Unit Tests 16/16 PASS
 - [x] Gate Fast 154/154 PASS
-- [ ] **FX CLI plumbing fix (D205-8-2 수행 중)** ← ⚠️ BLOCKER
-
-**Known Issues (D205-8-2 Fix):**
-- ❌ FX CLI broken: main() → RecordReplayRunner에 fx 미전달 (dd61f84 버그)
-- ❌ CLI `--fx-krw-per-usdt 1300` 줘도 기본값 1450.0만 사용
-- ❌ "1300원 참사" 위험 (Live 시 잘못된 환율로 주문)
 
 **의존성:**
 - Depends on: D205-5 (Record/Replay), D205-6 (ExecutionQuality) ✅
-- Blocks: D205-9 (Realistic Paper Validation - spread 정상 범위 필수)
+- Blocks: D205-8 (TopN/Stress — spread 정상 범위 필수)
 - **Blocker for LIVE (D206):** Real-time FX Integration required ⛔
 
-**PASS/FAIL 판단 기준:**
-- PASS: Top100 기준 충족, throttling 자동 동작
-- FAIL: Top50에서 error_rate > 5% (확장 불가)
+---
+
+##### D205-8-2: FX CLI Plumbing Fix + SSOT Roadmap Lockdown — IN PROGRESS 🚧
+**상태:** IN PROGRESS 🚧
+**커밋:** [D205-8-2 pending] (이전: 4145f8c partial fix)
+**브랜치:** rescue/d99_15_fullreg_zero_fail
+**문서:** `docs/v2/reports/D205/D205-8_REPORT.md` (업데이트 예정)
+**Evidence:** `logs/evidence/D205_8_2_lockdown_<timestamp>/`
+
+**목표:**
+- FX CLI plumbing 복구: `--fx-krw-per-usdt` 값이 DecisionRecord까지 전달되도록 수정
+- D_ROADMAP.md SSOT 정합성 복구: D205-8 원래 목표 복원, 삭제된 AC 복원
+
+**Known Issues (복구 대상):**
+- ❌ FX CLI broken: main() → RecordReplayRunner에 fx 미전달 (dd61f84 버그)
+- ❌ CLI `--fx-krw-per-usdt 1300` 줘도 기본값 1450.0만 사용
+- ❌ "1300원 참사" 위험 (Live 시 잘못된 환율로 주문)
+- ❌ D205-8 원래 목표(TopN/Stress) 삭제됨 → 복원 필요
+
+**AC (증거 기반 검증):**
+- [ ] FX CLI plumbing 복구: CLI fx=1300 → DecisionRecord.fx_krw_per_usdt_used=1300.0
+- [ ] Unit test 추가: test_d205_8_2_fx_cli.py
+- [ ] D_ROADMAP.md D205-8 원래 목표/AC 복원 (TopN/Stress)
+- [ ] D205-8-1/8-2 서브스텝 분리
+- [ ] Gate 3단 100% PASS
+- [ ] Smoke test: fx=1300 반영 확인
+- [ ] Evidence 패키징
+- [ ] Git commit + push
 
 **의존성:**
-- Depends on: D205-7 (최적 파라미터)
-- Blocks: D205-9 (현실적 검증)
+- Depends on: D205-8-1 (Quote Normalization) ✅
+- Blocks: D205-8 (TopN/Stress 본 단계)
 
 ---
 
@@ -3373,10 +3439,38 @@ CREATE TABLE v2_pnl_daily (
 
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
+⛔ **[BLOCKER] Prerequisites for D206 Entry (3중 안전장치):**
+
+**1. Real-time FX Integration Check (Critical) 🚨**
+- ❌ Fixed FX 로직이 제거되었는가?
+- ❌ Live config에서 FX API가 연결되지 않으면 부팅이 차단되는가?
+- ❌ FxProvider 인터페이스가 구현되었는가? (FixedFxProvider vs LiveFxProvider)
+- **Reason:** Live mode에서 Fixed FX (1450.0) 사용 시 "1300원 참사" 직행
+- **Implementation:** `arbitrage/v2/core/fx_provider.py` (D205-8-2에서 인터페이스 정의 완료)
+- **Validation:** `validate_fx_provider_for_mode(provider, "live")` → Crash if Fixed FX
+
+**2. Realistic Paper Validation (D205-9)**
+- [ ] 20m/1h/3h Paper test 100% PASS
+- [ ] winrate 50~80% (현실 범위)
+- [ ] edge_after_cost > 0
+- [ ] PnL 안정성 (std < mean)
+
+**3. Monitoring + Alerting (D205-10+)**
+- [ ] Grafana Dashboard
+- [ ] PnL/Ops KPI 실시간 모니터링
+- [ ] DLQ/Error alerting
+
+**Gate 조건:**
+- Prerequisites 1~3 전부 충족 전 D206 진입 금지
+- **특히 Prerequisite #1 (FX Integration)은 LIVE 진입 시 필수 (Fail Fast)**
+
+---
+
 **진입 조건 (강제):**
 - ✅ D205-9 PASS 필수 (Realistic Paper Validation 완료)
 - ✅ "측정 → 튜닝 → 운영" 순서 위반 시 진입 금지
 - ✅ 가짜 낙관 제거 완료 (winrate 50~80%, edge_after_cost > 0)
+- ⛔ **Real-time FX Integration (Prerequisite #1) 필수**
 
 **조건 미충족 시:** D206 작업 시작 절대 금지
 
