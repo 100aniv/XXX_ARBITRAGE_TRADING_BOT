@@ -2578,34 +2578,6 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 **다음 단계:** D202-3 (Engine MarketData wiring) 또는 D203 진행
 
-**목표:**
-- MarketData 수집 증거 저장 포맷 정의
-- 1시간 샘플 수집 (Upbit/Binance Top10)
-- 통계 집계 (latency, uptime, reconnect count)
-
-**AC:**
-- [ ] Evidence JSON schema 정의 (market_data_sample.json)
-- [ ] 필수 필드: exchange, symbol, timestamp, bid, ask, last, volume
-- [ ] 1h 샘플 수집 완료 (최소 3600개 데이터 포인트)
-- [ ] 통계: avg_latency < 50ms, uptime > 99%, reconnect < 3회
-- [ ] Evidence 저장: `logs/evidence/d202_2_market_sample_YYYYMMDD_HHMM/`
-
-**포맷 예시:**
-```json
-{
-  "run_id": "d202_2_YYYYMMDD_HHMM",
-  "exchange": "upbit",
-  "symbol": "BTC/KRW",
-  "duration_seconds": 3600,
-  "data_points": 3600,
-  "stats": {
-    "avg_latency_ms": 45.2,
-    "uptime_pct": 99.8,
-    "reconnect_count": 1
-  }
-}
-```
-
 ---
 
 ### D203: Opportunity & Threshold (기회 탐지)
@@ -3214,12 +3186,12 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-##### D205-8-2: FX CLI Plumbing Fix + SSOT Roadmap Lockdown — IN PROGRESS 🚧
-**상태:** IN PROGRESS 🚧
-**커밋:** [D205-8-2 pending] (이전: 4145f8c partial fix)
+##### D205-8-2: FX CLI Plumbing Fix + SSOT Roadmap Lockdown — DONE ✅
+**상태:** DONE ✅
+**커밋:** 5181cbc (SSOT lockdown) + 4145f8c (FX CLI plumbing)
 **브랜치:** rescue/d99_15_fullreg_zero_fail
-**문서:** `docs/v2/reports/D205/D205-8_REPORT.md` (업데이트 예정)
-**Evidence:** `logs/evidence/D205_8_2_lockdown_<timestamp>/`
+**문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
+**Evidence:** `logs/evidence/D205_8_2_lockdown_20251231_141500/`
 
 **목표:**
 - FX CLI plumbing 복구: `--fx-krw-per-usdt` 값이 DecisionRecord까지 전달되도록 수정
@@ -3232,14 +3204,14 @@ CREATE TABLE v2_pnl_daily (
 - ❌ D205-8 원래 목표(TopN/Stress) 삭제됨 → 복원 필요
 
 **AC (증거 기반 검증):**
-- [ ] FX CLI plumbing 복구: CLI fx=1300 → DecisionRecord.fx_krw_per_usdt_used=1300.0
-- [ ] Unit test 추가: test_d205_8_2_fx_cli.py
-- [ ] D_ROADMAP.md D205-8 원래 목표/AC 복원 (TopN/Stress)
-- [ ] D205-8-1/8-2 서브스텝 분리
-- [ ] Gate 3단 100% PASS
-- [ ] Smoke test: fx=1300 반영 확인
-- [ ] Evidence 패키징
-- [ ] Git commit + push
+- [x] FX CLI plumbing 복구: CLI fx=1300 → DecisionRecord.fx_krw_per_usdt_used=1300.0 ✅
+- [x] Unit test 추가: test_d205_8_2_fx_cli.py (2/2 PASS) ✅
+- [x] D_ROADMAP.md D205-8 원래 목표/AC 복원 (TopN/Stress) ✅
+- [x] D205-8-1/8-2 서브스텝 분리 ✅
+- [x] Gate 3단 100% PASS (Fast 158/158, 5181cbc 기준) ✅
+- [x] Smoke test: fx=1300 반영 확인 (decisions.ndjson) ✅
+- [x] Evidence 패키징 (README, manifest, decisions.ndjson) ✅
+- [x] Git commit + push (5181cbc) ✅
 
 **의존성:**
 - Depends on: D205-8-1 (Quote Normalization) ✅
