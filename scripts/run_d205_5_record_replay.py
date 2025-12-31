@@ -185,7 +185,13 @@ class RecordReplayRunner:
             json.dump(kpi, f, indent=2, ensure_ascii=False)
 
 
-def main():
+def main(argv=None):
+    """
+    Main entry point
+    
+    Args:
+        argv: Command line arguments (None = sys.argv, for testing)
+    """
     parser = argparse.ArgumentParser(description="D205-5: Record/Replay SSOT")
     parser.add_argument(
         "--mode",
@@ -230,7 +236,7 @@ def main():
         help="Input market.ndjson file for replay mode",
     )
     
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     
     # Logging setup
     logging.basicConfig(
@@ -247,6 +253,7 @@ def main():
         sample_interval_sec=args.sample_interval_sec,
         output_dir=args.out_evidence_dir,
         input_file=args.input_file,
+        fx_krw_per_usdt=args.fx_krw_per_usdt,
     )
     
     asyncio.run(runner.run())

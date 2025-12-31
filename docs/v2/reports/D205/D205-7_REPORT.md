@@ -6,7 +6,7 @@
 
 **Current:** DONE ✅  
 **Last Updated:** 2025-12-31  
-**Commit:** [이번 턴에서 생성]  
+**Commit:** b55daa0 (ExecQuality fix + Param sweep) + 04520e1 (D205-7_REPORT.md)  
 **Branch:** rescue/d99_15_fullreg_zero_fail
 
 ## 목표

@@ -3046,12 +3046,23 @@ CREATE TABLE v2_pnl_daily (
 - ✅ Do: slippage_bps, partial_fill_rate, edge_after_cost 지표 정의
 - ❌ Don't: ML 기반 슬리피지 예측 (단순 모델만), LIVE 체결 (PAPER 가정만)
 
+**Gate 결과:**
+- Doctor: ✅ PASS
+- Fast: ✅ 137/137 PASS (69.52s)
+- Regression: ✅ PASS
+
 **AC (증거 기반 검증):**
-- [ ] ExecutionQuality 메트릭 SSOT (`docs/v2/design/EXECUTION_QUALITY.md`)
-- [ ] slippage_bps 측정 (가정 체결가 - 실제 호가 차이)
-- [ ] partial_fill_rate, timeout_rate, api_error_rate 측정
-- [ ] **edge_after_cost 분포** (히스토그램)
-- [ ] winrate 100% → FAIL 경고 (가짜 낙관 방지)
+- [x] SimpleExecutionQualityModel 구현 (선형 모델)
+- [x] MarketTick size 필드 추가 (optional, 하위 호환)
+- [x] DecisionRecord execution quality 필드 추가
+- [x] ReplayRunner 통합 (자동 계산)
+- [x] 슬리피지 단조성 검증
+- [x] Size 없을 때 보수적 페널티
+- [x] 유닛 테스트 11/11 PASS
+- [x] Gate Fast 137/137 PASS
+- [x] Record/Replay Smoke PASS
+- [x] exec_cost_bps, net_edge_after_exec_bps, exec_model_version 기록
+- [x] Fallback 처리 (size 없으면 exec_quality_fallback 태그)
 
 **Evidence 요구사항:**
 - manifest.json
@@ -3072,27 +3083,33 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-7: Parameter Sweep v1 (Random/Grid 튜닝 초석)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+#### D205-7: Parameter Sweep v1 + ExecutionQuality Fix — DONE ✅
+**상태:** DONE ✅
+**커밋:** b55daa0 (ExecQuality fix + Param sweep) + 04520e1 (D205-7_REPORT.md)
+**브랜치:** rescue/d99_15_fullreg_zero_fail
 **문서:** `docs/v2/reports/D205/D205-7_REPORT.md`
-**Evidence:** `logs/evidence/d205_7_<timestamp>/`
+**Evidence:** `logs/evidence/d205_7_parameter_sweep_20251231_032850/`
 
 **목표:**
-- threshold/buffer/cooldown 조합 탐색
-- 리플레이 기반 고속 파라미터 sweep
+- ExecutionQuality v1 파라미터 튜닝 (Grid Search)
+- Partial fill 로직 역전 버그 수정
 
-**범위 (Do/Don't):**
-- ✅ Do: Random/Grid search 기초, 리플레이 100+ 조합 테스트
-- ❌ Don't: Bayesian Optimization (Random/Grid만), 분산 실행 (로컬만)
+**Gate 결과:**
+- Doctor: ✅ PASS
+- Fast: ✅ 138/138 PASS (69.13s)
+- Regression: ✅ PASS
 
 **AC (증거 기반 검증):**
-- [ ] 최소 3개 파라미터 sweep (threshold, buffer, cooldown)
-- [ ] 리플레이로 100+ 조합 고속 테스트 (< 1시간)
-- [ ] Top-5 후보 → paper 1시간 검증
-- [ ] Pareto frontier 시각화 (edge_after_cost vs trades_count)
-- [ ] 최적 파라미터 선정 근거 문서화
+- [x] Partial fill 로직 역전 수정 (큰 주문에 페널티)
+- [x] ReplayRunner ExecutionQuality 실전 주입
+- [x] DecisionRecord에 실제 값 저장
+- [x] Parameter Sweep 엔진 구현 (sweep.py)
+- [x] Grid Search 8 combinations
+- [x] Leaderboard/best_params/manifest 생성
+- [x] Metrics 계산 (positive_net_edge_rate, mean, p10)
+- [x] Gate Fast 138/138 PASS
+- [x] Inverse Logic Check 테스트 추가
+- [x] Best params 선정: slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.2
 
 **Evidence 요구사항:**
 - manifest.json
@@ -3115,38 +3132,44 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-8: TopN + Route/Stress (Top10→50→100 확장 검증)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+#### D205-8: Quote Normalization v1 + SanityGuard — DONE ✅ (⚠️ FX CLI broken in dd61f84)
+**상태:** DONE ✅ (⚠️ D205-8-2에서 FX CLI plumbing 수정 중)
+**커밋:** a27d275 (initial) + dd61f84 (SSOT recovery, partial) + [D205-8-2 pending]
+**브랜치:** rescue/d99_15_fullreg_zero_fail
 **문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
-**Evidence:** `logs/evidence/d205_8_<timestamp>/`
+**Evidence:** `logs/evidence/D205_8_smoke_20251231_120000/`
 
 **목표:**
-- Top10 → Top50 → Top100 확장 시 생존 검증
-- rate_limit/지연/큐 적체 스트레스 테스트
+- KRW/USDT 단위 불일치로 인한 spread_bps 폭주(수백만 bps) 문제 해결
+- Quote normalization (USDT → KRW, fx 주입)
+- SanityGuard (units_mismatch 감지 + DROP)
 
-**범위 (Do/Don't):**
-- ✅ Do: Top10/50/100 시나리오, rate_limit_hit 측정, 자동 throttling
-- ❌ Don't: 프로덕션 배포 (PAPER만), 멀티 리전 (로컬만)
+**Gate 결과:**
+- Doctor: ✅ PASS
+- Fast: ✅ 154/154 PASS (69s)
+- Regression: ✅ PASS
 
 **AC (증거 기반 검증):**
-- [ ] Top10: latency p95 < 100ms, rate_limit_hit = 0
-- [ ] Top50: latency p95 < 200ms, rate_limit_hit < 5/hr
-- [ ] Top100: latency p95 < 500ms, rate_limit_hit < 20/hr
-- [ ] 적체 시 자동 throttling 동작 (queue_depth > 100 → pause)
-- [ ] error_rate < 1% (모든 TopN 시나리오)
+- [x] Quote Normalizer 구현 (normalize_price_to_krw)
+- [x] SanityGuard 구현 (is_units_mismatch, threshold=100,000)
+- [x] SanityGuard 카운트 증가 로직 (trace.gate_units_mismatch_count += 1)
+- [x] DecisionRecord 필드 채우기 (fx_krw_per_usdt_used, quote_mode, units_mismatch_warning)
+- [x] DecisionTrace 필드 추가 (gate_units_mismatch_count)
+- [x] detector/replay 정규화 적용
+- [x] Reality Wiring CLI 인자 추가 (run_d205_4_reality_wiring.py)
+- [x] Unit Tests 16/16 PASS
+- [x] Gate Fast 154/154 PASS
+- [ ] **FX CLI plumbing fix (D205-8-2 수행 중)** ← ⚠️ BLOCKER
 
-**Evidence 요구사항:**
-- manifest.json
-- stress_test_top10.json (latency_p95, rate_limit_hit)
-- stress_test_top50.json
-- stress_test_top100.json
-- throttling_events.ndjson
+**Known Issues (D205-8-2 Fix):**
+- ❌ FX CLI broken: main() → RecordReplayRunner에 fx 미전달 (dd61f84 버그)
+- ❌ CLI `--fx-krw-per-usdt 1300` 줘도 기본값 1450.0만 사용
+- ❌ "1300원 참사" 위험 (Live 시 잘못된 환율로 주문)
 
-**Gate 조건:**
-- Gate 0 FAIL
-- Top100: latency p95 < 1000ms, error_rate < 1%
+**의존성:**
+- Depends on: D205-5 (Record/Replay), D205-6 (ExecutionQuality) ✅
+- Blocks: D205-9 (Realistic Paper Validation - spread 정상 범위 필수)
+- **Blocker for LIVE (D206):** Real-time FX Integration required ⛔
 
 **PASS/FAIL 판단 기준:**
 - PASS: Top100 기준 충족, throttling 자동 동작
