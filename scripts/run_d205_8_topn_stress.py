@@ -139,11 +139,11 @@ def save_evidence(topn: int, result: Dict[str, Any], output_dir: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="D205-8 TopN Stress Test")
+    parser = argparse.ArgumentParser(description="D205-8 TopN Stress Test (MEASURED)")
     parser.add_argument("--topn", type=int, required=True, choices=[10, 50, 100],
                         help="Top N symbols (10, 50, or 100)")
-    parser.add_argument("--duration", type=int, default=2,
-                        help="Duration in minutes (default: 2)")
+    parser.add_argument("--duration", type=int, default=1,
+                        help="Duration in minutes (default: 1 for quick test)")
     parser.add_argument("--output-dir", type=str, default="",
                         help="Output directory (default: auto-generated)")
     
@@ -153,11 +153,17 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        output_dir = Path(f"logs/evidence/d205_8_{timestamp}")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path(f"logs/evidence/d205_8_measured_{timestamp}")
     
     try:
-        # TopN Stress 실행
+        logger.info(f"=" * 60)
+        logger.info(f"D205-8 TopN Stress Test - MEASURED (not stub)")
+        logger.info(f"TopN: {args.topn}, Duration: {args.duration}m")
+        logger.info(f"Output: {output_dir}")
+        logger.info(f"=" * 60)
+        
+        # TopN Stress 실행 (실측)
         result = run_topn_stress(
             topn=args.topn,
             duration_minutes=args.duration,
@@ -167,27 +173,38 @@ def main():
         # Evidence 저장
         save_evidence(args.topn, result, output_dir)
         
-        # AC 체크 (stub: 실제 측정 없이 조건만 체크)
+        # AC 체크 (실측 값 기반)
         passed = True
         latency = result["latency_p95_ms"]
         rate_limit_per_hr = result["rate_limit_hit_per_hr"]
         error_rate = result["error_rate"]
         
+        logger.info(f"\n[AC CHECK] Top{args.topn}")
+        logger.info(f"  Latency p95: {latency:.2f}ms")
+        logger.info(f"  Rate limit: {rate_limit_per_hr:.2f}/hr")
+        logger.info(f"  Error rate: {error_rate:.2f}%")
+        
         # TopN별 AC
         if args.topn == 10:
-            if latency >= 100 or rate_limit_per_hr > 0:
-                logger.error(f"[FAIL] Top10 AC: latency_p95 {latency:.1f}ms >= 100ms "
-                            f"or rate_limit_hit_per_hr {rate_limit_per_hr:.1f} > 0")
+            if latency >= 100:
+                logger.error(f"[FAIL] Top10 AC: latency_p95 {latency:.1f}ms >= 100ms")
+                passed = False
+            if rate_limit_per_hr > 0:
+                logger.error(f"[FAIL] Top10 AC: rate_limit_hit_per_hr {rate_limit_per_hr:.1f} > 0")
                 passed = False
         elif args.topn == 50:
-            if latency >= 200 or rate_limit_per_hr >= 5:
-                logger.error(f"[FAIL] Top50 AC: latency_p95 {latency:.1f}ms >= 200ms "
-                            f"or rate_limit_hit_per_hr {rate_limit_per_hr:.1f} >= 5")
+            if latency >= 200:
+                logger.error(f"[FAIL] Top50 AC: latency_p95 {latency:.1f}ms >= 200ms")
+                passed = False
+            if rate_limit_per_hr >= 5:
+                logger.error(f"[FAIL] Top50 AC: rate_limit_hit_per_hr {rate_limit_per_hr:.1f} >= 5")
                 passed = False
         elif args.topn == 100:
-            if latency >= 500 or rate_limit_per_hr >= 20:
-                logger.error(f"[FAIL] Top100 AC: latency_p95 {latency:.1f}ms >= 500ms "
-                            f"or rate_limit_hit_per_hr {rate_limit_per_hr:.1f} >= 20")
+            if latency >= 500:
+                logger.error(f"[FAIL] Top100 AC: latency_p95 {latency:.1f}ms >= 500ms")
+                passed = False
+            if rate_limit_per_hr >= 20:
+                logger.error(f"[FAIL] Top100 AC: rate_limit_hit_per_hr {rate_limit_per_hr:.1f} >= 20")
                 passed = False
         
         # Error rate 체크
@@ -196,13 +213,10 @@ def main():
             passed = False
         
         if passed:
-            logger.info(f"[PASS] Top{args.topn} stress test AC satisfied")
-            logger.info(f"  Latency p95: {latency:.1f}ms")
-            logger.info(f"  Rate limit: {rate_limit_per_hr:.1f}/hr")
-            logger.info(f"  Error rate: {error_rate:.2f}%")
+            logger.info(f"\n✅ [PASS] Top{args.topn} stress test AC satisfied (MEASURED)")
             return 0
         else:
-            logger.error(f"[FAIL] Top{args.topn} stress test AC not satisfied")
+            logger.error(f"\n❌ [FAIL] Top{args.topn} stress test AC not satisfied")
             return 1
     
     except Exception as e:

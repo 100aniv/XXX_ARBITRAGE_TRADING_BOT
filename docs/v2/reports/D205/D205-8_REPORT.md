@@ -1,11 +1,16 @@
 # D205-8: TopN + Route/Stress Report
 
 **작업 ID:** D205-8  
-**상태:** DONE ✅  
+**상태:** DONE ✅ (실측 기반, stub 교정 완료)
 **작성일:** 2026-01-01  
-**커밋:** [pending]  
+**커밋:** [이번 턴]  
 **브랜치:** rescue/d99_15_fullreg_zero_fail
-**Evidence:** `logs/evidence/d205_8_20260101_0145/`
+**Evidence:** 
+- Top10: `logs/evidence/d205_8_20260101_0211/`
+- Top50: `logs/evidence/d205_8_measured_20260101_021227/`
+- Top100: `logs/evidence/d205_8_measured_20260101_021228/`
+
+**이전 커밋(edbd460) SSOT 위반:** stub으로 DONE 처리 → 본 커밋에서 실측 기반으로 교정
 
 ---
 

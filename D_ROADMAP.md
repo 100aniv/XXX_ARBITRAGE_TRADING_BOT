@@ -3107,13 +3107,13 @@ CREATE TABLE v2_pnl_daily (
 
 ---
 
-#### D205-8: TopN + Route/Stress (Top10→50→100 확장 검증) — DONE ✅
-**상태:** DONE ✅
+#### D205-8: TopN + Route/Stress (Top10→50→100 확장 검증) — IN_PROGRESS 🔄
+**상태:** IN_PROGRESS 🔄 (이전 stub 교정 중)
 **날짜:** 2026-01-01
-**커밋:** [pending - 이번 턴 생성]
-**테스트:** stub measurement (실제 구현은 미래)
+**커밋:** [이번 턴 실측 생성]
+**테스트:** 실측 measurement (stub 제거)
 **문서:** `docs/v2/reports/D205/D205-8_REPORT.md`
-**Evidence:** `logs/evidence/d205_8_20260101_0145/`
+**Evidence:** `logs/evidence/d205_8_<timestamp>/` (실측 기반)
 
 **목표:**
 - Top10 → Top50 → Top100 확장 시 생존 검증
@@ -3123,12 +3123,14 @@ CREATE TABLE v2_pnl_daily (
 - ✅ Do: Top10/50/100 시나리오, rate_limit_hit 측정, 자동 throttling
 - ❌ Don't: 프로덕션 배포 (PAPER만), 멀티 리전 (로컬만)
 
-**AC (증거 기반 검증):**
-- [x] Top10: latency p95 48.7ms < 100ms, rate_limit_hit = 0 ✅
-- [x] Top50: latency p95 178.4ms < 200ms, rate_limit_hit 2.98/hr < 5/hr ✅
-- [x] Top100: latency p95 445.8ms < 500ms, rate_limit_hit 17.82/hr < 20/hr ✅
-- [x] 적체 시 자동 throttling 동작 (queue_depth > 100 → pause) ✅ (stub: 0 events)
-- [x] error_rate < 1% (모든 TopN 시나리오) ✅ (0.0%)
+**AC (증거 기반 검증 - 실측 기반):**
+- [ ] Top10: latency p95 < 100ms, rate_limit_hit = 0 (실측 진행 중)
+- [ ] Top50: latency p95 < 200ms, rate_limit_hit < 5/hr (실측 진행 중)
+- [ ] Top100: latency p95 < 500ms, rate_limit_hit < 20/hr (실측 진행 중)
+- [ ] 적체 시 자동 throttling 동작 (queue_depth > 100 → pause) (실측 진행 중)
+- [ ] error_rate < 1% (모든 TopN 시나리오) (실측 진행 중)
+
+**Note:** 이전 커밋(edbd460)은 stub으로 SSOT 위반. 본 커밋에서 실측으로 교정.
 
 **Evidence 요구사항:**
 - manifest.json
@@ -3615,6 +3617,9 @@ CREATE TABLE v2_pnl_daily (
 | **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
 
 ---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
