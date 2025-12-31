@@ -20,6 +20,12 @@ from arbitrage.v2.opportunity.detector import detect_candidates
 from arbitrage.v2.domain.break_even import BreakEvenParams, compute_break_even_bps
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
 from arbitrage.v2.execution_quality.model_v1 import SimpleExecutionQualityModel
+from arbitrage.v2.core.quote_normalizer import (
+    normalize_price_to_krw,
+    is_units_mismatch,
+    get_quote_mode,
+    DEFAULT_FX_KRW_PER_USDT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +43,20 @@ class ReplayRunner:
         input_path: Path,
         output_dir: Path,
         break_even_params: BreakEvenParams,
+        fx_krw_per_usdt: float = DEFAULT_FX_KRW_PER_USDT,
     ):
         """
         Args:
             input_path: market.ndjson 파일 경로
             output_dir: decisions.ndjson 출력 디렉토리
             break_even_params: 손익분기 파라미터
+            fx_krw_per_usdt: KRW/USDT 환율 (기본값: DEFAULT_FX_KRW_PER_USDT)
         """
         self.input_path = input_path
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.break_even_params = break_even_params
+        self.fx_krw_per_usdt = fx_krw_per_usdt
         
         self.decisions_path = output_dir / "decisions.ndjson"
         self.manifest_path = output_dir / "manifest.json"
@@ -57,6 +66,10 @@ class ReplayRunner:
         
         # D205-7: ExecutionQuality model 초기화
         self.exec_quality_model = SimpleExecutionQualityModel()
+        
+        # D205-4: DecisionTrace 초기화
+        from arbitrage.v2.core.decision_trace import DecisionTrace
+        self.trace = DecisionTrace()
         
         logger.info(f"[D205-5_REPLAY] Initialized: input={input_path}, output={output_dir}")
     
@@ -160,6 +173,20 @@ class ReplayRunner:
                 latency_ms = replay_end_ms - replay_start_ms
                 
                 if candidate:
+                    # D205-8: SanityGuard - units_mismatch 감지
+                    gate_reasons_list = []
+                    units_mismatch_detected = is_units_mismatch(candidate.spread_bps, candidate.edge_bps)
+                    
+                    if units_mismatch_detected:
+                        gate_reasons_list.append("units_mismatch")
+                        self.trace.gate_units_mismatch_count += 1
+                        # DROP 처리: profitable False로 변경
+                        candidate.profitable = False
+                        logger.warning(
+                            f"[D205-8_SANITY] Units mismatch detected: "
+                            f"spread_bps={candidate.spread_bps:.2f}, edge_bps={candidate.edge_bps:.2f}"
+                        )
+                    
                     # D205-7: ExecutionQuality 실전 주입 (실제 계산)
                     exec_cost_breakdown = self.exec_quality_model.compute_execution_cost(
                         edge_bps=candidate.edge_bps,
@@ -171,12 +198,14 @@ class ReplayRunner:
                     )
                     
                     # Fallback 처리: size 없으면 fallback 태그
-                    gate_reasons_with_fallback = []
                     if (tick.upbit_bid_size is None and tick.upbit_ask_size is None and
                         tick.binance_bid_size is None and tick.binance_ask_size is None):
-                        gate_reasons_with_fallback.append("exec_quality_fallback")
+                        gate_reasons_list.append("exec_quality_fallback")
                     
-                    # 의사결정 기록 (D205-7: execution quality 실제 값 포함)
+                    # D205-8: Quote mode 계산
+                    quote_mode = get_quote_mode("upbit", "binance", self.fx_krw_per_usdt)
+                    
+                    # 의사결정 기록 (D205-7: execution quality + D205-8: quote normalization)
                     decision = DecisionRecord(
                         timestamp=tick.timestamp,
                         symbol=tick.symbol,
@@ -184,11 +213,14 @@ class ReplayRunner:
                         break_even_bps=compute_break_even_bps(self.break_even_params),
                         edge_bps=candidate.edge_bps,
                         profitable=candidate.profitable,
-                        gate_reasons=gate_reasons_with_fallback,
+                        gate_reasons=gate_reasons_list,
                         latency_ms=latency_ms,
                         exec_cost_bps=exec_cost_breakdown.total_exec_cost_bps,
                         net_edge_after_exec_bps=exec_cost_breakdown.net_edge_after_exec_bps,
                         exec_model_version=exec_cost_breakdown.exec_model_version,
+                        fx_krw_per_usdt_used=self.fx_krw_per_usdt,
+                        quote_mode=quote_mode,
+                        units_mismatch_warning=units_mismatch_detected,
                     )
                     
                     self.decisions.append(decision)

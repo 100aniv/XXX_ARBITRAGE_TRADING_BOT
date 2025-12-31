@@ -44,13 +44,15 @@ class RecordReplayRunner:
         sample_interval_sec: float = 2.0,
         output_dir: Path = None,
         input_file: Path = None,
+        fx_krw_per_usdt: float = 1450.0,
     ):
         self.mode = mode
         self.symbols = symbols
         self.duration_sec = duration_sec
         self.sample_interval_sec = sample_interval_sec
-        self.output_dir = output_dir or Path(f"logs/evidence/d205_5_record_replay_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        self.output_dir = Path(output_dir) if output_dir else Path(f"logs/evidence/d205_5_record_replay_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         self.input_file = input_file
+        self.fx_krw_per_usdt = fx_krw_per_usdt
         
         # Providers (record 모드용)
         self.upbit_rest = UpbitRestProvider()
@@ -159,6 +161,7 @@ class RecordReplayRunner:
             input_path=self.input_file,
             output_dir=self.output_dir,
             break_even_params=self.break_even_params,
+            fx_krw_per_usdt=self.fx_krw_per_usdt,
         )
         
         result = replay_runner.run()
@@ -244,7 +247,6 @@ def main():
         sample_interval_sec=args.sample_interval_sec,
         output_dir=args.out_evidence_dir,
         input_file=args.input_file,
-        fx_krw_per_usdt=args.fx_krw_per_usdt,
     )
     
     asyncio.run(runner.run())

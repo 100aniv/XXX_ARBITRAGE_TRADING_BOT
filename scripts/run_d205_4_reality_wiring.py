@@ -386,6 +386,18 @@ def main():
         help="Sampling interval in seconds (default: 5.0)",
     )
     parser.add_argument(
+        "--out-evidence-dir",
+        type=str,
+        default=None,
+        help="Output evidence directory (default: logs/evidence/d205_4_reality_wiring_<timestamp>)",
+    )
+    parser.add_argument(
+        "--fx-krw-per-usdt",
+        type=float,
+        default=1450.0,
+        help="FX rate USDT → KRW (D205-8, default: 1450.0)",
+    )
+    parser.add_argument(
         "--env",
         default="test",
         help="Environment (default: test)",
