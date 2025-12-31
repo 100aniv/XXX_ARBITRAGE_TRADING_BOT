@@ -104,9 +104,19 @@
 
 **역할:**
 - V2 전용 DB 스키마 정의
-- 테이블: v2_orders, v2_trades, v2_fills, v2_ledger, v2_pnl_daily 등
-- Index, Constraint, Trigger
+- **SSOT 테이블 (5개):**
+  - `v2_orders`: 주문 기록 (Paper/LIVE 모두)
+  - `v2_fills`: 체결 기록 (1 order → N fills)
+  - `v2_trades`: 차익거래 기록 (Entry → Exit)
+  - `v2_ledger`: 원장 기록 (집계용)
+  - `v2_pnl_daily`: 일별 PnL 집계 (리포팅용)
+- Index, Constraint, View
 - Migration 이력 관리
+
+**SSOT 정의:**
+- 주문/체결/거래/PnL의 **유일 원천**은 v2_schema.sql이 정의한 테이블
+- 다른 저장소(파일, Redis)는 캐시일 뿐, DB가 진실
+- 코드에서 직접 CREATE TABLE 실행 절대 금지
 
 **금지 사항:**
 - ❌ v2_schema_v2.sql, v2_schema_prod.sql 등 분기 금지
@@ -124,8 +134,8 @@
 - Rollback script 필수 포함
 
 **현재 상태:**
-- ⏳ D200-1에서 skeleton 생성 예정 (이번 턴)
-- 🔄 D204-1에서 본격 구현 (orders/fills/trades)
+- ✅ D200-1에서 v2_schema.sql 생성 완료 (265 lines, 5개 테이블)
+- 🔄 D204-1에서 본격 활용 (orders/fills/trades CRUD)
 
 ---
 
