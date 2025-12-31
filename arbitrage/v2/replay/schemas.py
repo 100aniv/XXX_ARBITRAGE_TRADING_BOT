@@ -37,6 +37,8 @@ class MarketTick:
     upbit_ask_size: Optional[float] = None
     binance_bid_size: Optional[float] = None
     binance_ask_size: Optional[float] = None
+    upbit_quote: Optional[str] = "KRW"  # D205-8: Quote currency (기본값 KRW)
+    binance_quote: Optional[str] = "USDT"  # D205-8: Quote currency (기본값 USDT)
     
     def to_dict(self):
         """딕셔너리 변환"""
@@ -77,6 +79,9 @@ class DecisionRecord:
     exec_cost_bps: Optional[float] = None
     net_edge_after_exec_bps: Optional[float] = None
     exec_model_version: Optional[str] = None
+    fx_krw_per_usdt_used: Optional[float] = None  # D205-8: 사용한 FX rate
+    quote_mode: Optional[str] = None  # D205-8: Quote mode (예: "KRW", "USDT->KRW@1450.0")
+    units_mismatch_warning: bool = False  # D205-8: 단위 불일치 경고
     
     def to_dict(self):
         """딕셔너리 변환"""

@@ -6,17 +6,23 @@ D203-2: Opportunity Detector v1
 Reuse-First:
 - SpreadModel 로직 참조 (V1: arbitrage/cross_exchange/spread_model.py)
 - BreakEvenParams 재사용 (D203-1)
+
+D205-8: Quote Normalization 통합
+- KRW/USDT 단위 정규화 후 spread/edge 계산
 """
 
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
+import logging
 
 from arbitrage.v2.domain.break_even import (
     BreakEvenParams,
     compute_break_even_bps,
     compute_edge_bps,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpportunityDirection(str, Enum):
@@ -70,8 +76,8 @@ def detect_candidates(
         symbol: 심볼 (예: "BTC/KRW")
         exchange_a: 거래소 A 이름 (예: "upbit")
         exchange_b: 거래소 B 이름 (예: "binance")
-        price_a: 거래소 A 가격 (normalized)
-        price_b: 거래소 B 가격 (normalized)
+        price_a: 거래소 A 가격 (D205-8: 반드시 KRW로 정규화된 값)
+        price_b: 거래소 B 가격 (D205-8: 반드시 KRW로 정규화된 값)
         params: BreakEvenParams
         
     Returns:
@@ -83,6 +89,10 @@ def detect_candidates(
         3. Edge 계산 (bps)
         4. Direction 판단
         5. Profitable 여부 확인
+    
+    Note (D205-8):
+        price_a, price_b는 호출 전에 반드시 동일 통화(KRW)로 정규화되어야 함.
+        정규화는 replay_runner 또는 engine에서 quote_normalizer 사용.
     """
     # Validation
     if price_a <= 0 or price_b <= 0:

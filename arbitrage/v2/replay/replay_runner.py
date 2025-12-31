@@ -139,13 +139,20 @@ class ReplayRunner:
             try:
                 replay_start_ms = time.time() * 1000
                 
-                # Opportunity detection (upbit_bid vs binance_ask)
+                # D205-8: Quote Normalization (USDT → KRW)
+                upbit_quote = getattr(tick, 'upbit_quote', 'KRW')
+                binance_quote = getattr(tick, 'binance_quote', 'USDT')
+                
+                price_a_krw = normalize_price_to_krw(tick.upbit_bid, upbit_quote, self.fx_krw_per_usdt)
+                price_b_krw = normalize_price_to_krw(tick.binance_ask, binance_quote, self.fx_krw_per_usdt)
+                
+                # Opportunity detection (정규화된 KRW 가격으로 비교)
                 candidate = detect_candidates(
                     symbol=tick.symbol,
                     exchange_a="upbit",
                     exchange_b="binance",
-                    price_a=tick.upbit_bid,
-                    price_b=tick.binance_ask,
+                    price_a=price_a_krw,
+                    price_b=price_b_krw,
                     params=self.break_even_params,
                 )
                 

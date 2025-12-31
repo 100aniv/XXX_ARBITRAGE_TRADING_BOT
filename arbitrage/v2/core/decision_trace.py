@@ -92,6 +92,7 @@ class DecisionTrace:
     gate_liquidity_insufficient_count: int = 0
     gate_cooldown_count: int = 0
     gate_ratelimit_count: int = 0
+    gate_units_mismatch_count: int = 0  # D205-8: 단위 불일치 경고 카운트
     edge_after_cost_distribution: Dict[str, int] = field(default_factory=lambda: {
         "negative": 0,  # edge < 0
         "zero_to_10": 0,  # 0 <= edge < 10
@@ -149,6 +150,7 @@ class DecisionTrace:
                 "liquidity_insufficient": self.gate_liquidity_insufficient_count,
                 "cooldown": self.gate_cooldown_count,
                 "ratelimit": self.gate_ratelimit_count,
+                "units_mismatch": self.gate_units_mismatch_count,
             },
             "edge_after_cost_distribution": self.edge_after_cost_distribution,
             "is_optimistic_warning": self.is_optimistic_warning,

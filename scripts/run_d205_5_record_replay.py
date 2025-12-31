@@ -210,9 +210,15 @@ def main():
     )
     parser.add_argument(
         "--out-evidence-dir",
-        type=Path,
+        type=str,
         default=None,
-        help="Output evidence directory",
+        help="Output evidence directory (default: logs/evidence/d205_5_<mode>_<timestamp>)",
+    )
+    parser.add_argument(
+        "--fx-krw-per-usdt",
+        type=float,
+        default=1450.0,
+        help="FX rate USDT → KRW (D205-8, default: 1450.0)",
     )
     parser.add_argument(
         "--input-file",
@@ -238,6 +244,7 @@ def main():
         sample_interval_sec=args.sample_interval_sec,
         output_dir=args.out_evidence_dir,
         input_file=args.input_file,
+        fx_krw_per_usdt=args.fx_krw_per_usdt,
     )
     
     asyncio.run(runner.run())
