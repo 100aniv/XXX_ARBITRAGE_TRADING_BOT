@@ -77,7 +77,8 @@ ExecutionQuality v1 파라미터 튜닝 (Grid Search) + 로직 결함 수정
 - [x] ReplayRunner 실전 주입 (exec_quality_model 초기화 + 계산)
 - [x] DecisionRecord에 실제 값 저장 (exec_cost_bps, net_edge_after_exec_bps)
 - [x] Parameter Sweep 엔진 구현 (sweep.py)
-- [x] Grid Search 동작 검증 (8 combinations)
+- [x] Grid Search: **125 combinations** (5×5×5, AC 100+ 충족)
+- Evidence: `logs/evidence/d205_7_sweep_100plus_20251231_154749/`
 - [x] Leaderboard/best_params/manifest 생성
 - [x] Metrics 계산 (positive_net_edge_rate, mean, p10)
 - [x] Gate Fast PASS (138/138)

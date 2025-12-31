@@ -3002,11 +3002,11 @@ CREATE TABLE v2_pnl_daily (
 - ❌ Don't: 압축/최적화 (기본 NDJSON만), 분산 리플레이 (단일 프로세스만)
 
 **AC (증거 기반 검증):**
-- [ ] NDJSON 포맷 SSOT 정의 (`docs/v2/design/REPLAY_FORMAT.md`)
-- [ ] market.ndjson 기록 (tick/orderbook 데이터)
-- [ ] decisions.ndjson 기록 (detector output)
-- [ ] 리플레이 엔진: 동일 market.ndjson → 동일 decisions.ndjson 검증
-- [ ] 회귀 테스트 자동화 (replay → diff → PASS/FAIL)
+- [x] NDJSON 포맷 SSOT 정의 (`arbitrage/v2/replay/schemas.py`)
+- [x] market.ndjson 기록 (10 ticks, Evidence: d205_5_record_replay_20251231_022642)
+- [x] decisions.ndjson 기록 (10 decisions, Evidence: d205_5_replay_20251231_154604)
+- [x] 리플레이 엔진: 동일 market.ndjson → 동일 decisions.ndjson (input_hash: 2bf4999c85db1574)
+- [x] 회귀 테스트 자동화 (tests/test_d205_5_record_replay.py 12/12 PASS)
 
 **Evidence 요구사항:**
 - manifest.json
@@ -3104,12 +3104,12 @@ CREATE TABLE v2_pnl_daily (
 - [x] ReplayRunner ExecutionQuality 실전 주입
 - [x] DecisionRecord에 실제 값 저장
 - [x] Parameter Sweep 엔진 구현 (sweep.py)
-- [x] Grid Search 8 combinations
+- [x] **Grid Search 125 combinations** (AC 100+ 충족, Evidence: d205_7_sweep_100plus_20251231_154749)
 - [x] Leaderboard/best_params/manifest 생성
 - [x] Metrics 계산 (positive_net_edge_rate, mean, p10)
-- [x] Gate Fast 138/138 PASS
+- [x] Gate Fast 140/140 PASS
 - [x] Inverse Logic Check 테스트 추가
-- [x] Best params 선정: slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.2
+- [x] Best params 선정: slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.15
 
 **Evidence 요구사항:**
 - manifest.json
@@ -3248,9 +3248,9 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+**상태:** IN PROGRESS 🚧 (스크립트 준비 완료, 실행 대기)
+**커밋:** 5181cbc (script + report)
+**테스트:** [pending - 20m/1h/3h 실행 필요]
 **문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
 **Evidence:** `logs/evidence/d205_9_<timestamp>/`
 

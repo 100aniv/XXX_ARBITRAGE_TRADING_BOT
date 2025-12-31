@@ -1,13 +1,19 @@
-# D205-8: Quote Normalization v1 — KRW/USDT Units Fix + SanityGuard
+# D205-8: TopN + Route/Stress (Top10→50→100 확장 검증) — PLANNED
 
-**작성일:** 2025-12-31
+**작업 ID:** D205-8  
+**상태:** PLANNED ⏳ (Prerequisites: D205-8-1 ✅, D205-8-2 ✅)  
+**작성일:** 2025-12-31 (업데이트)  
+**브랜치:** rescue/d99_15_fullreg_zero_fail
 
-## Status
+---
 
-**Current:** DONE ✅  
-**Last Updated:** 2025-12-31 12:00 KST  
-**Commit:** a27d275 (initial), c9e8f6a (SSOT recovery)  
-**Branch:** rescue/d99_15_fullreg_zero_fail
+## D205-8-1: Quote Normalization v1 + SanityGuard — DONE 
+
+**작업 ID:** D205-8-1 (D205-8 Prerequisite)  
+**상태:** DONE   
+**작성일:** 2025-12-31  
+**커밋:** a27d275 (initial) + dd61f84 (SSOT recovery)  
+**브랜치:** rescue/d99_15_fullreg_zero_fail
 
 ## 목표
 
