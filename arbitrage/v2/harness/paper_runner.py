@@ -46,6 +46,8 @@ from arbitrage.v2.utils.timestamp import to_utc_naive, now_utc_naive
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
 from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
+from arbitrage.redis_client import RedisClient
+from arbitrage.infrastructure.rate_limiter import TokenBucketRateLimiter, RateLimitConfig
 
 import uuid
 
@@ -151,6 +153,11 @@ class KPICollector:
     real_ticks_ok_count: int = 0
     real_ticks_fail_count: int = 0
     
+    # D205-9 RECOVERY: Redis 지표
+    redis_ok: bool = False
+    ratelimit_hits: int = 0
+    dedup_hits: int = 0
+    
     def to_dict(self) -> Dict[str, Any]:
         """KPI를 dict로 변환"""
         duration_seconds = time.time() - self.start_time
@@ -183,6 +190,10 @@ class KPICollector:
             "binance_marketdata_ok": self.binance_marketdata_ok,
             "real_ticks_ok_count": self.real_ticks_ok_count,
             "real_ticks_fail_count": self.real_ticks_fail_count,
+            # D205-9 RECOVERY: Redis 지표
+            "redis_ok": self.redis_ok,
+            "ratelimit_hits": self.ratelimit_hits,
+            "dedup_hits": self.dedup_hits,
         }
         
         # 시스템 메트릭 (psutil 있으면)
@@ -285,6 +296,37 @@ class PaperRunner:
         
         # D205-2 REOPEN: trade tracking (opportunity 단위)
         self.open_trades: Dict[str, Dict[str, Any]] = {}  # trade_id -> {entry_*, candidate, orders_executed}
+        
+        # D205-9 RECOVERY: Redis REQUIRED (SSOT_DATA_ARCHITECTURE 준수)
+        logger.info("[D205-9 RECOVERY] Initializing Redis (REQUIRED for Paper/Live)")
+        redis_config = {
+            "enabled": True,
+            "url": "redis://localhost:6379/0",
+            "prefix": f"v2:{config.run_id}",
+            "health_ttl_seconds": 60,
+        }
+        try:
+            self.redis = RedisClient(redis_config)
+            if not self.redis.available:
+                raise RuntimeError("Redis connection failed (REQUIRED)")
+            self.kpi.redis_ok = True
+            logger.info(f"[D205-9 RECOVERY] ✅ Redis initialized: {redis_config['url']}")
+        except Exception as e:
+            logger.error(f"[D205-9 RECOVERY] ❌ CRITICAL: Redis init failed: {e}")
+            raise RuntimeError(f"Redis REQUIRED for Paper mode (SSOT violation): {e}")
+        
+        # D205-9 RECOVERY: RateLimit (Upbit/Binance)
+        self.rate_limiter_upbit = TokenBucketRateLimiter(
+            RateLimitConfig(max_requests=10, window_seconds=1.0, burst_allowance=5)
+        )
+        self.rate_limiter_binance = TokenBucketRateLimiter(
+            RateLimitConfig(max_requests=20, window_seconds=1.0, burst_allowance=10)
+        )
+        logger.info("[D205-9 RECOVERY] ✅ RateLimit initialized (Upbit: 10req/s, Binance: 20req/s)")
+        
+        # D205-9 RECOVERY: Dedup tracking
+        self.dedup_hits = 0
+        logger.info("[D205-9 RECOVERY] ✅ Dedup tracking initialized")
         
         # V2 Storage (PostgreSQL) - D204-2 REOPEN: strict mode
         if config.db_mode == "off":
@@ -474,11 +516,27 @@ class PaperRunner:
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
+            # D205-9 RECOVERY: RateLimit 체크 (Upbit)
+            if not self.rate_limiter_upbit.consume(weight=1):
+                self.kpi.ratelimit_hits += 1
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9 RECOVERY] ⚠️ Upbit RateLimit exceeded")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
             # Real 시세 조회 (Upbit BTC/KRW)
             ticker_upbit = self.upbit_provider.get_ticker("BTC/KRW")
             if not ticker_upbit or ticker_upbit.last <= 0:
                 if iteration % 10 == 1:  # spam 방지
                     logger.warning(f"[D205-9] ❌ Upbit ticker fetch failed")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # D205-9 RECOVERY: RateLimit 체크 (Binance)
+            if not self.rate_limiter_binance.consume(weight=1):
+                self.kpi.ratelimit_hits += 1
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9 RECOVERY] ⚠️ Binance RateLimit exceeded")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
@@ -510,15 +568,9 @@ class PaperRunner:
             fx_rate = 1300.0
             binance_krw = ticker_binance.last * fx_rate
             
-            # Real spread 계산
+            # Real spread 사용 (인위 조작 제거)
             price_a = ticker_upbit.last
             price_b = binance_krw
-            
-            # Real spread가 너무 작으면 인위적으로 1.0%~1.9% 추가 (시뮬레이션)
-            # NOTE: fee(50bps) + slippage(5bps) = 55bps 비용 고려, 100bps+ spread 필요
-            spread_pct = 0.01 + (iteration % 10) * 0.001  # 1.0%~1.9%
-            price_a = binance_krw * (1 + spread_pct / 2)
-            price_b = binance_krw * (1 - spread_pct / 2)
             
             candidate = build_candidate(
                 symbol="BTC/KRW",
@@ -886,10 +938,20 @@ class PaperRunner:
             
             total_fee = entry_fee + exit_fee
             
-            # realized_pnl 계산 (간단 버전: candidate spread 활용)
-            # spread_bps를 realized_pnl로 변환
+            # D205-9 RECOVERY: 슬리피지 비용 (실전 동형성)
+            # 현실적 슬리피지: 15 bps (0.15%) - 호가 스프레드 + 부분 체결
+            slippage_bps = 15.0
+            slippage_cost = entry_qty * entry_price * slippage_bps / 10000.0
+            
+            # D205-9 RECOVERY: 레이턴시 비용 (2-leg 타이밍 차이)
+            # 현실적 레이턴시: 10 bps (0.1%) - 1-2초 delay 시 가격 변동
+            latency_cost_bps = 10.0
+            latency_cost = entry_qty * entry_price * latency_cost_bps / 10000.0
+            
+            # realized_pnl 계산 (Real Cost Model)
             spread_value = candidate.spread_bps * entry_price * entry_qty / 10000.0
-            realized_pnl = spread_value - total_fee
+            total_cost = total_fee + slippage_cost + latency_cost
+            realized_pnl = spread_value - total_cost
             
             # DB 기록 (storage 있을 때만)
             if self.storage:
