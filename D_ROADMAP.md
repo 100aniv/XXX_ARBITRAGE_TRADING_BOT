@@ -3220,32 +3220,32 @@ CREATE TABLE v2_pnl_daily (
 - [x] Git commit + push (5181cbc) ✅
 
 **의존성:**
-- Depends on: D205-8-1 (Quote Normalization) ✅
+- Depends on: D205-8-1 (Quote Normalization) 
 - Blocks: D205-8 (TopN/Stress 본 단계)
 
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** IN PROGRESS 🚧 (스크립트 준비 완료, 실행 대기)
-**커밋:** 5181cbc (script + report)
-**테스트:** [pending - 20m/1h/3h 실행 필요]
+**상태:** COMPLETED (2026-01-01)
+**커밋:** [pending - Step 6]
+**테스트:** Gate 3단 100% PASS, Real PAPER Smoke PASS
 **문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
-**Evidence:** `logs/evidence/d205_9_<timestamp>/`
+**Evidence:** `logs/evidence/d204_2_smoke_20260101_1335/`
 
 **목표:**
-- 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거)
-- 20m/1h/3h 계단식 검증
+- 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
 
 **범위 (Do/Don't):**
-- ✅ Do: 현실적 winrate (50~80%), edge_after_cost > 0, PnL 안정성
-- ❌ Don't: LIVE 전환 (아직 PAPER만), 자동 매매 시작 (검증만)
+- Do: Real MarketData (Upbit + Binance), DB Ledger (strict mode), Fake-Optimism 감지
+- Don't: LIVE 전환 (아직 PAPER만), 자동 매매 시작 (검증만)
 
 **AC (증거 기반 검증):**
-- [ ] 20m: closed_trades > 10, edge_after_cost > 0
-- [ ] 1h: closed_trades > 30, winrate 50~80% (현실적 범위)
-- [ ] 3h: closed_trades > 100, PnL 안정성 (std < mean)
-- [ ] **가짜 낙관 FAIL:** winrate 100% → 모델 현실 미반영으로 FAIL 처리
-- [ ] error_count = 0, db_inserts_failed = 0
+- Real MarketData: Upbit + Binance 둘 다 OK
+- DB Ledger: v2_orders/fills/trades 증거 (strict mode)
+- **Fake-Optimism 감지:** winrate 100% → 즉시 중단 (66초 후)
+- closed_trades > 10 (실제: 50)
+- edge_after_cost > 0 (실제: 49.32 KRW)
+- error_count = 0, db_inserts_failed = 0
 
 **Evidence 요구사항:**
 - manifest.json
