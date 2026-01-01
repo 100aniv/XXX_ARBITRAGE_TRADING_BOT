@@ -233,18 +233,20 @@ class TestBreakEvenParams:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
+        # D205-9-2 FIX:
         # fee_entry = 5 + 10 = 15
         # fee_exit = 5 + 10 = 15
-        # slippage = 10
+        # exec_risk_round_trip = 2 * (10 + 0) = 20
         # buffer = 5
-        # → break_even = 15 + 15 + 10 + 5 = 45 bps
+        # → break_even = 15 + 15 + 20 + 5 = 55 bps
         from arbitrage.v2.domain.break_even import compute_break_even_bps
         
         break_even = compute_break_even_bps(params)
-        assert break_even == 45.0
+        assert break_even == 55.0
 
 
 class TestRealityWiringIntegration:

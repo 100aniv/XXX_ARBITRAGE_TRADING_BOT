@@ -366,10 +366,12 @@ class PaperRunner:
         )
         fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
         
+        # Break-even params (D205-9-1: latency_bps 추가)
         self.break_even_params = BreakEvenParams(
             fee_model=fee_model,
-            slippage_bps=5.0,
-            buffer_bps=0.0,
+            slippage_bps=15.0,   # 15 bps (0.15%) - D205-9 RECOVERY 현실화
+            latency_bps=10.0,    # 10 bps (0.1%) - D205-9-1 추가
+            buffer_bps=5.0,      # 5 bps safety buffer
         )
         
         logger.info(f"[D204-2] PaperRunner initialized")
@@ -912,7 +914,19 @@ class PaperRunner:
             # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
             order_id = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_entry"
             entry_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
-            entry_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
+            entry_base_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
+            
+            # D205-9-1: Execution-Risk Fill Model (가격 왜곡)
+            # BUY: 슬리피지+레이턴시로 인해 더 비싸게 체결
+            # SELL: 슬리피지+레이턴시로 인해 더 싸게 체결
+            slippage_bps = self.break_even_params.slippage_bps
+            latency_bps = self.break_even_params.latency_bps
+            execution_risk_bps = slippage_bps + latency_bps
+            
+            if entry_intent.side.value.upper() == "BUY":
+                entry_price = entry_base_price * (1 + execution_risk_bps / 10000.0)
+            else:  # SELL
+                entry_price = entry_base_price * (1 - execution_risk_bps / 10000.0)
             
             # Entry fee
             if entry_intent.exchange == "upbit":
@@ -926,7 +940,13 @@ class PaperRunner:
             # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
             order_id_exit = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_exit"
             exit_qty = exit_result.filled_qty or exit_intent.base_qty or 0.01
-            exit_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
+            exit_base_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
+            
+            # D205-9-1: Execution-Risk Fill Model (가격 왜곡)
+            if exit_intent.side.value.upper() == "BUY":
+                exit_price = exit_base_price * (1 + execution_risk_bps / 10000.0)
+            else:  # SELL
+                exit_price = exit_base_price * (1 - execution_risk_bps / 10000.0)
             
             # Exit fee
             if exit_intent.exchange == "upbit":
@@ -938,20 +958,23 @@ class PaperRunner:
             
             total_fee = entry_fee + exit_fee
             
-            # D205-9 RECOVERY: 슬리피지 비용 (실전 동형성)
-            # 현실적 슬리피지: 15 bps (0.15%) - 호가 스프레드 + 부분 체결
-            slippage_bps = 15.0
-            slippage_cost = entry_qty * entry_price * slippage_bps / 10000.0
+            # D205-9-1: realized_pnl 계산 (Arbitrage 방향 고려)
+            # entry/exit fill price에 execution_risk(슬리피지+레이턴시)가 이미 반영되어 있음
+            # intents[0] = entry (BUY exchange), intents[1] = exit (SELL exchange)
+            if entry_intent.side.value.upper() == "BUY" and exit_intent.side.value.upper() == "SELL":
+                # Normal arbitrage: BUY at entry_price, SELL at exit_price
+                # profit = (SELL price - BUY price) * qty - fees
+                gross_pnl = (exit_price - entry_price) * entry_qty
+            elif entry_intent.side.value.upper() == "SELL" and exit_intent.side.value.upper() == "BUY":
+                # Reverse arbitrage: SELL at entry_price, BUY at exit_price
+                # profit = (SELL price - BUY price) * qty - fees
+                gross_pnl = (entry_price - exit_price) * entry_qty
+            else:
+                # Unexpected: both BUY or both SELL
+                logger.error(f"[D205-9-1] Unexpected side combination: entry={entry_intent.side.value}, exit={exit_intent.side.value}")
+                gross_pnl = 0.0
             
-            # D205-9 RECOVERY: 레이턴시 비용 (2-leg 타이밍 차이)
-            # 현실적 레이턴시: 10 bps (0.1%) - 1-2초 delay 시 가격 변동
-            latency_cost_bps = 10.0
-            latency_cost = entry_qty * entry_price * latency_cost_bps / 10000.0
-            
-            # realized_pnl 계산 (Real Cost Model)
-            spread_value = candidate.spread_bps * entry_price * entry_qty / 10000.0
-            total_cost = total_fee + slippage_cost + latency_cost
-            realized_pnl = spread_value - total_cost
+            realized_pnl = gross_pnl - total_fee
             
             # DB 기록 (storage 있을 때만)
             if self.storage:

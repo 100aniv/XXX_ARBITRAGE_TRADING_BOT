@@ -3226,23 +3226,33 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** BLOCKED (2026-01-01) ⚠️ Fake-Optimism 미해결
-**커밋:** [pending - Recovery]
-**테스트:** Gate 3단 진행 중, Real PAPER 중단됨 (winrate 100% 감지)
+**상태:** IN PROGRESS (2026-01-01) 🔧 D205-9-2 After-Cost SSOT Alignment 완료
+**커밋:** [pending - D205-9-2]
+**테스트:** Gate Doctor/Fast PASS, Mock Paper 2m winrate 0% (비용 모델 일관성 검증)
 **문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
-**Evidence:** `logs/evidence/d204_2_smoke_20260101_1335/` (Fake-Optimism 감지)
+**Evidence:** `logs/evidence/d204_2_smoke_20260101_1947/` (D205-9-2 검증)
 
 **목표:**
 - 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
 
-**BLOCKED 이유 (RECOVERY 후):**
+**D205-9-2 진행 (2026-01-01):**
+- ✅ per-leg vs round-trip 비용 정의 명확화 (break_even.py)
+  - `compute_execution_risk_per_leg()`: 편도 비용 = slippage + latency
+  - `compute_execution_risk_round_trip()`: 왕복 비용 = 2 * per_leg
+  - `compute_break_even_bps()`: fee + exec_risk_round_trip + buffer 포함
+- ✅ Candidate profitable 판정 통일 (detector.py): break_even 재사용
+- ✅ Intent 단계 재검증 (intent_builder.py): profitable=False → 빈 리스트
+- ✅ Unit tests 업데이트 (36개 테스트 PASS)
+- ✅ Gate Doctor/Fast PASS (API 키 관련 테스트 제외)
+- ✅ Mock Paper 2m: winrate 0% (비용 모델 일관성 검증 - spread < break_even)
+
+**이전 BLOCKED 이유 (해결됨):**
 - ✅ Fake Spread 제거 완료 (Real 가격 사용)
 - ✅ Cost Model 적용 완료 (슬리피지 15bps + 레이턴시 10bps + 수수료)
 - ✅ Redis 연동 완료 (RateLimit + Dedup)
 - ✅ Gate 3단 100% PASS
-- ❌ **여전히 Fake-Optimism:** candidate.profitable 판정이 비용 미반영
-  - 근본 원인: build_candidate()가 항상 수익 나는 candidate만 생성
-  - 해결 방법: candidate 필터링 강화 (D205-9-1 필요)
+- ✅ **D205-9-2 FIX:** break_even에 execution_risk_round_trip 포함
+  - 근본 원인 해결: 필터 기준 = 실제 PnL 비용 일치
 
 **범위 (Do/Don't):**
 - Do: Real MarketData (Upbit + Binance), DB Ledger (strict mode), Fake-Optimism 감지

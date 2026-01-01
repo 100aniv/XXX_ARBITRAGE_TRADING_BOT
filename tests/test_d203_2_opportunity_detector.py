@@ -42,6 +42,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
@@ -64,11 +65,11 @@ class TestOpportunityDetector:
         # Spread: (50M - 49.5M) / 49.5M * 100 = 1.0101% = 101.01 bps
         assert 100.0 <= candidate.spread_bps <= 102.0
         
-        # Break-even: 15 + 15 + 10 + 5 = 45 bps
-        assert candidate.break_even_bps == 45.0
-        
-        # Edge: 101 - 45 = 56 bps
-        assert 55.0 <= candidate.edge_bps <= 57.0
+        # D205-9-2 FIX: break_even = fee + exec_risk_round_trip + buffer
+        # = 30 + 2*(10+0) + 5 = 55
+        assert candidate.break_even_bps == 55.0
+        # D205-9-2 FIX: edge = spread(~101) - break_even(55) = ~46
+        assert 45.0 <= candidate.edge_bps <= 47.0
         
         # Direction: Upbit > Binance → BUY_B_SELL_A
         assert candidate.direction == OpportunityDirection.BUY_B_SELL_A
@@ -92,6 +93,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
@@ -107,7 +109,8 @@ class TestOpportunityDetector:
         
         assert candidate is not None
         assert 29.0 <= candidate.spread_bps <= 31.0
-        assert candidate.break_even_bps == 45.0
+        # D205-9-2 FIX: break_even = 55 (fee + exec_risk_round_trip + buffer)
+        assert candidate.break_even_bps == 55.0
         assert candidate.edge_bps < 0  # Unprofitable
         assert candidate.profitable is False
     
@@ -127,6 +130,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
@@ -158,6 +162,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
@@ -216,6 +221,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
@@ -260,6 +266,7 @@ class TestOpportunityDetector:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         

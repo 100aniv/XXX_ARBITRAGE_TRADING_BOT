@@ -25,7 +25,7 @@ class TestBreakEvenThreshold:
     
     def test_case1_fee_only(self):
         """
-        Case 1: Fee만 있는 경우 (slippage=0, buffer=0)
+        Case 1: Fee만 있는 경우 (slippage=0, latency=0, buffer=0)
         
         Expected:
             break_even_bps = fee_entry + fee_exit
@@ -38,11 +38,13 @@ class TestBreakEvenThreshold:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=0.0,
+            latency_bps=0.0,
             buffer_bps=0.0,
         )
         
         break_even = compute_break_even_bps(params)
         
+        # D205-9-1 FIX: slippage/latency는 break_even에서 제외
         # fee_entry = 5 + 10 = 15
         # fee_exit = 15 (왕복)
         # slippage = 0
@@ -61,17 +63,14 @@ class TestBreakEvenThreshold:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=0.0,
         )
         
         break_even = compute_break_even_bps(params)
         
-        # fee_entry = 15
-        # fee_exit = 15
-        # slippage = 10
-        # buffer = 0
-        # → break_even = 15 + 15 + 10 = 40
-        assert break_even == 40.0
+        # D205-9-2 FIX: fee=30 + exec_risk_round_trip=2*(10+0)=20 = 50
+        assert break_even == 50.0
     
     def test_case3_fee_plus_slippage_plus_buffer(self):
         """
@@ -84,17 +83,14 @@ class TestBreakEvenThreshold:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
         break_even = compute_break_even_bps(params)
         
-        # fee_entry = 15
-        # fee_exit = 15
-        # slippage = 10
-        # buffer = 5
-        # → break_even = 15 + 15 + 10 + 5 = 45
-        assert break_even == 45.0
+        # D205-9-2 FIX: fee=30 + exec_risk_round_trip=20 + buffer=5 = 55
+        assert break_even == 55.0
     
     def test_case4_negative_edge_when_spread_below_break_even(self):
         """
@@ -107,16 +103,17 @@ class TestBreakEvenThreshold:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
-        break_even = compute_break_even_bps(params)  # 45 bps
-        spread_bps = 40.0  # 관측된 스프레드 (break-even보다 작음)
+        break_even = compute_break_even_bps(params)  # D205-9-2 FIX: 55 bps
+        spread_bps = 30.0  # 관측된 스프레드 (break-even보다 작음)
         
         edge = compute_edge_bps(spread_bps, break_even)
         
-        # edge = 40 - 45 = -5 (손실 예상)
-        assert edge == -5.0
+        # D205-9-2 FIX: edge = 30 - 55 = -25 (손실 예상)
+        assert edge == -25.0
         assert edge < 0  # 손실 예상
     
     def test_case5_positive_edge_when_spread_above_break_even(self):
@@ -130,16 +127,17 @@ class TestBreakEvenThreshold:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
-        break_even = compute_break_even_bps(params)  # 45 bps
-        spread_bps = 50.0  # 관측된 스프레드 (break-even보다 큼)
+        break_even = compute_break_even_bps(params)  # D205-9-2 FIX: 55 bps
+        spread_bps = 100.0  # 관측된 스프레드 (break-even보다 큼)
         
         edge = compute_edge_bps(spread_bps, break_even)
         
-        # edge = 50 - 45 = 5 (수익 가능)
-        assert edge == 5.0
+        # D205-9-2 FIX: edge = 100 - 55 = 45 (수익 가능)
+        assert edge == 45.0
         assert edge > 0  # 수익 가능
     
     def test_case6_extreme_values_stability(self):
@@ -159,6 +157,7 @@ class TestBreakEvenThreshold:
         params_min = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=0.0,
+            latency_bps=0.0,  # D205-9-1: 명시적으로 0 설정
             buffer_bps=0.0,
         )
         break_even_min = compute_break_even_bps(params_min)
@@ -168,15 +167,18 @@ class TestBreakEvenThreshold:
         params_high_slip = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=1000.0,  # 10% slippage (매우 큼)
+            latency_bps=0.0,  # D205-9-2: 명시적으로 0 설정
             buffer_bps=5.0,
         )
         break_even_high = compute_break_even_bps(params_high_slip)
-        assert break_even_high == 1035.0  # 15 + 15 + 1000 + 5
+        # D205-9-2 FIX: 30 + 2*(1000+0) + 5 = 2035
+        assert break_even_high == 2035.0
         
         # 6c: 매우 큰 spread
         spread_huge = 100000.0  # 1000% spread (비현실적이지만 안정성 체크)
         edge_huge = compute_edge_bps(spread_huge, break_even_high)
-        assert edge_huge == 100000.0 - 1035.0
+        # D205-9-2 FIX: 100000 - 2035
+        assert edge_huge == 100000.0 - 2035.0
         assert edge_huge > 0  # 여전히 수익 가능
 
 
@@ -194,31 +196,24 @@ class TestExplainBreakEven:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
-        spread_bps = 50.0
-        result = explain_break_even(params, spread_bps)
+        spread_bps = 100.0  # D205-9-2: break_even(55)보다 큰 값
+        explanation = explain_break_even(params, spread_bps)
         
-        # 모든 필드가 존재하는지 확인
-        assert "fee_entry_bps" in result
-        assert "fee_exit_bps" in result
-        assert "slippage_bps" in result
-        assert "buffer_bps" in result
-        assert "break_even_bps" in result
-        assert "spread_bps" in result
-        assert "edge_bps" in result
-        assert "profitable" in result
-        
-        # 값 검증
-        assert result["fee_entry_bps"] == 15.0
-        assert result["fee_exit_bps"] == 15.0
-        assert result["slippage_bps"] == 10.0
-        assert result["buffer_bps"] == 5.0
-        assert result["break_even_bps"] == 45.0
-        assert result["spread_bps"] == 50.0
-        assert result["edge_bps"] == 5.0
-        assert result["profitable"] is True
+        assert explanation["fee_entry_bps"] == 15.0
+        assert explanation["fee_exit_bps"] == 15.0
+        assert explanation["slippage_bps"] == 10.0
+        assert explanation["exec_risk_per_leg_bps"] == 10.0  # D205-9-2: 편도
+        assert explanation["exec_risk_round_trip_bps"] == 20.0  # D205-9-2: 왕복
+        assert explanation["buffer_bps"] == 5.0
+        # D205-9-2 FIX: break_even = 30 + 20 + 5 = 55
+        assert explanation["break_even_bps"] == 55.0
+        assert explanation["spread_bps"] == 100.0
+        assert explanation["edge_bps"] == 45.0
+        assert explanation["profitable"] is True
     
     def test_explain_unprofitable(self):
         """
@@ -231,13 +226,14 @@ class TestExplainBreakEven:
         params = BreakEvenParams(
             fee_model=fee_model,
             slippage_bps=10.0,
+            latency_bps=0.0,
             buffer_bps=5.0,
         )
         
-        spread_bps = 40.0  # break_even(45) 미만
+        spread_bps = 30.0  # D205-9-2 FIX: break_even(55) 미만
         result = explain_break_even(params, spread_bps)
         
-        assert result["edge_bps"] == -5.0
+        assert result["edge_bps"] == -25.0
         assert result["profitable"] is False
 
 
@@ -270,6 +266,8 @@ class TestBreakEvenParamsFromConfig:
         assert params.buffer_bps == 8.0
         
         # Break-even 계산
+        # D205-9-2: latency_bps 기본값 = 10
+        # exec_risk_round_trip = 2 * (12 + 10) = 44
         break_even = compute_break_even_bps(params)
-        # 15 + 15 + 12 + 8 = 50
-        assert break_even == 50.0
+        # D205-9-2 FIX: 30 + 44 + 8 = 82
+        assert break_even == 82.0
