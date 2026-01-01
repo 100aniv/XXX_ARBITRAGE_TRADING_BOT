@@ -3227,11 +3227,11 @@ CREATE TABLE v2_pnl_daily (
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
 **상태:** IN PROGRESS (2026-01-01) 🔧 D205-9-3 FX Normalize + Regression 100% PASS 완료
-**커밋:** `[pending - D205-9-3]`
+**커밋:** `827f9dc` (D205-9-3)
 **테스트:** Gate Doctor/Fast/Regression 100% PASS (live_api 자동 제외), Unit 18/18 PASS
 **문서:** `docs/v2/reports/D205/D205_9_COMPARE_PATCH.md`
 **Evidence:** `logs/evidence/d205_9_3_fx_normalize_20260101_224556_b0bf96e/` (D205-9-3 검증)
-**Compare URL:** `[pending]`
+**Compare URL:** `https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/b0bf96e...827f9dc`
 
 **목표:**
 - 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
