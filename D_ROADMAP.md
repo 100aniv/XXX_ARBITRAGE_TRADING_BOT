@@ -3434,13 +3434,7 @@ CREATE TABLE v2_pnl_daily (
 - **Implementation:** `arbitrage/v2/core/fx_provider.py` (D205-8-2에서 인터페이스 정의 완료)
 - **Validation:** `validate_fx_provider_for_mode(provider, "live")` → Crash if Fixed FX
 
-**2. Realistic Paper Validation (D205-9)**
-- [ ] 20m/1h/3h Paper test 100% PASS
-- [ ] winrate 50~80% (현실 범위)
-- [ ] edge_after_cost > 0
-- [ ] PnL 안정성 (std < mean)
-
-**3. Monitoring + Alerting (D205-10+)**
+**2. Monitoring + Alerting (D205-10+)**
 - [ ] Grafana Dashboard
 - [ ] PnL/Ops KPI 실시간 모니터링
 - [ ] DLQ/Error alerting

@@ -42,10 +42,11 @@ python scripts/run_d205_9_paper_validation.py --duration 20 --phase smoke
 python scripts/run_d205_9_paper_validation.py --duration 60 --phase baseline
 ```
 
-### 3h Long Run (선택)
+### 3h Long Run (Run 단계 옵션, 인프라는 필수)
 ```bash
 python scripts/run_d205_9_paper_validation.py --duration 180 --phase longrun
 ```
+**주의:** Duration은 선택이지만, PostgreSQL + Redis는 모든 단계에서 필수
 
 ## Evidence 구조
 
