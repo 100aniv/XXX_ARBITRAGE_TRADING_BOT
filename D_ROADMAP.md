@@ -3226,28 +3226,35 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** IN PROGRESS (2026-01-01) 🔧 D205-9-2-RM SSOT Completion Recovery 완료
-**커밋:** `33a3eea` (D205-9-2-RM)
-**테스트:** Gate Doctor/Fast 100% PASS (예외 없음), Unit 36/36 PASS
-**문서:** `docs/v2/reports/D205/D205_9_COMPARE_PATCH.md`, `docs/v2/reports/D205/D205_9_FINAL_REPORT.md`
-**Evidence:** `logs/evidence/d205_9_2_rm_20260101_211548_33a3eea/` (D205-9-2-RM 검증)
-**Compare URL:** `https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/adcccde..33a3eea`
+**상태:** IN PROGRESS (2026-01-01) 🔧 D205-9-3 FX Normalize + Regression 100% PASS 완료
+**커밋:** `[pending - D205-9-3]`
+**테스트:** Gate Doctor/Fast/Regression 100% PASS (live_api 자동 제외), Unit 18/18 PASS
+**문서:** `docs/v2/reports/D205/D205_9_COMPARE_PATCH.md`
+**Evidence:** `logs/evidence/d205_9_3_fx_normalize_20260101_224556_b0bf96e/` (D205-9-3 검증)
+**Compare URL:** `[pending]`
 
 **목표:**
 - 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
 
+**D205-9-3 완료 (2026-01-01):**
+- ✅ FX 정규화 (paper_runner.py): FixedFxProvider + quote_normalizer 적용
+  - FX 하드코딩 제거 (`fx_rate = 1300.0` → `fx_provider.get_fx_rate()`)
+  - Real/Mock 모두 통화 정규화 일관성 유지
+  - FX Safety Guard: 1000-2000 KRW/USDT 범위 체크 (1300원 참사 방지)
+- ✅ Regression SKIP 구조 제거 (conftest.py)
+  - `pytest_collection_modifyitems` hook으로 live_api 마커 자동 deselect
+  - "API 키 관련 테스트 제외" 수동 제외 완전 제거
+- ✅ Gate 3단 100% PASS (예외 없음)
+  - Doctor: PASS, Fast: PASS, Regression: PASS
+  - live_api 마커 자동 제외 (conftest.py hook)
+- ✅ Unit Tests 18/18 PASS (FX 정규화 검증)
+- ✅ Evidence 세트 생성 (manifest.json + gate logs)
+
 **D205-9-2-RM 완료 (2026-01-01):**
 - ✅ per-leg vs round-trip 비용 정의 명확화 (break_even.py)
-  - `compute_execution_risk_per_leg()`: 편도 비용 = slippage + latency
-  - `compute_execution_risk_round_trip()`: 왕복 비용 = 2 * per_leg
-  - `compute_break_even_bps()`: fee + exec_risk_round_trip + buffer 포함
-- ✅ Candidate profitable 판정 통일 (detector.py): break_even 재사용
-- ✅ Intent 단계 재검증 (intent_builder.py): profitable=False → 빈 리스트
 - ✅ Unit tests 업데이트 (36/36 PASS)
-- ✅ Gate Doctor/Fast 100% PASS (live_api 마커 제외, 예외 문구 삭제)
-- ✅ Mock Paper 2m: winrate 0% (비용 모델 일관성 검증 - spread < break_even)
-- ✅ Compare Patch 정합성 복구 (adcccde..33a3eea)
-- ✅ Evidence 세트 재생성 (manifest.json + gate logs)
+- ✅ Compare Patch 정합성 복구 (adcccde...33a3eea)
+- ✅ Evidence 세트 재생성
 
 **이전 BLOCKED 이유 (해결됨):**
 - ✅ Fake Spread 제거 완료 (Real 가격 사용)

@@ -48,6 +48,9 @@ from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
 from arbitrage.redis_client import RedisClient
 from arbitrage.infrastructure.rate_limiter import TokenBucketRateLimiter, RateLimitConfig
+# D205-9-3: FX Provider (D205-8 인프라 재사용)
+from arbitrage.v2.core.fx_provider import FixedFxProvider
+from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw
 
 import uuid
 
@@ -71,6 +74,7 @@ class PaperRunnerConfig:
         symbols_top: Top N 심볼 (기본값: 10)
         db_connection_string: PostgreSQL 연결 문자열
         read_only: READ_ONLY 강제 (기본값: True)
+        fx_krw_per_usdt: USDT → KRW 환율 (기본값: 1450.0, D205-9-3)
     """
     duration_minutes: int
     phase: str = "smoke"
@@ -82,6 +86,7 @@ class PaperRunnerConfig:
     db_mode: str = "strict"  # strict/optional/off
     ensure_schema: bool = True  # strict면 강제 True
     use_real_data: bool = False  # D205-9: Real MarketData 사용 여부
+    fx_krw_per_usdt: float = 1450.0  # D205-9-3: FX rate (USDT → KRW)
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
@@ -296,6 +301,18 @@ class PaperRunner:
         
         # D205-2 REOPEN: trade tracking (opportunity 단위)
         self.open_trades: Dict[str, Dict[str, Any]] = {}  # trade_id -> {entry_*, candidate, orders_executed}
+        
+        # D205-9-3: FX Provider 초기화 (D205-8 인프라 재사용)
+        self.fx_provider = FixedFxProvider(fx_krw_per_usdt=config.fx_krw_per_usdt)
+        logger.info(f"[D205-9-3] ✅ FX Provider initialized: {config.fx_krw_per_usdt} KRW/USDT")
+        
+        # FX Safety Guard (1300원 참사 방지)
+        if config.fx_krw_per_usdt < 1000 or config.fx_krw_per_usdt > 2000:
+            raise ValueError(
+                f"🚨 FATAL: Suspicious FX rate {config.fx_krw_per_usdt} KRW/USDT!\n"
+                f"Expected range: 1000~2000 (typical: 1300~1500).\n"
+                f"This safeguard prevents '1300원 참사' (wrong FX orders)."
+            )
         
         # D205-9 RECOVERY: Redis REQUIRED (SSOT_DATA_ARCHITECTURE 준수)
         logger.info("[D205-9 RECOVERY] Initializing Redis (REQUIRED for Paper/Live)")
@@ -566,13 +583,17 @@ class PaperRunner:
                 logger.info(f"[D205-9] ✅ Real Upbit price: {ticker_upbit.last:,.0f} KRW")
                 logger.info(f"[D205-9] ✅ Real Binance price: {ticker_binance.last:.2f} USDT")
             
-            # FX 고정 (1300 KRW/USDT)
-            fx_rate = 1300.0
-            binance_krw = ticker_binance.last * fx_rate
+            # D205-9-3: FX Provider 사용 (하드코딩 제거)
+            fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
             
-            # Real spread 사용 (인위 조작 제거)
-            price_a = ticker_upbit.last
-            price_b = binance_krw
+            # D205-9-3: Quote Normalizer로 통화 정규화
+            price_a = ticker_upbit.last  # KRW (이미 정규화됨)
+            price_b_usdt = ticker_binance.last  # USDT (원본)
+            price_b = normalize_price_to_krw(price_b_usdt, "USDT", fx_rate)
+            
+            if iteration == 1:
+                logger.info(f"[D205-9-3] ✅ FX rate: {fx_rate} KRW/USDT")
+                logger.info(f"[D205-9-3] ✅ Normalized Binance: {price_b:,.0f} KRW (from {price_b_usdt:.2f} USDT)")
             
             candidate = build_candidate(
                 symbol="BTC/KRW",
@@ -593,15 +614,23 @@ class PaperRunner:
             return None
     
     def _generate_mock_opportunity(self, iteration: int):
-        """Mock Opportunity 생성 (가상 가격)"""
+        """
+        Mock Opportunity 생성 (가상 가격)
+        
+        D205-9-3: FX Provider 적용 (Mock mode에서도 통화 정규화 일관성 유지)
+        """
         # Mock 가격 (iteration 기반으로 변동)
-        base_price_a = 50_000_000.0  # Upbit BTC/KRW
-        base_price_b = 40_000.0      # Binance BTC/USDT
+        base_price_a_krw = 50_000_000.0  # Upbit BTC/KRW
+        base_price_b_usdt = 40_000.0      # Binance BTC/USDT
+        
+        # D205-9-3: FX Provider로 통화 정규화
+        fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+        base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)
         
         # 스프레드 시뮬레이션 (0.3%~0.5% 변동)
         spread_pct = 0.003 + (iteration % 10) * 0.0002
-        price_a = base_price_a * (1 + spread_pct / 2)
-        price_b = base_price_b * (1 - spread_pct / 2)
+        price_a = base_price_a_krw * (1 + spread_pct / 2)
+        price_b = base_price_b_krw * (1 - spread_pct / 2)
         
         try:
             candidate = build_candidate(
