@@ -75,7 +75,22 @@ logs/evidence/d205_9_paper_{phase}_{timestamp}/
 
 ## 실행 결과
 
-### ✅ Real PAPER Smoke (5분, 2026-01-01)
+### ❌ RECOVERY 진행 중 (2026-01-01, BLOCKED)
+
+**최종 시도:** `logs/evidence/d205_9_paper_smoke_20260101_154159/`
+
+**RECOVERY 완료 항목:**
+1. ✅ Fake Spread 제거 (Real Upbit/Binance 가격 차이 그대로 사용)
+2. ✅ Cost Model 현실화 (슬리피지 15bps + 레이턴시 10bps + 수수료)
+3. ✅ Redis REQUIRED (RateLimit + Dedup 실제 사용)
+4. ✅ Gate 3단 100% PASS (Doctor/Fast/Regression)
+
+**여전히 BLOCKED:**
+- ❌ Fake-Optimism 지속 (winrate 100%, closed_trades=50)
+- **근본 원인:** candidate.profitable 판정이 비용을 충분히 반영하지 못함
+- **다음 단계:** D205-9-1에서 candidate 필터링 강화 필요
+
+### ✅ Real PAPER Smoke (5분, 2026-01-01, 초기 시도)
 
 **실행 증거:** `logs/evidence/d204_2_smoke_20260101_1335/result.json`
 

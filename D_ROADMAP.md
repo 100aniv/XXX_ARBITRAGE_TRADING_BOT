@@ -3226,14 +3226,23 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** COMPLETED (2026-01-01)
-**커밋:** [pending - Step 6]
-**테스트:** Gate 3단 100% PASS, Real PAPER Smoke PASS
+**상태:** BLOCKED (2026-01-01) ⚠️ Fake-Optimism 미해결
+**커밋:** [pending - Recovery]
+**테스트:** Gate 3단 진행 중, Real PAPER 중단됨 (winrate 100% 감지)
 **문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
-**Evidence:** `logs/evidence/d204_2_smoke_20260101_1335/`
+**Evidence:** `logs/evidence/d204_2_smoke_20260101_1335/` (Fake-Optimism 감지)
 
 **목표:**
 - 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
+
+**BLOCKED 이유 (RECOVERY 후):**
+- ✅ Fake Spread 제거 완료 (Real 가격 사용)
+- ✅ Cost Model 적용 완료 (슬리피지 15bps + 레이턴시 10bps + 수수료)
+- ✅ Redis 연동 완료 (RateLimit + Dedup)
+- ✅ Gate 3단 100% PASS
+- ❌ **여전히 Fake-Optimism:** candidate.profitable 판정이 비용 미반영
+  - 근본 원인: build_candidate()가 항상 수익 나는 candidate만 생성
+  - 해결 방법: candidate 필터링 강화 (D205-9-1 필요)
 
 **범위 (Do/Don't):**
 - Do: Real MarketData (Upbit + Binance), DB Ledger (strict mode), Fake-Optimism 감지
