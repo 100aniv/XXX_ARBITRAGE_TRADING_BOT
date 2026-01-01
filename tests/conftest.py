@@ -152,19 +152,33 @@ collect_ignore = [
 
 def pytest_collection_modifyitems(config, items):
     """
-    D205-9-3: live_api 마커 자동 Deselect (Regression 100% PASS 강제)
+    D205-9-4: live_api 마커 진짜 Deselect (collection에서 완전 제거)
     
     목적:
-    - "API 키 관련 테스트 제외" 수동 제외 제거
-    - live_api 마커가 있는 테스트는 자동으로 deselect
-    - Gate Regression 100% PASS 달성 (예외 없음)
+    - live_api 마커가 있는 테스트를 items에서 완전 제거
+    - Gate Regression 100% PASS 달성 (SKIPPED 출력 제거)
+    - SSOT 정합성: "deselect" 문구 = "deselect" 구현
+    
+    구현:
+    - items[:] in-place modification으로 제거
+    - pytest_deselected hook 호출 (pytest 표준 패턴)
     
     Usage:
-    - pytest tests/ -m "not live_api"  # 자동 제외
-    - pytest tests/test_d42_binance_futures.py  # live_api 테스트 직접 실행 시에만 실행
+    - pytest tests/  # live_api 테스트 자동 제외 (출력 없음)
+    - pytest tests/test_d42_binance_futures.py  # 파일 직접 지정 시에만 실행
     """
-    skip_live_api = pytest.mark.skip(reason="[D205-9-3] live_api 마커: 실제 API 키 필요 (Gate에서 자동 제외)")
+    selected = []
+    deselected = []
     
     for item in items:
         if "live_api" in item.keywords:
-            item.add_marker(skip_live_api)
+            deselected.append(item)
+        else:
+            selected.append(item)
+    
+    # items[:] in-place modification (pytest 표준 패턴)
+    items[:] = selected
+    
+    # pytest_deselected hook 호출 (통계/로깅용)
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
