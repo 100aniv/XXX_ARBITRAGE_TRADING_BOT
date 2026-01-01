@@ -114,8 +114,10 @@
 - Migration 이력 관리
 
 **SSOT 정의:**
-- 주문/체결/거래/PnL의 **유일 원천**은 v2_schema.sql이 정의한 테이블
-- 다른 저장소(파일, Redis)는 캐시일 뿐, DB가 진실
+- 주문/체결/거래/PnL의 **유일 원천(Truth)**은 v2_schema.sql이 정의한 테이블
+- 파일은 순수 캐시이지만, Redis는 Truth는 아니면서도 Paper/Live 런타임에 **Required(필수)**
+  - Redis 없으면: Rate Limit 우회, 중복 주문, 상태 손실 위험 발생
+  - 따라서 DB와 Redis는 모두 필수 (Cold Path + Hot Path)
 - 코드에서 직접 CREATE TABLE 실행 절대 금지
 
 **금지 사항:**

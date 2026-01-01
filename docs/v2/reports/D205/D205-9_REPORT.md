@@ -60,7 +60,8 @@ logs/evidence/d205_9_paper_{phase}_{timestamp}/
 ## Prerequisites
 
 ### 환경 요구사항
-- PostgreSQL (선택: `--db-mode optional`)
+- PostgreSQL (필수: `--db-mode strict` 권장, Ledger 기록)
+- Redis (필수: Rate Limit Counter, Dedup Key, Hot-state)
 - 실시간 시장 데이터 연결 (Upbit, Binance)
 - Python 환경 (`abt_bot_env`)
 

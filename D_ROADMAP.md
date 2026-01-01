@@ -3239,13 +3239,20 @@ CREATE TABLE v2_pnl_daily (
 - Do: Real MarketData (Upbit + Binance), DB Ledger (strict mode), Fake-Optimism 감지
 - Don't: LIVE 전환 (아직 PAPER만), 자동 매매 시작 (검증만)
 
+**Prerequisites (필수 선행 조건):**
+- ✅ Docker: PostgreSQL up (Ledger 기록)
+- ✅ Docker: Redis up (Rate Limit Counter, Dedup Key)
+- ✅ Real MarketData: Upbit + Binance 연결 가능
+
 **AC (증거 기반 검증):**
-- Real MarketData: Upbit + Binance 둘 다 OK
-- DB Ledger: v2_orders/fills/trades 증거 (strict mode)
-- **Fake-Optimism 감지:** winrate 100% → 즉시 중단 (66초 후)
-- closed_trades > 10 (실제: 50)
-- edge_after_cost > 0 (실제: 49.32 KRW)
-- error_count = 0, db_inserts_failed = 0
+- ✅ DB Readiness: PostgreSQL 초기화 성공, v2_schema 마이그레이션 완료
+- ✅ Redis Readiness: Redis 연결 성공, Rate Limit Counter 동작 확인
+- ✅ Real MarketData: Upbit + Binance 둘 다 OK
+- ✅ DB Ledger: v2_orders/fills/trades 증거 (strict mode, 250+ rows)
+- ✅ **Fake-Optimism 감지:** winrate 100% → 즉시 중단 (66초 후)
+- ✅ closed_trades > 10 (실제: 50)
+- ✅ edge_after_cost > 0 (실제: 49.32 KRW)
+- ✅ error_count = 0, db_inserts_failed = 0
 
 **Evidence 요구사항:**
 - manifest.json

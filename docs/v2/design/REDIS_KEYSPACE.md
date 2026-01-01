@@ -5,6 +5,23 @@
 
 ---
 
+## 🎯 Redis의 역할 (왜 필수인가?)
+
+Redis는 DB와 달리 **Truth(최종 원천)가 아니지만**, Paper/Live 런타임에서 다음 역할로 **Required(필수)**:
+
+1. **Rate Limit Counter**: 거래소별 API 요청 제한 관리
+   - 없으면: Rate Limit 우회 → 주문 실패 또는 계정 차단
+   
+2. **Dedup Key**: 중복 주문 방지 (멱등성 보장)
+   - 없으면: 네트워크 재시도 시 중복 주문 → 손실 위험
+   
+3. **Hot-state**: 엔진 상태 저장 (메모리 기반)
+   - 없으면: 상태 손실 → 포지션 추적 불가
+
+따라서 **DB(Cold Path) + Redis(Hot Path) 모두 필수**.
+
+---
+
 ## 📜 핵심 원칙
 
 1. **네이밍 규칙 강제**: 모든 V2 key는 `v2:` prefix 필수

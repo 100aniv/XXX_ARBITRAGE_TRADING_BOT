@@ -23,6 +23,13 @@
 - ✅ **V2 Solution:** Mock/Stub Adapter로 로직 검증
 - **Result:** 빠른 피드백, 실거래 리스크 제거
 
+### 4. Infrastructure Parity (Cold Path + Hot Path)
+- ❌ **V1 Problem:** PAPER 모드가 실제 인프라(DB/Redis) 없이 작동 가능
+- ✅ **V2 Solution:** Paper/Live 모두 동일한 DB(Cold) + Redis(Hot) 인프라 필수
+- **Result:** 실전 유사 검증, 배포 시 surprises 제거
+  - **Cold Path (PostgreSQL):** Ledger/Truth, Audit, Replay source
+  - **Hot Path (Redis):** Rate Limit counters, Dedup keys, Hot-state (Truth는 아님, 하지만 Runtime Required)
+
 ---
 
 ## 🏗️ Core Components
