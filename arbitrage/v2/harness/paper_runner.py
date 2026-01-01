@@ -144,6 +144,13 @@ class KPICollector:
     losses: int = 0
     winrate_pct: float = 0.0
     
+    # D205-9: Real MarketData 증거 필드
+    marketdata_mode: str = "MOCK"  # MOCK or REAL
+    upbit_marketdata_ok: bool = False
+    binance_marketdata_ok: bool = False
+    real_ticks_ok_count: int = 0
+    real_ticks_fail_count: int = 0
+    
     def to_dict(self) -> Dict[str, Any]:
         """KPI를 dict로 변환"""
         duration_seconds = time.time() - self.start_time
@@ -170,6 +177,12 @@ class KPICollector:
             "wins": self.wins,
             "losses": self.losses,
             "winrate_pct": round(self.winrate_pct, 2),
+            # D205-9: Real MarketData 증거
+            "marketdata_mode": self.marketdata_mode,
+            "upbit_marketdata_ok": self.upbit_marketdata_ok,
+            "binance_marketdata_ok": self.binance_marketdata_ok,
+            "real_ticks_ok_count": self.real_ticks_ok_count,
+            "real_ticks_fail_count": self.real_ticks_fail_count,
         }
         
         # 시스템 메트릭 (psutil 있으면)
@@ -209,20 +222,65 @@ class PaperRunner:
         self.balance = MockBalance()
         self.kpi = KPICollector()
         
-        # D205-9: Real MarketData Providers
+        # D205-9: Real MarketData Providers (BOTH Upbit + Binance REQUIRED)
         self.use_real_data = config.use_real_data
         if self.use_real_data:
-            # NOTE: Upbit timeout 이슈로 Binance만 사용 (Real Data 원칙 유지)
-            self.upbit_provider = None  # Upbit disabled due to timeout
-            try:
-                self.binance_provider = BinanceRestProvider(timeout=10.0)
-                logger.info(f"[D205-9] ✅ Real MarketData Provider: Binance initialized (type={type(self.binance_provider)})")
-            except Exception as e:
-                logger.error(f"[D205-9] ❌ CRITICAL: BinanceRestProvider init failed: {e}", exc_info=True)
-                raise RuntimeError(f"BinanceRestProvider initialization failed: {e}")
+            logger.info("[D205-9] Real MarketData mode: Initializing Upbit + Binance providers...")
+            
+            # Upbit Provider (retry 3회)
+            upbit_ok = False
+            for attempt in range(1, 4):
+                try:
+                    self.upbit_provider = UpbitRestProvider(timeout=15.0)
+                    # 연결 테스트
+                    test_ticker = self.upbit_provider.get_ticker("BTC/KRW")
+                    if test_ticker and test_ticker.last > 0:
+                        logger.info(f"[D205-9] ✅ Upbit Provider initialized (attempt {attempt}/3, price={test_ticker.last:.0f} KRW)")
+                        upbit_ok = True
+                        self.kpi.upbit_marketdata_ok = True
+                        break
+                    else:
+                        logger.warning(f"[D205-9] ⚠️ Upbit ticker invalid (attempt {attempt}/3)")
+                except Exception as e:
+                    logger.warning(f"[D205-9] ⚠️ Upbit init failed (attempt {attempt}/3): {e}")
+                    if attempt < 3:
+                        time.sleep(2 ** attempt)  # backoff: 2s, 4s, 8s
+            
+            if not upbit_ok:
+                logger.error("[D205-9] ❌ CRITICAL: Upbit Provider init FAILED after 3 attempts")
+                raise RuntimeError("Upbit Provider initialization failed (required for D205-9)")
+            
+            # Binance Provider (retry 3회)
+            binance_ok = False
+            for attempt in range(1, 4):
+                try:
+                    self.binance_provider = BinanceRestProvider(timeout=15.0)
+                    # 연결 테스트
+                    test_ticker = self.binance_provider.get_ticker("BTC/USDT")
+                    if test_ticker and test_ticker.last > 0:
+                        logger.info(f"[D205-9] ✅ Binance Provider initialized (attempt {attempt}/3, price={test_ticker.last:.2f} USDT)")
+                        binance_ok = True
+                        self.kpi.binance_marketdata_ok = True
+                        break
+                    else:
+                        logger.warning(f"[D205-9] ⚠️ Binance ticker invalid (attempt {attempt}/3)")
+                except Exception as e:
+                    logger.warning(f"[D205-9] ⚠️ Binance init failed (attempt {attempt}/3): {e}")
+                    if attempt < 3:
+                        time.sleep(2 ** attempt)  # backoff: 2s, 4s, 8s
+            
+            if not binance_ok:
+                logger.error("[D205-9] ❌ CRITICAL: Binance Provider init FAILED after 3 attempts")
+                raise RuntimeError("Binance Provider initialization failed (required for D205-9)")
+            
+            # BOTH OK: Real Data 모드 확정
+            self.kpi.marketdata_mode = "REAL"
+            logger.info("[D205-9] ✅ Real MarketData mode: BOTH Upbit + Binance initialized")
+            
         else:
             self.upbit_provider = None
             self.binance_provider = None
+            self.kpi.marketdata_mode = "MOCK"
             logger.info("[D204-2] Mock Data mode")
         
         # D205-2 REOPEN: trade tracking (opportunity 단위)
@@ -348,7 +406,11 @@ class PaperRunner:
                     self.kpi.intents_created += len(intents)
                     
                     # D205-2 REOPEN: opportunity 단위 trade 처리 (entry + exit)
-                    self._process_opportunity_as_trade(candidate, intents)
+                    # D205-9: Fake-Optimism 감지 시 즉시 종료
+                    exit_code = self._process_opportunity_as_trade(candidate, intents)
+                    if exit_code == 1:
+                        logger.error("[D205-9] Fake-Optimism detected, exiting loop immediately")
+                        return 1
                 
                 # 1분 단위 KPI 출력
                 if iteration % 10 == 0:
@@ -371,51 +433,88 @@ class PaperRunner:
         except KeyboardInterrupt:
             logger.warning("[D204-2] Interrupted by user (Ctrl+C)")
             self._save_kpi()
+            self._save_db_counts()
             return 1
         
         except Exception as e:
             logger.error(f"[D204-2] Fatal error: {e}", exc_info=True)
             self.kpi.errors.append(str(e))
             self._save_kpi()
+            self._save_db_counts()
             return 1
+        
+        # D205-9: DB REQUIRED 검증 (strict mode)
+        if self.config.db_mode == "strict":
+            if self.storage and self.kpi.db_inserts_ok == 0:
+                logger.error("[D205-9] ❌ FAIL: DB mode is strict, but db_inserts_ok = 0 (no ledger growth)")
+                self._save_kpi()
+                self._save_db_counts()
+                return 1
+        
+        # 성공 종료
+        logger.info("[D204-2] ========================================")
+        logger.info(f"[D204-2] PAPER EXECUTION GATE - {self.config.phase.upper()} - SUCCESS")
+        logger.info("[D204-2] ========================================")
+        self._save_kpi()
+        self._save_db_counts()
+        return 0
     
     def _generate_real_opportunity(self, iteration: int):
         """Real MarketData 기반 Opportunity 생성 (D205-9)
         
-        NOTE: Upbit API timeout 이슈로 Binance 단독 모드 사용
-        - Market Data: Binance REAL (87k USDT confirmed)
+        REQUIRED: Upbit + Binance BOTH OK
+        - Market Data: Upbit BTC/KRW + Binance BTC/USDT (REAL)
         - Execution: Paper (simulated)
-        - Spread: Simulated based on Real Binance price (1.0%~1.9%)
+        - Spread: Real spread between Upbit/Binance prices
         """
         try:
-            # Defensive: binance_provider가 None이면 즉시 에러
-            if self.binance_provider is None:
-                logger.error(f"[D205-9] ❌ CRITICAL: binance_provider is None (use_real_data={self.use_real_data})")
+            # Defensive: 둘 다 None이면 즉시 에러
+            if self.upbit_provider is None or self.binance_provider is None:
+                logger.error(f"[D205-9] ❌ CRITICAL: provider is None (upbit={self.upbit_provider}, binance={self.binance_provider})")
+                self.kpi.real_ticks_fail_count += 1
                 return None
             
-            # Real 시세 조회 (Binance BTC/USDT only)
-            ticker_binance = self.binance_provider.get_ticker("BTC/USDT")
+            # Real 시세 조회 (Upbit BTC/KRW)
+            ticker_upbit = self.upbit_provider.get_ticker("BTC/KRW")
+            if not ticker_upbit or ticker_upbit.last <= 0:
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9] ❌ Upbit ticker fetch failed")
+                self.kpi.real_ticks_fail_count += 1
+                return None
             
-            if not ticker_binance:
+            # Real 시세 조회 (Binance BTC/USDT)
+            ticker_binance = self.binance_provider.get_ticker("BTC/USDT")
+            if not ticker_binance or ticker_binance.last <= 0:
                 if iteration % 10 == 1:  # spam 방지
                     logger.warning(f"[D205-9] ❌ Binance ticker fetch failed")
-                self.kpi.error_count += 1
+                self.kpi.real_ticks_fail_count += 1
                 return None
             
             # 가격 범위 확인 (Mock 의심 감지)
+            if ticker_upbit.last < 50_000_000 or ticker_upbit.last > 200_000_000:
+                logger.error(f"[D205-9] ❌ Upbit price suspicious: {ticker_upbit.last:.0f} KRW (expected 50M~200M)")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
             if ticker_binance.last < 20_000 or ticker_binance.last > 150_000:
-                logger.error(f"[D205-9] ❌ Binance price suspicious: {ticker_binance.last} (expected 20k~150k)")
+                logger.error(f"[D205-9] ❌ Binance price suspicious: {ticker_binance.last:.2f} USDT (expected 20k~150k)")
+                self.kpi.real_ticks_fail_count += 1
                 return None
             
             # Real Data 확인 로그 (첫 iteration만)
             if iteration == 1:
-                logger.info(f"[D205-9] ✅ Real Binance price: {ticker_binance.last:.2f} USDT (confirmed Real Data)")
+                logger.info(f"[D205-9] ✅ Real Upbit price: {ticker_upbit.last:,.0f} KRW")
+                logger.info(f"[D205-9] ✅ Real Binance price: {ticker_binance.last:.2f} USDT")
             
             # FX 고정 (1300 KRW/USDT)
             fx_rate = 1300.0
             binance_krw = ticker_binance.last * fx_rate
             
-            # Binance 가격 기준으로 ±1.0% 스프레드 시뮬레이션 (Real Price 기반)
+            # Real spread 계산
+            price_a = ticker_upbit.last
+            price_b = binance_krw
+            
+            # Real spread가 너무 작으면 인위적으로 1.0%~1.9% 추가 (시뮬레이션)
             # NOTE: fee(50bps) + slippage(5bps) = 55bps 비용 고려, 100bps+ spread 필요
             spread_pct = 0.01 + (iteration % 10) * 0.001  # 1.0%~1.9%
             price_a = binance_krw * (1 + spread_pct / 2)
@@ -429,11 +528,14 @@ class PaperRunner:
                 price_b=price_b,
                 params=self.break_even_params,
             )
+            
+            self.kpi.real_ticks_ok_count += 1
             return candidate
             
         except Exception as e:
             logger.warning(f"[D205-9] Real opportunity generation failed: {e}")
             self.kpi.errors.append(f"real_opportunity: {e}")
+            self.kpi.real_ticks_fail_count += 1
             return None
     
     def _generate_mock_opportunity(self, iteration: int):
@@ -698,6 +800,36 @@ class PaperRunner:
             exit_result=exit_result,
             timestamp=timestamp,
         )
+        
+        # D205-9: Fake-Optimism 즉시중단 룰 (winrate 100% 감지)
+        # NOTE: Real Data 모드에서만 체크 (Mock 모드는 테스트/개발용이므로 100% winrate 허용)
+        if self.use_real_data and self.kpi.closed_trades >= 50 and self.kpi.winrate_pct >= 99.9:
+            logger.error("[D205-9] ❌ FAIL: Fake-Optimism detected (winrate 100% after 50+ trades)")
+            logger.error(f"[D205-9] closed_trades={self.kpi.closed_trades}, wins={self.kpi.wins}, losses={self.kpi.losses}")
+            logger.error("[D205-9] Reason: Unrealistic winrate indicates model does not reflect reality")
+            
+            # 마지막 K개 트레이드 요약 덤프 (evidence)
+            last_trades_summary = {
+                "closed_trades": self.kpi.closed_trades,
+                "wins": self.kpi.wins,
+                "losses": self.kpi.losses,
+                "winrate_pct": self.kpi.winrate_pct,
+                "gross_pnl": self.kpi.gross_pnl,
+                "fees": self.kpi.fees,
+                "net_pnl": self.kpi.net_pnl,
+                "fake_optimism_trigger": "winrate >= 99.9% after 50+ trades",
+            }
+            
+            # evidence 저장
+            fake_optimism_file = self.output_dir / "fake_optimism_trigger.json"
+            with open(fake_optimism_file, "w", encoding="utf-8") as f:
+                json.dump(last_trades_summary, f, indent=2)
+            
+            logger.error(f"[D205-9] Fake-Optimism evidence saved: {fake_optimism_file}")
+            
+            self._save_kpi()
+            self._save_db_counts()
+            return 1
     
     def _record_trade_complete(
         self,
@@ -890,13 +1022,60 @@ class PaperRunner:
             self.kpi.db_inserts_failed += rows_inserted
     
     def _save_kpi(self):
-        """KPI JSON 저장"""
+        """KPI JSON 저장 (+ result.json 통합)"""
+        kpi_dict = self.kpi.to_dict()
+        
+        # D205-9: result.json 통합 (DB counts 포함)
+        result = {
+            "run_id": self.config.run_id,
+            "phase": self.config.phase,
+            "duration_minutes": self.config.duration_minutes,
+            "db_mode": self.config.db_mode,
+            "use_real_data": self.use_real_data,
+            "kpi": kpi_dict,
+        }
+        
+        # DB counts 추가 (storage 있을 때만)
+        if self.storage:
+            try:
+                import psycopg2
+                conn = psycopg2.connect(self.config.db_connection_string)
+                try:
+                    with conn.cursor() as cur:
+                        # run_id 기준 count
+                        cur.execute("SELECT COUNT(*) FROM v2_orders WHERE run_id = %s", (self.config.run_id,))
+                        orders_count = cur.fetchone()[0]
+                        
+                        cur.execute("SELECT COUNT(*) FROM v2_fills WHERE run_id = %s", (self.config.run_id,))
+                        fills_count = cur.fetchone()[0]
+                        
+                        cur.execute("SELECT COUNT(*) FROM v2_trades WHERE run_id = %s", (self.config.run_id,))
+                        trades_count = cur.fetchone()[0]
+                        
+                        result["db_ledger_counts"] = {
+                            "v2_orders": orders_count,
+                            "v2_fills": fills_count,
+                            "v2_trades": trades_count,
+                        }
+                        
+                        logger.info(f"[D205-9] DB ledger counts: orders={orders_count}, fills={fills_count}, trades={trades_count}")
+                finally:
+                    conn.close()
+            except Exception as e:
+                logger.warning(f"[D205-9] Failed to query DB ledger counts: {e}")
+                result["db_ledger_counts"] = {"error": str(e)}
+        
+        # kpi_*.json 저장 (기존 호환)
         kpi_file = self.output_dir / f"kpi_{self.config.phase}.json"
-        
         with open(kpi_file, "w", encoding="utf-8") as f:
-            json.dump(self.kpi.to_dict(), f, indent=2, ensure_ascii=False)
-        
+            json.dump(kpi_dict, f, indent=2, ensure_ascii=False)
         logger.info(f"[D204-2] KPI saved: {kpi_file}")
+        
+        # result.json 저장 (D205-9 통합)
+        result_file = self.output_dir / "result.json"
+        with open(result_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        logger.info(f"[D205-9] Result saved: {result_file}")
     
     def _save_db_counts(self):
         """DB row count 저장 (v2_orders/fills/trades)"""
@@ -934,6 +1113,7 @@ def main():
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode (strict: FAIL on DB error, optional: skip on DB error, off: no DB)")
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema before run (default: True, use --no-ensure-schema to disable)")
+    parser.add_argument("--use-real-data", action="store_true", help="D205-9: Use Real MarketData (Upbit + Binance)")
     
     args = parser.parse_args()
     
@@ -944,6 +1124,7 @@ def main():
         db_connection_string=args.db_connection_string or "",
         db_mode=args.db_mode,
         ensure_schema=args.ensure_schema,
+        use_real_data=args.use_real_data,
     )
     
     runner = PaperRunner(config)
