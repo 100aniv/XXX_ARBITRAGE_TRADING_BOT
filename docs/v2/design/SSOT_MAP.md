@@ -13,6 +13,12 @@
 2. **SSOT 변경 시 전파**: SSOT 수정 후 참조 문서 동기화 필수
 3. **SSOT 위치 명확화**: 모든 팀원이 SSOT 위치를 알아야 함
 4. **SSOT 검증**: Gate 테스트로 SSOT 정합성 검증
+5. **D 번호 불변 (Immutable D-number)**: 기존 D 번호의 의미는 절대 변경 금지
+   - 추가 작업은 브랜치(Dxxx-y-z)로만 확장
+   - AC "이관" 방식으로 D 번호 의미를 바꾸는 것은 SSOT 위반
+6. **DONE/COMPLETED 진실성**: "문서 기반 완료", "Evidence 재사용 PASS" 같은 허위 DONE 절대 금지
+   - AC + Evidence 일치 시에만 COMPLETED 선언
+   - Gate 100% PASS + 실제 실행 증거 존재 필수
 
 ---
 
@@ -46,11 +52,19 @@
 - 전체 프로젝트 로드맵 (D1~D206+)
 - V1/V2 마일스톤 정의
 - Phase별 완료 조건
+- **D 번호 의미 정의 (Immutable)**
 
 **주의사항:**
 - 로드맵은 D_ROADMAP.md가 유일 SSOT
 - 로컬 로드맵 복사본 생성 금지
 - 프로젝트 진행 상황은 D_ROADMAP.md에만 기록
+- **D 번호 의미 변경 절대 금지** (브랜치로만 확장)
+
+**브랜치 규칙:**
+- **형식:** Dxxx-y-z (예: D205-10-0, D205-10-1)
+- **의미:** xxx=메인 D, y=브랜치 번호(0=기본), z=서브브랜치(선택)
+- **Report 경로:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md`
+- **AC 네이밍:** Dxxx-y-z-n (예: D205-10-1-1, D205-10-1-2)
 
 ---
 - 문서 작성 시 (D 번호 인용)

@@ -1,13 +1,20 @@
-# D205-11: Threshold Tuning (Sensitivity Analysis + Optimal Buffer Selection)
+# D205-10-1: Threshold Sensitivity Sweep (브랜치 작업)
 
-## 최종 상태: ✅ COMPLETED
+**⚠️ 브랜치 귀속:** 이 문서는 D205-10의 브랜치 작업(D205-10-1)입니다.  
+**과거 오라벨:** D205-11 (SSOT 복구로 인해 D205-10-1로 재분류)
+
+## 최종 상태: ⏳ PLANNED
 
 ### 1. 목표
 
-**D205-10에서 이관받은 작업:**
+**D205-10-0에서 확장된 작업:**
 - Threshold Sensitivity Analysis (buffer_bps sweep)
 - DecisionTrace 유효성 검증 (reject_reasons negative-control)
 - 최적 buffer 선택 후 20m smoke 재검증
+
+**브랜치 관계:**
+- D205-10-0 (완료): reject_reasons + buffer_bps 0.0 조정
+- D205-10-1 (본 문서): buffer_bps 민감도 분석 및 최적값 선택
 
 **핵심 질문:**
 - buffer_bps를 어떤 값으로 설정해야 **손실을 줄이면서 거래가 유지되는가?**
@@ -64,28 +71,28 @@
 
 ## 4. 변경 파일 목록
 
-1. `scripts/run_d205_11_threshold_sweep.py` (신규)
+1. `scripts/run_d205_11_threshold_sweep.py` (신규, D205-10-1용)
 2. `scripts/run_d205_11_negative_control.py` (신규, DecisionTrace 검증)
-3. `D_ROADMAP.md` (D205-10 AC 이관 + D205-11 AC 정의)
-4. `docs/v2/reports/D205/D205-10_REPORT.md` (상태 COMPLETED 확정)
-5. `docs/v2/reports/D205/D205-11_REPORT.md` (본 파일)
+3. `D_ROADMAP.md` (D205-10 브랜치 체계 + D205-11 원래 의미 복구)
+4. `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0으로 스코프 명확화)
+5. `docs/v2/reports/D205/D205-10-1_REPORT.md` (본 파일, D205-11에서 rename됨)
 
 ---
 
 ## 5. AC 검증 상태
 
-- [ ] **D205-11-1:** Threshold Sensitivity Sweep 완료 (7개 후보 테스트)
-- [ ] **D205-11-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대)
-- [ ] **D205-11-3:** DecisionTrace 유효성 검증 (negative-control PASS)
-- [ ] **D205-11-4:** Gate 3단 PASS (doctor/fast/regression)
-- [ ] **D205-11-5:** 20m smoke PASS (best buffer_bps)
-- [ ] **D205-11-6:** Evidence 생성 (sweep_summary.json, manifest.json)
+- [ ] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps)
+- [ ] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대)
+- [ ] **D205-10-1-3:** DecisionTrace 유효성 검증 (negative-control PASS)
+- [ ] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression)
+- [ ] **D205-10-1-5:** 20m smoke PASS (best buffer_bps)
+- [ ] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json)
 
 ---
 
 ## 6. 알려진 이슈
 
-없음 (모든 AC PASS)
+없음 (작업 시작 전)
 
 ---
 

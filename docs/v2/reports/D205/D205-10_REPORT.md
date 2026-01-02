@@ -1,4 +1,8 @@
-# D205-10: Profitability Threshold Optimization - Intent Loss Fix
+# D205-10-0: Intent Loss Fix (기본 브랜치)
+
+**브랜치 체계:**
+- **D205-10-0 (본 문서):** reject_reasons + buffer_bps 조정 (COMPLETED ✅)
+- **D205-10-1:** Threshold Sensitivity Sweep (PLANNED ⏳)
 
 ## 최종 상태: ✅ COMPLETED
 
@@ -213,10 +217,12 @@ python scripts\run_d205_10_paper_smoke_20m.py
 
 ## 7. 다음 단계
 
-**D205-10 완료됨.** 다음은 D205-11 (Threshold Tuning):
-- Threshold Sensitivity Analysis (buffer_bps sweep [0,1,2,3,5,8,10])
-- DecisionTrace 유효성 검증 (reject_reasons negative-control)
-- 최적 buffer 선택 후 20m smoke 재검증
+**D205-10-0 완료됨.** 다음 작업:
+1. **D205-10-1 (브랜치):** Threshold Sensitivity Sweep
+   - buffer_bps sweep [0,2,5,8,10]
+   - DecisionTrace negative-control
+   - 최적 buffer 선택 후 20m smoke
+2. **D205-11 (메인):** Latency Profiling (ms 단위 계측)
 
 ---
 

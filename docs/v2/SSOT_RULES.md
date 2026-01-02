@@ -13,7 +13,38 @@
 - ✅ **허용:** D_ROADMAP.md 내부에서 V2 섹션으로 관리
 - **이유:** 로드맵 분산은 혼란과 동기화 실패를 초래
 
-### 2. V2 문서는 docs/v2/ 단일 경로
+### 1-1. D 번호 의미는 불변 (Immutable D-number Semantics)
+- ❌ **금지:** 기존 D 번호의 의미를 다른 작업으로 변경
+- ❌ **금지:** AC를 다른 D로 "이관"하여 기존 D의 스코프 축소
+- ❌ **금지:** D 번호를 재사용하여 다른 작업 수행
+- ✅ **허용:** D 번호는 최초 정의된 의미로 고정
+- ✅ **허용:** 추가 작업은 브랜치(Dxxx-y-z)로만 확장
+
+**브랜치 네이밍 규칙:**
+- **형식:** Dxxx-y-z
+  - xxx: 메인 D 번호 (예: 205-10)
+  - y: 브랜치 번호 (0=기본, 1,2,3...=추가 작업)
+  - z: 선택적 서브브랜치 (필요시)
+- **예시:**
+  - D205-10-0: Intent Loss Fix 기본 브랜치 (COMPLETED)
+  - D205-10-1: Threshold Sensitivity Sweep 추가 브랜치 (PLANNED)
+  - D205-11: Latency Profiling (브랜치 없음, 메인만)
+
+**DONE/COMPLETED 조건:**
+- ❌ **금지:** "문서 기반 완료", "분석 기반 PASS" 같은 허위 DONE
+- ❌ **금지:** Evidence 재사용으로 AC PASS 처리
+- ✅ **필수:** AC + Evidence 일치 시에만 COMPLETED 선언
+- ✅ **필수:** Gate 100% PASS + 실제 실행 증거 존재
+
+### 2. Report 파일명 규칙
+- **메인 D:** `docs/v2/reports/Dxxx/Dxxx_REPORT.md`
+- **브랜치 D:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md` 또는 `Dxxx-y-z_REPORT.md`
+- **예시:**
+  - D205-10-0: `docs/v2/reports/D205/D205-10_REPORT.md` (브랜치 0은 기본이므로 -0 생략 가능)
+  - D205-10-1: `docs/v2/reports/D205/D205-10-1_REPORT.md`
+  - D205-11: `docs/v2/reports/D205/D205-11_REPORT.md`
+
+### 3. V2 문서는 docs/v2/ 단일 경로
 - ✅ **신규 문서:** docs/v2/ 아래에만 작성
 - ❌ **금지:** docs/v2_*, docs/V2/, docs/version2/ 같은 변형
 - **구조:**

@@ -3340,41 +3340,47 @@ Rationale:
 
 ---
 
-#### D205-10: Intent Loss Fix (reject_reasons telemetry + buffer_bps 조정)
-**상태:** COMPLETED ✅
-**커밋:** 0941210
-**테스트:** Gate 33/33 PASS, 2m precheck PASS, 20m smoke PASS
-**문서:** `docs/v2/reports/D205/D205-10_REPORT.md`
-**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/`
+#### D205-10: Intent Loss Fix (브랜치 체계)
+**상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PLANNED)
+**커밋:** 0941210 (D205-10-0), [pending] (D205-10-1)
+**테스트:** Gate 33/33 PASS, 2m precheck PASS, 20m smoke PASS (D205-10-0)
+**문서:** `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0), `docs/v2/reports/D205/D205-10-1_REPORT.md` (PLANNED)
+**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0)
 
 **목표:**
 - Intent Loss 해결 (opportunities → intents 전환 실패 원인 분석)
 - Decision Trace 구현 (reject_reasons 계측)
-- buffer_bps 조정 (5.0 → 0.0, break_even 70bps → 65bps)
+- buffer_bps 조정 및 민감도 분석
 
 **범위 (Do/Don't):**
-- ✅ Do: reject_reasons 구현, buffer_bps 조정, Gate + Smoke 검증
-- ❌ Don't: 장시간 튜닝 (D205-11로 이관), 실거래
+- ✅ Do: reject_reasons 구현, buffer_bps 조정, Threshold sweep, Gate + Smoke 검증
+- ❌ Don't: 실거래
 
-### Scope Clarification (SSOT)
+**브랜치 구조:**
+- **D205-10-0 (기본 브랜치):** reject_reasons + buffer_bps 조정
+  - 상태: COMPLETED ✅
+  - 커밋: 0941210
+  - AC: 6/6 PASS
+- **D205-10-1 (추가 브랜치):** Threshold Sensitivity Sweep
+  - 상태: PLANNED ⏳
+  - 목표: buffer_bps 후보 sweep (0/2/5/8/10), DecisionTrace negative-control, 최적 buffer 선택
+  - AC: 6개 (미완료)
 
-- D205-10은 **Intent Loss Fix (기회 → 인텐트 전환 실패 해결)**이다.
-- reject_reasons 계측 + buffer_bps 조정으로 인텐트 생성 활성화.
-- **Threshold 민감도 분석 및 장시간 튜닝은 D205-11로 이관.**
+**AC (D205-10-0 완료):**
+- [x] **D205-10-0-1: Decision Trace 구현** (reject_reasons 필드 + 계측)
+- [x] **D205-10-0-2: buffer_bps 조정** (5.0 → 0.0, break_even 70bps → 65bps)
+- [x] **D205-10-0-3: Gate 100% PASS** (doctor/fast/regression 33/33)
+- [x] **D205-10-0-4: 2m precheck PASS** (opportunities 119, intents 238)
+- [x] **D205-10-0-5: 20m smoke PASS** (opportunities 1188, intents 2376)
+- [x] **D205-10-0-6: Evidence 생성** (manifest.json, kpi_smoke.json)
 
-
-**AC (증거 기반 검증):**
-- [x] **D205-10-1: Decision Trace 구현** (reject_reasons 필드 + 계측)
-- [x] **D205-10-2: buffer_bps 조정** (5.0 → 0.0, break_even 70bps → 65bps)
-- [x] **D205-10-3: Gate 100% PASS** (doctor/fast/regression 33/33)
-- [x] **D205-10-4: 2m precheck PASS** (opportunities 119, intents 238)
-- [x] **D205-10-5: 20m smoke PASS** (opportunities 1188, intents 2376)
-- [x] **D205-10-6: Evidence 생성** (manifest.json, kpi_smoke.json)
-
-**D205-11로 이관된 AC:**
-- [ ] Threshold 민감도 분석 (buffer 0/1/2/3/5/8/10 bps sweep)
-- [ ] DecisionTrace 유효성 검증 (negative-control)
-- [ ] 최적 buffer 선택 후 20m smoke 재검증
+**AC (D205-10-1 계획):**
+- [ ] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps)
+- [ ] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대)
+- [ ] **D205-10-1-3:** DecisionTrace 유효성 검증 (negative-control PASS)
+- [ ] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression)
+- [ ] **D205-10-1-5:** 20m smoke PASS (best buffer_bps)
+- [ ] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json)
 
 
 **Evidence 요구사항:**
@@ -3400,8 +3406,8 @@ Rationale:
 **상태:** PLANNED ⏳
 **커밋:** [pending]
 **테스트:** [pending]
-**문서:** `docs/v2/reports/D205/D205-11_REPORT.md`
-**Evidence:** `logs/evidence/d205_11_<timestamp>/`
+**문서:** `docs/v2/reports/D205/D205-11_REPORT.md` (생성 예정)
+**Evidence:** `logs/evidence/d205_11_<timestamp>/` (생성 예정)
 
 **목표:**
 - Tick(시세 수신) → Order(주문 전송) → Fill까지 **ms 단위 계측**
