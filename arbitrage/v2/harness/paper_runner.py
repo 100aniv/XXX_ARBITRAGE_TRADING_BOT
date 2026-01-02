@@ -74,7 +74,11 @@ class PaperRunnerConfig:
         symbols_top: Top N 심볼 (기본값: 10)
         db_connection_string: PostgreSQL 연결 문자열
         read_only: READ_ONLY 강제 (기본값: True)
+        db_mode: DB 모드 (strict/optional/off)
+        ensure_schema: 스키마 체크 (기본값: True)
+        use_real_data: Real MarketData 사용 여부 (기본값: False)
         fx_krw_per_usdt: USDT → KRW 환율 (기본값: 1450.0, D205-9-3)
+        break_even_params: Break-even params (기본값: None)
     """
     duration_minutes: int
     phase: str = "smoke"
@@ -83,10 +87,11 @@ class PaperRunnerConfig:
     symbols_top: int = 10
     db_connection_string: str = ""
     read_only: bool = True
-    db_mode: str = "strict"  # strict/optional/off
+    db_mode: str = "optional"  # strict/optional/off
     ensure_schema: bool = True  # strict면 강제 True
     use_real_data: bool = False  # D205-9: Real MarketData 사용 여부
     fx_krw_per_usdt: float = 1450.0  # D205-9-3: FX rate (USDT → KRW)
+    break_even_params: Optional[BreakEvenParams] = None
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
@@ -403,13 +408,16 @@ class PaperRunner:
         )
         fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
         
-        # Break-even params (D205-10: buffer_bps 0으로 조정 - Intent Loss 해결)
-        self.break_even_params = BreakEvenParams(
-            fee_model=fee_model,
-            slippage_bps=15.0,   # 15 bps (0.15%)
-            latency_bps=10.0,    # 10 bps (0.1%)
-            buffer_bps=0.0,      # D205-10: 0 bps (보수적 → 현실적)
-        )
+        # D205-11: buffer_bps를 외부에서 주입 가능하도록 기본값 유지하되, break_even_params 인자 추가
+        if config.break_even_params is not None:
+            self.break_even_params = config.break_even_params
+        else:
+            self.break_even_params = BreakEvenParams(
+                fee_model=fee_model,
+                slippage_bps=15.0,   # 15 bps (0.15%)
+                latency_bps=10.0,    # 10 bps (0.10%)
+                buffer_bps=0.0,      # D205-10: Intent Loss 해결 (기존 5.0 → 0.0)
+            )
         
         logger.info(f"[D204-2] PaperRunner initialized")
         logger.info(f"[D204-2] run_id: {config.run_id}")

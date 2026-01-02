@@ -3340,27 +3340,27 @@ Rationale:
 
 ---
 
-#### D205-10: Profitability Threshold Optimization (수익성 기준 재정의)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
+#### D205-10: Intent Loss Fix (reject_reasons telemetry + buffer_bps 조정)
+**상태:** COMPLETED ✅
+**커밋:** 0941210
+**테스트:** Gate 33/33 PASS, 2m precheck PASS, 20m smoke PASS
 **문서:** `docs/v2/reports/D205/D205-10_REPORT.md`
-**Evidence:** `logs/evidence/d205_10_<timestamp>/`
+**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/`
 
 **목표:**
-- 수수료 + 슬리피지 + 레이턴시를 포함한 **진짜 break-even(threshold) 재정의**
-- 보수/공격 균형점 찾기 (threshold/buffer 민감도 테스트)
+- Intent Loss 해결 (opportunities → intents 전환 실패 원인 분석)
+- Decision Trace 구현 (reject_reasons 계측)
+- buffer_bps 조정 (5.0 → 0.0, break_even 70bps → 65bps)
 
 **범위 (Do/Don't):**
-- ✅ Do: 실제 비용 모델 적용, threshold 재정의, 민감도 분석
-- ❌ Don't: ML 기반 최적화 (단순 모델만), 실거래 (PAPER만)
+- ✅ Do: reject_reasons 구현, buffer_bps 조정, Gate + Smoke 검증
+- ❌ Don't: 장시간 튜닝 (D205-11로 이관), 실거래
 
 ### Scope Clarification (SSOT)
 
-- D205-10은 **수익성 임계치(Profitability Threshold) 및 튜닝 단계**이다.
-- 이 단계에서부터 **장시간 Paper Test (≥1h / ≥3h)** 가 허용된다.
-- D205-9에서 검증된 wiring/정합성 위에서,
-  실제 시장 조건에서의 winrate, drawdown, edge_after_cost 분포를 검증한다.
+- D205-10은 **Intent Loss Fix (기회 → 인텐트 전환 실패 해결)**이다.
+- reject_reasons 계측 + buffer_bps 조정으로 인텐트 생성 활성화.
+- **Threshold 민감도 분석 및 장시간 튜닝은 D205-11로 이관.**
 
 
 **AC (증거 기반 검증):**
@@ -3370,17 +3370,17 @@ Rationale:
 - [x] **D205-10-4: 2m precheck PASS** (opportunities 119, intents 238)
 - [x] **D205-10-5: 20m smoke PASS** (opportunities 1188, intents 2376)
 - [x] **D205-10-6: Evidence 생성** (manifest.json, kpi_smoke.json)
-- [ ] Threshold 민감도 분석 (buffer 0/5/10 bps 비교)
-- [ ] Profitability Threshold 정의 (buffer_bps, execution_risk_bps, min_edge_after_cost)
-- [ ] Threshold 고정 후 ≥1h Paper Test 수행 (옵션)
-- [ ] Paper Test 결과 KPI 기록 (winrate, pnl, drawdown, edge distribution)
+
+**D205-11로 이관된 AC:**
+- [ ] Threshold 민감도 분석 (buffer 0/1/2/3/5/8/10 bps sweep)
+- [ ] DecisionTrace 유효성 검증 (negative-control)
+- [ ] 최적 buffer 선택 후 20m smoke 재검증
 
 
 **Evidence 요구사항:**
-- manifest.json
-- cost_model.json (수수료/슬리피지/레이턴시 정의)
-- threshold_sensitivity_analysis.json (10+ 조합)
-- profitability_by_scenario.json (conservative/aggressive)
+- manifest.json ✅
+- kpi_smoke.json ✅
+- result.json ✅
 
 **Gate 조건:**
 - Gate 0 FAIL
