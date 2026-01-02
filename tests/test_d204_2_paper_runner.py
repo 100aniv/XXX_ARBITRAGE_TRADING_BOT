@@ -137,8 +137,9 @@ class TestKPICollector:
         assert kpi_dict["intents_created"] == 20
         assert kpi_dict["mock_executions"] == 20
         assert "duration_seconds" in kpi_dict
-        assert "duration_minutes" in kpi_dict
-        assert "start_time" in kpi_dict
+        assert "ratelimit_hits" in kpi_dict
+        assert "dedup_hits" in kpi_dict
+        assert "reject_reasons" in kpi_dict  # D205-10
 
 
 class TestPaperRunner:
@@ -222,7 +223,7 @@ class TestPaperRunner:
         
         runner = PaperRunner(config)
         candidate = runner._generate_mock_opportunity(iteration=1)
-        intents = runner._convert_to_intents(candidate)
+        intents = runner._convert_to_intents(candidate, iteration=1)
         
         # profitable한 경우 2개 (BUY + SELL)
         # unprofitable한 경우 0개

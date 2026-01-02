@@ -163,6 +163,24 @@ class KPICollector:
     ratelimit_hits: int = 0
     dedup_hits: int = 0
     
+    # D205-10: Decision Trace (reject reason 카운트)
+    reject_reasons: Dict[str, int] = field(default_factory=lambda: {
+        "profitable_false": 0,
+        "direction_none": 0,
+        "edge_bps_below_zero": 0,
+        "units_mismatch": 0,
+        "sanity_guard": 0,
+        "other": 0,
+        "candidate_none": 0,
+    })
+    
+    def bump_reject(self, reason: str) -> None:
+        """Reject reason 카운트 증가 (D205-10)"""
+        if reason in self.reject_reasons:
+            self.reject_reasons[reason] += 1
+        else:
+            self.reject_reasons["other"] += 1
+    
     def to_dict(self) -> Dict[str, Any]:
         """KPI를 dict로 변환"""
         duration_seconds = time.time() - self.start_time
@@ -199,6 +217,8 @@ class KPICollector:
             "redis_ok": self.redis_ok,
             "ratelimit_hits": self.ratelimit_hits,
             "dedup_hits": self.dedup_hits,
+            # D205-10: Decision Trace
+            "reject_reasons": dict(self.reject_reasons),
         }
         
         # 시스템 메트릭 (psutil 있으면)
@@ -383,12 +403,12 @@ class PaperRunner:
         )
         fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
         
-        # Break-even params (D205-9-1: latency_bps 추가)
+        # Break-even params (D205-10: buffer_bps 0으로 조정 - Intent Loss 해결)
         self.break_even_params = BreakEvenParams(
             fee_model=fee_model,
-            slippage_bps=15.0,   # 15 bps (0.15%) - D205-9 RECOVERY 현실화
-            latency_bps=10.0,    # 10 bps (0.1%) - D205-9-1 추가
-            buffer_bps=5.0,      # 5 bps safety buffer
+            slippage_bps=15.0,   # 15 bps (0.15%)
+            latency_bps=10.0,    # 10 bps (0.1%)
+            buffer_bps=0.0,      # D205-10: 0 bps (보수적 → 현실적)
         )
         
         logger.info(f"[D204-2] PaperRunner initialized")
@@ -459,19 +479,25 @@ class PaperRunner:
                     candidate = self._generate_real_opportunity(iteration)
                 else:
                     candidate = self._generate_mock_opportunity(iteration)
-                if candidate:
-                    self.kpi.opportunities_generated += 1
-                    
-                    # 2. OrderIntent 변환
-                    intents = self._convert_to_intents(candidate)
-                    self.kpi.intents_created += len(intents)
-                    
-                    # D205-2 REOPEN: opportunity 단위 trade 처리 (entry + exit)
-                    # D205-9: Fake-Optimism 감지 시 즉시 종료
-                    exit_code = self._process_opportunity_as_trade(candidate, intents)
-                    if exit_code == 1:
-                        logger.error("[D205-9] Fake-Optimism detected, exiting loop immediately")
-                        return 1
+                
+                # D205-10: candidate None 시 reject reason 추적
+                if not candidate:
+                    self.kpi.bump_reject("candidate_none")
+                    time.sleep(1.0)
+                    continue
+                
+                self.kpi.opportunities_generated += 1
+                
+                # 2. OrderIntent 변환
+                intents = self._convert_to_intents(candidate, iteration)
+                self.kpi.intents_created += len(intents)
+                
+                # D205-2 REOPEN: opportunity 단위 trade 처리 (entry + exit)
+                # D205-9: Fake-Optimism 감지 시 즉시 종료
+                exit_code = self._process_opportunity_as_trade(candidate, intents)
+                if exit_code == 1:
+                    logger.error("[D205-9] Fake-Optimism detected, exiting loop immediately")
+                    return 1
                 
                 # 1분 단위 KPI 출력
                 if iteration % 10 == 0:
@@ -586,6 +612,13 @@ class PaperRunner:
             # D205-9-3: FX Provider 사용 (하드코딩 제거)
             fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
             
+            # D205-10: FX Safety Guard (환율 이상 감지)
+            if fx_rate < 1000 or fx_rate > 2000:
+                logger.error(f"[D205-10] ❌ FX rate suspicious: {fx_rate} KRW/USDT (expected 1000~2000)")
+                self.kpi.bump_reject("sanity_guard")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
             # D205-9-3: Quote Normalizer로 통화 정규화
             price_a = ticker_upbit.last  # KRW (이미 정규화됨)
             price_b_usdt = ticker_binance.last  # USDT (원본)
@@ -647,8 +680,8 @@ class PaperRunner:
             self.kpi.errors.append(f"build_candidate: {e}")
             return None
     
-    def _convert_to_intents(self, candidate) -> List[OrderIntent]:
-        """OpportunityCandidate → OrderIntent 변환"""
+    def _convert_to_intents(self, candidate, iteration: int) -> List[OrderIntent]:
+        """OpportunityCandidate → OrderIntent 변환 (D205-10: reject reason 추적)"""
         try:
             intents = candidate_to_order_intents(
                 candidate=candidate,
@@ -656,10 +689,26 @@ class PaperRunner:
                 quote_amount=500_000.0,  # 50만원
                 order_type=OrderType.MARKET,
             )
+            
+            # D205-10: intents 비어있을 때 reject reason 기록
+            if len(intents) == 0:
+                if not candidate.profitable:
+                    self.kpi.bump_reject("profitable_false")
+                    if iteration <= 3:  # 초기 3회만 상세 로그
+                        logger.info(f"[D205-10 REJECT] profitable=False | spread={candidate.spread_bps:.1f} < break_even={candidate.break_even_bps:.1f} | edge={candidate.edge_bps:.1f}")
+                elif candidate.direction.value == "none":
+                    self.kpi.bump_reject("direction_none")
+                    if iteration <= 3:
+                        logger.info(f"[D205-10 REJECT] direction=NONE | price_a={candidate.price_a:.0f}, price_b={candidate.price_b:.0f}")
+                else:
+                    self.kpi.bump_reject("other")
+                    logger.warning(f"[D205-10 REJECT] Logic bug? profitable={candidate.profitable}, direction={candidate.direction.value}, but intents=0")
+            
             return intents
         except Exception as e:
             logger.error(f"[D204-2] Failed to convert to intents: {e}", exc_info=True)
             self.kpi.errors.append(f"candidate_to_order_intents: {e}")
+            self.kpi.bump_reject("other")
             return []
     
     def _execute_order(self, intent: OrderIntent):

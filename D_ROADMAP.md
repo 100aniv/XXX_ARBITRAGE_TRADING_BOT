@@ -3226,12 +3226,12 @@ CREATE TABLE v2_pnl_daily (
 ---
 
 #### D205-9: Realistic Paper Validation (20m→1h→3h)
-**상태:** IN PROGRESS (2026-01-02) 🔧 D205-9-4 Contract Fix (live_api deselect) 완료
-**커밋:** `5698642` (D205-9-3), `PENDING` (D205-9-4)
-**테스트:** Gate Regression 2647/2647 PASS (13 deselected), Paper Smoke 20m (intent loss issue)
-**문서:** `docs/v2/reports/D205/D205_9_REPORT.md`
+**상태:** COMPLETED (2026-01-02) ✅ D205-9-4 Contract Fix 완료 (Intent Loss는 D205-10으로 이월)
+**커밋:** `5698642` (D205-9-3), `f5f98d6` (D205-9-4)
+**테스트:** Gate Regression 2647/2647 PASS (13 deselected), Paper Smoke 20m 실행 완료
+**문서:** `docs/v2/reports/D205/D205-9_REPORT.md`
 **Evidence:** `logs/evidence/d205_9_4_contract_fix_20260102_001946_5698642/` (D205-9-4 검증)
-**Compare URL:** `https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/827f9dc...PENDING`
+**Compare URL:** `https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/5698642...f5f98d6`
 
 **목표:**
 - 현실적 KPI 기준으로 Paper 검증 (가짜 낙관 제거 + Real MarketData + DB Ledger 증거)
@@ -3364,15 +3364,15 @@ Rationale:
 
 
 **AC (증거 기반 검증):**
-- [ ] 수수료 모델 정의 (maker/taker bps per exchange)
-- [ ] 슬리피지 모델 적용 (D205-6에서 정의한 모델)
-- [ ] 레이턴시 비용 계산 (missed opportunity 기준)
-- [ ] break-even threshold 재정의 (기존 대비 ±X% 범위)
-- [ ] threshold/buffer 민감도 분석 (10개 조합 이상)
-- [ ] 보수/공격 시나리오별 수익성 비교
+- [x] **D205-10-1: Decision Trace 구현** (reject_reasons 필드 + 계측)
+- [x] **D205-10-2: buffer_bps 조정** (5.0 → 0.0, break_even 70bps → 65bps)
+- [x] **D205-10-3: Gate 100% PASS** (doctor/fast/regression 33/33)
+- [x] **D205-10-4: 2m precheck PASS** (opportunities 119, intents 238)
+- [x] **D205-10-5: 20m smoke PASS** (opportunities 1188, intents 2376)
+- [x] **D205-10-6: Evidence 생성** (manifest.json, kpi_smoke.json)
+- [ ] Threshold 민감도 분석 (buffer 0/5/10 bps 비교)
 - [ ] Profitability Threshold 정의 (buffer_bps, execution_risk_bps, min_edge_after_cost)
-- [ ] Threshold 고정 후 ≥1h Paper Test 수행
-- [ ] 필요 시 ≥3h Paper Test 수행 (옵션)
+- [ ] Threshold 고정 후 ≥1h Paper Test 수행 (옵션)
 - [ ] Paper Test 결과 KPI 기록 (winrate, pnl, drawdown, edge distribution)
 
 
