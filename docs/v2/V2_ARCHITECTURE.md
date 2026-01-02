@@ -6,7 +6,26 @@
 
 ---
 
-## 🎯 Design Goals
+## 🔒 SSOT & D-number Semantics
+
+**이 문서는 V2 아키텍처 설계의 SSOT입니다.**
+
+### D-number 불변 원칙 (Immutable Semantics)
+- D 번호의 의미는 절대 변경 금지
+- 추가 작업은 브랜치(Dxxx-y-z)로만 확장
+- 예: D205-10 = "Intent Loss Fix" (고정), D205-10-0/1 = 브랜치
+
+### SSOT 참조 관계
+- **Process SSOT:** `D_ROADMAP.md` (D 번호 의미 정의)
+- **Rules SSOT:** `docs/v2/SSOT_RULES.md` (개발 규칙)
+- **Architecture SSOT:** 본 문서 (V2 설계)
+- **Map SSOT:** `docs/v2/design/SSOT_MAP.md` (도메인별 SSOT)
+
+**SSOT 변경 시:** 4개 문서 동기화 필수
+
+---
+
+## 🎯 Design Goals (V2 아키텍처 목표)
 
 ### 1. Engine-Centric (Not Script-Centric)
 - ❌ **V1 Problem:** 65+ run_*.py scripts, 일회성 실험 난립

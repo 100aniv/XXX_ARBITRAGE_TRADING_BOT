@@ -26,6 +26,37 @@
 
 ---
 
+## 🔒 SSOT 전역 규칙 (D-number Immutability & Branching)
+
+### 1. D 번호 의미는 불변 (Immutable D-number Semantics)
+- ❌ **금지:** 기존 D 번호의 의미를 다른 작업으로 변경
+- ❌ **금지:** AC를 다른 D로 "이관"하여 기존 D의 스코프 축소
+- ❌ **금지:** D 번호를 재사용하여 다른 작업 수행
+- ✅ **허용:** D 번호는 최초 정의된 의미로 고정
+- ✅ **허용:** 추가 작업은 브랜치(Dxxx-y-z)로만 확장
+
+**예시:**
+- D205-10 = "Intent Loss Fix" (의미 고정)
+  - D205-10-0: 기본 브랜치 (reject_reasons + buffer_bps 조정)
+  - D205-10-1: 추가 브랜치 (Threshold Sensitivity Sweep)
+- D205-11 = "Latency Profiling" (의미 고정, 변경 금지)
+
+### 2. DONE/COMPLETED 조건 (진실성 강제)
+- ❌ **금지:** "문서 기반 완료", "분석 기반 PASS" 같은 허위 DONE
+- ❌ **금지:** Evidence 재사용으로 AC PASS 처리
+- ✅ **필수:** AC + Evidence 일치 시에만 COMPLETED 선언
+- ✅ **필수:** Gate 100% PASS + 실제 실행 증거 존재
+
+### 3. Report 파일명 규칙
+- **메인 D:** `docs/v2/reports/Dxxx/Dxxx_REPORT.md`
+- **브랜치 D:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md`
+- **예시:**
+  - D205-10-0: `docs/v2/reports/D205/D205-10_REPORT.md`
+  - D205-10-1: `docs/v2/reports/D205/D205-10-1_REPORT.md`
+  - D205-11: `docs/v2/reports/D205/D205-11_REPORT.md`
+
+---
+
 # TO-BE Master Plan (SSOT / Milestones)
 
 > 원칙: ROADMAP → D 문서/코드 순서로 진행한다.  
