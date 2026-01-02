@@ -8,24 +8,35 @@
 
 ## 🔒 SSOT & D-number Semantics
 
-**이 문서는 V2 아키텍처 설계의 SSOT입니다.**
+**⚠️ 중요:** 이 문서는 V2 아키텍처 설계 설명이며, **프로세스/상태의 유일 SSOT는 `D_ROADMAP.md`입니다.**
 
 ### D-number 불변 원칙 (Immutable Semantics)
 - D 번호의 의미는 절대 변경 금지
 - 추가 작업은 브랜치(Dxxx-y-z)로만 확장
 - 예: D205-10 = "Intent Loss Fix" (고정), D205-10-0/1 = 브랜치
 
-### SSOT 참조 관계
-- **Process SSOT:** `D_ROADMAP.md` (D 번호 의미 정의)
-- **Rules SSOT:** `docs/v2/SSOT_RULES.md` (개발 규칙)
-- **Architecture SSOT:** 본 문서 (V2 설계)
-- **Map SSOT:** `docs/v2/design/SSOT_MAP.md` (도메인별 SSOT)
+### SSOT 우선순위 (Hierarchy)
 
-**SSOT 변경 시:** 4개 문서 동기화 필수
+**`D_ROADMAP.md`가 유일 SSOT이며, 다른 문서는 참조/동기화 대상입니다.**
+
+- **Process SSOT (최상위):** `D_ROADMAP.md`
+  - D 번호 의미, 상태, AC, 증거 경로 정의
+  - 충돌 시 D_ROADMAP이 우선
+
+- **Rules SSOT:** `docs/v2/SSOT_RULES.md`
+  - 개발 규칙 (D_ROADMAP 참조)
+
+- **Map SSOT:** `docs/v2/design/SSOT_MAP.md`
+  - 도메인별 SSOT 위치 (D_ROADMAP 참조)
+
+- **Architecture SSOT (본 문서):** V2 설계 설명
+  - 아키텍처 구조 (프로세스 SSOT와 동기화)
+
+**SSOT 변경 규칙:** D_ROADMAP 수정 후 → SSOT_RULES/SSOT_MAP/V2_ARCHITECTURE 동기화
 
 ---
 
-## 🎯 Design Goals (V2 아키텍처 목표)
+## 🎯 Design Goals (V2 아키텍처 설계 목표)
 
 ### 1. Engine-Centric (Not Script-Centric)
 - ❌ **V1 Problem:** 65+ run_*.py scripts, 일회성 실험 난립
