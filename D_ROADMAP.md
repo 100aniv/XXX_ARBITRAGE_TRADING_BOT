@@ -3372,11 +3372,11 @@ Rationale:
 ---
 
 #### D205-10: Intent Loss Fix (브랜치 체계)
-**상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PLANNED)
+**상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PARTIAL)
 **커밋:** 0941210 (D205-10-0), [pending] (D205-10-1)
-**테스트:** Gate 33/33 PASS, 2m precheck PASS, 20m smoke PASS (D205-10-0)
-**문서:** `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0), `docs/v2/reports/D205/D205-10-1_REPORT.md` (PLANNED)
-**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0)
+**테스트:** Gate 33/33 PASS (both branches)
+**문서:** `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0), `docs/v2/reports/D205/D205-10-1_REPORT.md` (PARTIAL)
+**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0), `logs/evidence/d205_10_1_sweep_20260103_153847/` (D205-10-1)
 
 **목표:**
 - Intent Loss 해결 (opportunities → intents 전환 실패 원인 분석)
@@ -3393,9 +3393,9 @@ Rationale:
   - 커밋: 0941210
   - AC: 6/6 PASS
 - **D205-10-1 (추가 브랜치):** Threshold Sensitivity Sweep
-  - 상태: PLANNED ⏳
+  - 상태: PARTIAL ⚠️ (Infrastructure 검증 완료, Real Data 미완료)
   - 목표: buffer_bps 후보 sweep (0/2/5/8/10), DecisionTrace negative-control, 최적 buffer 선택
-  - AC: 6개 (미완료)
+  - AC: 4/6 PASS (Infrastructure), 2/6 PARTIAL/SKIP (Real data)
 
 **AC (D205-10-0 완료):**
 - [x] **D205-10-0-1: Decision Trace 구현** (reject_reasons 필드 + 계측)
@@ -3405,13 +3405,15 @@ Rationale:
 - [x] **D205-10-0-5: 20m smoke PASS** (opportunities 1188, intents 2376)
 - [x] **D205-10-0-6: Evidence 생성** (manifest.json, kpi_smoke.json)
 
-**AC (D205-10-1 계획):**
-- [ ] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps)
-- [ ] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대)
-- [ ] **D205-10-1-3:** DecisionTrace 유효성 검증 (negative-control PASS)
-- [ ] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression)
-- [ ] **D205-10-1-5:** 20m smoke PASS (best buffer_bps)
-- [ ] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json)
+**AC (D205-10-1 PARTIAL):**
+- [x] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps) — ✅ Infrastructure PASS
+- [x] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대) — ✅ Logic PASS
+- [~] **D205-10-1-3:** DecisionTrace 유효성 검증 (negative-control PASS) — ⚠️ PARTIAL (Real data 필요)
+- [x] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression) — ✅ 33/33 PASS
+- [~] **D205-10-1-5:** 20m smoke PASS (best buffer_bps) — ⏭️ SKIP (MOCK 모드 제한)
+- [x] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json) — ✅ PASS
+
+**Note:** MOCK 모드에서 Infrastructure 검증 완료. Real threshold sensitivity는 `--use-real-data` 플래그로 별도 실행 필요.
 
 
 **Evidence 요구사항:**
