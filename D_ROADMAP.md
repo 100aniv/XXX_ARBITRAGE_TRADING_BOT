@@ -3372,11 +3372,11 @@ Rationale:
 ---
 
 #### D205-10: Intent Loss Fix (브랜치 체계)
-**상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PARTIAL)
-**커밋:** 0941210 (D205-10-0), [pending] (D205-10-1)
-**테스트:** Gate 33/33 PASS (both branches)
+**상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PARTIAL - 시장 환경 제약)
+**커밋:** 0941210 (D205-10-0), f9c7830 (D205-10-1 baseline), [pending] (D205-10-1 REAL DATA)
+**테스트:** Gate 2650/2650 PASS (D205-10-1)
 **문서:** `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0), `docs/v2/reports/D205/D205-10-1_REPORT.md` (PARTIAL)
-**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0), `logs/evidence/d205_10_1_sweep_20260103_153847/` (D205-10-1)
+**Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0), `logs/evidence/d205_10_1_sweep_20260104_104844/` (D205-10-1 REAL DATA)
 
 **목표:**
 - Intent Loss 해결 (opportunities → intents 전환 실패 원인 분석)
@@ -3393,9 +3393,9 @@ Rationale:
   - 커밋: 0941210
   - AC: 6/6 PASS
 - **D205-10-1 (추가 브랜치):** Threshold Sensitivity Sweep
-  - 상태: PARTIAL ⚠️ (Infrastructure 검증 완료, Real Data 미완료)
-  - 목표: buffer_bps 후보 sweep (0/2/5/8/10), DecisionTrace negative-control, 최적 buffer 선택
-  - AC: 4/6 PASS (Infrastructure), 2/6 PARTIAL/SKIP (Real data)
+  - 상태: PARTIAL ⚠️ (REAL DATA 검증 완료, 시장 환경 제약으로 closed_trades=0)
+  - 목표: buffer_bps 후보 sweep (0/2/5/8/10), Negative-control PASS, 최적 buffer 선택
+  - AC: 4/6 PASS (Sweep/Negative-control/Gate/Evidence), 1/6 FAIL (Best buffer - 시장 제약), 1/6 SKIP (20m smoke)
 
 **AC (D205-10-0 완료):**
 - [x] **D205-10-0-1: Decision Trace 구현** (reject_reasons 필드 + 계측)
@@ -3405,15 +3405,15 @@ Rationale:
 - [x] **D205-10-0-5: 20m smoke PASS** (opportunities 1188, intents 2376)
 - [x] **D205-10-0-6: Evidence 생성** (manifest.json, kpi_smoke.json)
 
-**AC (D205-10-1 PARTIAL):**
-- [x] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps) — ✅ Infrastructure PASS
-- [x] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대) — ✅ Logic PASS
-- [~] **D205-10-1-3:** DecisionTrace 유효성 검증 (negative-control PASS) — ⚠️ PARTIAL (Real data 필요)
-- [x] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression) — ✅ 33/33 PASS
-- [~] **D205-10-1-5:** 20m smoke PASS (best buffer_bps) — ⏭️ SKIP (MOCK 모드 제한)
+**AC (D205-10-1 PARTIAL - REAL DATA 완료):**
+- [x] **D205-10-1-1:** Threshold Sensitivity Sweep 실행 (buffer 0/2/5/8/10 bps) — ✅ PASS (REAL DATA, 565 opportunities)
+- [~] **D205-10-1-2:** Best buffer 선택 (closed_trades > 0, error_count == 0, net_pnl 최대) — ❌ FAIL (모든 buffer: closed_trades=0, 시장 스프레드 0.2% < break_even 1.5%)
+- [x] **D205-10-1-3:** Negative-control PASS (buffer=999, profitable_false > 0) — ✅ PASS (profitable_false=56)
+- [x] **D205-10-1-4:** Gate 3단 PASS (doctor/fast/regression) — ✅ PASS (2650/2650)
+- [~] **D205-10-1-5:** 20m smoke PASS (best buffer_bps) — ⏭️ SKIP (No best_buffer selected)
 - [x] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json) — ✅ PASS
 
-**Note:** MOCK 모드에서 Infrastructure 검증 완료. Real threshold sensitivity는 `--use-real-data` 플래그로 별도 실행 필요.
+**Market Constraint (2026-01-04):** 실제 시장 스프레드(~0.2%) < break_even threshold(~1.5%) → 수익성 기회 없음. Infrastructure/Logic 검증 완료.
 
 
 **Evidence 요구사항:**

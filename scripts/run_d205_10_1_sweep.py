@@ -199,55 +199,62 @@ def select_best_buffer(sweep_results: List[Dict]) -> Dict:
     }
 
 
-def analyze_negative_control(sweep_results: List[Dict]) -> Dict:
+def run_negative_control(
+    duration_minutes: int,
+    use_real_data: bool,
+    db_mode: str,
+    evidence_base_dir: Path,
+    fx_rate: float = 1450.0,
+) -> Dict:
     """
-    Negative-control 분석
+    Negative-control run (buffer=999, 매우 큰 값으로 모든 기회 거절 예상)
     
-    검증:
-    - gross_edge > 0 && net_edge <= 0 케이스가 reject_reasons에 포함되는지
+    목적: reject_reasons.profitable_false > 0 검증
     
     Returns:
         {
-            "total_opportunities": int,
-            "total_rejects": dict,
-            "negative_control_samples": list,
+            "buffer_bps": 999.0,
+            "duration_minutes": int,
+            "kpi": dict,
+            "evidence_dir": str,
+            "reject_reasons": dict,
             "passed": bool,
+            "reason": str,
         }
     """
-    total_opportunities = 0
-    total_rejects = {}
-    samples = []
+    logger.info(f"[D205-10-1] Running negative-control (buffer=999, duration={duration_minutes}m)")
     
-    for result in sweep_results:
-        buffer_bps = result["buffer_bps"]
-        kpi = result.get("kpi", {})
-        
-        opportunities = kpi.get("opportunities_generated", 0)
-        reject_reasons = kpi.get("reject_reasons", {})
-        
-        total_opportunities += opportunities
-        
-        for reason, count in reject_reasons.items():
-            total_rejects[reason] = total_rejects.get(reason, 0) + count
-        
-        # 샘플 수집 (profitable_false 케이스)
-        if reject_reasons.get("profitable_false", 0) > 0:
-            samples.append({
-                "buffer_bps": buffer_bps,
-                "opportunities": opportunities,
-                "reject_reasons": reject_reasons,
-                "interpretation": "gross>0 but net<=0 candidates rejected as profitable_false",
-            })
+    # buffer=999로 run
+    result = run_single_sweep(
+        buffer_bps=999.0,
+        duration_minutes=duration_minutes,
+        use_real_data=use_real_data,
+        db_mode=db_mode,
+        evidence_base_dir=evidence_base_dir,
+        fx_rate=fx_rate,
+    )
     
-    # Negative-control 통과 조건: profitable_false > 0 (buffer 증가 시 reject 증가)
-    passed = total_rejects.get("profitable_false", 0) > 0
+    kpi = result.get("kpi", {})
+    reject_reasons = kpi.get("reject_reasons", {})
+    profitable_false_count = reject_reasons.get("profitable_false", 0)
+    
+    # PASS 조건: profitable_false > 0
+    passed = profitable_false_count > 0
+    
+    reason = (
+        f"profitable_false={profitable_false_count} (expected > 0)"
+        if passed
+        else f"profitable_false={profitable_false_count} (FAIL: expected > 0, got 0)"
+    )
     
     return {
-        "total_opportunities": total_opportunities,
-        "total_rejects": total_rejects,
-        "negative_control_samples": samples[:5],  # 최대 5개
+        "buffer_bps": 999.0,
+        "duration_minutes": duration_minutes,
+        "kpi": kpi,
+        "evidence_dir": result.get("evidence_path", ""),
+        "reject_reasons": reject_reasons,
         "passed": passed,
-        "interpretation": "profitable_false > 0 means negative-control working (gross>0 but net<=0 rejected)",
+        "reason": reason,
     }
 
 
@@ -294,8 +301,15 @@ def main():
     # Best buffer 선정
     best_selection = select_best_buffer(sweep_results)
     
-    # Negative-control 분석
-    negative_control = analyze_negative_control(sweep_results)
+    # Negative-control run (buffer=999, 1m)
+    logger.info(f"[D205-10-1] Starting negative-control run (buffer=999)")
+    negative_control = run_negative_control(
+        duration_minutes=1,  # 짧게 1분
+        use_real_data=args.use_real_data,
+        db_mode=args.db_mode,
+        evidence_base_dir=evidence_base_dir,
+        fx_rate=args.fx_krw_per_usdt,
+    )
     
     # Summary 생성
     summary = {
