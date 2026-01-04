@@ -3462,7 +3462,7 @@ Rationale:
 
 **AC (증거 기반 검증):**
 - [x] **AC-1:** WaitHarness v2 엔진 구현 (Wallclock/Monotonic/Phased/Early-Stop) ✅
-- [x] **AC-2:** watch_summary.json 필드 정의 (26개 필드) ✅
+- [x] **AC-2:** watch_summary.json 필드 정의 (21개 필드, Evidence 실측) ✅
 - [x] **AC-3:** heartbeat.json 주기적 갱신 (60초마다) ✅
 - [x] **AC-4:** 3h checkpoint 평가 (feasibility 판정) ✅
 - [x] **AC-5:** Early-Stop 로직 (infeasible_margin_bps 기반) ✅
@@ -3479,23 +3479,23 @@ Rationale:
 - **샘플:** 361개 (completeness 100%)
 - **max_spread:** 26.43 bps
 - **max_edge:** -123.57 bps (모두 음수)
-- **stop_reason:** EARLY_INFEASIBLE (max_spread 26.43 < threshold 70)
+- **stop_reason:** EARLY_INFEASIBLE (max_spread 26.43 < threshold 120, break-even 150 bps 기준)
 - **feasibility_decision:** INFEASIBLE
 
 **Gate 결과:**
-- ✅ Doctor: PASS (9/9 유닛테스트)
-- ✅ Fast: PASS (25/25 tests: 9 wallclock + 16 preflight)
+- Doctor: PASS (9/9 유닛테스트)
+- Fast: PASS (25/25 tests: 9 wallclock + 16 preflight)
 - ✅ Regression: PASS (기존 베이스라인 유지)
 
 **Evidence 요구사항:**
-- ✅ watch_summary.json (835 bytes, 26개 필드 정상)
+- ✅ watch_summary.json (835 bytes, 21개 필드, Evidence 실측)
 - ✅ heartbeat.json (275 bytes, 60초마다 갱신)
 - ✅ market_watch.jsonl (197,639 bytes, 361개 샘플)
 - ✅ D205-10-2_WAIT_HARNESS_V2_REPORT.md (설계 + 결과 분석)
 
 **PASS/FAIL 판단:**
 - ✅ PASS: watch_summary.json 자동 생성 + 모든 필드 정상 + stop_reason 명시 + Gate 100% PASS
-- **PARTIAL 이유:** 시장 환경 제약 (실제 spread 26.43 bps < 모델 break-even 100 bps)
+- **PARTIAL 이유:** 시장 환경 제약 (실제 spread 26.43 bps < 모델 break-even 150 bps)
 
 **의존성:**
 - Depends on: D205-10-1 (사실 정정)

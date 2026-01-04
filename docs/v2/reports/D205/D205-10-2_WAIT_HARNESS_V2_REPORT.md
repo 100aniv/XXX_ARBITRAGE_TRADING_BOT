@@ -134,10 +134,10 @@ def _evaluate_feasibility(self) -> bool:
 
 **실제 판정 (D205-10-2):**
 - max_spread: 26.43 bps
-- break_even: 100 bps (기본값)
+- break_even: 150 bps (Evidence 실측: market_watch.jsonl 기준)
 - infeasible_margin: 30 bps
-- threshold: 100 - 30 = 70 bps
-- 판정: 26.43 < 70 → **INFEASIBLE**
+- threshold: 150 - 30 = 120 bps
+- 판정: 26.43 < 120 → **INFEASIBLE**
 
 ### 5. bid/ask 호가 데이터 포함
 
