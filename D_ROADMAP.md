@@ -3418,19 +3418,16 @@ Rationale:
 **Wait Harness 구현 (2026-01-04):**
 - **목적:** 10시간 시장 감시 + 트리거 조건 충족 시 자동 완결
 - **상태:** ✅ READY (Implementation Complete, 10h run pending)
-- **Gate:** Doctor/Fast/Boundary/Regression 100% PASS
-- **Artifacts:**
-  - arbitrage/v2/harness/d205_10_1_wait_harness.py (신규 엔진 모듈)
-  - scripts/run_d205_10_1_wait_and_execute.py (신규 CLI 스크립트)
-- **Trigger:** edge_bps >= 0 (spread_bps > break_even_bps)
-- **Evidence:** logs/evidence/d205_10_1_wait_bootstrap_20260104_121700/
-- **Report:** docs/v2/reports/D205/D205-10-1_WAIT_HARNESS_REPORT.md
-- **Next:** 10h real run 또는 Auto-Postmortem (Break-even Assumption Recalibration)
+- **Gate:** Doctor/Fast/Bound**Wait Harness 10h Real Run (2026-01-04):**
+- **상태:** ✅ COMPLETED (PARTIAL - Market Constraint)
+- **시작 시각:** 2026-01-04 12:47:45 UTC+09:00
+- **종료 시각:** 2026-01-04 22:47:45 UTC+09:00 (정확히 10시간)
+- **실행 명령:** `python scripts/run_d205_10_1_wait_and_execute.py --duration-hours 10 --poll-seconds 30 --trigger-min-edge-bps 0.0 --fx-krw-per-usdt 1450 --sweep-duration-minutes 20`
+- **Evidence:** logs/evidence/d205_10_1_wait_20260104_124745/
+- **결과:** Trigger 미발생 → D205-10-1 PARTIAL (시장 스프레드 < break-even threshold)
+- **KPI:** 120개 샘플, 최대 edge -120.28 bps (모두 음수)
+- **분석:** 실제 스프레드(~20 bps) < 모델 break-even(150 bps) → 수익 불가능
 
-
-**Evidence 요구사항:**
-- manifest.json ✅
-- kpi_smoke.json ✅
 - result.json ✅
 
 **Gate 조건:**
