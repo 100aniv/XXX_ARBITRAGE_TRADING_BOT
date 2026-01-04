@@ -333,9 +333,11 @@ def print_findings(findings: List[Finding]) -> None:
         loc = f.where
         if f.line_no is not None:
             loc = f"{loc}:{f.line_no}"
-        print(f"- [{f.severity}] {loc} — {f.message}")
+        print(f"- [{f.severity}] {loc} - {f.message}")
         if f.excerpt:
-            print(f"         ↳ {f.excerpt}")
+            # ASCII-safe excerpt (Windows cp949 호환)
+            safe_excerpt = f.excerpt.encode('ascii', errors='replace').decode('ascii')
+            print(f"         -> {safe_excerpt}")
 
 
 def main() -> int:

@@ -3415,6 +3415,18 @@ Rationale:
 
 **Market Constraint (2026-01-04):** 실제 시장 스프레드(~0.2%) < break_even threshold(~1.5%) → 수익성 기회 없음. Infrastructure/Logic 검증 완료.
 
+**Wait Harness 구현 (2026-01-04):**
+- **목적:** 10시간 시장 감시 + 트리거 조건 충족 시 자동 완결
+- **상태:** ✅ READY (Implementation Complete, 10h run pending)
+- **Gate:** Doctor/Fast/Boundary/Regression 100% PASS
+- **Artifacts:**
+  - arbitrage/v2/harness/d205_10_1_wait_harness.py (신규 엔진 모듈)
+  - scripts/run_d205_10_1_wait_and_execute.py (신규 CLI 스크립트)
+- **Trigger:** edge_bps >= 0 (spread_bps > break_even_bps)
+- **Evidence:** logs/evidence/d205_10_1_wait_bootstrap_20260104_121700/
+- **Report:** docs/v2/reports/D205/D205-10-1_WAIT_HARNESS_REPORT.md
+- **Next:** 10h real run 또는 Auto-Postmortem (Break-even Assumption Recalibration)
+
 
 **Evidence 요구사항:**
 - manifest.json ✅
