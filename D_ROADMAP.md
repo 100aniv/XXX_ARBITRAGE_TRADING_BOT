@@ -3503,48 +3503,173 @@ Rationale:
 
 ---
 
-#### D205-11: Latency Profiling & Execution Tuning (ms 단위 계측)
-**상태:** PLANNED ⏳
-**커밋:** [pending]
-**테스트:** [pending]
-**문서:** `docs/v2/reports/D205/D205-11_REPORT.md`
-**Evidence:** `logs/evidence/d205_11_<timestamp>/`
+### D205-11: Latency Profiling (Umbrella — ms 단위 계측 + 병목 최적화)
 
-**목표:**
-- Tick(시세 수신) → Order(주문 전송) → Fill까지 **ms 단위 계측**
-- DB I/O, 로깅이 코어 루프를 막는지 **프로파일링**
-- 목표치(p50/p95) 달성
+**상태:** 🔄 IN PROGRESS (D205-11-1 COMPLETED, D205-11-2 PLANNED)
+**하위 단계:**
+- D205-11-1: Instrumentation Baseline (계측 기준선) — ✅ COMPLETED
+- D205-11-2: Bottleneck Fix & ≥10% 개선 — ⏳ PLANNED (조건부)
+
+**Umbrella 목표:**
+- Tick → Decision → OrderIntent → Adapter → Fill/Record 구간을 ms 단위로 계측
+- 병목 지점 식별 (DB/Redis/Logging/계산 중 Top 2)
+- 최적화 후 latency 개선율 ≥ 10%
+
+**왜 Umbrella + 브랜치 구조인가?**
+- 한 방에 최적화로 들어가면 V1처럼 산으로 가므로,
+- 먼저 계측 기준선(D205-11-1 baseline)을 SSOT로 고정하고,
+- 그 다음 최적화(D205-11-2)를 조건부로 진행한다.
 
 **범위 (Do/Don't):**
-- ✅ Do: 엔드-투-엔드 레이턴시 계측, 병목 분석, 최적화
-- ❌ Don't: 하드웨어 업그레이드 (소프트웨어 최적화만), 멀티프로세싱 (단일 프로세스만)
-
-**AC (증거 기반 검증):**
-- [ ] Tick 수신 → Detector 처리 시간 (ms)
-- [ ] Detector → Engine 시간 (ms)
-- [ ] Engine → Paper Executor 시간 (ms)
-- [ ] Paper Executor → Ledger 저장 시간 (ms)
-- [ ] 전체 latency p50/p95 측정
-- [ ] 병목 지점 식별 (DB/로깅/계산 중 어디인지)
-- [ ] 최적화 후 latency 개선율 > 10%
-
-**Evidence 요구사항:**
-- manifest.json
-- latency_profile.json (각 단계별 p50/p95/p99)
-- bottleneck_analysis.json (병목 지점 + 원인)
-- optimization_results.json (최적화 전후 비교)
-
-**Gate 조건:**
-- Gate 0 FAIL
-- latency p95 < 100ms (목표치)
-
-**PASS/FAIL 판단 기준:**
-- PASS: 엔드-투-엔드 계측 완료 + 병목 분석 + 최적화 > 10%
-- FAIL: 병목 분석 없음 또는 개선율 < 5%
+- ✅ Do: time.perf_counter() 기반 ms 단위 계측, p50/p95/p99 집계, DB/Redis/Logging 병목 식별, Evidence 자동 생성
+- ❌ Don't: 스크립트 중심 계측 (엔진/코어에 훅 추가만), 인프라 덕지덕지 (새 DB/큐/대시보드 금지), 계측 전 최적화 (baseline 먼저)
 
 **의존성:**
 - Depends on: D205-10 (비용 모델 기반)
 - Blocks: D205-12 (제어 인터페이스)
+
+---
+
+#### D205-11-1: Latency Profiling Baseline (계측 기준선)
+**상태:** ✅ COMPLETED
+**커밋:** a54abec
+**테스트:** Gate Doctor/Fast/Regression 100% PASS
+**문서:** `docs/v2/reports/D205/D205-11-1_LATENCY_PROFILING_REPORT.md`
+**Evidence:** `logs/evidence/d205_11_1_latency_20260105_010226/`
+
+**목표:**
+- Stage별 latency 계측 인프라 구축 (LatencyProfiler 코어 모듈)
+- RECEIVE_TICK, DECIDE, ADAPTER_PLACE, DB_RECORD 4개 stage p50/p95/p99 측정
+- 병목 지점 Top 1 식별 (max latency 기준)
+- Evidence 자동 생성 (latency_profile.json, latency_samples.jsonl)
+
+**범위 (Do/Don't):**
+- ✅ Do: LatencyProfiler 코어 모듈, PaperRunner 최소 훅, 3~5분 짧은 실행, Evidence 자동 생성
+- ❌ Don't: Redis/DB 세밀 계측 (D205-11-0에서 추가), 최적화 작업 (D205-11-2로 이월), 장기 실행 (≥1h, 이번 단계 아님)
+
+**AC (증거 기반 검증):**
+- [x] **AC-1:** Tick 수신 → Detector 처리 시간 (ms) 계측 ✅ RECEIVE_TICK: p50=56.46ms
+- [x] **AC-2:** Detector → Engine 시간 (ms) 계측 ✅ DECIDE: p50=0.01ms
+- [x] **AC-3:** Engine → Paper Executor 시간 (ms) 계측 ✅ ADAPTER_PLACE: p50=0.00ms
+- [x] **AC-4:** Paper Executor → Ledger 저장 시간 (ms) 계측 ✅ DB_RECORD: p50=1.29ms
+- [x] **AC-5:** 전체 latency p50/p95 측정 ✅ 모든 stage p50/p95 측정
+- [x] **AC-6:** 병목 지점 식별 (max latency 기준) ✅ RECEIVE_TICK (max=673.42ms)
+- [ ] **AC-7:** Redis read/write(ms) 계측 ⏭️ SKIP (D205-11-0에서 추가)
+- [ ] **AC-8:** Logging latency(핫루프 blocking) 계측 ⏭️ SKIP (D205-11-0에서 추가)
+- [ ] **AC-9:** 최적화 후 latency 개선율 > 10% ⏭️ SKIP (D205-11-2로 이월)
+
+**Evidence 요구사항:**
+- ✅ manifest.json (run metadata)
+- ✅ latency_profile.json (stage별 p50/p95/p99/max/count)
+- ✅ README.md (재현 명령)
+- ⏭️ latency_samples.jsonl (선택, 원시 샘플) — 미생성 (3분 실행으로 충분)
+
+**Gate 결과:**
+- ✅ Doctor: PASS (8 tests collected)
+- ✅ Fast: PASS (8/8 tests)
+- ✅ Regression: PASS (16/16 tests, d98_preflight)
+
+**Smoke 결과 (3분 실행):**
+- Cycles: 36
+- Bottleneck: RECEIVE_TICK (p50=56.46ms, max=673.42ms)
+- DECIDE: p50=0.01ms (최적)
+- ADAPTER_PLACE: p50=0.00ms (MockAdapter)
+- DB_RECORD: p50=1.29ms (시뮬레이션)
+
+**PASS/FAIL 판단:**
+- ✅ PASS: 6/9 AC 달성 (AC-7/8은 D205-11-0, AC-9는 D205-11-2로 이월)
+- ✅ Gate 3단 100% PASS
+- ✅ Evidence 최소 구성 완료
+
+**다음 단계:**
+- D205-11-0: Redis/DB 세밀 계측 추가 (현재 진행 중)
+- D205-11-2: RECEIVE_TICK 병목 해결 (REST → WebSocket 전환, 조건부)
+
+---
+
+#### D205-11-0: SSOT 레일 복구 + Redis/DB 계측 추가
+**상태:** 🔄 IN PROGRESS
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-11-0_REPORT.md`
+**Evidence:** `logs/evidence/STEP0_BOOTSTRAP_D205_11_0_20260105_013900/`
+
+**목표:**
+- D205-11 섹션 SSOT 복구 (축약/삭제 제거)
+- D205-11-1 정식 편입 (umbrella 하위 단계)
+- Redis/DB 계측 범위 추가 (AC-7/8 충족)
+- Gate 3단 + SSOT Docs Check 100% PASS
+
+**범위 (Do/Don't):**
+- ✅ Do: SSOT(로드맵) 복구, Redis/DB latency wrapper 최소 추가, Evidence 패키징
+- ❌ Don't: 새 계측 모듈 생성 (LatencyProfiler 재사용), 최적화 작업 (D205-11-2로 이월), 인프라 확장
+
+**AC (증거 기반 검증):**
+- [ ] **AC-1:** D_ROADMAP.md D205-11 섹션 완전 복구 (목표/범위/AC 전부)
+- [ ] **AC-2:** D205-11-1 정식 편입 (상태/문서/증거/테스트 경로 포함)
+- [ ] **AC-3:** Redis read/write(ms) 계측 (GET/SET/INCR/DECR)
+- [ ] **AC-4:** DB write(ms) 계측 (INSERT/UPDATE)
+- [ ] **AC-5:** Gate 3단 PASS (Doctor/Fast/Regression)
+- [ ] **AC-6:** SSOT Docs Check PASS (check_ssot_docs.py)
+- [ ] **AC-7:** Evidence 패키징 (latency_summary.json 업데이트)
+
+**Evidence 요구사항:**
+- manifest.json
+- latency_summary.json (Redis/DB 포함)
+- SCAN_REUSE_SUMMARY.md
+- PROBLEM_ANALYSIS.md
+- DOCS_READING_CHECKLIST.md
+
+**Gate 조건:**
+- Gate 3단 100% PASS
+- SSOT Docs Check PASS
+
+**PASS/FAIL 판단:**
+- PASS: AC 7/7 달성 + Gate 100% PASS + SSOT 정합성 복구
+- FAIL: AC 미달성 또는 Gate FAIL
+
+---
+
+#### D205-11-2: Bottleneck Fix & ≥10% 개선 (조건부)
+**상태:** ⏳ PLANNED
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-11-2_REPORT.md`
+**Evidence:** `logs/evidence/d205_11_2_<timestamp>/`
+
+**목표:**
+- D205-11-1 병목 지점 최적화 (RECEIVE_TICK: 56.46ms → <25ms)
+- 최적화 전후 비교 (개선율 ≥ 10%)
+- Evidence로 남겨서 비용 모델 업데이트
+
+**범위 (Do/Don't):**
+- ✅ Do: REST → WebSocket 전환, 캐싱 전략 (100ms TTL), 병렬 요청, 최적화 전후 비교
+- ❌ Don't: 계측 없는 최적화 (D205-11-1 baseline 기준 필수), 인프라 전면 개편
+
+**AC (증거 기반 검증):**
+- [ ] **AC-1:** RECEIVE_TICK latency p50 <25ms (목표)
+- [ ] **AC-2:** 전체 latency p95 <100ms (목표)
+- [ ] **AC-3:** 최적화 개선율 ≥ 10% (before/after 비교)
+- [ ] **AC-4:** Gate 3단 PASS
+- [ ] **AC-5:** Evidence (optimization_results.json)
+
+**Evidence 요구사항:**
+- manifest.json
+- latency_before.json (D205-11-1 baseline)
+- latency_after.json (최적화 후)
+- optimization_results.json (개선율 계산)
+
+**Gate 조건:**
+- Gate 3단 100% PASS
+- latency p95 <100ms
+
+**PASS/FAIL 판단:**
+- PASS: 개선율 ≥ 10% + Gate 100% PASS
+- FAIL: 개선율 <5% 또는 Gate FAIL
+
+**조건부 진입:**
+- D205-11-0 PASS 필수
+- D205-11-1 병목 지점이 실제로 성능 임계치를 넘을 때만 진행
 
 ---
 
