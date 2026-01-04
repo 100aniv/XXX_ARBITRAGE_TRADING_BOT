@@ -224,13 +224,22 @@
 - Evidence 저장 경로 규칙: `logs/evidence/<run_id>/` (YYYYMMDD_HHMMSS_<d-number>_<short_hash>)
 - 필수 산출물: manifest.json, gate.log, git_info.json, cmd_history.txt
 - 선택 산출물: kpi_summary.json (Paper), error.log (실패 시)
+- **Wallclock/Execution Integrity:** watch_summary.json (장기 실행/Wait Harness 필수)
 - 자동 생성 규칙: watchdog/just 실행 시 evidence 자동 생성
+
+**Wallclock Verification 축 (D205-10-2 이후):**
+- 장기 실행(≥1h) / Wait Harness / Phased Run 작업은 **watch_summary.json 필수**
+- 시간 증거 SSOT: `monotonic_elapsed_sec` (시스템 시간 변경 영향 없음)
+- 완료 상태 SSOT: `stop_reason` enum (TIME_REACHED | TRIGGER_HIT | EARLY_INFEASIBLE | ERROR | INTERRUPTED)
+- 시간 기반 완료 선언 금지: "Nh 완료" 문구는 watch_summary.json에서 자동 추출한 값만 사용
 
 **금지 사항:**
 - ❌ docs/v2/evidence/ 경로 사용 금지 (logs/evidence/만 사용)
 - ❌ 규칙 무시한 임의 경로 저장
 - ❌ 민감 정보 포함 (API key, password)
 - ❌ 증거 없는 PASS 선언
+- ❌ 장기 실행 작업에서 watch_summary.json 없이 DONE 선언
+- ❌ 인간이 손으로 쓴 시간 문구 (watch_summary.json 기반만 허용)
 
 **참조자:**
 - Smoke/Paper Harness (evidence 저장)

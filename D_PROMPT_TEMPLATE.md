@@ -100,6 +100,23 @@ Gate 3단 강제
 
 증거(Evidence) 없으면 PASS 주장 금지
 
+Wallclock Verification (장기/대기/모니터링 작업 필수)
+→ 장기 실행(≥1h) / 대기 / 모니터링 / Wait Harness 포함 작업은
+  watch_summary.json 자동 생성 + 필수 필드 충족 전 DONE 선언 금지
+→ 필수 필드:
+  - started_at_utc, ended_at_utc (ISO 8601, timezone-aware)
+  - monotonic_elapsed_sec (정확한 경과 시간, SSOT)
+  - planned_total_hours, samples_collected, expected_samples
+  - completeness_ratio (≥0.95 권장, EARLY_INFEASIBLE 등 예외 허용)
+  - stop_reason (enum: TIME_REACHED | TRIGGER_HIT | EARLY_INFEASIBLE | ERROR | INTERRUPTED)
+→ 시간 기반 완료 선언 금지:
+  - "3h 완료", "10h 실행" 같은 문구는 watch_summary.json에서 자동 추출한 값만 사용
+  - 인간이 손으로 시간 쓰는 것 금지 (재발 방지)
+→ 상태 판단은 stop_reason 기반:
+  - COMPLETED: TIME_REACHED + completeness_ratio ≥ 0.95
+  - PARTIAL: EARLY_INFEASIBLE (시장 제약) 또는 completeness < 0.95
+  - FAILED: ERROR 또는 예상치 못한 종료
+
 작업 종료 시 반드시 Git commit (+ push)
 
 필요 시 DB / Redis / 프로세스 / 캐시 정리 강제

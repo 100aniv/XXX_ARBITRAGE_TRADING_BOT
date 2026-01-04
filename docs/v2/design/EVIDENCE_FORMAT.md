@@ -204,6 +204,80 @@ Status: PASS
 }
 ```
 
+### 6. watch_summary.json (장기 실행/Wait Harness 필수)
+
+**목적:** 장기 실행 작업의 Wallclock 기반 시간 증거 및 완료 상태 SSOT
+
+**적용 대상:**
+- 장기 실행(≥1h) / Wait Harness / 모니터링 / Phased Run 작업
+- D205-10-2 Wait Harness v2 이후 모든 장기 대기 작업
+
+**포맷:**
+```json
+{
+  "planned_total_hours": 5,
+  "phase_hours": [3, 5],
+  "started_at_utc": "2026-01-04T05:50:10.179974+00:00",
+  "last_tick_at_utc": "2026-01-04T08:50:33.838320+00:00",
+  "ended_at_utc": "2026-01-04T08:50:33.838324+00:00",
+  "monotonic_elapsed_sec": 10823.658271400025,
+  "poll_sec": 30,
+  "samples_collected": 361,
+  "expected_samples": 361,
+  "completeness_ratio": 1.0,
+  "max_spread_bps": 26.43473491976308,
+  "p95_spread_bps": 21.793397160336674,
+  "max_edge_bps": -123.56526508023691,
+  "min_edge_bps": -147.60142807979582,
+  "mean_edge_bps": -136.0843414656313,
+  "trigger_count": 0,
+  "trigger_timestamps": [],
+  "stop_reason": "EARLY_INFEASIBLE",
+  "phase_checkpoint_reached": true,
+  "phase_checkpoint_time_utc": "2026-01-04T08:50:33.837918+00:00",
+  "feasibility_decision": "INFEASIBLE"
+}
+```
+
+**필수 필드:**
+- `planned_total_hours`: 계획된 총 실행 시간(시간 단위)
+- `phase_hours`: 단계별 체크포인트 시간 배열 (예: [3, 5])
+- `started_at_utc`: 시작 시각 (ISO 8601, timezone-aware, UTC)
+- `last_tick_at_utc`: 마지막 tick 시각 (ISO 8601)
+- `ended_at_utc`: 종료 시각 (ISO 8601, 종료 시에만 존재)
+- `monotonic_elapsed_sec`: 정확한 경과 시간 (초, monotonic clock 기반, **SSOT**)
+- `poll_sec`: 폴링 간격 (초)
+- `samples_collected`: 수집된 샘플 수
+- `expected_samples`: 예상 샘플 수
+- `completeness_ratio`: 완료율 (0.0~1.0)
+- `stop_reason`: 종료 사유 (enum, 아래 참조)
+- `phase_checkpoint_reached`: 단계 체크포인트 도달 여부
+- `phase_checkpoint_time_utc`: 체크포인트 도달 시각 (null 가능)
+- `feasibility_decision`: 실행 가능성 판정 ("FEASIBLE" | "INFEASIBLE" | null)
+
+**stop_reason enum:**
+- `TIME_REACHED`: 계획 시간 도달 (정상 종료)
+- `TRIGGER_HIT`: 트리거 조건 충족 (성공)
+- `EARLY_INFEASIBLE`: 조기 불가능 판정 (시장 제약, PARTIAL 허용)
+- `ERROR`: 에러 발생 (FAIL)
+- `INTERRUPTED`: 사용자 중단 (Ctrl+C, PARTIAL)
+
+**상태 판단 규칙:**
+- COMPLETED: `stop_reason = TIME_REACHED` + `completeness_ratio ≥ 0.95`
+- PARTIAL: `stop_reason = EARLY_INFEASIBLE` 또는 `completeness_ratio < 0.95`
+- FAILED: `stop_reason = ERROR`
+
+**Evidence 무결성:**
+- 파일 write 시 `f.flush() + os.fsync(f.fileno())` 강제
+- 원자적 갱신 권장: temp file → fsync → os.replace(temp, target)
+- 모든 종료 경로(정상/예외/Ctrl+C)에서 생성 보장 (finally 블록)
+- 60초마다 주기적 갱신 (heartbeat 역할)
+
+**시간 기반 완료 선언 금지:**
+- "3h 완료", "10h 실행" 같은 문구는 `watch_summary.json`에서 자동 추출한 값만 사용
+- 인간이 손으로 시간 쓰는 것 절대 금지
+- 문서/리포트에서 시간 언급 시 반드시 `monotonic_elapsed_sec` 또는 UTC timestamp 인용
+
 ---
 
 ## 🤖 자동 생성 규칙

@@ -216,6 +216,54 @@ AC에는 "DB Ledger 증가 검증" + "Redis Counter 동작 검증"이 포함된�
 
 ---
 
+## STEP 2️⃣ 시간 검증 체크 항목 (D205-10-2 이후)
+
+### 장기 실행 작업 Wallclock Verification
+
+**목적:** "3h 완료", "10h 실행" 같은 시간 기반 완료 선언의 허위를 원천 차단
+
+**체크 항목:**
+
+1. **watch_summary.json 존재 여부**
+   - [ ] 장기 실행(≥1h) 작업에 watch_summary.json 생성 확인
+   - [ ] 필수 필드 26개 모두 존재 확인
+
+2. **monotonic_elapsed_sec 기반 시간 검증**
+   - [ ] `monotonic_elapsed_sec` 존재 (SSOT)
+   - [ ] `started_at_utc`, `ended_at_utc` ISO 8601 형식
+   - [ ] `completeness_ratio` 계산 정확성
+
+3. **stop_reason enum 검증**
+   - [ ] stop_reason이 유효한 enum 값 중 하나
+   - [ ] TIME_REACHED | TRIGGER_HIT | EARLY_INFEASIBLE | ERROR | INTERRUPTED
+
+4. **문서/리포트에서 시간 언급 검증**
+   - [ ] "Nh 완료" 문구가 watch_summary.json에서 추출한 값인지 확인
+   - [ ] 인간이 손으로 쓴 시간 문구 금지
+   - [ ] 문서에서 `monotonic_elapsed_sec` 또는 UTC timestamp 인용 확인
+
+5. **상태 판단 규칙 준수**
+   - [ ] COMPLETED: `stop_reason = TIME_REACHED` + `completeness_ratio ≥ 0.95`
+   - [ ] PARTIAL: `stop_reason = EARLY_INFEASIBLE` 또는 `completeness < 0.95`
+   - [ ] FAILED: `stop_reason = ERROR`
+
+6. **Evidence 무결성**
+   - [ ] f.flush() + os.fsync(f.fileno()) 사용 확인
+   - [ ] 모든 종료 경로(정상/예외/Ctrl+C)에서 생성 보장
+   - [ ] 60초마다 주기적 갱신 확인 (heartbeat)
+
+**적용 대상:**
+- D205-10-2 Wait Harness v2 이후 모든 장기 대기 작업
+- Phased Run / Early-Stop 포함 작업
+- Wait Harness / 모니터링 작업
+
+**참조:**
+- EVIDENCE_FORMAT.md: watch_summary.json 섹션
+- D_TEST_TEMPLATE.md: Wallclock Verification 섹션
+- D_PROMPT_TEMPLATE.md: Wallclock Verification 규칙
+
+---
+
 ## 증거 파일 위치
 
 ```
