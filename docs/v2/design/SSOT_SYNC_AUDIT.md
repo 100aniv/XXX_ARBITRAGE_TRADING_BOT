@@ -226,7 +226,8 @@ AC에는 "DB Ledger 증가 검증" + "Redis Counter 동작 검증"이 포함된�
 
 1. **watch_summary.json 존재 여부**
    - [ ] 장기 실행(≥1h) 작업에 watch_summary.json 생성 확인
-   - [ ] 필수 필드 26개 모두 존재 확인
+   - [ ] EVIDENCE_FORMAT.md에 정의된 필수 필드(스키마 v1) 모두 존재 확인
+   - [ ] 참조: `docs/v2/design/EVIDENCE_FORMAT.md` - watch_summary.json 섹션
 
 2. **monotonic_elapsed_sec 기반 시간 검증**
    - [ ] `monotonic_elapsed_sec` 존재 (SSOT)

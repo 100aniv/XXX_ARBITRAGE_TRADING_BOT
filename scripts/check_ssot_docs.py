@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import re
 import sys
@@ -30,6 +31,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Tuple, Optional
 
+# Force UTF-8 output on Windows (prevent cp949 UnicodeEncodeError)
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # -----------------------------
 # Config (paths)

@@ -17,7 +17,7 @@ D205-10-2: Wait Harness v2 (Wallclock Verified, 3h→5h Phased, Early-Stop)
 - Watchdog (내부 자가감시)
 
 금지:
-- 외부 스크립트 감시 (내부 자가진단만)
+- 외부 감시 결과로 DONE/시간 증거 선언 (SSOT=watch_summary)
 - 시간 기반 상태 선언 (watch_summary.json 기반만)
 """
 

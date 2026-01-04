@@ -3458,7 +3458,7 @@ Rationale:
 
 **범위 (Do/Don't):**
 - ✅ Do: Wallclock/Monotonic 이중 타임소스, watch_summary.json 자동 생성, 3h→5h Phased, Early-Stop, Watchdog
-- ❌ Don't: 외부 스크립트 감시 (내부 자가진단만), 시간 기반 상태 선언 (watch_summary.json 기반만)
+- ❌ Don't: 외부 감시 결과로 DONE/시간 증거 선언 금지(SSOT=watch_summary), 시간 기반 상태 선언 (watch_summary.json 기반만)
 
 **AC (증거 기반 검증):**
 - [x] **AC-1:** WaitHarness v2 엔진 구현 (Wallclock/Monotonic/Phased/Early-Stop) ✅
