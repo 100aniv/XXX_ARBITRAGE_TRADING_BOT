@@ -3421,9 +3421,9 @@ Rationale:
 - **Gate:** Doctor/Fast/Bound**Wait Harness 10h Real Run (2026-01-04):**
 - **상태:** ✅ COMPLETED (PARTIAL - Market Constraint)
 - **시작 시각:** 2026-01-04 12:47:45 UTC+09:00
-- **종료 시각:** 2026-01-04 22:47:45 UTC+09:00 (정확히 10시간)
+- **종료 시각:** 2026-01-04 22:47:45 UTC+09:00
 - **실행 명령:** `python scripts/run_d205_10_1_wait_and_execute.py --duration-hours 10 --poll-seconds 30 --trigger-min-edge-bps 0.0 --fx-krw-per-usdt 1450 --sweep-duration-minutes 20`
-- **Evidence:** logs/evidence/d205_10_1_wait_20260104_124745/
+- **Evidence:** logs/evidence/d205_10_1_wait_20260104_124745/ (v1: FINAL_RESULT.md 기준, watch_summary.json 없음)
 - **결과:** Trigger 미발생 → D205-10-1 PARTIAL (시장 스프레드 < break-even threshold)
 - **KPI:** 120개 샘플, 최대 edge -120.28 bps (모두 음수)
 - **분석:** 실제 스프레드(~20 bps) < 모델 break-even(150 bps) → 수익 불가능
