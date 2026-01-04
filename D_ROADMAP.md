@@ -3444,12 +3444,71 @@ Rationale:
 
 ---
 
+#### D205-10-2: Wait Harness v2 — Wallclock Verified (3h→5h Phased) + Early-Stop
+**상태:** ✅ COMPLETED (PARTIAL - Market Constraint)
+**커밋:** cd3b7f0
+**브랜치:** rescue/d205_10_2_wait_harness_v2
+**테스트:** Gate Doctor/Fast PASS (25/25)
+**문서:** `docs/v2/reports/D205/D205-10-2_WAIT_HARNESS_V2_REPORT.md`
+**Evidence:** `logs/evidence/d205_10_2_wait_20260104_055010/`
+
+**목표:**
+- "10시간 완료" 같은 헛소리 원천 차단: Wallclock 자동 증거화 + 완료 선언 규칙 강제 ✅
+- 시장이 기회가 없으면 '대기'가 아니라 '불가능 판정 + 비용/임계값 재캘리브레이션'으로 전환(early stop) ✅
+
+**범위 (Do/Don't):**
+- ✅ Do: Wallclock/Monotonic 이중 타임소스, watch_summary.json 자동 생성, 3h→5h Phased, Early-Stop, Watchdog
+- ❌ Don't: 외부 스크립트 감시 (내부 자가진단만), 시간 기반 상태 선언 (watch_summary.json 기반만)
+
+**AC (증거 기반 검증):**
+- [x] **AC-1:** WaitHarness v2 엔진 구현 (Wallclock/Monotonic/Phased/Early-Stop) ✅
+- [x] **AC-2:** watch_summary.json 필드 정의 (26개 필드) ✅
+- [x] **AC-3:** heartbeat.json 주기적 갱신 (60초마다) ✅
+- [x] **AC-4:** 3h checkpoint 평가 (feasibility 판정) ✅
+- [x] **AC-5:** Early-Stop 로직 (infeasible_margin_bps 기반) ✅
+- [x] **AC-6:** Watchdog (내부 자가감시) ✅
+- [x] **AC-7:** Gate 3단 PASS (Doctor/Fast) ✅
+- [x] **AC-8:** Smoke 테스트 PASS (watch_summary.json 생성 확인) ✅
+- [x] **AC-9:** 3h→5h Real Run 완료 (3h에서 EARLY_INFEASIBLE) ✅
+- [x] **AC-10:** Evidence 최종 패키징 ✅
+
+**Real Run 결과:**
+- **시작:** 2026-01-04 05:50:10 UTC
+- **3h checkpoint:** 2026-01-04 08:50:33 UTC
+- **종료:** 2026-01-04 08:50:33 UTC (정확히 3h)
+- **샘플:** 361개 (completeness 100%)
+- **max_spread:** 26.43 bps
+- **max_edge:** -123.57 bps (모두 음수)
+- **stop_reason:** EARLY_INFEASIBLE (max_spread 26.43 < threshold 70)
+- **feasibility_decision:** INFEASIBLE
+
+**Gate 결과:**
+- ✅ Doctor: PASS (9/9 유닛테스트)
+- ✅ Fast: PASS (25/25 tests: 9 wallclock + 16 preflight)
+- ✅ Regression: PASS (기존 베이스라인 유지)
+
+**Evidence 요구사항:**
+- ✅ watch_summary.json (835 bytes, 26개 필드 정상)
+- ✅ heartbeat.json (275 bytes, 60초마다 갱신)
+- ✅ market_watch.jsonl (197,639 bytes, 361개 샘플)
+- ✅ D205-10-2_WAIT_HARNESS_V2_REPORT.md (설계 + 결과 분석)
+
+**PASS/FAIL 판단:**
+- ✅ PASS: watch_summary.json 자동 생성 + 모든 필드 정상 + stop_reason 명시 + Gate 100% PASS
+- **PARTIAL 이유:** 시장 환경 제약 (실제 spread 26.43 bps < 모델 break-even 100 bps)
+
+**의존성:**
+- Depends on: D205-10-1 (사실 정정)
+- Blocks: D205-10-2-POSTMORTEM (Break-even Recalibration)
+
+---
+
 #### D205-11: Latency Profiling & Execution Tuning (ms 단위 계측)
 **상태:** PLANNED ⏳
 **커밋:** [pending]
 **테스트:** [pending]
-**문서:** `docs/v2/reports/D205/D205-11_REPORT.md` (생성 예정)
-**Evidence:** `logs/evidence/d205_11_<timestamp>/` (생성 예정)
+**문서:** `docs/v2/reports/D205/D205-11_REPORT.md`
+**Evidence:** `logs/evidence/d205_11_<timestamp>/`
 
 **목표:**
 - Tick(시세 수신) → Order(주문 전송) → Fill까지 **ms 단위 계측**
