@@ -2396,7 +2396,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] **AC-7:** Design 문서 정독 디폴트화 (docs/v2/design 최소 2개 요약)
 - [x] **AC-8:** 템플릿 3개 DEPRECATED stub 전환 (D_PROMPT_TEMPLATE, D_TEST_TEMPLATE, SSOT_DOCOPS)
 - [x] **AC-9:** Gate Doctor/Fast/Regression 100% PASS
-- [x] **AC-10:** check_ssot_docs.py PASS (문서 통합 작업으로 범위 내 이슈 없음)
+- [x] **AC-10:** check_ssot_docs.py PASS (스코프 내 FAIL 0개, 증거: ssot_docs_check_final.txt)
 - [x] **AC-11:** Evidence 패키징 (manifest.json, gate_results.txt, SCAN_REUSE_SUMMARY.md, DOCS_READING_CHECKLIST.md, PROBLEM_STATEMENT.md)
 - [x] **AC-12:** D000-1_REPORT.md 작성 (변경 이유, 통합 결과, AC 이관 규칙 예시, Gate 결과, Evidence)
 - [ ] **AC-13:** Git commit + push (새 브랜치)

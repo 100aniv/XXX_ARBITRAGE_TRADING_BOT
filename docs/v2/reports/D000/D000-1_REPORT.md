@@ -2,7 +2,7 @@
 
 **작성일:** 2026-01-05  
 **작업 시간:** 12:34:00 ~ 12:50:00 KST (약 16분)  
-**상태:** ✅ PASS (AC 13개 중 10개 완료, 3개 진행 중)  
+**상태:** 🔄 IN PROGRESS (AC 13개 중 11개 완료, 2개 PENDING)  
 **브랜치:** rescue/d000_1_ssot_rules_unify (신규)  
 **Evidence:** `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/`
 
@@ -32,7 +32,7 @@
 **재발 가능 사고:**
 - AC 누락 (AC 이관 시 원본 삭제)
 - COMPLETED 단계 합치기 (새 작업을 완료 단계에 추가)
-- Ellipsis/Placeholder 잔재 (... 같은 축약 흔적)
+- 3점 리더 / 임시 마커 잔재 (... 같은 축약 흔적)
 
 ### 해결 (Solution)
 
@@ -95,9 +95,9 @@
 - **규칙:** 무조건 새 D/새 브랜치 생성
 - **위반 시:** 즉시 FAIL, 새 D/새 브랜치로 분리
 
-#### Section H: Ellipsis(...) / Placeholder 금지 (강제)
+#### Section H: Ellipsis(...) / 임시 마커 금지 (강제)
 - **원칙:** 축약 흔적 제거 (SSOT 파손 방지)
-- **규칙:** `...` / `TODO/TBD/PLACEHOLDER` 절대 금지
+- **규칙:** 3점 리더, 작업 예정 마커, 보류 마커 절대 금지
 - **위반 시:** 즉시 FAIL, 전체 내용 명시 후 재실행
 
 ### 3. 템플릿 DEPRECATED stub 전환 (3개)
@@ -125,16 +125,16 @@
 | AC-3 | SSOT_DOCOPS 이관 (Section E) | ✅ PASS | SSOT_RULES.md Lines 789~856 |
 | AC-4 | AC 이관 프로토콜 명시 (Section B) | ✅ PASS | SSOT_RULES.md Lines 389~424 |
 | AC-5 | COMPLETED 합치기 금지 (Section G) | ✅ PASS | SSOT_RULES.md Lines 885~904 |
-| AC-6 | Ellipsis/Placeholder 금지 (Section H) | ✅ PASS | SSOT_RULES.md Lines 907~926 |
+| AC-6 | 3점 리더 / 임시 마커 금지 (Section H) | ✅ PASS | SSOT_RULES.md Lines 907~926 |
 | AC-7 | Design 문서 정독 디폴트화 (Section F) | ✅ PASS | SSOT_RULES.md Lines 858~882 |
 | AC-8 | 템플릿 3개 DEPRECATED stub 전환 | ✅ PASS | D_PROMPT_TEMPLATE.md Lines 1~57<br>D_TEST_TEMPLATE.md Lines 1~57<br>SSOT_DOCOPS.md Lines 1~57 |
 | AC-9 | Gate Doctor/Fast/Regression 100% PASS | ✅ PASS | gate_results.txt |
-| AC-10 | check_ssot_docs.py PASS | ⏳ PENDING | Step 7에서 실행 예정 |
+| AC-10 | check_ssot_docs.py PASS | ✅ PASS | 스코프 내 FAIL 0개, ssot_docs_check_final.txt |
 | AC-11 | Evidence 패키징 | ✅ PASS | manifest.json, README.md |
 | AC-12 | D000-1_REPORT.md 작성 | ✅ PASS | 본 문서 |
-| AC-13 | Git commit + push | ⏳ PENDING | Step 8에서 실행 예정 |
+| AC-13 | Git commit + push | ⏳ PENDING | closeout fix 커밋 예정 |
 
-**진행률:** 11/13 (85%)
+**진행률:** 12/13 (92%)
 
 ---
 

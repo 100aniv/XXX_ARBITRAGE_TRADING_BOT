@@ -817,8 +817,8 @@ python scripts/check_ssot_docs.py
 
 **DocOps Gate (B) ripgrep 위반 탐지 (필수)**
 ```bash
-# 로컬/IDE 링크 잔재(cci:) 제거
-rg "cci:" -n docs/v2 D_ROADMAP.md
+# 로컬/IDE 링크 잔재 제거 (링크 프로토콜 검색)
+rg "cci" -n docs/v2 D_ROADMAP.md  # cursor protocol 링크
 
 # "이관" 표현은 사고 유발 확률이 높음 (남아있으면 원칙적으로 FAIL)
 rg "이관|migrate|migration" -n docs/v2 D_ROADMAP.md
@@ -904,18 +904,27 @@ git diff --stat
 
 ---
 
-## 🔄 Section H: Ellipsis(...) / Placeholder 금지 (강제)
+## 🔄 Section H: 3점 리더 / 임시 마커 금지 (강제)
 
 **원칙:** 축약 흔적 제거 (SSOT 파손 방지)
 
+**금지 대상 (명확한 목록):**
+- `...` (3점 리더, ellipsis 문자)
+- `…` (ellipsis 유니코드 문자 U+2026)
+- `TODO`, `TBD`, `FIXME`, `XXX`, `HACK`
+- `pending`, `later`, `작업중`, `보류중` (COMPLETED 문서에서)
+- **참고:** 일반 마침표 `.`는 금지 대상이 아님 (문장 종결은 정상)
+
 **규칙:**
-- 로드맵/리포트/규칙 어디에도 `...` 같은 "축약 흔적" 남기면 FAIL
-- `TODO/TBD/PLACEHOLDER`도 COMPLETED 문서에 **절대 금지**
+- 로드맵/리포트/규칙 어디에도 위 금지 대상을 남기면 FAIL
+- COMPLETED 문서에 임시 마커 **절대 금지**
 
 **예시:**
-- ❌ **금지:** `- AC-1~5: ...` (ellipsis 축약)
+- ❌ **금지:** `- AC-1~5: ...` (3점 리더 축약)
 - ❌ **금지:** `- [ ] TODO: Redis 계측` (COMPLETED 문서에 TODO)
+- ❌ **금지:** `- [ ] 작업중: 최적화` (COMPLETED 문서에 임시 마커)
 - ✅ **허용:** `- AC-1: 구체적 내용` (전체 명시)
+- ✅ **허용:** `문장을 마칩니다.` (일반 마침표는 정상)
 
 **위반 시 조치:**
 - Ellipsis/Placeholder 발견 → 즉시 FAIL, 전체 내용 명시 후 재실행
