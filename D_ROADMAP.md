@@ -2367,6 +2367,62 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
+### D000: SSOT Infrastructure (규칙/템플릿 통합)
+
+#### D000-1: SSOT Rules 헌법 통합 (Prompt/Test/DocOps 단일화)
+**상태:** 🔄 IN PROGRESS  
+**날짜:** 2026-01-05  
+**브랜치:** rescue/d000_1_ssot_rules_unify (신규)  
+**문서:** `docs/v2/reports/D000/D000-1_REPORT.md`  
+**Evidence:** `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/`
+
+**목표:**
+- 규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단
+- D_PROMPT_TEMPLATE + D_TEST_TEMPLATE + SSOT_DOCOPS를 SSOT_RULES 하나로 통합
+- AC 이관/COMPLETED 합치기 금지/Ellipsis 금지 규칙 명시화
+- Design 문서 정독을 디폴트 규칙으로 확립
+
+**범위 (Do/Don't):**
+- ✅ Do: SSOT_RULES.md 확장 (Section C/D/E/F 추가), 템플릿 DEPRECATED stub 전환, 신규 규칙 3개 명시
+- ❌ Don't: 트레이딩 로직/엔진 변경, 인프라 확장, COMPLETED 단계에 합치기
+
+**AC (증거 기반 검증):**
+- [x] **AC-1:** SSOT_RULES.md에 D_PROMPT_TEMPLATE (Step 0~9) 완전 이관 ✅ Section C
+- [x] **AC-2:** SSOT_RULES.md에 D_TEST_TEMPLATE (Gate/Wallclock) 완전 이관 ✅ Section D
+- [x] **AC-3:** SSOT_RULES.md에 SSOT_DOCOPS (DocOps Gate) 완전 이관 ✅ Section E
+- [x] **AC-4:** AC 이관 프로토콜 명시 (원본: ~~취소선~~ + MOVED_TO, 대상: FROM)
+- [x] **AC-5:** COMPLETED 단계 합치기 금지 명시 (무조건 새 D/새 브랜치)
+- [x] **AC-6:** Ellipsis(...) / Placeholder 금지 명시
+- [x] **AC-7:** Design 문서 정독 디폴트화 (docs/v2/design 최소 2개 요약)
+- [x] **AC-8:** 템플릿 3개 DEPRECATED stub 전환 (D_PROMPT_TEMPLATE, D_TEST_TEMPLATE, SSOT_DOCOPS)
+- [x] **AC-9:** Gate Doctor/Fast/Regression 100% PASS
+- [x] **AC-10:** check_ssot_docs.py PASS (문서 통합 작업으로 범위 내 이슈 없음)
+- [x] **AC-11:** Evidence 패키징 (manifest.json, gate_results.txt, SCAN_REUSE_SUMMARY.md, DOCS_READING_CHECKLIST.md, PROBLEM_STATEMENT.md)
+- [x] **AC-12:** D000-1_REPORT.md 작성 (변경 이유, 통합 결과, AC 이관 규칙 예시, Gate 결과, Evidence)
+- [ ] **AC-13:** Git commit + push (새 브랜치)
+
+**Evidence 요구사항:**
+- bootstrap_env.txt
+- SCAN_REUSE_SUMMARY.md (템플릿/규칙 산재 현황 + 통합 대상 목록)
+- DOCS_READING_CHECKLIST.md (정독 완료 문서 + 1줄 요약)
+- PROBLEM_STATEMENT.md (SSOT 파손 패턴: AC 누락/단계 합치기/ellipsis)
+- gate_results.txt
+- manifest.json
+- README.md (10줄 이내 요약)
+
+**Gate 조건:**
+- Doctor/Fast/Regression 100% PASS
+- check_ssot_docs.py 범위 내 FAIL 전부 해결
+
+**PASS/FAIL 판단:**
+- PASS: AC 13개 전부 달성 + Gate 100% PASS
+- FAIL: AC 미달성 또는 Gate FAIL
+
+**다음 단계 (완료 후):**
+- D205-11-3 작업 복귀 (홀딩 해제)
+
+---
+
 ---
 
 ### D200: V2 Foundation (기초 확립)

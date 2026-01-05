@@ -386,6 +386,546 @@ logs/evidence/
 
 ---
 
+## 🔄 Section B: AC 이관 프로토콜 (강제)
+
+**목적:** AC 삭제 금지, 이관 시 원본/목적지 표기 강제, SSOT 파손 방지
+
+**원칙:**
+- AC는 절대 삭제하지 않음
+- AC를 다른 D로 이관할 때는 원본/목적지 모두에 표기 필수
+- 이관 사실이 명확히 드러나야 함 (audit trail)
+
+**규칙 1: 원본 AC 표기 (MOVED_TO)**
+```markdown
+- ~~[ ] AC-7: Redis read/write(ms) 계측~~ [MOVED_TO: D205-11-2 / 2026-01-05 / d035a4a / 계측 인프라 분리]
+```
+- 취소선 사용 (`~~내용~~`)
+- MOVED_TO 표기: `[MOVED_TO: <목적지 D> / <날짜> / <커밋> / <사유>]`
+- 사유는 1줄로 간결하게
+
+**규칙 2: 목적지 AC 표기 (FROM)**
+```markdown
+- [ ] AC-3: Redis read/write(ms) 계측 [FROM: D205-11-1 AC-7]
+```
+- FROM 표기: `[FROM: <원본 D> AC-<번호>]`
+- 원본 AC를 명시하여 audit trail 유지
+
+**규칙 3: Umbrella 매핑 (선택)**
+- Umbrella 섹션에 "AC 이관 매핑" 서브섹션 추가 권장
+- 이관 사실을 Umbrella에서도 명시 (가독성 향상)
+
+**위반 시 조치:**
+- 원본 AC 삭제 → 즉시 FAIL, 복원 필수
+- 이관 표기 누락 → FAIL, MOVED_TO/FROM 추가 필수
+- 이관되지 않은 AC를 원본에서 삭제 → FAIL
+
+**예외:**
+- DEPRECATED AC: 이관이 아니라 "폐기"일 경우 `[DEPRECATED: <사유> / <날짜>]` 표기
+
+---
+
+## 🔄 Section C: Work Prompt Template (Step 0~9)
+
+**출처:** `docs/v2/templates/D_PROMPT_TEMPLATE.md` (358 lines) → SSOT_RULES로 완전 이관
+
+**모든 D-step은 아래 Step 0~9를 순차 실행해야 함**
+
+### Step 0: Bootstrap (강제, 문서 정독 포함)
+
+**0-A. 작업 시작 증거 폴더 생성**
+```bash
+mkdir -p logs/evidence/STEP0_BOOTSTRAP_<timestamp>/
+```
+- bootstrap_env.txt (환경 정보)
+- bootstrap_git.txt (Git 상태)
+
+**0-B. Git / 브랜치 / 워킹트리 고정**
+```bash
+git rev-parse HEAD
+git branch --show-current
+git status --porcelain
+```
+- Dirty 상태면 이유 기록, 원칙적으로 Clean 상태로 정리 후 시작
+
+**0-C. 캐시 / 중복 프로세스 / 런타임 오염 제거**
+- `__pycache__` 제거
+- 관련 python 프로세스 잔존 시 종료 (수정 반영 누락 방지)
+
+**0-D. 인프라 전제 확인 (필요한 단계일 때만)**
+- Postgres / Redis / Docker 상태 점검
+- 필요 시 SSOT 규칙에 따른 clean reset
+
+**0-E. SSOT 문서 정독 (도메인별, 디폴트)**
+
+**필수 정독 순서:**
+1. `D_ROADMAP.md`
+2. `docs/v2/SSOT_RULES.md` (본 문서)
+3. `docs/v2/design/SSOT_MAP.md`
+4. `docs/v2/design/**` (해당 단계 관련 문서, **최소 2개**)
+5. 직전 단계 `docs/v2/reports/Dxxx/*`
+
+**Step 0 산출물 (증거):**
+- `READING_CHECKLIST.md` (읽은 문서 목록 + 1줄 요약)
+- "이번 작업에서 무엇을 재사용하고 무엇을 가져올지" 10줄 이내 요약
+
+### Step 1: Repo Scan (재사용 목록)
+
+**목표:** 새로 만들지 말고 이미 있는 것을 연결
+
+**산출물:**
+- `SCAN_REUSE_SUMMARY.md`
+  - 재사용 모듈 3~7개
+  - 재사용 이유 (각 1줄)
+
+**새 파일이 필요한 경우:**
+- "왜 없는지" 근거 명시
+
+### Step 2: Plan (이번 턴 작업 계획)
+
+- AC를 코드 / 테스트 / 증거로 어떻게 충족할지만 기술
+- 분량: 5~12줄
+
+**산으로 갈 선택 (사전 차단):**
+- 과도한 리팩토링
+- 인프라 확장
+
+### Step 3: Implement (엔진 중심)
+
+**알맹이 구현:**
+- `arbitrage/v2/**`
+
+**scripts/**:**
+- CLI 파라미터 파싱
+- 엔진 호출만 담당
+
+**하위 호환 / 스키마 변경 시:**
+- optional 필드로 확장
+- manifest에 version 명시
+
+**Context 관리:**
+- 구현 종료 후 테스트 전
+- 불필요한 로그 / 참고 파일 컨텍스트에서 제거
+
+### Step 4: Tests (유닛 → Gate)
+
+- 변경 범위 유닛 테스트
+
+**Gate 3단 순차 실행:**
+1. Doctor
+2. Fast
+3. Regression
+
+**하나라도 FAIL 시:**
+- 즉시 중단
+- 수정
+- 재실행
+
+**"Fast만 충분" 같은 예외 주장 금지 (SSOT상 3단 필수)**
+
+### Step 5: Smoke / Reality Check
+
+**Smoke의 의미:**
+- "안 죽는다"가 아니라
+- 돈 버는 구조가 수치로 증명되는지
+
+**필수 검증:**
+- edge → exec_cost → net_edge 수치 존재
+
+**0 trades 발생 시:**
+- DecisionTrace로 차단 원인 수치화
+
+**Negative Evidence 원칙:**
+- 실패 / 이상 수치 발생 시
+- 숨기지 말고 FAIL_ANALYSIS.md에 기록
+
+**모든 결과는 evidence로 고정**
+
+### Step 6: Evidence 패키징 (SSOT)
+
+**Evidence 최소 구성:**
+- manifest.json
+- kpi.json
+
+**(필요 시):**
+- decision_trace.json
+- latency.json
+- leaderboard.json
+- best_params.json
+
+**README.md:**
+- 재현 명령 3줄
+
+### Step 7: 문서 업데이트 (SSOT 정합성)
+
+**7-A. D_ROADMAP.md 반드시 업데이트**
+- 상태 (DONE / IN PROGRESS)
+- 커밋 SHA
+- Gate 결과
+- Evidence 경로
+
+**AC (증거 기반 검증) 항목 전체 업데이트**
+- 특정 수치 고정 금지
+- "모든 AC 항목이 증거 기준으로 업데이트됨"이 명확히 드러나야 함
+
+**7-B. SSOT 문서 동기화 강제 규칙**
+
+ROADMAP이 업데이트되었고, 그 변경이 기존 설계 / 규칙 / 구조와 연관된다면 아래 문서들은 반드시 검토 대상:
+
+- `docs/v2/SSOT_MAP.md`
+- `docs/v2/design/SSOT_DATA_ARCHITECTURE.md`
+- `docs/v2/design/SSOT_SYNC_AUDIT.md`
+- `docs/v2/design/**`
+- `docs/v2/INFRA_REUSE_INVENTORY.md`
+- `docs/v2/CLEANUP_CANDIDATES.md`
+- 관련 `docs/v2/reports/Dxxx/*`
+
+**원칙:**
+- 구조 / 철학 변경 없으면 억지 업데이트 금지
+- 단, 낡은 정의 / 불일치 / 누락 발견 시 반드시 수정
+- ROADMAP과 불일치한 문서는 기술 부채로 간주 → PASS 불가
+
+### Step 8: Git (강제)
+
+```bash
+git status
+git diff --stat
+# SSOT 스타일 커밋 메시지
+git commit -m "[Dxxx-y] <one-line summary>"
+git push
+```
+
+### Step 9: Closeout Summary (출력 양식 고정)
+
+**반드시 포함:**
+
+**Commit:**
+- [Full SHA] / [Short SHA]
+
+**Branch:**
+- [Branch Name]
+
+**Compare Patch URL:**
+```
+https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/<before_sha>...<after_sha>.patch
+```
+
+**Gate Results:**
+- Doctor (PASS / FAIL)
+- Fast (PASS / FAIL)
+- Regression (PASS / FAIL)
+
+**KPI:**
+- 돈 버는 구조 핵심 지표 (net_edge_after_exec, positive_rate 등)
+
+**Evidence:**
+- bootstrap
+- main run
+- smoke / sweep 경로 전부 명시
+
+---
+
+## 🔄 Section D: Test Template (자동화/운영급)
+
+**출처:** `docs/v2/templates/D_TEST_TEMPLATE.md` (224 lines) → SSOT_RULES로 완전 이관
+
+**테스트 절대 원칙:**
+- 테스트는 사람 개입 없이 자동 실행
+- 중간 질문 금지
+- FAIL 시 즉시 중단 → 수정 → 동일 프롬프트 재실행
+- 의미 있는 지표 없으면 FAIL
+
+### Test Step 0: 인프라 & 런타임 부트스트랩
+
+**0-A. Python 가상환경**
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+.venv\Scripts\activate     # Windows
+python --version
+pip --version
+```
+
+**0-B. 기존 실행 프로세스 종료 (강제)**
+```bash
+# Linux / macOS
+pkill -f run_paper.py || true
+
+# Windows (PowerShell)
+Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+- 이전 paper/live 프로세스 잔존 시 FAIL
+
+**0-C. Docker 인프라 확인**
+```bash
+docker ps
+docker compose up -d
+```
+**필수 컨테이너:** postgres, redis, prometheus, grafana (있을 경우)
+
+**0-D. DB / Redis 초기화 (강제)**
+```bash
+python scripts/reset_db.py
+python scripts/reset_redis.py
+```
+
+### Test Step 1: 코드 무결성 & Fast Gate
+```bash
+python -m compileall .
+pytest tests/fast --maxfail=1
+```
+
+### Test Step 2: Core Regression
+```bash
+pytest tests/core --disable-warnings
+```
+
+### Test Step 3: Smoke PAPER Test
+```bash
+python scripts/run_paper.py --mode paper --duration 20m
+```
+**PASS 기준:**
+- 주문 ≥ 1
+- 포지션 정상
+- 0 trades → FAIL + DecisionTrace
+
+### Test Step 4: Monitoring 검증
+```bash
+curl http://localhost:9090/metrics
+```
+**필수 메트릭:** trade_count, net_edge_after_exec, latency_ms, error_rate
+
+### Test Step 5: Extended PAPER
+```bash
+python scripts/run_paper.py --mode paper --duration 1h --monitoring on
+```
+
+### Test Step 6: Wallclock Verification (장기 실행 필수)
+
+**적용 대상:**
+- 장기 실행 테스트(≥1h)
+- Wait Harness / 모니터링 / 대기 작업
+- Phased Run / Early-Stop 포함 작업
+
+**필수 증거:**
+```
+logs/evidence/Dxxx-y_<timestamp>/
+- watch_summary.json (SSOT)
+- heartbeat.json (선택)
+- market_watch.jsonl (선택, 샘플 기록)
+```
+
+**watch_summary.json 필수 필드:**
+```json
+{
+  "planned_total_hours": <number>,
+  "started_at_utc": "<ISO 8601, timezone-aware>",
+  "ended_at_utc": "<ISO 8601, 종료 시>",
+  "monotonic_elapsed_sec": <number, SSOT>,
+  "samples_collected": <number>,
+  "expected_samples": <number>,
+  "completeness_ratio": <number, 0.0~1.0>,
+  "stop_reason": "<enum>"
+}
+```
+
+**stop_reason enum:**
+- `TIME_REACHED`: 계획 시간 도달 (정상 종료)
+- `TRIGGER_HIT`: 트리거 조건 충족 (성공)
+- `EARLY_INFEASIBLE`: 조기 불가능 판정 (시장 제약)
+- `ERROR`: 에러 발생
+- `INTERRUPTED`: 사용자 중단 (Ctrl+C)
+
+**PASS 기준:**
+- `completeness_ratio ≥ 0.95` (정상)
+- `completeness_ratio < 0.95` but `stop_reason = EARLY_INFEASIBLE` (PARTIAL 허용)
+- `ended_at_utc` 존재 (종료 확인)
+- `monotonic_elapsed_sec` 기준 시간 검증
+
+**FAIL 기준:**
+- `watch_summary.json` 미생성
+- 필수 필드 누락
+- `completeness_ratio < 0.95` + `stop_reason ≠ EARLY_INFEASIBLE`
+- `stop_reason = ERROR`
+
+**시간 기반 완료 선언 금지:**
+- "3h 완료", "10h 실행" 같은 문구는 `watch_summary.json`에서 자동 추출한 값만 사용
+- 인간이 손으로 시간 쓰는 것 절대 금지
+- 문서/리포트에서 시간 언급 시 반드시 `watch_summary.json` 필드 인용
+
+**Evidence 무결성:**
+- 파일 write 시 `f.flush() + os.fsync(f.fileno())` 강제
+- 가능하면 원자적 갱신 (temp file → fsync → os.replace)
+- 모든 종료 경로(정상/예외/Ctrl+C)에서 watch_summary.json 생성 보장
+
+### Test Step 7: Evidence 패키징
+```
+logs/evidence/Dxxx-y_TEST/
+- manifest.json
+- kpi.json
+- metrics_snapshot.json
+- decision_trace.json
+- watch_summary.json (장기 실행 시 필수)
+```
+
+### Test Step 8: D_ROADMAP 업데이트
+- PASS / FAIL
+- Evidence 경로
+- 신규 문제는 추가만 허용
+
+### Test Step 9: Git
+```bash
+git status
+git diff --stat
+git commit -m "[TEST] Dxxx-y validation"
+git push
+```
+
+### FAIL 처리 규칙
+- 우회 금지
+- 테스트 통과 전까지 반복
+
+---
+
+## 🔄 Section E: DocOps / SSOT Audit (Always-On)
+
+**출처:** `docs/v2/templates/SSOT_DOCOPS.md` (90 lines) → SSOT_RULES로 완전 이관
+
+**적용 범위:** 모든 D 단계 / 모든 커밋
+
+**특히 아래 문서를 만지면 동기화 + DocOps Gate PASS 필수:**
+- `D_ROADMAP.md` (유일 SSOT)
+- `docs/v2/SSOT_RULES.md` (본 문서)
+- `docs/v2/design/SSOT_MAP.md`
+- `docs/v2/design/**`
+- `docs/v2/reports/**`
+
+### DocOps 불변 규칙 (SSOT 핵심 4문장)
+
+1. SSOT는 `D_ROADMAP.md` 단 1개 (충돌 시 D_ROADMAP 채택)
+2. D 번호 의미는 불변 (Immutable Semantics)
+3. 확장은 브랜치(Dxxx-y-z)로만 (이관/재정의 금지)
+4. DONE/COMPLETED는 Evidence 기반 (문서 기반 완료 금지)
+
+### DocOps Always-On 절차 (커밋 전에 무조건 수행)
+
+**DocOps Gate (A) SSOT 자동 검사 (필수)**
+```bash
+python scripts/check_ssot_docs.py
+```
+- **Exit code 0** 아니면 즉시 중단(FAIL)
+- 출력(로그)을 Evidence/리포트에 남겨야 DONE 가능
+
+**DocOps Gate (B) ripgrep 위반 탐지 (필수)**
+```bash
+# 로컬/IDE 링크 잔재(cci:) 제거
+rg "cci:" -n docs/v2 D_ROADMAP.md
+
+# "이관" 표현은 사고 유발 확률이 높음 (남아있으면 원칙적으로 FAIL)
+rg "이관|migrate|migration" -n docs/v2 D_ROADMAP.md
+
+# TODO/TBD/placeholder가 COMPLETED 문서에 남아있으면 FAIL 신호
+rg "TODO|TBD|PLACEHOLDER" -n docs/v2 D_ROADMAP.md
+```
+- 특정 D 단계(예: D205) 이슈가 있으면 그 D 번호를 추가로 grep
+
+**DocOps Gate (C) Pre-commit sanity (필수)**
+```bash
+git status
+git diff --stat
+```
+- "원래 의도한 범위" 밖 파일이 섞였으면 FAIL (범위 밖 수정은 즉시 롤백)
+
+### Evidence 저장 규칙 (gitignore와 충돌할 때)
+
+**원칙:** DocOps Gate의 결과(명령 + 결과 요약)는 커밋 가능한 형태로 남겨야 함
+
+- 추천: 각 D 리포트(`docs/v2/reports/...`)에 아래를 기록
+  - 실행한 명령(원문)
+  - exit code
+  - 핵심 결과(예: 발견 0건 / 발견 N건 + 수정 내역)
+- 런타임 로그(대용량)는 gitignore여도 OK지만,
+  **검증 결과 요약(텍스트)**은 리포트에 남겨야 SSOT와 궁합이 맞다
+
+### "한 번에 끝내는" 정의 (DONE 조건에 반드시 포함)
+
+- DocOps Gate (A/B/C) **전부 PASS**
+- SSOT 4점 문서(`D_ROADMAP/SSOT_RULES/SSOT_MAP/*`) 의미 동기화 완료
+- 리포트에 DocOps 증거(명령 + 결과) 포함
+- 그 다음에만 git commit/push
+
+---
+
+## 🔄 Section F: Design Docs 참조 규칙 (디폴트)
+
+**목적:** docs/v2/design 정독을 "옵션"이 아니라 "디폴트"로 강제
+
+**규칙:**
+- 모든 D-step은 `docs/v2/design/`를 **반드시** 열어 읽고, 이번 D에 관련된 문서 **최소 2개** 요약
+- 어떤 문서가 관련인지 모르면 "목차/파일명 기반 탐색 후 선택" 규칙
+
+**Reading Tax (읽었다는 흔적 필수):**
+- `READING_CHECKLIST.md`에 읽은 문서 목록 + 1줄 요약 기록
+- "이번 작업에서 무엇을 재사용하고 무엇을 가져올지" 10줄 이내 요약
+
+**Design 문서 종류 (예시):**
+- `SSOT_MAP.md` - SSOT 계층 구조
+- `SSOT_DATA_ARCHITECTURE.md` - Cold/Hot Path
+- `SSOT_SYNC_AUDIT.md` - 정합성 감사
+- `EVIDENCE_FORMAT.md` - Evidence 구조
+- `NAMING_POLICY.md` - 파일/단계/지표/키 네이밍
+- `REDIS_KEYSPACE.md` - Redis 키 구조
+- 기타 도메인별 설계 문서
+
+**위반 시 조치:**
+- Design 문서 정독 누락 → FAIL, READING_CHECKLIST 작성 후 재실행
+- "관련 없음" 주장 → FAIL, 최소 2개 선택 후 "관련 없는 이유" 명시
+
+---
+
+## 🔄 Section G: COMPLETED 단계 합치기 금지 (강제)
+
+**원칙:** COMPLETED 단계에 신규 작업 추가 방지
+
+**규칙:**
+- COMPLETED 단계에 뭔가 추가하고 싶으면 무조건 **새 D/새 브랜치** 생성
+- "단계 합치기"는 SSOT 리스크(삭제/누락/축약) 때문에 **절대 금지**
+
+**예시:**
+- ❌ **금지:** D205-11-2 COMPLETED에 "추가 계측" 작업 합치기
+- ✅ **허용:** D205-11-3 신규 브랜치 생성 (추가 계측)
+
+**위반 시 조치:**
+- COMPLETED 단계 합치기 발견 → 즉시 FAIL, 새 D/새 브랜치로 분리
+
+**근거:**
+- D 번호 의미 불변 원칙 강화
+- COMPLETED 단계의 원래 의미 변질 방지
+- AC와 Evidence 불일치 방지
+
+---
+
+## 🔄 Section H: Ellipsis(...) / Placeholder 금지 (강제)
+
+**원칙:** 축약 흔적 제거 (SSOT 파손 방지)
+
+**규칙:**
+- 로드맵/리포트/규칙 어디에도 `...` 같은 "축약 흔적" 남기면 FAIL
+- `TODO/TBD/PLACEHOLDER`도 COMPLETED 문서에 **절대 금지**
+
+**예시:**
+- ❌ **금지:** `- AC-1~5: ...` (ellipsis 축약)
+- ❌ **금지:** `- [ ] TODO: Redis 계측` (COMPLETED 문서에 TODO)
+- ✅ **허용:** `- AC-1: 구체적 내용` (전체 명시)
+
+**위반 시 조치:**
+- Ellipsis/Placeholder 발견 → 즉시 FAIL, 전체 내용 명시 후 재실행
+
+**check_ssot_docs.py와 동기화:**
+- `check_ssot_docs.py`에서 이미 일부 검증 중
+- 명시적 규칙화로 재발 방지 강화
+
+---
+
 ## 📝 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.
