@@ -232,30 +232,30 @@ python scripts/admin_control_cli.py --run-id d205_12_demo --env test resume --re
 
 ---
 
-## 📝 알려진 제약사항
+## Known Constraints
 
-### 1. 엔진 루프 통합 미완료
-- **현황:** AdminControl 모듈 구현 완료, 엔진 루프 통합 대기
-- **필요 작업:** ArbitrageEngine에 should_process_tick 훅 추가
-- **예상 위치:** arbitrage/v2/core/engine.py tick 메서드
-- **예시 코드:**
+### 1. Engine Loop Integration Pending
+- **Status:** AdminControl module implemented, engine loop integration pending
+- **Required Work:** Add should_process_tick hook to ArbitrageEngine
+- **Location:** arbitrage/v2/core/engine.py tick method
+- **Example Code:**
 ```python
 def tick(self):
     if not self.admin_control.should_process_tick():
         logger.debug("[Engine] Tick skipped (PAUSED/STOPPING/PANIC)")
         return
-    # 기존 로직
+    # existing logic
 ```
 
-### 2. Paper Runner 통합 대기
-- **현황:** AdminControl CLI 테스트 완료, Paper Runner 통합 대기
-- **필요 작업:** PaperRunner에 AdminControl 주입
-- **예상 위치:** arbitrage/v2/harness/paper_runner.py init 메서드
+### 2. Paper Runner Integration Pending
+- **Status:** AdminControl CLI tested, Paper Runner integration pending
+- **Required Work:** Inject AdminControl into PaperRunner
+- **Location:** arbitrage/v2/harness/paper_runner.py init method
 
-### 3. UI/API 미구현
-- **현황:** CLI만 구현 완료
-- **이유:** D206-4 영역 (스코프 분리)
-- **예정:** D206-4에서 FastAPI/Grafana/Telegram 구현
+### 3. UI/API Not Implemented
+- **Status:** CLI only implemented
+- **Reason:** D206-4 scope (scope separation)
+- **Planned:** FastAPI/Grafana/Telegram in D206-4
 
 ---
 
