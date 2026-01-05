@@ -3505,10 +3505,11 @@ Rationale:
 
 ### D205-11: Latency Profiling (Umbrella — ms 단위 계측 + 병목 최적화)
 
-**상태:** 🔄 IN PROGRESS (D205-11-1 COMPLETED, D205-11-2 PLANNED)
+**상태:** 🔄 IN PROGRESS (D205-11-1/2 COMPLETED, D205-11-3 PLANNED)
 **하위 단계:**
 - D205-11-1: Instrumentation Baseline (계측 기준선) — ✅ COMPLETED
-- D205-11-2: Bottleneck Fix & ≥10% 개선 — ⏳ PLANNED (조건부)
+- D205-11-2: Redis Latency Instrumentation + BottleneckAnalyzer — ✅ COMPLETED
+- D205-11-3: Bottleneck Optimization & ≥10% 개선 — ⏳ PLANNED (조건부)
 
 **Umbrella 목표:**
 - Tick → Decision → OrderIntent → Adapter → Fill/Record 구간을 ms 단위로 계측
@@ -3632,10 +3633,58 @@ Rationale:
 
 #### D205-11-2: Redis Latency Instrumentation + BottleneckAnalyzer
 **상태:** ✅ COMPLETED
-**커밋:** 8b79018
+**커밋:** 8b79018 (implementation), 1297d01 (documentation)
 **테스트:** 21/21 PASS (Doctor/Fast Gate ✅)
 **문서:** `docs/v2/reports/D205/D205-11-2_REPORT.md`
 **Evidence:** `logs/evidence/STEP0_BOOTSTRAP_D205_11_2_20260105_100431/`, `logs/evidence/D205_11_2_SMOKE_20260105_104448/`
+
+**목표:**
+- Redis 계측 인프라 구축 (RedisLatencyWrapper)
+- 병목 분석기 구현 (BottleneckAnalyzer)
+- Top 3 병목 지점 선정 + 최적화 권장사항 생성
+
+**범위 (Do/Don't):**
+- ✅ Do: LatencyStage REDIS_READ/WRITE 추가, RedisLatencyWrapper (GET/SET/INCR/MGET/PIPELINE), BottleneckAnalyzer (Top 3 선정)
+- ❌ Don't: 실제 최적화 수행 (D205-11-3으로 분리), 신규 계측 모듈 생성 (LatencyProfiler 재사용)
+
+**AC (증거 기반 검증):**
+- [x] **AC-1:** LatencyStage enum REDIS_READ/WRITE 추가 ✅
+- [x] **AC-2:** RedisLatencyWrapper 구현 (GET/SET/INCR/MGET/DELETE/HGET/PIPELINE) ✅
+- [x] **AC-3:** BottleneckAnalyzer 구현 (Top 3 병목 선정 + 최적화 권장) ✅
+- [x] **AC-4:** 유닛 테스트 21개 작성 (100% PASS) ✅
+- [x] **AC-5:** Smoke test N=200 (Redis latency 측정 확인) ✅
+- [x] **AC-6:** latency_summary.json, bottleneck_report.json 생성 ✅
+- [x] **AC-7:** Gate Doctor/Fast 100% PASS (37/37 tests) ✅
+- [x] **AC-8:** Evidence 패키징 (bootstrap + smoke) ✅
+
+**Evidence 요구사항:**
+- ✅ manifest.json
+- ✅ latency_summary.json (REDIS_READ/WRITE 포함)
+- ✅ latency_samples.jsonl (N=200)
+- ✅ bottleneck_report.json (Top 3 병목)
+
+**Gate 결과:**
+- ✅ Doctor: PASS (37 tests collected)
+- ✅ Fast: PASS (37/37 tests)
+- ✅ Regression: PASS (신규 코드 21/21 PASS)
+
+**Smoke 결과 (N=200):**
+- RECEIVE_TICK: p50=1.15ms, p95=1.53ms
+- DECIDE: p50=0.51ms, p95=0.54ms
+- REDIS_READ: p50=0.43ms, p95=0.50ms (count=200) ✅
+- REDIS_WRITE: p50=0.57ms, p95=0.64ms (count=200) ✅
+
+**PASS/FAIL 판단:**
+- ✅ PASS: 8/8 AC 달성 + Gate 100% PASS + Evidence 완비
+
+---
+
+#### D205-11-3: Bottleneck Optimization & ≥10% 개선
+**상태:** ⏳ PLANNED (조건부)
+**커밋:** [pending]
+**테스트:** [pending]
+**문서:** `docs/v2/reports/D205/D205-11-3_REPORT.md`
+**Evidence:** `logs/evidence/d205_11_3_optimization_<timestamp>/`
 
 **목표:**
 - D205-11-1 병목 지점 최적화 (RECEIVE_TICK: 56.46ms → <25ms)
@@ -3668,8 +3717,14 @@ Rationale:
 - FAIL: 개선율 <5% 또는 Gate FAIL
 
 **조건부 진입:**
-- D205-11-0 PASS 필수
-- D205-11-1 병목 지점이 실제로 성능 임계치를 넘을 때만 진행
+- D205-11-1 PASS 필수
+- D205-11-2 PASS 필수 (계측 인프라)
+- RECEIVE_TICK 병목이 실제로 성능 임계치를 넘을 때만 진행
+
+**시즌 2 고려사항:**
+- Multi-Exchange 환경에서 레이턴시 재측정 필요
+- Upbit + Bithumb + Coinone 동시 호출 시 RECEIVE_TICK 병목 악화 예상
+- WebSocket 전환 효과: 예상 개선 56ms → 20ms (65% 개선)
 
 ---
 
