@@ -28,6 +28,8 @@ class LatencyStage(str, Enum):
     DECIDE = "DECIDE"
     ADAPTER_PLACE = "ADAPTER_PLACE"
     DB_RECORD = "DB_RECORD"
+    REDIS_READ = "REDIS_READ"
+    REDIS_WRITE = "REDIS_WRITE"
 
 
 @dataclass

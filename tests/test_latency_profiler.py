@@ -140,29 +140,27 @@ class TestLatencyProfiler:
         assert stats.samples[0] == 1.0  # 0.0은 제거됨
     
     def test_multiple_stages(self):
-        """여러 stage 동시 측정"""
+        """Multiple stages"""
         profiler = LatencyProfiler(enabled=True)
         
-        # Stage 1
-        profiler.start_span(LatencyStage.RECEIVE_TICK)
-        time.sleep(0.005)
-        profiler.end_span(LatencyStage.RECEIVE_TICK)
+        for _ in range(10):
+            profiler.start_span(LatencyStage.RECEIVE_TICK)
+            time.sleep(0.001)
+            profiler.end_span(LatencyStage.RECEIVE_TICK)
+            
+            profiler.start_span(LatencyStage.DECIDE)
+            time.sleep(0.0005)
+            profiler.end_span(LatencyStage.DECIDE)
         
-        # Stage 2
-        profiler.start_span(LatencyStage.DECIDE)
-        time.sleep(0.010)
-        profiler.end_span(LatencyStage.DECIDE)
+        snapshot = profiler.snapshot()
         
-        # Stage 3
-        profiler.start_span(LatencyStage.ADAPTER_PLACE)
-        time.sleep(0.015)
-        profiler.end_span(LatencyStage.ADAPTER_PLACE)
+        assert len(snapshot) >= 2
+        assert "RECEIVE_TICK" in snapshot
+        assert "DECIDE" in snapshot
         
         # 통계 확인 (각 stage별 count=1)
-        assert profiler.stats[LatencyStage.RECEIVE_TICK].count == 1
-        assert profiler.stats[LatencyStage.DECIDE].count == 1
-        assert profiler.stats[LatencyStage.ADAPTER_PLACE].count == 1
-        
+        assert profiler.stats[LatencyStage.RECEIVE_TICK].count == 10
+        assert profiler.stats[LatencyStage.DECIDE].count == 10
         # Snapshot
         snapshot = profiler.snapshot()
-        assert len(snapshot) == 4  # 4개 stage (RECEIVE_TICK, DECIDE, ADAPTER_PLACE, DB_RECORD)
+        assert len(snapshot) == 6  # 6개 stage (RECEIVE_TICK, DECIDE, ADAPTER_PLACE, DB_RECORD, REDIS_READ, REDIS_WRITE)
