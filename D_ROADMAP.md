@@ -3988,21 +3988,12 @@ Rationale:
 
 ---
 
-### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
-
-**⚠️ 예외: D206-0 (Engine Unification)은 구조 정리 목적으로 선행 허용**
-- D206-0은 "단일 엔진 루프 강제" 목적으로 D205 완료 전에도 진행 가능
-- V1 스크립트 난립 문제 재발 방지를 위한 아키텍처 안전장치
-- 나머지 D206-1~4는 기존 진입조건 그대로 유지
-
----
-
-#### D206-0: Engine Unification (Single Engine Loop)
+#### D205-12-2: Engine Unification (Single Engine Loop)
 **상태:** PARTIAL (2026-01-06) - AC 4/9 완료
-**커밋:** [pending - 진행 중]
+**커밋:** 91d35bd (D206-0 PARTIAL → D205-12-2 이관)
 **테스트:** Doctor/Fast PASS, Regression 차기
-**문서:** `docs/v2/reports/D206/D206-0_REPORT.md` (차기)
-**Evidence:** `logs/evidence/d206_0_engine_unification_20260106_004100/`
+**문서:** `docs/v2/reports/D205/D205-12-2_REPORT.md` (차기)
+**Evidence:** `logs/evidence/d205_12_2_engine_unification_20260106_004100/`
 
 **목표:**
 - 엔진 루프 SSOT를 `arbitrage/v2/core/engine.py`로 고정 (유일한 루프)
@@ -4025,9 +4016,9 @@ Rationale:
 - [x] AC-2: EngineState enum 정의 (RUNNING/PAUSED/STOPPED/PANIC) ✅
 - [x] AC-3: AdminControl 훅 통합 (should_process_tick → tick skip) ✅
 - [x] AC-4: AdminControl 훅 통합 (is_symbol_blacklisted → symbol skip) ✅
-- [ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화 (차기 D206-0-1)
-- [ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT) (차기 D206-0-2)
-- [ ] AC-7: 포트 매핑 표 문서화 (D206-0_REPORT.md) (차기 D206-0-2)
+- [ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화 (차기 D205-12-2-1)
+- [ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT) (차기 D205-12-2-2)
+- [ ] AC-7: 포트 매핑 표 문서화 (D205-12-2_REPORT.md) (차기 D205-12-2-2)
 - [x] AC-8: Doctor/Fast Gate PASS ✅ (Regression은 차기)
 - [x] AC-9: Evidence 패키징 (scan_report, manifest, gate 결과) ✅
 
@@ -4059,6 +4050,10 @@ Rationale:
 - Blocks: D206-1 (Grafana) - 엔진 상태 읽기 전용 패널 필요
 - Blocks: D206-4 (Admin Control Panel) - 엔진 상태 제어 필요
 
+---
+
+### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
+
 **문제 인식:**
 - V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
 - V2 현재: Engine은 stub, PaperRunner가 사실상 엔진 역할
@@ -4068,7 +4063,7 @@ Rationale:
 
 ⛔ **[BLOCKER] Prerequisites for D206 Entry (3중 안전장치):**
 
-**⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지 (D206-0 제외)**
+**⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지**
 
 **1. Real-time FX Integration Check (Critical) 🚨**
 - ❌ Fixed FX 로직이 제거되었는가?
@@ -4128,7 +4123,7 @@ Rationale:
 6. **Engine State** (Status: RUNNING/PAUSED/STOPPED/PANIC) - 읽기 전용
 
 **의존성:**
-- Depends on: D206-0 (Engine Unification) ← **선행 필수**
+- Depends on: D205-12-2 (Engine Unification) ← **선행 필수**
 - Depends on: D205-9 PASS
 - Blocks: D206-2 (Docker Compose)
 
@@ -4218,7 +4213,7 @@ Rationale:
 - Option 3: Telegram bot (선택)
 
 **의존성:**
-- Depends on: D206-0 (Engine Unification) ← **선행 필수**
+- Depends on: D205-12-2 (Engine Unification) ← **선행 필수**
 - Depends on: D206-3 (Failure Injection)
 - Blocks: K8s (DEFER)
 
