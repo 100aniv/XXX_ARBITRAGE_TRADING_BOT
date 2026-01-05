@@ -2460,8 +2460,9 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ---
 
 #### D000-2: [META] check_ssot_docs.py ExitCode=0 강제 + Gate 회피 금지 + D000 번호 체계 명문화
-**상태:** 🔄 IN PROGRESS (AC 10/11, Git commit 대기)  
+**상태:** ✅ DONE (AC 11/11, 100%)  
 **날짜:** 2026-01-05  
+**커밋:** 72db3ec  
 **브랜치:** rescue/d000_2_closeout  
 **문서:** `docs/v2/reports/D000/D000-2_REPORT.md`  
 **Evidence:** `logs/evidence/d000_2_closeout_20260105_190053/`
@@ -2480,17 +2481,17 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - ❌ Don't: 트레이딩 로직/엔진 변경, Gate 회피 (워딩 꼼수/파일 삭제), AC PENDING인데 DONE 표기
 
 **AC (증거 기반 검증):**
-- [ ] **AC-1:** SSOT_RULES Section J (Gate 회피 금지) 추가
-- [ ] **AC-2:** SSOT_RULES Section K (D000 META 번호 체계) 추가
-- [ ] **AC-3:** D_ROADMAP META RAIL 섹션 격리 + [META] 태그 추가
-- [ ] **AC-4:** 삭제된 D205 Report 6개 파일 복구 + rename (규칙 준수)
-- [ ] **AC-5:** D000-2_REPORT.md 작성 (원인/조치/결과/재발방지)
-- [ ] **AC-6:** check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_after_exitcode.txt = 0)
-- [ ] **AC-7:** DocOps Gate ripgrep 실행 + 증거 (금지 마커 0건)
-- [ ] **AC-8:** Doctor/Fast/Regression Gates 100% PASS
-- [ ] **AC-9:** Evidence 패키징 (manifest.json, README.md 완성)
-- [ ] **AC-10:** D_ROADMAP AC 100% 체크 (사실 기반)
-- [ ] **AC-11:** Git commit + push
+- [x] **AC-1:** SSOT_RULES Section J (Gate 회피 금지) 추가 ✅
+- [x] **AC-2:** SSOT_RULES Section K (D000 META 번호 체계) 추가 ✅
+- [x] **AC-3:** D_ROADMAP META RAIL 섹션 격리 + [META] 태그 추가 ✅
+- [x] **AC-4:** 삭제된 D205 Report 6개 파일 복구 + rename (규칙 준수) ✅
+- [x] **AC-5:** D000-2_REPORT.md 작성 (원인/조치/결과/재발방지) ✅
+- [x] **AC-6:** check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_after_exitcode.txt = 0) ✅
+- [x] **AC-7:** DocOps Gate ripgrep 실행 + 증거 (금지 마커 0건) ✅
+- [x] **AC-8:** Doctor/Fast/Regression Gates 100% PASS ✅
+- [x] **AC-9:** Evidence 패키징 (manifest.json, README.md 완성) ✅
+- [x] **AC-10:** D_ROADMAP AC 100% 체크 (사실 기반) ✅
+- [x] **AC-11:** Git commit + push ✅
 
 **Evidence 요구사항:**
 - bootstrap_env.txt (Git 상태, 브랜치 확인)
