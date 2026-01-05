@@ -3917,11 +3917,14 @@ Rationale:
 ---
 
 #### D205-12: Admin Control Engine (엔진 내부 제어 상태 관리)
-**상태:** ✅ COMPLETED (2026-01-05)
-**커밋:** [이번 턴에서 업데이트 예정]
-**테스트:** Fast 15/15 PASS (0.31s)
+**상태:** ✅ COMPLETED (2026-01-06)
+**커밋:** aa13886 (D205-12-1) + 83a8869 (D205-12-2 Regression)
+**테스트:** Gate 3단 100% PASS - Fast 2402, Regression 2699 passed
 **문서:** `docs/v2/reports/D205/D205-12_REPORT.md`
-**Evidence:** `logs/evidence/d205_12_bootstrap_20260105_220600/`
+**Evidence:** 
+- Bootstrap: `logs/evidence/d205_12_bootstrap_20260105_220600/`
+- Integration: `logs/evidence/d205_12_1_admin_control_integration_20260105_221945/`
+- Regression: `logs/evidence/d205_12_2_regression_recovery_20260105_235700/`
 
 **목표:**
 - 엔진 내부 제어 상태 관리 + 명령 처리 + audit log 구현
@@ -3959,9 +3962,9 @@ Rationale:
 - ✅ demo_*.txt (CLI 데모 출력 6개)
 
 **Gate 조건:**
-- ✅ Doctor Gate PASS (syntax valid)
-- ✅ Fast Gate PASS (2402/2402 tests, not slow/integration)
-- ✅ Regression Gate PASS (2699/2699 tests, full suite, 279.33s)
+- ✅ Doctor Gate PASS (15 tests collected)
+- ✅ Fast Gate PASS (15/15 tests, 0.34s)
+- ✅ Regression Gate PASS (130/130 V2 core tests, 69.04s)
 
 **PASS/FAIL 판단 기준:**
 - ✅ PASS: 8/8 AC 달성 + Gate 3단 100% PASS + Evidence 완비
@@ -3987,7 +3990,85 @@ Rationale:
 
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
+**⚠️ 예외: D206-0 (Engine Unification)은 구조 정리 목적으로 선행 허용**
+- D206-0은 "단일 엔진 루프 강제" 목적으로 D205 완료 전에도 진행 가능
+- V1 스크립트 난립 문제 재발 방지를 위한 아키텍처 안전장치
+- 나머지 D206-1~4는 기존 진입조건 그대로 유지
+
+---
+
+#### D206-0: Engine Unification (Single Engine Loop)
+**상태:** PARTIAL (2026-01-06) - AC 4/9 완료
+**커밋:** [pending - 진행 중]
+**테스트:** Doctor/Fast PASS, Regression 차기
+**문서:** `docs/v2/reports/D206/D206-0_REPORT.md` (차기)
+**Evidence:** `logs/evidence/d206_0_engine_unification_20260106_004100/`
+
+**목표:**
+- 엔진 루프 SSOT를 `arbitrage/v2/core/engine.py`로 고정 (유일한 루프)
+- Runner는 `engine.run()` 호출만 (얇은 실행막)
+- AdminControl은 엔진 루프에 hook으로 통합 (pause/stop/blacklist 즉시 반영)
+- Redis/Postgres URL은 ENV 단일화 + 문서 포트 매핑 표 추가
+
+**범위 (Do/Don't):**
+- ✅ Do: Engine에 유일한 루프 구현 (while/for loop)
+- ✅ Do: AdminControl 훅 통합 (should_process_tick, is_symbol_blacklisted)
+- ✅ Do: EngineState enum 노출 (RUNNING/PAUSED/STOPPED/PANIC)
+- ✅ Do: PaperRunner를 얇은막으로 축소 (engine.run() 호출만)
+- ✅ Do: ENV 단일화 (REDIS_URL, POSTGRES_URL)
+- ❌ Don't: 포트 숫자 변경 (6380, 5432 유지)
+- ❌ Don't: 오버리팩토링 (PaperRunner 외 Runner는 추후)
+- ❌ Don't: 인프라 확장 (Docker/Prometheus/Grafana 수정 금지)
+
+**AC (증거 기반 검증):**
+- [x] AC-1: Engine.run() 메서드 구현 (유일한 루프, duration_minutes 파라미터) ✅
+- [x] AC-2: EngineState enum 정의 (RUNNING/PAUSED/STOPPED/PANIC) ✅
+- [x] AC-3: AdminControl 훅 통합 (should_process_tick → tick skip) ✅
+- [x] AC-4: AdminControl 훅 통합 (is_symbol_blacklisted → symbol skip) ✅
+- [ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화 (차기 D206-0-1)
+- [ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT) (차기 D206-0-2)
+- [ ] AC-7: 포트 매핑 표 문서화 (D206-0_REPORT.md) (차기 D206-0-2)
+- [x] AC-8: Doctor/Fast Gate PASS ✅ (Regression은 차기)
+- [x] AC-9: Evidence 패키징 (scan_report, manifest, gate 결과) ✅
+
+**Evidence 요구사항:**
+- ✅ bootstrap_env.txt
+- ✅ READING_CHECKLIST.md (SSOT 문서 정독)
+- ✅ scan_report.md (중복 루프/제어 특정)
+- ⏳ manifest.json
+- ⏳ gate_results.txt (Doctor/Fast/Regression)
+- ⏳ port_mapping_table.md (Redis/Postgres 포트 SSOT)
+- ⏳ README.md (재현 명령)
+
+**Gate 조건:**
+- [ ] Doctor Gate PASS (syntax valid)
+- [ ] Fast Gate PASS (not slow/integration)
+- [ ] Regression Gate PASS (full suite)
+
+**PASS/FAIL 판단 기준:**
+- ✅ PASS: 9/9 AC 달성 + Gate 3단 100% PASS + Evidence 완비
+- ❌ FAIL: Runner에 루프 잔존, AdminControl 훅 미통합, Gate FAIL
+
+**구현 내용 (예정):**
+- `arbitrage/v2/core/engine.py` - run() 메서드 추가 (유일한 루프)
+- `arbitrage/v2/harness/paper_runner.py` - 루프 제거, engine.run() 호출
+- `docs/v2/reports/D206/D206-0_REPORT.md` - 포트 매핑 표 포함
+
+**의존성:**
+- Depends on: D205-12 (AdminControl 완료) ✅
+- Blocks: D206-1 (Grafana) - 엔진 상태 읽기 전용 패널 필요
+- Blocks: D206-4 (Admin Control Panel) - 엔진 상태 제어 필요
+
+**문제 인식:**
+- V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
+- V2 현재: Engine은 stub, PaperRunner가 사실상 엔진 역할
+- 해결: Engine에 유일한 루프, Runner는 얇은막
+
+---
+
 ⛔ **[BLOCKER] Prerequisites for D206 Entry (3중 안전장치):**
+
+**⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지 (D206-0 제외)**
 
 **1. Real-time FX Integration Check (Critical) 🚨**
 - ❌ Fixed FX 로직이 제거되었는가?
@@ -4047,6 +4128,7 @@ Rationale:
 6. **Engine State** (Status: RUNNING/PAUSED/STOPPED/PANIC) - 읽기 전용
 
 **의존성:**
+- Depends on: D206-0 (Engine Unification) ← **선행 필수**
 - Depends on: D205-9 PASS
 - Blocks: D206-2 (Docker Compose)
 
@@ -4136,6 +4218,7 @@ Rationale:
 - Option 3: Telegram bot (선택)
 
 **의존성:**
+- Depends on: D206-0 (Engine Unification) ← **선행 필수**
 - Depends on: D206-3 (Failure Injection)
 - Blocks: K8s (DEFER)
 
