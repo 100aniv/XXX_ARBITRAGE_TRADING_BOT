@@ -18,7 +18,7 @@
 
 **현재 상태 (문제):**
 ```markdown
-#### D205-11: Latency Profiling & Execution Tuning (ms 단위 계측)
+#### D205-11: Latency Profiling (ms 단위 계측)
 **상태:** PLANNED ⏳
 **커밋:** [pending]
 ...
@@ -93,11 +93,11 @@
 |----|------|------|------|
 | AC-1 | D_ROADMAP D205-11 완전 복구 | ✅ DONE | D_ROADMAP.md Line 3506-3673 |
 | AC-2 | D205-11-1 정식 편입 | ✅ DONE | D_ROADMAP.md Line 3533-3587 |
-| AC-3 | Redis read/write(ms) 계측 | ⏳ TODO | wrapper 구현 필요 |
-| AC-4 | DB write(ms) 계측 | ⏳ TODO | wrapper 구현 필요 |
-| AC-5 | Gate 3단 PASS | ⏳ TODO | pytest 실행 필요 |
-| AC-6 | SSOT Docs Check PASS | ⏳ TODO | check_ssot_docs.py 필요 |
-| AC-7 | Evidence 패키징 | ⏳ TODO | latency_summary.json 업데이트 |
+| AC-3 | Redis read/write(ms) 계측 | ⏳ PENDING | wrapper 구현 필요 |
+| AC-4 | DB write(ms) 계측 | ⏳ PENDING | wrapper 구현 필요 |
+| AC-5 | Gate 3단 PASS | ⏳ PENDING | pytest 실행 필요 |
+| AC-6 | SSOT Docs Check PASS | ⏳ PENDING | check_ssot_docs.py 필요 |
+| AC-7 | Evidence 패키징 | ⏳ PENDING | latency_summary.json 업데이트 |
 
 **진행률:** 2/7 AC 달성 (28.6%)
 
@@ -137,10 +137,10 @@
 
 | Gate | 예상 결과 | 세부 |
 |------|-----------|------|
-| Doctor | ⏳ TODO | pytest --collect-only |
-| Fast | ⏳ TODO | test_latency_profiler.py 확장 필요 (Redis/DB 계측 테스트) |
-| Regression | ⏳ TODO | test_d98_preflight.py (기존 유지) |
-| SSOT Docs Check | ⏳ TODO | check_ssot_docs.py (D_ROADMAP 정합성) |
+| Doctor | ⏳ PENDING | pytest --collect-only |
+| Fast | ⏳ PENDING | test_latency_profiler.py 확장 필요 (Redis/DB 계측 테스트) |
+| Regression | ⏳ PENDING | test_d98_preflight.py (기존 유지) |
+| SSOT Docs Check | ⏳ PENDING | check_ssot_docs.py (D_ROADMAP 정합성) |
 
 ---
 

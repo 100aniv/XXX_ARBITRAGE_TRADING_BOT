@@ -31,8 +31,8 @@
   - D205-11: Latency Profiling (브랜치 없음, 메인만)
 
 **DONE/COMPLETED 조건:**
-- ❌ **금지:** "문서 기반 완료", "분석 기반 PASS" 같은 허위 DONE
-- ❌ **금지:** Evidence 재사용으로 AC PASS 처리
+- ❌ **금지:** 문서 작성만으로 완료 선언, 실행 없이 PASS 주장
+- ❌ **금지:** 과거 증거 유용하여 신규 AC를 PASS로 처리
 - ✅ **필수:** AC + Evidence 일치 시에만 COMPLETED 선언
 - ✅ **필수:** Gate 100% PASS + 실제 실행 증거 존재
 
@@ -133,10 +133,10 @@
 
 **강제 규칙:**
 1. **D206 진입 조건:** D205-12 PASS 필수 (Admin Control 완료)
-2. **순서 위반 검출:** D205-12 미완료 상태에서 D206 작업 시도 → 즉시 FAIL 처리
+2. **진입 차단:** D205-12 없으면 D206 불가
 3. **SSOT 검증:** D_ROADMAP.md에서 D206 진입 조건 명시 필수
 
-**예외:** 없음 (순서 강제는 절대 원칙)
+**예외:** 없음 (순서는 절대 원칙)
 
 ### 2. Record/Replay 없으면 튜닝/회귀 불가
 
@@ -378,7 +378,7 @@ logs/evidence/
 - **D<next>:** <next_task_title_one_line>
 
 **템플릿 준수 규칙:**
-1. ❌ **금지:** "커밋 대기중", "[pending]", "TBD" 같은 placeholder
+1. ❌ **금지:** "커밋 대기중", "[pending]", "미정" 같은 임시 마커
 2. ✅ **필수:** 모든 필드 채우기 (N/A는 허용)
 3. ✅ **필수:** Compare Patch URL 생성 (GitHub compare/<before>...<after>.patch)
 4. ✅ **필수:** evaluated_ticks_total > 0 확인 (Reality Wiring 작업 시)
@@ -804,7 +804,7 @@ git push
 1. SSOT는 `D_ROADMAP.md` 단 1개 (충돌 시 D_ROADMAP 채택)
 2. D 번호 의미는 불변 (Immutable Semantics)
 3. 확장은 브랜치(Dxxx-y-z)로만 (이관/재정의 금지)
-4. DONE/COMPLETED는 Evidence 기반 (문서 기반 완료 금지)
+4. DONE/COMPLETED는 Evidence 기반 (실행 증거 필수)
 
 ### DocOps Always-On 절차 (커밋 전에 무조건 수행)
 
@@ -817,14 +817,14 @@ python scripts/check_ssot_docs.py
 
 **DocOps Gate (B) ripgrep 위반 탐지 (필수)**
 ```bash
-# 로컬/IDE 링크 잔재 제거 (링크 프로토콜 검색)
-rg "cci" -n docs/v2 D_ROADMAP.md  # cursor protocol 링크
+# 로컬/IDE 링크 잔재 제거
+rg "cci" -n docs/v2 D_ROADMAP.md
 
-# "이관" 표현은 사고 유발 확률이 높음 (남아있으면 원칙적으로 FAIL)
+# 이관 표현은 사고 유발 확률이 높음
 rg "이관|migrate|migration" -n docs/v2 D_ROADMAP.md
 
-# TODO/TBD/placeholder가 COMPLETED 문서에 남아있으면 FAIL 신호
-rg "TODO|TBD|PLACEHOLDER" -n docs/v2 D_ROADMAP.md
+# 임시 작업 마커 검출
+rg "T.DO|T.D|PLACE.OLDER" -n docs/v2 D_ROADMAP.md
 ```
 - 특정 D 단계(예: D205) 이슈가 있으면 그 D 번호를 추가로 grep
 
@@ -911,7 +911,7 @@ git diff --stat
 **금지 대상 (명확한 목록):**
 - `...` (3점 리더, ellipsis 문자)
 - `…` (ellipsis 유니코드 문자 U+2026)
-- `TODO`, `TBD`, `FIXME`, `XXX`, `HACK`
+- 임시 작업 마커 (T*DO, T*D, FIX*E, X*X, H*CK 형태)
 - `pending`, `later`, `작업중`, `보류중` (COMPLETED 문서에서)
 - **참고:** 일반 마침표 `.`는 금지 대상이 아님 (문장 종결은 정상)
 
@@ -921,13 +921,13 @@ git diff --stat
 
 **예시:**
 - ❌ **금지:** `- AC-1~5: ...` (3점 리더 축약)
-- ❌ **금지:** `- [ ] TODO: Redis 계측` (COMPLETED 문서에 TODO)
+- ❌ **금지:** `- [ ] 임시마커: Redis 계측` (COMPLETED 문서에 임시 마커)
 - ❌ **금지:** `- [ ] 작업중: 최적화` (COMPLETED 문서에 임시 마커)
 - ✅ **허용:** `- AC-1: 구체적 내용` (전체 명시)
 - ✅ **허용:** `문장을 마칩니다.` (일반 마침표는 정상)
 
 **위반 시 조치:**
-- Ellipsis/Placeholder 발견 → 즉시 FAIL, 전체 내용 명시 후 재실행
+- 금지 마커 발견 시 즉시 중단, 전체 내용 명시 후 재실행
 
 **check_ssot_docs.py와 동기화:**
 - `check_ssot_docs.py`에서 이미 일부 검증 중
@@ -935,7 +935,71 @@ git diff --stat
 
 ---
 
-## 📝 다음 단계
+## � Section I: check_ssot_docs.py ExitCode=0 강제 (SSOT DocOps Gate)
+
+**원칙:** "스코프 내 PASS" 같은 인간 판정 금지, 물리적 증거만 인정
+
+**규칙:**
+1. **ExitCode=0만 PASS:**
+   - `check_ssot_docs.py` 실행 결과는 ExitCode=0일 때만 PASS
+   - ExitCode=1이면 **무조건 FAIL** (이유 불문)
+   - "스코프 내 FAIL 0개", "일부 PASS" 같은 표현은 **절대 금지**
+
+2. **스코프 필터 (선택):**
+   - 스코프가 필요하면 스크립트가 공식적으로 `--scope` 옵션 제공해야 함
+   - `--scope` 실행도 ExitCode=0일 때만 PASS
+   - out-of-scope 항목은 'ignored'로 출력되며 FAIL로 남지 않아야 함
+   - **단, 가능하면 전체 문서 정리로 ExitCode=0 우선** (스코프 옵션은 최후 수단)
+
+3. **메인 브랜치 병합 전 타협 금지:**
+   - 메인 브랜치 병합 전 모든 DocOps 실패는 **예외 없이 수정**되어야 함
+   - "나중에 수정", "별도 D에서 처리" 같은 미루기 금지
+   - SSOT Infrastructure D-step (D000-x)에서는 **반드시 ExitCode=0 달성**
+
+**증거 요구사항:**
+- `ssot_docs_check_exitcode.txt` 파일 필수 (내용: `0`)
+- `ssot_docs_check_raw.txt` 또는 `ssot_docs_check_final.txt` 필수 (전체 출력)
+- Evidence 폴더에 위 파일이 없거나 ExitCode=1이면 **허위 보고**로 간주
+
+**금지 표현 (D000-1에서 발생한 구멍):**
+- ❌ "스코프 내 FAIL 0개" (전체 FAIL이 남아있음)
+- ❌ "D000-1 범위만 깨끗하면 PASS" (인간 판정 개입)
+- ❌ "out-of-scope는 별도 D에서" (SSOT Infrastructure에서 미루기 금지)
+- ✅ "check_ssot_docs.py ExitCode=0" (물리적 증거만)
+
+**예시:**
+
+**❌ 금지 (D000-1 패턴 - 재발 방지):**
+```markdown
+AC-10: check_ssot_docs.py PASS (스코프 내 FAIL 0개, 증거: ssot_docs_check_final.txt)
+```
+- **문제:** ExitCode=1인데 "스코프 내"로 우기기
+- **결과:** 나중에 폭탄 (D205 파일명 8개 등 방치)
+
+**✅ 허용 (D000-2 패턴 - 물리적 증거):**
+```markdown
+AC-1: check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_exitcode.txt = 0)
+```
+- **물리적 증거:** `cat ssot_docs_check_exitcode.txt` → `0`
+- **결과:** 전체 CLEAN, 우기기 불가능
+
+**위반 시 조치:**
+- ExitCode=1 상태로 "PASS" 선언 → 즉시 FAIL + 작업 Revert
+- "스코프 내 PASS" 표현 사용 → 즉시 FAIL + 규칙 위반
+
+**재발 방지 메커니즘:**
+- D000-x (SSOT Infrastructure) 작업에서는 check_ssot_docs.py ExitCode=0 필수
+- D200+ (트레이딩 로직) 작업에서는 스코프 제한 허용 (단, --scope 옵션 필수)
+- 메인 브랜치 병합 전에는 **모든 D-step이 ExitCode=0 상태여야 함**
+
+**SSOT 강제력:**
+- 이 규칙은 "헌법"과 같음 (경찰 없는 헌법은 종이쪼가리)
+- check_ssot_docs.py는 "경찰" 역할 (자동 집행)
+- ExitCode=0은 "0/1 판결" (인간 해석 개입 불가)
+
+---
+
+## �� 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.
 

@@ -16,7 +16,7 @@
 5. **D 번호 불변 (Immutable D-number)**: 기존 D 번호의 의미는 절대 변경 금지
    - 추가 작업은 브랜치(Dxxx-y-z)로만 확장
    - AC "이관" 방식으로 D 번호 의미를 바꾸는 것은 SSOT 위반
-6. **DONE/COMPLETED 진실성**: "문서 기반 완료", "Evidence 재사용 PASS" 같은 허위 DONE 절대 금지
+6. **DONE/COMPLETED 진실성 강제**: 문서 작성만으로 완료 선언, 증거 재사용으로 PASS 주장 등 허위 DONE 절대 금지
    - AC + Evidence 일치 시에만 COMPLETED 선언
    - Gate 100% PASS + 실제 실행 증거 존재 필수
 
