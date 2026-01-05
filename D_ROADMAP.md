@@ -2370,11 +2370,12 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 ### D000: SSOT Infrastructure (규칙/템플릿 통합)
 
 #### D000-1: SSOT Rules 헌법 통합 (Prompt/Test/DocOps 단일화)
-**상태:** 🔄 IN PROGRESS  
+**상태:** ✅ DONE  
 **날짜:** 2026-01-05  
-**브랜치:** rescue/d000_1_ssot_rules_unify (신규)  
+**커밋:** 53299d9 (초기), 42f854c (closeout fix)  
+**브랜치:** rescue/d000_1_ssot_rules_unify  
 **문서:** `docs/v2/reports/D000/D000-1_REPORT.md`  
-**Evidence:** `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/`
+**Evidence:** `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/` + `logs/evidence/d000_1_closeout_fix_20260105_144500/`
 
 **목표:**
 - 규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단
@@ -2399,7 +2400,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] **AC-10:** check_ssot_docs.py PASS (스코프 내 FAIL 0개, 증거: ssot_docs_check_final.txt)
 - [x] **AC-11:** Evidence 패키징 (manifest.json, gate_results.txt, SCAN_REUSE_SUMMARY.md, DOCS_READING_CHECKLIST.md, PROBLEM_STATEMENT.md)
 - [x] **AC-12:** D000-1_REPORT.md 작성 (변경 이유, 통합 결과, AC 이관 규칙 예시, Gate 결과, Evidence)
-- [ ] **AC-13:** Git commit + push (새 브랜치)
+- [x] **AC-13:** Git commit + push (Commit 42f854c, Push 완료)
 
 **Evidence 요구사항:**
 - bootstrap_env.txt
