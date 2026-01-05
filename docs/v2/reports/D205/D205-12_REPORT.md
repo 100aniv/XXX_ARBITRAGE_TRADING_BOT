@@ -2,8 +2,8 @@
 
 **상태:** ✅ COMPLETED  
 **완료일:** 2026-01-05  
-**커밋:** [pending]  
-**Evidence:** `logs/evidence/d205_12_admin_control_20260105_205445/`
+**커밋:** [이번 턴에서 업데이트 예정]  
+**Evidence:** `logs/evidence/d205_12_bootstrap_20260105_220600/`
 
 ---
 

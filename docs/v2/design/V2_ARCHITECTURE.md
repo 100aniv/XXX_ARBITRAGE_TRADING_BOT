@@ -525,10 +525,55 @@ arbitrage/v2/
 
 ---
 
+## 🎯 D205-12: Control Plane (Admin Control Engine)
+
+**책임 (Engine 내부):**
+- ControlState 관리 (RUNNING/PAUSED/STOPPING/PANIC/EMERGENCY_CLOSE)
+- Command 처리 (pause/resume/stop/panic/blacklist/emergency_close)
+- Audit Log 기록 (NDJSON append-only, logs/admin_audit.jsonl)
+- Redis Hot-state 저장 (v2:{env}:{run_id}:control:state, TTL 1h)
+- 엔진 루프 훅 제공 (should_process_tick, is_symbol_blacklisted)
+
+**금지 (D206-4 영역):**
+- UI/웹/텔레그램 구현
+- Grafana 패널
+
+**D206 진입 조건:**
+- D205-12 PASS 필수 (안전한 pause/panic 없이 배포 금지)
+
+**구현 파일:**
+- `arbitrage/v2/core/admin_control.py` - AdminControl 엔진
+- `scripts/admin_control_cli.py` - CLI (얇은 명령 전달막)
+- `tests/test_admin_control.py` - 유닛 테스트 15/15 PASS
+
+---
+
+## 🤖 D205-13: Auto Tuning Orchestrator v1
+
+**책임 (V1 재사용 중심):**
+- ParameterSweep (arbitrage/v2/execution_quality/sweep.py) 재사용
+- TuningSessionPlanner (arbitrage/tuning_session.py) 재사용
+- TuningSessionRunner (arbitrage/tuning_session_runner.py) 재사용
+- 얇은 오케스트레이션 계층 (arbitrage/v2/tuning/auto_tuner.py, <100줄)
+
+**금지 (SSOT 위반):**
+- 분산 튜닝 클러스터 (K8s/Docker) → D206+
+- 자동 적용 기본 ON → 수동 승인 또는 명시적 설정 필요
+- 신규 Grid Search 알고리즘 → 기존 재사용 필수
+- 웹 UI/대시보드 → D206-4
+
+**의존성:**
+- Depends on: D205-5 (Record/Replay), D205-7 (Parameter Sweep), D205-9 (Realistic Paper Validation)
+- Strongly recommended: D205-12 (Admin Control - 안전한 pause/panic 없이 자동화 금지)
+
+---
+
 ## 📚 References
 
 - `docs/v2/SSOT_RULES.md` - V2 개발 규칙
-- `D_ROADMAP.md` - 프로젝트 로드맵
+- `D_ROADMAP.md` - 프로젝트 로드맵 (SSOT)
+- `docs/v2/reports/D205/D205-12_REPORT.md` - Admin Control Engine 완료 보고서
+- `docs/v2/reports/D205/D205-13_REUSE_SCAN.md` - Auto Tuning 재사용 스캔
 - `docs/D106/D106_4_1_FINAL_REPORT.md` - V1 마지막 핫픽스
 - `arbitrage/exchanges/upbit_spot.py` - V1 Upbit 구현 참고
 

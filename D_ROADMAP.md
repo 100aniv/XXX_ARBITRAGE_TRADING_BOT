@@ -3174,18 +3174,22 @@ CREATE TABLE v2_pnl_daily (
 - Gate 0 FAIL
 - 리플레이 재현성: diff_count = 0 (100% 동일)
 
-**PASS/FAIL 판단 기준:**
-- PASS: 동일 입력 → 동일 결정 (diff = 0)
-- FAIL: diff > 0 (비결정적 로직 존재)
+**PASS/FAIL 판단:**
+- PASS: 모든 AC 달성 + Gate 100% PASS + Evidence 완비
+- **D206 진입 조건:** D205-12 PASS 필수 
 
 **의존성:**
-- Depends on: D205-4 (실데이터 플로우)
-- Blocks: D205-6, D205-7 (리플레이 기반 튜닝)
+- Depends on: D205-10 (비용 모델)
+- Blocks: D206 (배포/Ops - D205-12 PASS 필수)
 
 ---
 
-#### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화) — DONE ✅
-**상태:** DONE ✅
+#### D205-12: Admin Control (안전한 pause/panic 없이 자동화 금지)
+**상태:** DONE 
+**커밋:** 8a5f9e2
+**테스트:** Gate Fast 126/126 PASS (69.06s) + Smoke PASS
+**문서:** `docs/v2/reports/D205/D205-12_REPORT.md`
+**Evidence:** `logs/evidence/d205_12_admin_control_20251231_014139/`
 **커밋:** 135a224 (ExecutionQuality v1 + SSOT manifest fix)
 **브랜치:** rescue/d99_15_fullreg_zero_fail
 **테스트:** Gate Fast 137/137 PASS (69.52s) + Smoke PASS
@@ -3917,11 +3921,11 @@ Rationale:
 ---
 
 #### D205-12: Admin Control Engine (엔진 내부 제어 상태 관리)
-**상태:** ✅ COMPLETED
-**커밋:** [pending - 이번 턴]
-**테스트:** 15/15 PASS (Gate 3단 100%)
+**상태:** ✅ COMPLETED (2026-01-05)
+**커밋:** [이번 턴에서 업데이트 예정]
+**테스트:** Fast 15/15 PASS (0.31s)
 **문서:** `docs/v2/reports/D205/D205-12_REPORT.md`
-**Evidence:** `logs/evidence/d205_12_admin_control_20260105_205445/`
+**Evidence:** `logs/evidence/d205_12_bootstrap_20260105_220600/`
 
 **목표:**
 - 엔진 내부 제어 상태 관리 + 명령 처리 + audit log 구현
