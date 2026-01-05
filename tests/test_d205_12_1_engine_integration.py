@@ -124,7 +124,7 @@ def test_running_mode_resume(admin_control, tmp_path):
     assert exit_code == 0, "Runner should complete successfully"
     assert runner.kpi.intents_created > 0, "RUNNING mode should allow intent creation"
     assert runner.kpi.reject_reasons["admin_paused"] == 0, "Should have no admin_paused rejects"
-    print(f"[PASS] Test 3: intents_created={runner.kpi.intents_created}, admin_paused=0")
+    print(f"✅ Test 3 PASS: intents_created={runner.kpi.intents_created}, admin_paused=0")
 
 
 def test_no_admin_control_normal_operation(tmp_path):
@@ -152,4 +152,4 @@ def test_no_admin_control_normal_operation(tmp_path):
     assert runner.kpi.intents_created > 0, "Should create intents normally without AdminControl"
     assert runner.kpi.reject_reasons["admin_paused"] == 0, "Should have no admin_paused rejects"
     assert runner.kpi.reject_reasons["symbol_blacklisted"] == 0, "Should have no symbol_blacklisted rejects"
-    print(f"✅ Test 4 PASS: intents_created={runner.kpi.intents_created}, no admin rejects")
+    print(f"[PASS] Test 4: intents_created={runner.kpi.intents_created}, no admin rejects")

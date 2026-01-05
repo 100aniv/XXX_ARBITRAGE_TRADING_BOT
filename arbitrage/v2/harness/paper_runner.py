@@ -349,11 +349,13 @@ class PaperRunner:
                 f"This safeguard prevents '1300원 참사' (wrong FX orders)."
             )
         
-        # D205-9 RECOVERY: Redis REQUIRED (SSOT_DATA_ARCHITECTURE 준수)
+        # D205-9 RECOVERY: Redis REQUIRED (SSOT_DATA_ARCHITECTURE 헌법)
         logger.info("[D205-9 RECOVERY] Initializing Redis (REQUIRED for Paper/Live)")
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = os.getenv("REDIS_PORT", "6380")  # D205-12-2: infra/docker-compose.yml default
         redis_config = {
             "enabled": True,
-            "url": "redis://localhost:6379/0",
+            "url": f"redis://{redis_host}:{redis_port}/0",
             "prefix": f"v2:{config.run_id}",
             "health_ttl_seconds": 60,
         }
