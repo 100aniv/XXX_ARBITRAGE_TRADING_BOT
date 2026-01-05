@@ -3959,9 +3959,9 @@ Rationale:
 - ✅ demo_*.txt (CLI 데모 출력 6개)
 
 **Gate 조건:**
-- ✅ Doctor Gate PASS (15 tests collected)
-- ✅ Fast Gate PASS (15/15 tests, 0.34s)
-- ✅ Regression Gate PASS (130/130 V2 core tests, 69.04s)
+- ✅ Doctor Gate PASS (syntax valid)
+- ✅ Fast Gate PASS (2402/2402 tests, not slow/integration)
+- ✅ Regression Gate PASS (2699/2699 tests, full suite, 279.33s)
 
 **PASS/FAIL 판단 기준:**
 - ✅ PASS: 8/8 AC 달성 + Gate 3단 100% PASS + Evidence 완비
