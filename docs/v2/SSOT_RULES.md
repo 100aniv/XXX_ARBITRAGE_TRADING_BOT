@@ -995,6 +995,79 @@ AC-1: check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_exitcode.txt = 0)
 **SSOT 강제력:**
 - 이 규칙은 "헌법"과 같음 (경찰 없는 헌법은 종이쪼가리)
 - check_ssot_docs.py는 "경찰" 역할 (자동 집행)
+
+---
+
+## 🚫 Section J: Gate 회피 금지 (강제)
+
+**원칙:** 규칙을 통과하기 위한 편법/꼼수는 SSOT를 더 빨리 망가뜨림
+
+**금지 행위:**
+
+1. **워딩 꼼수로 탐지 회피:**
+   - ❌ 금칙어를 변형해서 숨기기 (T*DO, T.DO, FIX.ME 등)
+   - ❌ 정규식 패턴으로 탐지 우회 시도
+   - ✅ 실제 문제 해결 (임시 마커 완전 제거)
+
+2. **파일 삭제로 규칙 회피:**
+   - ❌ 규칙 위반 파일을 삭제해서 Gate 통과
+   - ❌ Report/증거를 지워서 추적성 제거
+   - ✅ rename으로 규칙 준수 (내용 보존)
+   - ✅ Evidence 폴더로 이관 + 링크 유지
+
+3. **ExitCode=0 아닌 상태에서 DONE 선언:**
+   - ❌ ExitCode=1인데 "스코프 내 PASS"로 우기기
+   - ❌ AC PENDING인데 "핵심 목표 달성"으로 DONE 표기
+   - ✅ AC 100% + ExitCode=0 + Evidence 완비 시만 DONE
+   - **위반 시:** 데이터 조작(Data Manipulation)으로 간주
+
+**위반 시 조치:**
+- Gate 회피 발견 → 즉시 FAIL + 작업 Revert
+- 삭제된 유효 기록 → 복구 + rename 강제
+- 데이터 조작 → 프로젝트 중단 (CTO 경고)
+
+**검증 방법:**
+- `git show <commit> --stat`: 삭제 라인 수 확인
+- 삭제된 파일이 1000줄 이상 → 회피 의심, 복구 검토 필수
+- Evidence 폴더에 "EVASION_AUDIT.md" 작성 강제
+
+---
+
+## 📋 Section K: D000 META/Governance 번호 체계 (강제)
+
+**원칙:** D000은 META/Governance 전용, 실제 기능 개발과 혼재 금지
+
+**D000 정의:**
+- **용도:** 규칙/DocOps/레일 정비 전용 (SSOT Infrastructure)
+- **금지:** 실거래/엔진/알고리즘 개발
+- **구분:** D000은 개발 프로세스를 다룸, D200+는 제품/기능을 다룸
+
+**네이밍 규칙:**
+1. **D000 제목에 [META] 태그 강제:**
+   - 예: `D000-1: [META] SSOT Rules Unify`
+   - 예: `D000-2: [META] check_ssot_docs.py ExitCode=0 강제`
+
+2. **D_ROADMAP에서 META RAIL 섹션 격리:**
+   - D000 단계는 ROADMAP 상단 또는 별도 "META RAIL" 섹션에 배치
+   - D200+ 실제 개발 라인과 물리적으로 분리
+
+3. **브랜치명도 meta 표시:**
+   - 예: `rescue/d000_1_meta_ssot_rules`
+   - 예: `rescue/d000_2_meta_closeout`
+
+**오해 방지:**
+- D000은 "0번 단계"가 아니라 "메타 단계"
+- D205 작업 중 D000이 튀어나오면 혼란 유발
+- [META] 태그로 사람과 AI 모두 명확히 인식
+
+**AC 요구사항:**
+- D000-x 작업은 check_ssot_docs.py ExitCode=0 필수
+- D000-x Report는 "왜 META 작업이 필요했는지" 명시 필수
+- D000-x 완료 후 즉시 실제 개발 라인(D200+)으로 복귀
+
+**위반 시 조치:**
+- [META] 태그 누락 → D_ROADMAP 수정 강제
+- D000에서 엔진/알고리즘 개발 → 즉시 FAIL + 번호 재할당
 - ExitCode=0은 "0/1 판결" (인간 해석 개입 불가)
 
 ---

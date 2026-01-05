@@ -2393,9 +2393,18 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
-### D000: SSOT Infrastructure (규칙/템플릿 통합)
+### 🏛️ META RAIL: D000 (SSOT Infrastructure - 규칙/프로세스 레일 정비 전용)
 
-#### D000-1: SSOT Rules 헌법 통합 (Prompt/Test/DocOps 단일화)
+**원칙:**
+- D000은 META/Governance 전용 (규칙/DocOps/레일 정비)
+- 실거래/엔진/알고리즘 개발 금지
+- 제목에 [META] 태그 강제
+- check_ssot_docs.py ExitCode=0 필수
+- 완료 후 즉시 실제 개발 라인(D200+)으로 복귀
+
+---
+
+#### D000-1: [META] SSOT Rules 헌법 통합 (Prompt/Test/DocOps 단일화)
 **상태:** ✅ DONE  
 **날짜:** 2026-01-05  
 **커밋:** 53299d9 (초기), 42f854c (closeout fix)  
@@ -2450,58 +2459,60 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
-#### D000-2: check_ssot_docs.py ExitCode=0 강제 + "스코프 PASS" 구멍 제거
-**상태:** ✅ DONE (AC 8/10, ExitCode=0 달성)  
+#### D000-2: [META] check_ssot_docs.py ExitCode=0 강제 + Gate 회피 금지 + D000 번호 체계 명문화
+**상태:** 🔄 IN PROGRESS (AC 10/11, Git commit 대기)  
 **날짜:** 2026-01-05  
-**브랜치:** rescue/d000_1_ssot_rules_unify (계속 사용)  
+**브랜치:** rescue/d000_2_closeout  
 **문서:** `docs/v2/reports/D000/D000-2_REPORT.md`  
-**Evidence:** `logs/evidence/d000_2_ssot_docs_check_strict_20260105_172823/`
+**Evidence:** `logs/evidence/d000_2_closeout_20260105_190053/`
 
 **목표:**
-- check_ssot_docs.py가 ExitCode=0 (PASS)로 완료되도록 문서/규칙 정리
-- "스코프 내 PASS" 같은 인간 판정 구멍 제거 (SSOT 강제력 확립)
-- D_ROADMAP global section에 conflict_resolution 개념 추가
-- 한글 깨짐 4개 수정 (인코딩 이슈 해결)
-- D205 Report 파일명 8개 수정 (패턴 준수: ^D\d{3}(?:-\d+){0,3}_REPORT\.md$)
-- D205-11 의미 충돌 해결 (Semantic conflict 해소)
+- D000-2 CLOSEOUT: 3a36d88 커밋의 Gate 회피 문제 해결 (파일 삭제 대신 복구+rename)
+- SSOT_RULES.md에 Section J (Gate 회피 금지), Section K (D000 META 번호 체계) 추가
+- D_ROADMAP에 META RAIL 섹션 격리 + [META] 태그 추가
+- 삭제된 D205 Report 6개 파일 복구 + 규칙 준수 rename
+- D000-2_REPORT.md 작성 (원인/조치/결과/재발방지)
+- check_ssot_docs.py ExitCode=0 진짜 달성 (꼼수 없이)
+- AC 100% + Evidence 완비 시에만 DONE 선언
 
 **범위 (Do/Don't):**
-- ✅ Do: SSOT_RULES.md에 "ExitCode=0만 PASS" 규칙 추가, 문서 정리 (한글 복원/파일명 수정), check_ssot_docs.py ExitCode=0 달성
-- ❌ Don't: 트레이딩 로직/엔진 변경, check_ssot_docs.py 스크립트 수정, "스코프 내 PASS" 같은 타협 허용
+- ✅ Do: 삭제된 파일 복구+rename, SSOT_RULES 패치, D000-2_REPORT 작성, ExitCode=0 진짜 달성
+- ❌ Don't: 트레이딩 로직/엔진 변경, Gate 회피 (워딩 꼼수/파일 삭제), AC PENDING인데 DONE 표기
 
 **AC (증거 기반 검증):**
-- [ ] **AC-1:** check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_exitcode.txt = 0)
-- [ ] **AC-2:** D_ROADMAP global section에 conflict_resolution 개념 추가
-- [ ] **AC-3:** 한글 깨짐 4개 수정 (D_ROADMAP:45, SSOT_MAP:19, D205-11-0:96, SSOT_RULES:34)
-- [ ] **AC-4:** D205 Report 파일명 8개 수정 (패턴 준수)
-- [ ] **AC-5:** D205-11 의미 충돌 해결 (Semantic conflict 해소)
-- [ ] **AC-6:** SSOT_RULES.md에 "ExitCode=0만 PASS" 규칙 추가 (Section I)
+- [ ] **AC-1:** SSOT_RULES Section J (Gate 회피 금지) 추가
+- [ ] **AC-2:** SSOT_RULES Section K (D000 META 번호 체계) 추가
+- [ ] **AC-3:** D_ROADMAP META RAIL 섹션 격리 + [META] 태그 추가
+- [ ] **AC-4:** 삭제된 D205 Report 6개 파일 복구 + rename (규칙 준수)
+- [ ] **AC-5:** D000-2_REPORT.md 작성 (원인/조치/결과/재발방지)
+- [ ] **AC-6:** check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_after_exitcode.txt = 0)
 - [ ] **AC-7:** DocOps Gate ripgrep 실행 + 증거 (금지 마커 0건)
-- [ ] **AC-8:** Evidence 패키징 (manifest.json, README.md, ssot_docs_check_raw.txt, ssot_docs_check_exitcode.txt)
-- [ ] **AC-9:** D000-2_REPORT.md 작성 (원인/조치/결과/재발방지)
-- [ ] **AC-10:** Git commit + push
+- [ ] **AC-8:** Doctor/Fast/Regression Gates 100% PASS
+- [ ] **AC-9:** Evidence 패키징 (manifest.json, README.md 완성)
+- [ ] **AC-10:** D_ROADMAP AC 100% 체크 (사실 기반)
+- [ ] **AC-11:** Git commit + push
 
 **Evidence 요구사항:**
-- bootstrap_env.txt (Git 상태, 초기 FAIL 목록)
-- SCAN_REUSE_SUMMARY.md (재사용 모듈/규칙 목록)
-- DOCS_READING_CHECKLIST.md (정독 완료 문서 5개 + 1줄 요약)
-- ssot_docs_check_raw.txt (초기 실행 결과, ExitCode=1)
-- ssot_docs_check_exitcode.txt (최종 ExitCode, 반드시 0이어야 함)
-- gate_results.txt (DocOps/Fast/Regression)
-- manifest.json
-- README.md (재현 명령)
+- bootstrap_env.txt (Git 상태, 브랜치 확인)
+- DOCS_READING_CHECKLIST.md (강제 정독 5개 문서)
+- EVASION_AUDIT.md (3a36d88 회피 감사 결과)
+- git_show_3a36d88.txt (삭제 파일 목록)
+- ssot_docs_check_before.txt + ssot_docs_check_before_exitcode.txt
+- ssot_docs_check_after.txt + ssot_docs_check_after_exitcode.txt (반드시 0)
+- doctor.txt, fast.txt, regression.txt (Gate 결과)
+- manifest.json, README.md (재현 명령)
 
 **Gate 조건:**
-- check_ssot_docs.py ExitCode=0 (물리적 증거 필수)
+- check_ssot_docs.py ExitCode=0 (물리적 증거 필수, ssot_docs_check_after_exitcode.txt = 0)
 - DocOps ripgrep 규칙 PASS (금지 마커 0건)
-- Fast/Regression Gate 100% PASS (코드 변경 없으므로 기존 결과 유지 예상)
+- Doctor/Fast/Regression Gate 100% PASS
 
 **PASS/FAIL 판단:**
-- PASS: AC 10개 전부 달성 + check_ssot_docs.py ExitCode=0 물리적 증거
-- FAIL: ExitCode=1 상태로 "스코프 내 PASS" 주장 시 즉시 FAIL (허위 보고)
+- PASS: AC 11개 전부 달성 + ExitCode=0 물리적 증거 + Evidence 완비
+- FAIL: AC PENDING인데 DONE 표기 (데이터 조작), Gate 회피 발견 시 즉시 FAIL
 
 **다음 단계 (완료 후):**
-- D205-11-3 작업 복귀 (check_ssot_docs.py 100% CLEAN 상태)
+- D205-11-3 작업 복귀 (check_ssot_docs.py 100% CLEAN + Gate 회피 재발 방지 장치 완비)
 
 ---
 
