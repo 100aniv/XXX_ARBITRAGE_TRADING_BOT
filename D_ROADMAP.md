@@ -3966,33 +3966,33 @@ Rationale:
 
 ---
 
-#### D206-1: Grafana (튜닝/운영 용도만)
+#### D206-1: Grafana (튜닝/운영 모니터링 용도만)
 **상태:** PLANNED
 **커밋:** [pending]
 **테스트:** [pending]
 **문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
 
 **목표:**
-- D205-4~9 지표를 패널로 시각화
-- Admin Control 최소 UI 포함 (Stop/Pause/Blacklist)
+- D205-4~9 지표를 패널로 시각화 (읽기 전용)
+- 제어 기능은 D206-4에서 담당 (UI/API/텔레그램)
 
 **금지:**
 - ❌ 핵심 로직 검증 전 Grafana 먼저 → 절대 금지
+- ❌ Grafana 버튼으로 제어 시도 (D206-4에서 별도 구현)
 
 **AC:**
 - [ ] Grafana dashboard: `monitoring/grafana/dashboards/v2_overview.json`
 - [ ] Panels: edge_after_cost, latency_p95, slippage_bps, PnL trend
 - [ ] Parameter sweep 결과 시각화 패널
-- [ ] Admin Control UI: Stop/Pause/Blacklist 버튼
 - [ ] Prometheus metrics: v2_edge_after_cost, v2_latency_p95_ms, v2_slippage_bps
 
 **Dashboard Panels:**
-1. **edge_after_cost 분포** (Histogram)
-2. **latency p95** (Time series)
+1. **edge_after_cost p50/p95** (Gauge)
+2. **latency_p95_ms** (Gauge)
 3. **slippage_bps p50/p95** (Gauge)
 4. **PnL Trend** (Time series)
 5. **Parameter Sweep 결과** (Table)
-6. **Admin Control** (Button panel: Stop/Pause/Blacklist)
+6. **Engine State** (Status: RUNNING/PAUSED/STOPPED/PANIC) - 읽기 전용
 
 **의존성:**
 - Depends on: D205-9 PASS
