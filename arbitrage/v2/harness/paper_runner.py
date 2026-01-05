@@ -51,6 +51,8 @@ from arbitrage.infrastructure.rate_limiter import TokenBucketRateLimiter, RateLi
 # D205-9-3: FX Provider (D205-8 인프라 재사용)
 from arbitrage.v2.core.fx_provider import FixedFxProvider
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw
+# D205-12-1: AdminControl 통합
+from arbitrage.v2.core.admin_control import AdminControl
 
 import uuid
 
@@ -177,6 +179,8 @@ class KPICollector:
         "sanity_guard": 0,
         "other": 0,
         "candidate_none": 0,
+        "admin_paused": 0,  # D205-12-1: AdminControl reject
+        "symbol_blacklisted": 0,  # D205-12-1: AdminControl reject
     })
     
     def bump_reject(self, reason: str) -> None:
@@ -247,16 +251,22 @@ class PaperRunner:
         5. KPI 집계 (1분 단위)
     """
     
-    def __init__(self, config: PaperRunnerConfig):
+    def __init__(self, config: PaperRunnerConfig, admin_control: Optional['AdminControl'] = None):
         """
         Initialize Paper Runner
         
         Args:
             config: Paper Runner 설정
+            admin_control: AdminControl 인스턴스 (Optional, D205-12-1)
         """
         self.config = config
         self.output_dir = Path(config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # D205-12-1: AdminControl 훅
+        self.admin_control = admin_control
+        if admin_control:
+            logger.info(f"[D205-12-1] AdminControl enabled: {admin_control.state_key}")
         
         # V2 Components
         self.mock_adapter = MockAdapter(exchange_name="mock_paper")
@@ -482,6 +492,13 @@ class PaperRunner:
                 iteration += 1
                 logger.info(f"[D204-2] Iteration {iteration} (elapsed: {int(time.time() - start_time)}s)")
                 
+                # D205-12-1: AdminControl 훅 - PAUSED 체크
+                if self.admin_control and not self.admin_control.should_process_tick():
+                    logger.info(f"[D205-12-1] Iteration {iteration} skipped: AdminControl PAUSED/STOPPING/PANIC")
+                    self.kpi.bump_reject("admin_paused")
+                    time.sleep(1.0)
+                    continue
+                
                 # 1. Opportunity 생성 (Real or Mock 가격)
                 if self.use_real_data:
                     candidate = self._generate_real_opportunity(iteration)
@@ -495,6 +512,15 @@ class PaperRunner:
                     continue
                 
                 self.kpi.opportunities_generated += 1
+                
+                # D205-12-1: AdminControl 훅 - Symbol Blacklist 체크
+                if self.admin_control:
+                    symbol = getattr(candidate, 'symbol', None) or "BTC/KRW"
+                    if self.admin_control.is_symbol_blacklisted(symbol):
+                        logger.info(f"[D205-12-1] Symbol {symbol} blacklisted by AdminControl")
+                        self.kpi.bump_reject("symbol_blacklisted")
+                        time.sleep(1.0)
+                        continue
                 
                 # 2. OrderIntent 변환
                 intents = self._convert_to_intents(candidate, iteration)

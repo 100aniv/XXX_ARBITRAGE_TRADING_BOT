@@ -3179,17 +3179,13 @@ CREATE TABLE v2_pnl_daily (
 - **D206 진입 조건:** D205-12 PASS 필수 
 
 **의존성:**
-- Depends on: D205-10 (비용 모델)
-- Blocks: D206 (배포/Ops - D205-12 PASS 필수)
+- Depends on: D205-4 (실데이터 플로우)
+- Blocks: D205-6, D205-7 (리플레이 기반 튜닝)
 
 ---
 
-#### D205-12: Admin Control (안전한 pause/panic 없이 자동화 금지)
-**상태:** DONE 
-**커밋:** 8a5f9e2
-**테스트:** Gate Fast 126/126 PASS (69.06s) + Smoke PASS
-**문서:** `docs/v2/reports/D205/D205-12_REPORT.md`
-**Evidence:** `logs/evidence/d205_12_admin_control_20251231_014139/`
+#### D205-6: ExecutionQuality v1 (슬리피지/부분체결 모델+지표화) — DONE ✅
+**상태:** DONE ✅
 **커밋:** 135a224 (ExecutionQuality v1 + SSOT manifest fix)
 **브랜치:** rescue/d99_15_fullreg_zero_fail
 **테스트:** Gate Fast 137/137 PASS (69.52s) + Smoke PASS
@@ -3945,14 +3941,15 @@ Rationale:
 5. **Risk Limit Override:** 노출/동시포지션 조정 (재시작 불필요)
 
 **AC (증거 기반 검증):**
-- [x] ControlState enum 정의 (RUNNING/PAUSED/STOPPING/PANIC/EMERGENCY_CLOSE)
-- [x] CommandHandler 구현 (start/stop/panic/blacklist/close 명령 처리)
-- [x] Start/Stop 명령 → 5초 내 상태 변경 검증
-- [x] Panic 명령 → 5초 내 중단 + 포지션 초기화 검증
-- [x] Symbol blacklist → 즉시 거래 중단 검증 (decision trace)
-- [x] Emergency close → 10초 내 청산 검증
-- [x] Admin 명령 audit log (누가/언제/무엇을/결과) NDJSON 형식
-- [x] 모든 제어 기능 유닛 테스트 (15개 테스트, 100% PASS)
+- [x] AC-1: ControlState enum 정의 (RUNNING/PAUSED/STOPPING/PANIC/EMERGENCY_CLOSE)
+- [x] AC-2: CommandHandler 구현 (start/stop/panic/blacklist/close 명령 처리)
+- [x] AC-3: Start/Stop 명령 → 5초 내 상태 변경 검증
+- [x] AC-4: Panic 명령 → 5초 내 중단 + 포지션 초기화 검증
+- [x] AC-5: Symbol blacklist → 즉시 거래 중단 검증 (decision trace)
+- [x] AC-6: Emergency close → 10초 내 청산 검증
+- [x] AC-7: Admin 명령 audit log (누가/언제/무엇을/결과) NDJSON 형식
+- [x] AC-8: 모든 제어 기능 유닛 테스트 (15개 테스트, 100% PASS)
+- [x] **AC-9 (D205-12-1):** 엔진 루프 훅 연결 (PaperRunner 통합, 4개 통합 테스트 PASS)
 
 **Evidence 요구사항:**
 - ✅ manifest.json
@@ -3970,9 +3967,11 @@ Rationale:
 - ✅ PASS: 8/8 AC 달성 + Gate 3단 100% PASS + Evidence 완비
 
 **구현 내용:**
-- `arbitrage/v2/core/admin_control.py` (381 lines)
-- `scripts/admin_control_cli.py` (117 lines)
-- `tests/test_admin_control.py` (390 lines, 15 tests)
+- `arbitrage/v2/core/admin_control.py` (381 lines) - AdminControl 엔진
+- `scripts/admin_control_cli.py` (117 lines) - CLI 얇은막
+- `tests/test_admin_control.py` (390 lines, 15 tests) - 유닛 테스트
+- `arbitrage/v2/harness/paper_runner.py` (+18 lines) - 엔진 훅 연결 (D205-12-1)
+- `tests/test_d205_12_1_engine_integration.py` (156 lines, 4 tests) - 통합 테스트 (D205-12-1)
 
 **의존성:**
 - Depends on: D205-11 (레이턴시 프로파일링)
