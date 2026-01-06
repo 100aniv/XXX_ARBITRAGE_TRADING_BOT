@@ -676,7 +676,7 @@ pytest tests/fast --maxfail=1
 
 ### Test Step 2: Core Regression
 ```bash
-pytest tests/core --disable-warnings
+pytest tests/core --disable-warnings --timeout=180 --timeout-method=thread
 ```
 
 ### Test Step 3: Smoke PAPER Test

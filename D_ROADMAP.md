@@ -4097,8 +4097,43 @@ Rationale:
 
 **의존성:**
 - Depends on: D205-12-2 (Engine Unification baseline) ✅
-- Blocks: D205-14 (Intent generation fix)
 - Blocks: D205-15 (Other Runners thin wrapper)
+
+---
+
+#### D205-13-1: Regression Recovery - D205-12-1 Integration Tests PASS
+**상태:** ✅ COMPLETED (2026-01-06)
+**커밋:** [pending]
+**테스트:** Regression Gate 100% PASS (4/4 tests, 13.13s)
+**Evidence:** `logs/evidence/d205_13_1_regression_recovery_20260106_201800/`
+
+**목표:**
+- D205-12-1 integration tests 100% PASS 복구
+- Duration 무한 루프 문제 해결
+- intents_created=0 문제 해결
+
+**Root Causes Fixed:**
+1. **Duration 무한 루프**: Engine AdminControl skip이 duration 체크 우회 → duration 체크를 AdminControl 전으로 이동
+2. **intents_created=0**: PaperRunner.process_tick이 intents를 Engine에 반영 안함 → intents.extend() 추가
+3. **opportunities 빈 리스트**: Engine._detect_opportunities() stub → candidate wrapping 지원 추가
+4. **Engine AdminControl skip**: fetch_tick_data 호출 전 continue → AdminControl skip 제거 (process_tick에서만 처리)
+
+**변경 파일:**
+- `arbitrage/v2/core/engine.py` - Line 135-143, 236-239, 241-246 (deleted)
+- `arbitrage/v2/harness/paper_runner.py` - Line 547
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS
+- ✅ Fast Gate: PASS
+- ✅ Regression Gate: PASS (4/4 tests, 13.13s)
+  - test_paused_mode_stops_order_generation: PASS
+  - test_symbol_blacklist_blocks_intent: PASS
+  - test_running_mode_resume: PASS
+  - test_no_admin_control_normal_operation: PASS
+
+**의존성:**
+- Depends on: D205-13 (Engine SSOT Unification) ✅
+- Unblocks: D205-15 (Other Runners thin wrapper)
 
 ---
 
