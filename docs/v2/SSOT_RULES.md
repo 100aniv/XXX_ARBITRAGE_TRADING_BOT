@@ -671,7 +671,7 @@ python scripts/reset_redis.py
 ### Test Step 1: 코드 무결성 & Fast Gate
 ```bash
 python -m compileall .
-pytest tests/fast --maxfail=1
+pytest tests/fast --maxfail=1 --timeout=180 --timeout-method=thread
 ```
 
 ### Test Step 2: Core Regression
