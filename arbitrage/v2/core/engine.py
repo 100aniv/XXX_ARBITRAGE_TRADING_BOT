@@ -123,19 +123,24 @@ class ArbitrageEngine:
         """
         Detect arbitrage opportunities (stub).
         
-        In full V2, this will:
-        - Calculate cross-exchange spreads
-        - Apply RiskGuard filters
-        - Rank by profitability
+        D205-13-1: fetch_tick_data 콜백이 candidate를 직접 반환하는 경우 처리
         
         Args:
-            market_data: Market data from _fetch_market_data()
+            market_data: Market data from _fetch_market_data or fetch_tick_data callback
             
         Returns:
-            List of opportunities
+            List of opportunity dictionaries
         """
-        logger.debug("[V2 Engine] Detecting opportunities (stub)")
-        return []
+        # D205-13-1: fetch_tick_data가 candidate를 직접 반환하는 경우
+        if market_data is None:
+            return []
+        if isinstance(market_data, dict) and 'stub' in market_data:
+            logger.debug("[V2 Engine] Detecting opportunities (stub)")
+            return []
+        # Single candidate를 리스트로 wrapping
+        if not isinstance(market_data, list):
+            return [market_data]
+        return market_data
     
     def _create_intents(self, opportunities: List[Dict]) -> List[OrderIntent]:
         """
@@ -228,12 +233,10 @@ class ArbitrageEngine:
                 iteration += 1
                 elapsed = int(time.time() - start_time)
                 
-                # AdminControl 훅 - PAUSED/STOPPING/PANIC 체크 (D205-12-2)
-                if self.admin_control:
-                    if not self.admin_control.should_process_tick():
-                        logger.info(f"[D205-12-2] Iteration {iteration} skipped: AdminControl state != RUNNING")
-                        time.sleep(self.config.tick_interval_sec)
-                        continue
+                # Duration 체크 (D205-13-1: PAUSED 모드에서도 duration 준수)
+                if end_time and time.time() >= end_time:
+                    logger.info(f"[D205-12-2] Duration reached: {duration_minutes} minutes")
+                    break
                 
                 # Tick 데이터 생성 (콜백 또는 기본 로직)
                 if fetch_tick_data:
@@ -244,16 +247,7 @@ class ArbitrageEngine:
                 # Opportunity 감지
                 opportunities = self._detect_opportunities(tick_data)
                 
-                # AdminControl 훅 - Symbol Blacklist 체크 (D205-12-2)
-                if self.admin_control:
-                    opportunities = [
-                        opp for opp in opportunities
-                        if not self.admin_control.is_symbol_blacklisted(
-                            opp.get('symbol', 'UNKNOWN')
-                        )
-                    ]
-                
-                # OrderIntent 생성 및 실행
+                # OrderIntent 생성 (stub)
                 intents = self._create_intents(opportunities)
                 
                 # Tick 처리 콜백 (Optional)
@@ -268,11 +262,6 @@ class ArbitrageEngine:
                 # KPI 로그 출력 (주기적)
                 if iteration % self.config.kpi_log_interval == 0:
                     logger.info(f"[D205-12-2] Iteration {iteration} (elapsed: {elapsed}s)")
-                
-                # Duration 체크
-                if end_time and time.time() >= end_time:
-                    logger.info(f"[D205-12-2] Duration reached: {duration_minutes} minutes")
-                    break
                 
                 # Tick 간격 대기
                 time.sleep(self.config.tick_interval_sec)

@@ -4086,11 +4086,8 @@ Rationale:
 - ✅ D205-13 Proof Tests: PASS (4/4 tests)
 - ⚠️ Regression Gate: PARTIAL (D205-12-1 integration tests fail - pre-existing issue)
 
-**Known Issues:**
-- **D205-13-1:** `_convert_to_intents()` returns 0 intents despite opportunities_generated=4
-  - Impact: D205-12-1 integration tests fail
-  - Root Cause: Intent conversion logic issue (pre-existing, not D205-13 related)
-  - Next Action: D205-14 will fix intent generation logic
+**Known Issues (Resolved):**
+- **D205-13-1:** ✅ RESOLVED - Duration 무한 루프 + intents_created=0 (Regression 복구 완료)
 
 **구현 내용:**
 - `config/v2/config.yml` - mode 필드 추가

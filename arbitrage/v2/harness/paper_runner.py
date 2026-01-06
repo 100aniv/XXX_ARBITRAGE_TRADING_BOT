@@ -544,6 +544,7 @@ class PaperRunner:
             
             # OrderIntent 변환
             intents_local = self._convert_to_intents(candidate, iteration)
+            intents.extend(intents_local)
             self.kpi.intents_created += len(intents_local)
             
             # Trade 처리
