@@ -624,6 +624,58 @@ https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/<before_sha>...<aft
 
 ---
 
+## 🔄 Section C-1: Report 생성 템플릿 (D206부터 필수)
+
+**파일 경로:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md`
+
+**필수 섹션:**
+```markdown
+# Dxxx-y: [작업명]
+
+**작성일:** YYYY-MM-DD
+**상태:** COMPLETED / IN_PROGRESS / FAILED
+**Baseline SHA:** [git sha]
+**Evidence:** `logs/evidence/dxxx_y_*/`
+
+## 목표 (Objective)
+- [목표 1]
+- [목표 2]
+
+## Acceptance Criteria (AC)
+- [x] AC-1: [설명] ✅
+- [x] AC-2: [설명] ✅
+- [ ] AC-3: [설명] ❌
+
+## 구현 내용 (Implementation)
+- `파일1.py` - [변경 내용]
+- `파일2.py` - [변경 내용]
+
+## Gate 결과 (Gate Results)
+- ✅ Doctor: PASS
+- ✅ Fast: PASS (X passed, Y skipped)
+- ✅ Regression: PASS (Z tests, duration)
+
+## 재사용 모듈 (Reuse Strategy)
+- Primary: `모듈1.py` - [설명]
+- Reference: `모듈2.py` - [설명]
+
+## 의존성 (Dependencies)
+- Depends on: D205-X ✅
+- Blocks: D205-Y
+
+## 다음 단계 (Next Steps)
+- D205-Y-1: [작업]
+- D205-Z: [작업]
+```
+
+**생성 강제 규칙:**
+- ❌ Evidence README만으로 대체 금지
+- ✅ 모든 D 작업은 Report 생성 필수
+- ✅ D_ROADMAP의 "문서" 필드에 Report 경로 명시
+- ✅ Report는 검증 결과의 공식 문서 (Evidence는 보조)
+
+---
+
 ## 🔄 Section D: Test Template (자동화/운영급)
 
 **출처:** `docs/v2/templates/D_TEST_TEMPLATE.md` (224 lines) → SSOT_RULES로 완전 이관
