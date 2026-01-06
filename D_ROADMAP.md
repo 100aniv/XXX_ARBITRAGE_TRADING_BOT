@@ -4103,7 +4103,7 @@ Rationale:
 
 #### D205-13-1: Regression Recovery - D205-12-1 Integration Tests PASS
 **상태:** ✅ COMPLETED (2026-01-06)
-**커밋:** [pending]
+**커밋:** 538a9ac
 **테스트:** Regression Gate 100% PASS (4/4 tests, 13.13s)
 **Evidence:** `logs/evidence/d205_13_1_regression_recovery_20260106_201800/`
 
@@ -4133,7 +4133,60 @@ Rationale:
 
 **의존성:**
 - Depends on: D205-13 (Engine SSOT Unification) ✅
-- Unblocks: D205-15 (Other Runners thin wrapper)
+- Unblocks: D205-14 (Auto Tuning v1), D205-15 (Other Runners thin wrapper)
+
+---
+
+#### D205-14: Auto Tuning (v1) - Config SSOT 기반 파라미터 튜닝
+**상태:** ✅ COMPLETED (2026-01-06)
+**커밋:** [pending]
+**테스트:** Doctor/Fast/Regression PASS
+**문서:** `docs/v2/reports/D205/D205-14_REPORT.md` (차기)
+**Evidence:** `logs/evidence/d205_14_autotuning_kickoff_20260106_215900/`
+
+**목표:**
+- Config SSOT 기반 파라미터 자동 튜닝 시스템 구축
+- V2 ParameterSweep 재사용 (arbitrage/v2/execution_quality/sweep.py)
+- Grid Search v1 구현 (Random/Bayesian은 v2 이후)
+- 재현 가능한 CLI + Evidence 패키징
+
+**범위 (Do/Don't):**
+- ✅ Do: config.yml에 파라미터 범위 정의 (SSOT)
+- ✅ Do: ParameterSweep 기반 AutoTuner 클래스 (재사용 우선)
+- ✅ Do: leaderboard.json, best_params.json 생성
+- ✅ Do: 재현 가능한 CLI (scripts/run_d205_14_autotune.py)
+- ❌ Don't: 인프라 확장 (DB/Redis/Prometheus) - D206 이후
+- ❌ Don't: 새 프레임워크 (Optuna, Ray Tune) - v1은 Grid만
+- ❌ Don't: 분산 실행 (K8s) - 로컬 단일 프로세스만
+- ❌ Don't: 대규모 리팩토링 - 최소 변경 원칙
+
+**Acceptance Criteria:**
+- [x] AC-1: Config SSOT - config.yml에 tuning.param_ranges 정의 ✅
+- [x] AC-2: Tuning Runner - AutoTuner 클래스 구현 (sweep.py 재사용) ✅
+- [x] AC-3: Dry-run - 단일 파라미터 조합 평가 성공 ✅
+- [x] AC-4: Result Storage - leaderboard.json, best_params.json 생성 ✅
+- [x] AC-5: CLI - scripts/run_d205_14_autotune.py 실행 가능 ✅
+- [x] AC-6: Evidence - manifest.json + README.md 재현 패키지 ✅
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS (compileall, exit code 0)
+- ✅ Fast Gate: PASS (516 passed, 37 skipped)
+- ✅ Regression Gate: PASS (4/4 tests, 13.12s)
+
+**구현 내용:**
+- `config/v2/config.yml` - tuning.param_ranges 섹션 추가
+- `arbitrage/v2/execution_quality/autotune.py` - AutoTuner 클래스 (ParameterSweep 기반)
+- `scripts/run_d205_14_autotune.py` - CLI 엔트리포인트
+- Evidence 패키징 (manifest.json, README.md, gate 로그)
+
+**재사용 모듈:**
+- ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep (PRIMARY)
+- ✅ `config/v2/config.yml` - Config SSOT
+- ✅ `arbitrage/v2/replay/replay_runner.py` - Replay 평가
+
+**의존성:**
+- Depends on: D205-13 (Engine SSOT Unification) ✅
+- Blocks: D205-15 (Other Runners thin wrapper)
 
 ---
 

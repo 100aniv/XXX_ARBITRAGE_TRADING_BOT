@@ -173,6 +173,47 @@ cache:
   # Market data cache TTL (밀리초)
   market_data_ttl_ms: 100
 
+# Tuning (파라미터 자동 튜닝 설정 - D205-14)
+tuning:
+  # 튜닝 활성화 여부
+  enabled: false
+  
+  # 파라미터 범위 (Grid Search용)
+  param_ranges:
+    # Slippage Alpha (ExecutionQuality)
+    slippage_alpha: [5.0, 10.0, 15.0, 20.0]
+    
+    # Partial Fill Penalty (bps)
+    partial_fill_penalty_bps: [10.0, 20.0, 30.0]
+    
+    # Max Safe Ratio (0.0 ~ 1.0)
+    max_safe_ratio: [0.2, 0.3, 0.4]
+    
+    # Min Spread (bps)
+    min_spread_bps: [20.0, 25.0, 30.0, 35.0]
+  
+  # Sweep 설정
+  sweep:
+    # 모드: "grid" (전체 조합), "random" (랜덤 샘플링)
+    mode: "grid"
+    
+    # Random 모드 샘플 수 (mode=random일 때만)
+    random_samples: 10
+    
+    # 평가 입력 (Replay 데이터)
+    input_replay_path: "logs/evidence/d205_5_*/market.ndjson"
+    
+    # 결과 출력 경로
+    output_dir: "logs/evidence/d205_14_sweep_*"
+  
+  # Objective (최적화 목표)
+  objective:
+    # 주 메트릭: "positive_net_edge_rate", "mean_net_edge_bps", "sharpe_ratio"
+    primary_metric: "positive_net_edge_rate"
+    
+    # 정렬 방향: "maximize", "minimize"
+    direction: "maximize"
+
 # 메타 정보
 meta:
   version: "2.0.0"
