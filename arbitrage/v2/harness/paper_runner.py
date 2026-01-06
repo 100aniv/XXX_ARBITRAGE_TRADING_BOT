@@ -473,6 +473,10 @@ class PaperRunner:
         """
         메인 실행 루프 (Duration-based)
         
+        D205-13: Engine SSOT 전환 - PaperRunner는 Thin Wrapper로 전환
+        - while 루프 제거 → Engine.run()에 위임
+        - opportunity 생성 로직은 fetch_tick_data 콜백으로 전달
+        
         Returns:
             0: 성공
             1: 실패
@@ -481,86 +485,104 @@ class PaperRunner:
             logger.error("[D204-2] ❌ READ_ONLY=False 금지 (Paper 전용)")
             return 1
         
-        logger.info("[D204-2] ========================================")
-        logger.info(f"[D204-2] PAPER EXECUTION GATE - {self.config.phase.upper()}")
-        logger.info("[D204-2] ========================================")
+        logger.info("[D205-13] ========================================")
+        logger.info(f"[D205-13] PAPER EXECUTION via Engine.run() - {self.config.phase.upper()}")
+        logger.info("[D205-13] ========================================")
         
-        start_time = time.time()
-        end_time = start_time + (self.config.duration_minutes * 60)
-        iteration = 0
+        # D205-13: Engine 생성 (단일 실행 경로)
+        from arbitrage.v2.core.engine import ArbitrageEngine, EngineConfig
         
+        engine_config = EngineConfig(
+            min_spread_bps=30.0,
+            max_position_usd=1000.0,
+            enable_execution=False,  # Paper mode
+            tick_interval_sec=1.0,
+            kpi_log_interval=10
+        )
+        
+        engine = ArbitrageEngine(config=engine_config, admin_control=self.admin_control)
+        
+        # D205-13: Opportunity 생성 콜백 (tick data 생성)
+        iteration_counter = [0]  # mutable for closure
+        
+        def fetch_tick_data(iteration):
+            """Engine의 fetch_tick_data 콜백 - opportunity 생성"""
+            iteration_counter[0] = iteration
+            
+            # Opportunity 생성 (Real or Mock)
+            if self.use_real_data:
+                candidate = self._generate_real_opportunity(iteration)
+            else:
+                candidate = self._generate_mock_opportunity(iteration)
+            
+            # D205-10: candidate None 시 reject reason 추적
+            if not candidate:
+                self.kpi.bump_reject("candidate_none")
+                return None
+            
+            self.kpi.opportunities_generated += 1
+            return candidate
+        
+        # D205-13: Tick 처리 콜백 (intent 변환 + 실행)
+        def process_tick(iteration, opportunities, intents):
+            """Engine의 process_tick 콜백 - intent 변환 및 실행"""
+            # opportunities는 리스트이지만 현재는 단일 candidate 반환
+            if not opportunities or opportunities[0] is None:
+                return
+            
+            candidate = opportunities[0]
+            
+            # AdminControl 체크 (D205-12-1 regression 보호)
+            if self.admin_control and not self.admin_control.should_process_tick():
+                self.kpi.bump_reject("admin_paused")
+                return
+            
+            # Symbol Blacklist 체크 (D205-12-1 regression 보호)
+            if self.admin_control and self.admin_control.is_symbol_blacklisted(candidate.symbol):
+                self.kpi.bump_reject("symbol_blacklisted")
+                return
+            
+            # OrderIntent 변환
+            intents_local = self._convert_to_intents(candidate, iteration)
+            self.kpi.intents_created += len(intents_local)
+            
+            # Trade 처리
+            exit_code = self._process_opportunity_as_trade(candidate, intents_local)
+            if exit_code == 1:
+                logger.error("[D205-9] Fake-Optimism detected")
+                raise RuntimeError("Fake-Optimism detected")
+            
+            # KPI 출력 (10 iteration마다)
+            if iteration % 10 == 0:
+                logger.info(f"[D205-13 KPI] {self.kpi.to_dict()}")
+        
+        # D205-13: Engine.run() 호출 (유일한 tick 루프)
         try:
-            while time.time() < end_time:
-                iteration += 1
-                logger.info(f"[D204-2] Iteration {iteration} (elapsed: {int(time.time() - start_time)}s)")
-                
-                # D205-12-1: AdminControl 훅 - PAUSED 체크
-                if self.admin_control and not self.admin_control.should_process_tick():
-                    logger.info(f"[D205-12-1] Iteration {iteration} skipped: AdminControl PAUSED/STOPPING/PANIC")
-                    self.kpi.bump_reject("admin_paused")
-                    time.sleep(1.0)
-                    continue
-                
-                # 1. Opportunity 생성 (Real or Mock 가격)
-                if self.use_real_data:
-                    candidate = self._generate_real_opportunity(iteration)
-                else:
-                    candidate = self._generate_mock_opportunity(iteration)
-                
-                # D205-10: candidate None 시 reject reason 추적
-                if not candidate:
-                    self.kpi.bump_reject("candidate_none")
-                    time.sleep(1.0)
-                    continue
-                
-                self.kpi.opportunities_generated += 1
-                
-                # D205-12-1: AdminControl 훅 - Symbol Blacklist 체크
-                if self.admin_control:
-                    symbol = getattr(candidate, 'symbol', None) or "BTC/KRW"
-                    if self.admin_control.is_symbol_blacklisted(symbol):
-                        logger.info(f"[D205-12-1] Symbol {symbol} blacklisted by AdminControl")
-                        self.kpi.bump_reject("symbol_blacklisted")
-                        time.sleep(1.0)
-                        continue
-                
-                # 2. OrderIntent 변환
-                intents = self._convert_to_intents(candidate, iteration)
-                self.kpi.intents_created += len(intents)
-                
-                # D205-2 REOPEN: opportunity 단위 trade 처리 (entry + exit)
-                # D205-9: Fake-Optimism 감지 시 즉시 종료
-                exit_code = self._process_opportunity_as_trade(candidate, intents)
-                if exit_code == 1:
-                    logger.error("[D205-9] Fake-Optimism detected, exiting loop immediately")
-                    return 1
-                
-                # 1분 단위 KPI 출력
-                if iteration % 10 == 0:
-                    logger.info(f"[D204-2 KPI] {self.kpi.to_dict()}")
-                
-                # 1초 대기 (CPU 부하 방지)
-                time.sleep(1.0)
+            exit_code = engine.run(
+                duration_minutes=self.config.duration_minutes,
+                fetch_tick_data=fetch_tick_data,
+                process_tick=process_tick
+            )
             
             # 종료 시 KPI 저장
             self._save_kpi()
             self._save_db_counts()
             
-            logger.info("[D204-2] ========================================")
-            logger.info(f"[D204-2] PAPER EXECUTION GATE - {self.config.phase.upper()} COMPLETE")
-            logger.info("[D204-2] ========================================")
-            logger.info(f"[D204-2 FINAL KPI] {self.kpi.to_dict()}")
+            logger.info("[D205-13] ========================================")
+            logger.info(f"[D205-13] Engine.run() COMPLETE - {self.config.phase.upper()}")
+            logger.info("[D205-13] ========================================")
+            logger.info(f"[D205-13 FINAL KPI] {self.kpi.to_dict()}")
             
-            return 0
+            return exit_code
         
         except KeyboardInterrupt:
-            logger.warning("[D204-2] Interrupted by user (Ctrl+C)")
+            logger.warning("[D205-13] Interrupted by user (Ctrl+C)")
             self._save_kpi()
             self._save_db_counts()
             return 1
         
         except Exception as e:
-            logger.error(f"[D204-2] Fatal error: {e}", exc_info=True)
+            logger.error(f"[D205-13] Fatal error: {e}", exc_info=True)
             self.kpi.errors.append(str(e))
             self._save_kpi()
             self._save_db_counts()

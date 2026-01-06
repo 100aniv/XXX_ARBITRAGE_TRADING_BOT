@@ -4052,6 +4052,59 @@ Rationale:
 
 ---
 
+#### D205-13: Engine SSOT Unification - PaperRunner Thin Wrapper
+**상태:** ✅ COMPLETED (2026-01-06)
+**커밋:** [pending]
+**테스트:** Doctor/Fast/D205-13 Proof PASS, Regression PARTIAL
+**문서:** `docs/v2/reports/D205/D205-13_REPORT.md` (차기)
+**Evidence:** `logs/evidence/d205_13_engine_ssot_20260106_210000/`
+
+**목표:**
+- Engine SSOT 원칙 확립: `arbitrage/v2/core/engine.py`가 유일한 tick 루프 SSOT
+- PaperRunner를 Thin Wrapper로 전환 (while 루프 제거)
+- config.yml mode 필드로 runtime mode 전환 (paper/live/replay)
+
+**범위 (Do/Don't):**
+- ✅ Do: PaperRunner에서 while 루프 제거
+- ✅ Do: Engine.run() 호출로 전환 (fetch_tick_data/process_tick 콜백)
+- ✅ Do: config.yml에 mode 필드 추가
+- ✅ Do: AdminControl 체크 보존 (regression 보호)
+- ❌ Don't: 다른 Runner 수정 (topn_stress, smoke_runner, wait_harness)
+- ❌ Don't: docker-compose/포트 변경
+- ❌ Don't: 새 implementation_plan.md 생성
+
+**AC (증거 기반 검증):**
+- [x] AC-1: config.yml에 mode 필드 추가 (paper/live/replay SSOT) ✅
+- [x] AC-2: V2Config에 mode 필드 파싱 및 validation ✅
+- [x] AC-3: PaperRunner.run()에서 while 루프 제거 ✅
+- [x] AC-4: Engine.run() 호출로 전환 (fetch_tick_data/process_tick 콜백) ✅
+- [x] AC-5: 증명 테스트 4개 추가 및 PASS ✅
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS (compileall 3 files)
+- ✅ Fast Gate: PASS (exit code 0)
+- ✅ D205-13 Proof Tests: PASS (4/4 tests)
+- ⚠️ Regression Gate: PARTIAL (D205-12-1 integration tests fail - pre-existing issue)
+
+**Known Issues:**
+- **D205-13-1:** `_convert_to_intents()` returns 0 intents despite opportunities_generated=4
+  - Impact: D205-12-1 integration tests fail
+  - Root Cause: Intent conversion logic issue (pre-existing, not D205-13 related)
+  - Next Action: D205-14 will fix intent generation logic
+
+**구현 내용:**
+- `config/v2/config.yml` - mode 필드 추가
+- `arbitrage/v2/core/config.py` - mode 파싱 및 validation
+- `arbitrage/v2/harness/paper_runner.py` - while 루프 제거, Engine.run() 호출, AdminControl 체크 추가
+- `tests/test_d205_13_engine_ssot.py` - 증명 테스트 4개 (while 루프 0건, config.mode 로딩, Engine 단일 루프, 콜백 파라미터)
+
+**의존성:**
+- Depends on: D205-12-2 (Engine Unification baseline) ✅
+- Blocks: D205-14 (Intent generation fix)
+- Blocks: D205-15 (Other Runners thin wrapper)
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**

@@ -30,6 +30,7 @@ def redis_client():
 @pytest.fixture
 def admin_control(redis_client):
     """AdminControl 인스턴스"""
+    # AdminControl은 __init__에서 자동으로 초기 state 저장
     return AdminControl(
         redis_client=redis_client,
         run_id="test_d205_12_1",

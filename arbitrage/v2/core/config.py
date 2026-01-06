@@ -125,6 +125,7 @@ class MetaConfig:
 @dataclass
 class V2Config:
     """V2 전체 설정"""
+    mode: str  # paper, live, replay (D205-13)
     exchanges: Dict[str, ExchangeConfig]
     universe: UniverseConfig
     strategy: StrategyConfig
@@ -139,6 +140,11 @@ class V2Config:
     
     def validate(self):
         """설정 검증"""
+        # Mode 검증 (D205-13)
+        valid_modes = ["paper", "live", "replay"]
+        if self.mode not in valid_modes:
+            raise ValueError(f"mode는 {valid_modes} 중 하나여야 함 (현재: {self.mode})")
+        
         # 거래소 최소 1개 활성화
         enabled_exchanges = [name for name, cfg in self.exchanges.items() if cfg.enabled]
         if not enabled_exchanges:
@@ -217,6 +223,9 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     # YAML 로드
     with open(path, 'r', encoding='utf-8') as f:
         raw_config = yaml.safe_load(f)
+    
+    # Mode 파싱 (D205-13)
+    mode = raw_config.get('mode', 'paper')  # 기본값: paper
     
     # Exchanges 파싱
     exchanges = {}
@@ -316,6 +325,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     
     # V2Config 생성
     config = V2Config(
+        mode=mode,
         exchanges=exchanges,
         universe=universe,
         strategy=strategy,

@@ -4,6 +4,9 @@
 # 규칙: Secrets(API Key)는 절대 여기 넣지 말고 .env.v2로만
 # 검증: arbitrage.v2.core.config.load_config()로 validation
 
+# 실행 모드 (SSOT - D205-13)
+mode: "paper"  # paper, live, replay
+
 # 거래소 설정
 exchanges:
   upbit:
