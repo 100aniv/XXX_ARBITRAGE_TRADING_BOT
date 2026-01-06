@@ -4055,7 +4055,7 @@ Rationale:
 #### D205-13: Engine SSOT Unification - PaperRunner Thin Wrapper
 **상태:** ✅ COMPLETED (2026-01-06)
 **커밋:** [pending]
-**테스트:** Doctor/Fast/D205-13 Proof PASS, Regression PARTIAL
+**테스트:** Doctor/Fast/D205-13 Proof PASS, Regression PASS (D205-13-1에서 복구)
 **문서:** `docs/v2/reports/D205/D205-13_REPORT.md` (차기)
 **Evidence:** `logs/evidence/d205_13_engine_ssot_20260106_210000/`
 
@@ -4187,6 +4187,74 @@ Rationale:
 **의존성:**
 - Depends on: D205-13 (Engine SSOT Unification) ✅
 - Blocks: D205-15 (Other Runners thin wrapper)
+
+---
+
+#### D205-14-1: AutoTuning Execution Evidence + Smoke Restoration + SSOT Sync
+**상태:** ✅ COMPLETED (2026-01-06)
+**커밋:** [pending]
+**테스트:** Gate 3단 100% PASS (Doctor/Fast/Regression)
+**문서:** `docs/v2/reports/D205/D205-14-1_REPORT.md` (차기)
+**Evidence:** `logs/evidence/d205_14_1_autotune_execution_20260106_224859/`
+
+**목표:**
+- AutoTuner 실제 실행하여 leaderboard.json, best_params.json 생성
+- SSOT_RULES 보강 (Reuse Exception Protocol + Smoke 규칙)
+- D_ROADMAP 정합성 수정 (D205-13/D205-14 상태 정리)
+
+**범위 (Do/Don't):**
+- ✅ Do: AutoTuner 1회 실행 (144 조합, Grid Search)
+- ✅ Do: SSOT_RULES.md 보강 (Reuse Exception Protocol 10줄, Smoke 규칙 21줄)
+- ✅ Do: TuningConfig 데이터 클래스 추가 (config.py 누락 수정)
+- ✅ Do: AutoTuner 버그 수정 (leaderboard 로드)
+- ❌ Don't: 트레이딩 루프 변경 (Engine/Adapter/Detector 미변경)
+- ❌ Don't: 신규 프레임워크 도입 (Optuna 등)
+
+**Acceptance Criteria:**
+- [x] AC-1: AutoTuner 실행 완료 (144 조합, 13.05초) ✅
+- [x] AC-2: leaderboard.json 생성 (Top 10 조합) ✅
+- [x] AC-3: best_params.json 생성 ✅
+- [x] AC-4: SSOT_RULES.md 보강 (Reuse Exception Protocol + Smoke 규칙) ✅
+- [x] AC-5: TuningConfig 추가 (config.py 누락 수정) ✅
+- [x] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-7: Evidence 패키징 (kpi.json, manifest.json, README.md) ✅
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS (compileall 3 files, exit code 0)
+- ✅ Fast Gate: PASS (3126 passed, 43 skipped, 214.84s)
+- ✅ Regression Gate: PASS (8/8 tests, 13.18s)
+
+**Smoke 판단:**
+- 실행: SKIPPED (조건부 생략)
+- 근거: 트레이딩 루프 미변경, AutoTuner 실행 자체가 검증
+
+**AutoTuner 실행 결과:**
+- 입력: `logs/evidence/d205_5_record_replay_20251231_022642/market.ndjson`
+- 조합 수: 144개 (4×3×3×4 Grid)
+- 소요 시간: 13.05초
+- Best Params: slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.2, min_spread_bps=20.0
+- Best Metrics: positive_net_edge_rate=0.0, mean_net_edge_bps=-110.42
+
+**구현 내용:**
+- `arbitrage/v2/core/config.py` - TuningConfig 데이터 클래스 + load_config() 파싱 로직
+- `arbitrage/v2/execution_quality/autotune.py` - leaderboard.json 재로드 버그 수정
+- `scripts/run_d205_14_autotune.py` - config.tuning 접근 수정
+- `docs/v2/SSOT_RULES.md` - Reuse Exception Protocol (17줄), Smoke 규칙 (21줄)
+
+**재사용 모듈:**
+- ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep (PRIMARY)
+- ✅ `arbitrage/v2/replay/replay_runner.py` - Replay 실행
+- ✅ `arbitrage/v2/execution_quality/model_v1.py` - ExecutionQuality
+- ✅ `arbitrage/v2/domain/break_even.py` - BreakEvenParams
+- ✅ `config/v2/config.yml` - Config SSOT
+- ✅ `logs/evidence/d205_5_record_replay_20251231_022642/market.ndjson` - Input Data (D205-5)
+
+**재사용 비율:** 60% (신규 생성 0개)
+
+**의존성:**
+- Depends on: D205-14 (Auto Tuning Kickoff) ✅
+- Depends on: D205-13-1 (Regression Recovery) ✅
+- Unblocks: D205-15 (Other Runners thin wrapper)
 
 ---
 

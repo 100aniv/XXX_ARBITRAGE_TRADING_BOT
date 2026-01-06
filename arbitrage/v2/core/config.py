@@ -114,6 +114,15 @@ class CacheConfig:
 
 
 @dataclass
+class TuningConfig:
+    """파라미터 튜닝 설정 (D205-14)"""
+    enabled: bool
+    param_ranges: Dict = field(default_factory=dict)
+    sweep: Optional[Dict] = None
+    objective: Optional[Dict] = None
+
+
+@dataclass
 class MetaConfig:
     """메타 정보"""
     version: str
@@ -136,6 +145,7 @@ class V2Config:
     logging: LoggingConfig
     database: DatabaseConfig
     cache: CacheConfig
+    tuning: TuningConfig  # D205-14
     meta: MetaConfig
     
     def validate(self):
@@ -315,6 +325,15 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         market_data_ttl_ms=raw_config['cache']['market_data_ttl_ms'],
     )
     
+    # Tuning 파싱 (D205-14)
+    tuning_data = raw_config.get('tuning', {})
+    tuning = TuningConfig(
+        enabled=tuning_data.get('enabled', False),
+        param_ranges=tuning_data.get('param_ranges', {}),
+        sweep=tuning_data.get('sweep'),
+        objective=tuning_data.get('objective'),
+    )
+    
     # Meta 파싱
     meta = MetaConfig(
         version=raw_config['meta']['version'],
@@ -336,6 +355,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         logging=logging_cfg,
         database=database,
         cache=cache,
+        tuning=tuning,  # D205-14
         meta=meta,
     )
     

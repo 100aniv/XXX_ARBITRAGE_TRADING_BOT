@@ -58,7 +58,7 @@ def main():
     config = load_config(args.config)
     
     # Validate tuning enabled
-    if not config.tuning.get('enabled', False):
+    if not config.tuning.enabled:
         logger.warning("[D205-14_CLI] tuning.enabled=false in config - proceeding anyway (dry-run mode)")
     
     # Output directory

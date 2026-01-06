@@ -49,10 +49,10 @@ class AutoTuner:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Config에서 param_ranges 추출
-        if not hasattr(config, 'tuning') or not config.tuning:
+        if not hasattr(config, 'tuning'):
             raise ValueError("config.tuning not found - check config.yml")
         
-        self.param_ranges = config.tuning.get('param_ranges', {})
+        self.param_ranges = config.tuning.param_ranges
         if not self.param_ranges:
             raise ValueError("config.tuning.param_ranges is empty")
         
@@ -71,19 +71,19 @@ class AutoTuner:
         # BreakEvenParams 고정 (ExecutionQuality 외부 파라미터)
         fee_a = FeeStructure(
             "upbit",
-            maker_fee_bps=self.config.exchanges['upbit']['taker_fee_bps'],
-            taker_fee_bps=self.config.exchanges['upbit']['taker_fee_bps'],
+            maker_fee_bps=self.config.exchanges['upbit'].taker_fee_bps,
+            taker_fee_bps=self.config.exchanges['upbit'].taker_fee_bps,
         )
         fee_b = FeeStructure(
             "binance",
-            maker_fee_bps=self.config.exchanges['binance']['taker_fee_bps'],
-            taker_fee_bps=self.config.exchanges['binance']['taker_fee_bps'],
+            maker_fee_bps=self.config.exchanges['binance'].taker_fee_bps,
+            taker_fee_bps=self.config.exchanges['binance'].taker_fee_bps,
         )
         fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
         break_even_params = BreakEvenParams(
             fee_model=fee_model,
-            slippage_bps=self.config.strategy['threshold']['slippage_bps'],
-            buffer_bps=self.config.strategy['threshold']['buffer_bps'],
+            slippage_bps=self.config.strategy.threshold.slippage_bps,
+            buffer_bps=self.config.strategy.threshold.buffer_bps,
         )
         
         # ParameterSweep 생성 (재사용)
@@ -97,37 +97,27 @@ class AutoTuner:
         # Sweep 실행
         result = sweep.run()
         
-        logger.info(f"[D205-14_AUTOTUNE] Sweep completed: {len(result.get('leaderboard', []))} combinations")
+        logger.info(f"[D205-14_AUTOTUNE] Sweep completed: {result.get('combinations_total', 0)} combinations")
         
-        # Best params 추출
-        leaderboard = result.get('leaderboard', [])
-        best_params = leaderboard[0]['params'] if leaderboard else {}
+        # ParameterSweep가 이미 leaderboard.json과 best_params.json을 저장했으므로 다시 로드
+        leaderboard_path = self.output_dir / "leaderboard.json"
+        best_params_path = self.output_dir / "best_params.json"
         
-        # 결과 저장
-        self._save_results(leaderboard, best_params)
+        leaderboard = []
+        best_params = {}
+        
+        if leaderboard_path.exists():
+            with open(leaderboard_path, 'r') as f:
+                leaderboard = json.load(f)
+            logger.info(f"[D205-14_AUTOTUNE] Loaded leaderboard: {len(leaderboard)} entries")
+        
+        if best_params_path.exists():
+            with open(best_params_path, 'r') as f:
+                best_params = json.load(f)
+            logger.info(f"[D205-14_AUTOTUNE] Loaded best_params: {best_params}")
         
         return {
             "leaderboard": leaderboard,
             "best_params": best_params,
             "output_dir": str(self.output_dir),
         }
-    
-    def _save_results(self, leaderboard: List[Dict], best_params: Dict):
-        """
-        결과 파일 저장
-        
-        Args:
-            leaderboard: 전체 순위 리스트
-            best_params: 최적 파라미터 1개
-        """
-        # leaderboard.json
-        leaderboard_path = self.output_dir / "leaderboard.json"
-        with open(leaderboard_path, 'w') as f:
-            json.dump(leaderboard, f, indent=2)
-        logger.info(f"[D205-14_AUTOTUNE] Saved leaderboard: {leaderboard_path}")
-        
-        # best_params.json
-        best_params_path = self.output_dir / "best_params.json"
-        with open(best_params_path, 'w') as f:
-            json.dump(best_params, f, indent=2)
-        logger.info(f"[D205-14_AUTOTUNE] Saved best params: {best_params_path}")

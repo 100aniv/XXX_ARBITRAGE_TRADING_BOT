@@ -36,13 +36,34 @@
 - ✅ **필수:** AC + Evidence 일치 시에만 COMPLETED 선언
 - ✅ **필수:** Gate 100% PASS + 실제 실행 증거 존재
 
-### 2. Report 파일명 규칙
+### 2. Report 파일명 규칙 (SSOT 우선순위: D_ROADMAP → Report → Evidence)
+**⚠️ 핵심 원칙: Report는 필수, Evidence README는 보조**
+
 - **메인 D:** `docs/v2/reports/Dxxx/Dxxx_REPORT.md`
 - **브랜치 D:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md` 또는 `Dxxx-y-z_REPORT.md`
 - **예시:**
   - D205-10-0: `docs/v2/reports/D205/D205-10_REPORT.md` (브랜치 0은 기본이므로 -0 생략 가능)
   - D205-10-1: `docs/v2/reports/D205/D205-10-1_REPORT.md`
   - D205-11: `docs/v2/reports/D205/D205-11_REPORT.md`
+
+**Report 생성 강제 규칙 (D206부터 필수):**
+- ❌ **금지:** Evidence README만으로 대체 (주객전도)
+- ✅ **필수:** 모든 D 작업은 `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md` 생성
+- ✅ **필수:** Report 내용:
+  - 목표 (Objective)
+  - AC (Acceptance Criteria) + 검증 결과
+  - 구현 내용 (Implementation)
+  - Gate 결과 (Doctor/Fast/Regression)
+  - 재사용 모듈 (Reuse Strategy)
+  - 의존성 (Dependencies)
+  - 다음 단계 (Next Steps)
+- ✅ **선택:** Evidence README는 Report 보조 (재현 커맨드 등)
+
+**SSOT 우선순위 (변경 금지):**
+1. **D_ROADMAP.md** - 상태/목표/AC의 유일한 원천
+2. **docs/v2/reports/Dxxx/Dxxx-y_REPORT.md** - 검증 결과의 공식 문서
+3. **logs/evidence/Dxxx-y_*/** - 실행 증거 (로그/스택/메트릭)
+4. **Evidence README.md** - 증거 디렉토리 내 재현 가이드 (보조)
 
 ### 3. V2 문서는 docs/v2/ 단일 경로
 - ✅ **신규 문서:** docs/v2/ 아래에만 작성
@@ -100,6 +121,23 @@
 4. **(Exception)** 예외적으로 새 모듈이 필요하면:
    - "왜 기존 것을 못 쓰는지"를 보고서(Dxxx_REPORT)에 명시
    - `docs/v2/design/INFRA_REUSE_INVENTORY.md`에 재사용 불가 사유와 대체 모듈을 기록
+
+### Reuse Exception Protocol (예외 허용 절차)
+
+**원칙:** 기본은 reuse-first, 예외는 증거 기반으로만 허용
+
+**예외 허용 조건 (모두 충족 시에만):**
+1. **Scan 결과 증거**: "기존 재사용 불가" 증거 (rg/grep 결과 + 사유)
+2. **대체안 검증**: 상용/논문 기반 대체 방식이 명백히 우수함을 수치로 입증
+3. **엔진 중심 유지**: 새 모듈도 arbitrage/v2/** 구조 + 인프라 최소 원칙 준수
+4. **비교 증거**: 기존 방식 vs 대체 방식 동일 KPI 기준 비교 (최소한 재현 가능한 sweep 결과)
+5. **D_ROADMAP 기록**: "왜 대체했는지" 3줄 요약 + 비교 증거 경로 명시
+
+**예외 허용 불가 (금지):**
+- ❌ "더 나을 것 같다" (추측 기반)
+- ❌ "새 프레임워크가 유행" (트렌드 추종)
+- ❌ "완벽한 구조" (오버엔지니어링)
+- ❌ 인프라 확장 (K8s/Docker 분산 등)
 
 ### Gate 연동
 
@@ -624,58 +662,6 @@ https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/<before_sha>...<aft
 
 ---
 
-## 🔄 Section C-1: Report 생성 템플릿 (D206부터 필수)
-
-**파일 경로:** `docs/v2/reports/Dxxx/Dxxx-y_REPORT.md`
-
-**필수 섹션:**
-```markdown
-# Dxxx-y: [작업명]
-
-**작성일:** YYYY-MM-DD
-**상태:** COMPLETED / IN_PROGRESS / FAILED
-**Baseline SHA:** [git sha]
-**Evidence:** `logs/evidence/dxxx_y_*/`
-
-## 목표 (Objective)
-- [목표 1]
-- [목표 2]
-
-## Acceptance Criteria (AC)
-- [x] AC-1: [설명] ✅
-- [x] AC-2: [설명] ✅
-- [ ] AC-3: [설명] ❌
-
-## 구현 내용 (Implementation)
-- `파일1.py` - [변경 내용]
-- `파일2.py` - [변경 내용]
-
-## Gate 결과 (Gate Results)
-- ✅ Doctor: PASS
-- ✅ Fast: PASS (X passed, Y skipped)
-- ✅ Regression: PASS (Z tests, duration)
-
-## 재사용 모듈 (Reuse Strategy)
-- Primary: `모듈1.py` - [설명]
-- Reference: `모듈2.py` - [설명]
-
-## 의존성 (Dependencies)
-- Depends on: D205-X ✅
-- Blocks: D205-Y
-
-## 다음 단계 (Next Steps)
-- D205-Y-1: [작업]
-- D205-Z: [작업]
-```
-
-**생성 강제 규칙:**
-- ❌ Evidence README만으로 대체 금지
-- ✅ 모든 D 작업은 Report 생성 필수
-- ✅ D_ROADMAP의 "문서" 필드에 Report 경로 명시
-- ✅ Report는 검증 결과의 공식 문서 (Evidence는 보조)
-
----
-
 ## 🔄 Section D: Test Template (자동화/운영급)
 
 **출처:** `docs/v2/templates/D_TEST_TEMPLATE.md` (224 lines) → SSOT_RULES로 완전 이관
@@ -731,14 +717,28 @@ pytest tests/fast --maxfail=1 --timeout=180 --timeout-method=thread
 pytest tests/core --disable-warnings --timeout=180 --timeout-method=thread
 ```
 
-### Test Step 3: Smoke PAPER Test
-```bash
-python scripts/run_paper.py --mode paper --duration 20m
-```
-**PASS 기준:**
+### Test Step 3: Smoke PAPER Test (규칙 기반 선택)
+
+**Smoke 유형 선택 규칙:**
+1. **Micro-Smoke (1분)** - 경미한 변경 시
+   - 조건: 설정/문서만 수정, 트레이딩 루프 미변경
+   - 목적: 기본 런타임 검증 (프로세스 시작/종료, 크래시 없음)
+   - 커맨드: `python scripts/run_paper.py --mode paper --duration 1m`
+
+2. **Full Smoke (20분)** - 트레이딩 루프 변경 시
+   - 조건: Engine/Adapter/Detector 코드 변경
+   - 목적: 실제 거래 생성 검증 (주문 ≥ 1, 포지션 정상)
+   - 커맨드: `python scripts/run_paper.py --mode paper --duration 20m`
+
+**PASS 기준 (Full Smoke):**
 - 주문 ≥ 1
 - 포지션 정상
 - 0 trades → FAIL + DecisionTrace
+
+**PASS 기준 (Micro-Smoke):**
+- 프로세스 정상 종료 (exit code 0)
+- 크래시/예외 없음
+- 로그 생성 확인
 
 ### Test Step 4: Monitoring 검증
 ```bash
