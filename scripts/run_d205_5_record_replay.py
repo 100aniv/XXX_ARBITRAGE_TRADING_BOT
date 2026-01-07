@@ -106,6 +106,14 @@ class RecordReplayRunner:
                         if not binance_ticker:
                             continue
                         
+                        # D205-14-5: Size 오염 방지 가드
+                        if upbit_ticker.bid_size is None or upbit_ticker.ask_size is None:
+                            logger.warning(f"[D205-14-5_GUARD] Upbit size=None for {symbol}, skipping")
+                            continue
+                        if binance_ticker.bid_size is None or binance_ticker.ask_size is None:
+                            logger.warning(f"[D205-14-5_GUARD] Binance size=None for {symbol}, skipping")
+                            continue
+                        
                         # MarketTick 생성
                         tick = MarketTick(
                             timestamp=datetime.now().isoformat(),
@@ -114,6 +122,10 @@ class RecordReplayRunner:
                             upbit_ask=upbit_ticker.ask,
                             binance_bid=binance_ticker.bid,
                             binance_ask=binance_ticker.ask,
+                            upbit_bid_size=upbit_ticker.bid_size,  # D205-14-5
+                            upbit_ask_size=upbit_ticker.ask_size,  # D205-14-5
+                            binance_bid_size=binance_ticker.bid_size,  # D205-14-5
+                            binance_ask_size=binance_ticker.ask_size,  # D205-14-5
                         )
                         
                         recorder.record_tick(tick)

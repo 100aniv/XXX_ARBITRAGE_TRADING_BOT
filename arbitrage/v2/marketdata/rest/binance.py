@@ -71,6 +71,8 @@ class BinanceRestProvider(RestProvider):
                 ask=float(data["askPrice"]),
                 last=float(data["bidPrice"]),  # bookTicker는 last 없음
                 volume=0.0,  # bookTicker는 volume 없음
+                bid_size=float(data["bidQty"]),  # D205-14-5
+                ask_size=float(data["askQty"]),  # D205-14-5
             )
         
         except Exception as e:

@@ -52,14 +52,16 @@ class UpbitRestProvider(RestProvider):
             Ticker 또는 None (에러 시)
         """
         try:
-            # D205-14-4: orderbook에서 실제 best bid/ask 가져오기
+            # D205-14-4/14-5: orderbook에서 실제 best bid/ask + size 가져오기
             orderbook = self.get_orderbook(symbol, depth=1)
             if not orderbook or not orderbook.bids or not orderbook.asks:
-                logger.warning(f"[D205-14-4_UPBIT] Orderbook empty for {symbol}")
+                logger.warning(f"[D205-14-5_UPBIT] Orderbook empty for {symbol}")
                 return None
             
             best_bid = orderbook.bids[0].price
             best_ask = orderbook.asks[0].price
+            best_bid_size = orderbook.bids[0].quantity  # D205-14-5: size 추가
+            best_ask_size = orderbook.asks[0].quantity  # D205-14-5: size 추가
             
             # Volume은 ticker API로 가져오기 (orderbook에는 없음)
             base, quote = symbol.split("/")
@@ -81,6 +83,8 @@ class UpbitRestProvider(RestProvider):
                 ask=best_ask,
                 last=float(data.get("trade_price", 0)),
                 volume=float(data.get("acc_trade_volume_24h", 0)),
+                bid_size=best_bid_size,  # D205-14-5
+                ask_size=best_ask_size,  # D205-14-5
             )
         
         except Exception as e:

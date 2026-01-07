@@ -23,6 +23,8 @@ class Ticker:
     ask: float
     last: float
     volume: float
+    bid_size: Optional[float] = None  # D205-14-5: top-of-book bid size
+    ask_size: Optional[float] = None  # D205-14-5: top-of-book ask size
 
 
 @dataclass
