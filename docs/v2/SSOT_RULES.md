@@ -1124,7 +1124,131 @@ AC-1: check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_exitcode.txt = 0)
 
 ---
 
-## �� 다음 단계
+## 🏷️ Section L: API 및 버전 명칭 규칙 (강제)
+
+**원칙:** 시즌 버전(V1/V2)과 외부 API 버전(v1/v3)의 혼동 방지
+
+### L-1: 시즌 표기 (V1/V2) — 프로젝트 세대 전용
+
+**정의:**
+- **V1:** 첫 번째 아키텍처 세대 (레거시, arbitrage/exchanges/, docs/D15~D106)
+- **V2:** 두 번째 아키텍처 세대 (Engine-centric, arbitrage/v2/, docs/v2/)
+
+**규칙:**
+- ✅ **허용:** `arbitrage/v2/`, `docs/v2/`, `config/v2/`
+- ✅ **허용:** "V2 Engine", "V2 Architecture", "V1 레거시"
+- ❌ **금지:** V1/V2를 외부 API 버전으로 혼동
+
+### L-2: 외부 API 버전 — 의미 기반 명명 (MarketType)
+
+**문제:**
+- Binance API 경로: `/api/v3` (Spot), `/fapi/v1` (Futures)
+- 여기서 v1, v3는 Binance 내부 버전 번호
+- 시즌 V1/V2와 혼동 가능성 높음
+
+**해결 — MarketType 기반 명명:**
+```python
+# ✅ 허용: 의미 기반 구분
+MarketType = "SPOT" | "FUTURES"
+
+BINANCE_SPOT_BASE_URL = "https://api.binance.com/api/v3"
+BINANCE_FUTURES_BASE_URL = "https://fapi.binance.com/fapi/v1"
+
+# 코드에서 사용
+if market_type == "FUTURES":
+    provider = BinanceFuturesProvider()
+```
+
+```python
+# ❌ 금지: 숫자 기반 표현
+API_V1 = ...   # 시즌 V1과 충돌
+API_V3 = ...   # 숫자로 혼동 유발
+R1 / R3 = ...  # 여전히 숫자 포함
+```
+
+**규칙:**
+- ✅ **허용:** `MarketType.SPOT`, `MarketType.FUTURES`
+- ✅ **허용:** `BINANCE_SPOT_BASE_URL`, `BINANCE_FUTURES_BASE_URL`
+- ✅ **허용:** URL 내부의 `/api/v3`, `/fapi/v1`은 구현 디테일로만 취급
+- ❌ **금지:** 코드/설정/문서에서 "v1 API", "v3 API" 표현
+- ❌ **금지:** `API_V1`, `API_V3`, `R1`, `R3` 같은 변수/상수명
+
+### L-3: API 폴더 경로 — 현재 유지, 개념만 분리
+
+**현재 상태:**
+```bash
+arbitrage/
+  └─ v2/
+      └─ marketdata/
+          └─ rest/
+              └─ binance.py  # 내부에서 /api/v3, /fapi/v1 사용
+```
+
+**규칙:**
+- ✅ **허용:** 현재 폴더 구조 유지 (api/v1, api/v3 등)
+- ✅ **허용:** URL 경로는 구현 디테일로 숨김
+- ❌ **금지:** 폴더 리네임을 D205-15-1에서 수행
+- ❌ **금지:** 코드/config/README/ROADMAP에서 "v1/v3 API" 표현
+
+**폴더 리네임 허용 조건 (D206 이후):**
+1. D206 완료 (엔진 안정화)
+2. MarketDataProvider 인터페이스 변경 없음
+3. Pure Infra Refactor 전용 D-step 생성 (예: D2xx-INFRA-RENAME)
+4. Gate: import 안정성만 검증
+
+### L-4: SSOT 정합성 — 문서/코드/설정 통일
+
+**검증 대상:**
+- README.md
+- D_ROADMAP.md
+- docs/v2/**
+- config/v2/config.yml
+- arbitrage/v2/**
+
+**검증 규칙:**
+```bash
+# 금지 패턴 검색 (커밋 전 수행)
+rg "v1 API|v3 API|API_V1|API_V3|R1|R3" --type py --type md --type yaml
+```
+
+**위반 시 조치:**
+- 금지 패턴 발견 → 의미 기반 명칭으로 수정 (SPOT/FUTURES)
+- 숫자 기반 API 버전 표현 → 즉시 FAIL
+
+### L-5: 예시 (Before → After)
+
+**코드:**
+```python
+# ❌ Before
+self.base_url = "https://api.binance.com/api/v3"  # "v3 API" 노출
+
+# ✅ After
+# URL은 내부 구현 디테일, 외부로 노출하지 않음
+BINANCE_SPOT_BASE_URL = "https://api.binance.com/api/v3"
+self.base_url = BINANCE_SPOT_BASE_URL  # MarketType 기반
+```
+
+**문서:**
+```markdown
+# ❌ Before
+Binance v3 API를 사용하여 현물 데이터를 수집합니다.
+
+# ✅ After
+Binance Spot API를 사용하여 현물 데이터를 수집합니다.
+```
+
+**설정:**
+```yaml
+# ❌ Before
+binance_api_version: "v3"
+
+# ✅ After
+binance_market_type: "SPOT"  # 또는 "FUTURES"
+```
+
+---
+
+## 🔜 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.
 

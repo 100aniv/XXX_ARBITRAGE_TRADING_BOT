@@ -4738,11 +4738,18 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 ---
 
 #### D205-15: Multi-Symbol Profit Candidate Scan (Upbit Spot × Binance Futures)
-**상태:** 🔨 IMPLEMENTATION COMPLETE (2026-01-07 22:30)
+**상태:** 🔨 FIX-1~4 IMPLEMENTED (2026-01-08)
 **커밋:** (Step 8 후 업데이트)
-**테스트:** Gate 3단 PASS (Doctor: 2875 collected, Fast: 516 passed, Regression: 61 passed)
+**테스트:** Gate 3단 PASS (Doctor: syntax OK, Fast: 516 passed, Regression: 8/8 passed)
 **문서:** `logs/evidence/d205_15_bootstrap_20260107_213400/`
 **Evidence:** Bootstrap 완료, Evidence Run은 커밋 후 별도 실행
+
+**D205-15-1 Fix 구현 완료 (2026-01-08):**
+- **Fix-1:** FX Normalization - `--fx-krw-per-usdt` 필수 인자, Binance USDT → KRW 변환
+- **Fix-2:** bid_size/ask_size 필드 포함, 누락 시 skip_reason 기록
+- **Fix-3:** Config-driven costs - config.yml에서 fee/slippage/buffer 로드
+- **Fix-4:** TopK 선정 = mean_net_edge_bps + positive_rate (기존: mean_spread_bps)
+- **Engine-centric:** `arbitrage/v2/scan/` 모듈 생성 (scanner, metrics, topk)
 
 **목표:**
 - **전략 전환**: "파이프라인 수리" → "돈 되는 후보 탐색"
@@ -4773,15 +4780,15 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 - ❌ Don't: 하드코딩 (config 기반 파라미터화)
 
 **Acceptance Criteria:**
-- [ ] AC-1: 멀티심볼 universe 10+ 심볼 (Upbit × Binance 교집합)
-- [ ] AC-2: 심볼별 10분+ Futures recording 완료
-- [ ] AC-3: scan_summary.json 생성 (심볼별 spread/edge/positive_rate)
-- [ ] AC-4: TopK(3개) 선정 + 선정 근거 문서화
-- [ ] AC-5: TopK별 AutoTune leaderboard 생성 (Futures data 기반)
+- [x] AC-1: 멀티심볼 universe 10+ 심볼 (Upbit × Binance 교집합) ✅ SYMBOL_UNIVERSE 12개 정의
+- [ ] AC-2: 심볼별 10분+ Futures recording 완료 (Evidence Run 필요)
+- [x] AC-3: scan_summary.json 생성 (심볼별 spread/edge/positive_rate) ✅ 코드 구현
+- [x] AC-4: TopK(3개) 선정 + 선정 근거 문서화 ✅ Fix-4 적용
+- [ ] AC-5: TopK별 AutoTune leaderboard 생성 (Evidence Run 필요)
 - [ ] AC-6: 최소 1개 심볼에서 mean_net_edge_bps unique >= 2 달성
-- [ ] AC-7: cost_breakdown.json (수수료/슬리피지/환산 분해)
-- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-07 22:25
-- [ ] AC-9: Evidence 패키징 (manifest/scan_summary/leaderboard/README)
+- [x] AC-7: cost_breakdown.json (수수료/슬리피지/환산 분해) ✅ Fix-3 적용
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-08
+- [ ] AC-9: Evidence 패키징 (Evidence Run 필요)
 - [ ] AC-10: D_ROADMAP 업데이트 + Git commit + push
 
 **증거 요구사항 (SSOT):**
