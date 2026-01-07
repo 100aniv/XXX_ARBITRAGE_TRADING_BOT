@@ -4737,6 +4737,106 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 
 ---
 
+#### D205-15: Multi-Symbol Profit Candidate Scan (Upbit Spot × Binance Futures)
+**상태:** ⏳ IN PROGRESS (2026-01-07 20:37)
+**커밋:** (실행 중)
+**테스트:** Gate 3단 (Doctor/Fast/Regression)
+**문서:** `logs/evidence/d205_15_bootstrap_20260107_203700/`
+**Evidence:** (실행 후 업데이트)
+
+**목표:**
+- **전략 전환**: "파이프라인 수리" → "돈 되는 후보 탐색"
+- **멀티심볼 스캔**: Upbit Spot × Binance Futures 교집합 10+ 심볼
+- **TopK 선정**: 후보 랭킹 기반 상위 3개 심볼 AutoTune 실행
+- **Futures Recording**: 실제 Binance Futures API 데이터 기반 증거 생성
+- **비용 분해**: 모든 결과가 음수여도 "왜 음수인지" 수치로 증명
+
+**근본 인식 (D205-14-6 교훈):**
+- 엔진/Gate는 PASS했으나 AC-7 diversity 미달 (unique=1)
+- 문제는 "코드"가 아니라 "데이터/심볼/시장 선택"
+- BTC 단일 심볼: spread 16.64 bps << break-even 58 bps
+- 모든 파라미터 조합이 음수 edge 생성
+- 결론: **더 나은 시장 조건(알트코인/높은 변동성)을 찾아야 함**
+
+**범위 (Do/Don't):**
+- ✅ Do: 멀티심볼 universe config 기반 입력
+- ✅ Do: Binance Futures bookTicker (top-of-book) REST API
+- ✅ Do: Upbit Spot × Binance Futures 교집합 필터링
+- ✅ Do: 심볼별 scan_summary.json (spread/edge/cost_breakdown)
+- ✅ Do: TopK(3개) Futures recording + AutoTune evidence
+- ✅ Do: Engine-centric (판단/루프는 arbitrage/v2/** 내부)
+- ✅ Do: 기존 recorder/replay/autotune 재사용 (최소 확장)
+- ❌ Don't: V1 코드 수정 (arbitrage/exchanges/)
+- ❌ Don't: scripts 중심 로직 (얇은막만 허용)
+- ❌ Don't: WebSocket 도입
+- ❌ Don't: L2 depth 수집
+- ❌ Don't: 하드코딩 (config 기반 파라미터화)
+
+**Acceptance Criteria:**
+- [ ] AC-1: 멀티심볼 universe 10+ 심볼 (Upbit × Binance 교집합)
+- [ ] AC-2: 심볼별 10분+ Futures recording 완료
+- [ ] AC-3: scan_summary.json 생성 (심볼별 spread/edge/positive_rate)
+- [ ] AC-4: TopK(3개) 선정 + 선정 근거 문서화
+- [ ] AC-5: TopK별 AutoTune leaderboard 생성 (Futures data 기반)
+- [ ] AC-6: 최소 1개 심볼에서 mean_net_edge_bps unique >= 2 달성
+- [ ] AC-7: cost_breakdown.json (수수료/슬리피지/환산 분해)
+- [ ] AC-8: Gate 3단 PASS (Doctor/Fast/Regression)
+- [ ] AC-9: Evidence 패키징 (manifest/scan_summary/leaderboard/README)
+- [ ] AC-10: D_ROADMAP 업데이트 + Git commit + push
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_multisymbol_scan_<YYYYMMDD_HHMMSS>/
+├── bootstrap/
+│   ├── READING_CHECKLIST.md
+│   ├── SCAN_REUSE_SUMMARY.md
+│   ├── PLAN.md
+│   └── PROBLEM_DEFINITION.md
+├── scan_run/
+│   ├── manifest.json
+│   ├── scan_summary.json         # 심볼별 핵심 지표 + 랭킹
+│   ├── scan_rank.md              # TopK 선정 근거 (표 형태)
+│   ├── cost_breakdown.json       # 비용 분해 (심볼별)
+│   ├── market_<symbol>.ndjson    # 심볼별 recording (10분+)
+│   └── README.md                 # 재현 명령 3줄
+├── topk_autotune/
+│   ├── <symbol_1>/
+│   │   ├── leaderboard.json
+│   │   ├── best_params.json
+│   │   ├── decisions.ndjson
+│   │   └── manifest.json
+│   ├── <symbol_2>/
+│   │   └── ...
+│   └── <symbol_3>/
+│       └── ...
+├── gate_results/
+│   ├── doctor_gate.txt
+│   ├── fast_gate.txt
+│   └── regression_gate.txt
+└── README.md                     # 전체 재현 명령
+```
+
+**DONE 판정 기준 (엄격):**
+- ✅ Gate 3단 100% PASS
+- ✅ 멀티심볼 scan 10+ 심볼 완료
+- ✅ TopK(3개) Futures recording + AutoTune 완료
+- ✅ AC-6: 최소 1개 심볼에서 diversity 달성 OR 모든 심볼 음수 시 비용 분해 증거
+- ✅ Evidence 패키징: scan_summary/leaderboard/cost_breakdown/README 포함
+- ✅ D_ROADMAP 업데이트: AC 체크 + 커밋 SHA + Evidence 경로
+
+**의존성:**
+- Depends on: D205-14-6 (Binance Futures 기본 전환) ✅
+- Unblocks: D205-16 (Paper-Live Integration) - AC-6 달성 후
+- Unblocks: D206 (Ops & Deploy) - AC-6 달성 후
+
+**다음 수 (Plan B - AC-6 실패 시):**
+- Option A: 펀딩비(Funding Rate) 기반 전략 (선물-현물 베이시스)
+- Option B: 메이커 주문(Maker) 중심 수수료 최적화
+- Option C: 더 높은 변동성 토큰 탐색 (Meme/Micro-cap)
+- 범위: 별도 D205-16-x 브랜치로 분기 (산으로 가지 않게 3줄로 고정)
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**
