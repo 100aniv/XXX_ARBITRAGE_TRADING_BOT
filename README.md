@@ -11,6 +11,7 @@
 ### 핵심 특징
 
 - **V2 Engine-Centric 아키텍처**: OrderIntent → Adapter → Engine 표준 플로우
+- **Binance Futures 기본**: USDT-M Futures API 사용 (Spot은 파이프라인 검증용)
 - **READ_ONLY 기본**: 실거래 영구 차단, Mock/Paper 모드 우선
 - **SSOT 강제**: 단일 진실 공급원 원칙 (중복/분기 금지)
 - **Gate 검증**: doctor/fast/regression 100% PASS 필수

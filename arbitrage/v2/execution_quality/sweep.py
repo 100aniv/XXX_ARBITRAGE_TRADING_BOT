@@ -52,6 +52,7 @@ class ParameterSweep:
         output_dir: Path,
         param_grid: Dict[str, List[float]],
         break_even_params: BreakEvenParams,
+        notional: float = 100000.0,
     ):
         self.input_path = input_path
         self.output_dir = output_dir
@@ -59,6 +60,7 @@ class ParameterSweep:
         
         self.param_grid = param_grid
         self.break_even_params = break_even_params
+        self.notional = notional
         
         self.results: List[Dict[str, Any]] = []
         
@@ -150,10 +152,22 @@ class ParameterSweep:
         temp_output = self.output_dir / f"temp_{hash(tuple(params.items()))}"
         temp_output.mkdir(parents=True, exist_ok=True)
         
+        # D205-14-6: params.json 저장 (Traceability)
+        params_file = temp_output / "params.json"
+        with open(params_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                "slippage_alpha": params.get("slippage_alpha", 10.0),
+                "partial_fill_penalty_bps": params.get("partial_fill_penalty_bps", 20.0),
+                "max_safe_ratio": params.get("max_safe_ratio", 0.3),
+                "min_spread_bps": params.get("min_spread_bps", None),
+                "notional": self.notional,
+            }, f, indent=2, ensure_ascii=False)
+        
         runner = ReplayRunner(
             input_path=self.input_path,
             output_dir=temp_output,
             break_even_params=self.break_even_params,
+            notional=self.notional,  # D205-14-6
         )
         
         # ExecutionQuality 모델 파라미터 주입

@@ -44,6 +44,7 @@ class ReplayRunner:
         output_dir: Path,
         break_even_params: BreakEvenParams,
         fx_krw_per_usdt: float = DEFAULT_FX_KRW_PER_USDT,
+        notional: float = 100000.0,
     ):
         """
         Args:
@@ -51,12 +52,14 @@ class ReplayRunner:
             output_dir: decisions.ndjson 출력 디렉토리
             break_even_params: 손익분기 파라미터
             fx_krw_per_usdt: KRW/USDT 환율 (기본값: DEFAULT_FX_KRW_PER_USDT)
+            notional: 주문 금액 (KRW, default: 100000)
         """
         self.input_path = input_path
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.break_even_params = break_even_params
         self.fx_krw_per_usdt = fx_krw_per_usdt
+        self.notional = notional
         
         self.decisions_path = output_dir / "decisions.ndjson"
         self.manifest_path = output_dir / "manifest.json"
@@ -190,7 +193,7 @@ class ReplayRunner:
                     # D205-7: ExecutionQuality 실전 주입 (실제 계산)
                     exec_cost_breakdown = self.exec_quality_model.compute_execution_cost(
                         edge_bps=candidate.edge_bps,
-                        notional=100000.0,  # 기본 10만원 주문 가정
+                        notional=self.notional,  # D205-14-6: 파라미터화
                         upbit_bid_size=tick.upbit_bid_size,
                         upbit_ask_size=tick.upbit_ask_size,
                         binance_bid_size=tick.binance_bid_size,

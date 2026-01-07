@@ -86,12 +86,16 @@ class AutoTuner:
             buffer_bps=self.config.strategy.threshold.buffer_bps,
         )
         
+        # D205-14-6: notional 파라미터 (config에서 읽기 또는 기본값)
+        notional = getattr(self.config.tuning, 'notional', 100000.0)
+        
         # ParameterSweep 생성 (재사용)
         sweep = ParameterSweep(
             input_path=self.input_path,
             output_dir=self.output_dir,
             param_grid=self.param_ranges,
             break_even_params=break_even_params,
+            notional=notional,  # D205-14-6
         )
         
         # Sweep 실행

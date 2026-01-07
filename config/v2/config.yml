@@ -178,6 +178,9 @@ tuning:
   # 튜닝 활성화 여부
   enabled: false
   
+  # 주문 금액 (KRW) - D205-14-6
+  notional: 500000
+  
   # 파라미터 범위 (Grid Search용)
   param_ranges:
     # Slippage Alpha (ExecutionQuality)

@@ -4421,7 +4421,7 @@ Rationale:
 
 **범위 (Do/Don't):**
 - ✅ Do: Upbit orderbook (/v1/orderbook) best bid/ask 수집
-- ✅ Do: Binance bookTicker (/api/v3/ticker/bookTicker) best bid/ask 수집
+- ✅ Do: Binance bookTicker (/fapi/v1/ticker/bookTicker, Futures 기본) best bid/ask 수집
 - ✅ Do: MarketTick에 bid/ask 실제 값 기록 (0이 아닌 현실값)
 - ✅ Do: market_stats.json에서 spread_bps > 0 확인
 - ✅ Do: AutoTuner leaderboard Top10 mean_net_edge_bps 2종 이상 검증
@@ -4633,9 +4633,107 @@ logs/evidence/d205_14_5_size_recording_<YYYYMMDD_HHMMSS>/
 - Unblocks: D206 (Ops & Deploy, 조건부)
 
 **다음 단계 (구현 후):**
+- D205-14-6: SSOT 정렬 (Binance Futures 기본) + AC-7 Diversity 해결 ⏳ IN PROGRESS
 - D205-15: Multi-Symbol + Long-Smoke (1h+ wallclock) - 운영 준비 전 점검
 - D205-16: Paper-Live Integration Gate (실제 거래소 잔고 연동)
 - D206: Ops & Deploy (Prerequisites 충족 시)
+
+---
+
+#### D205-14-6: SSOT 정렬 (Binance Futures 기본) + AC-7 Diversity 해결
+**상태:** ⏳ PARTIAL COMPLETION (2026-01-07 18:10)
+**커밋:** (pending - 방향성 재검토 후 진행)
+**테스트:** Gate 3단 (Doctor/Fast/Regression) ✅ PASS
+**문서:** `logs/evidence/d205_14_6_bootstrap_20260107_173800/`
+**Evidence:** `logs/evidence/d205_14_6_autotune_run_20260107_181200/`
+
+**목표:**
+- **SSOT 충돌 해결**: README(Futures) ≠ 코드(Spot `/api/v3`) 정렬
+- **Binance Futures 기본 전환**: V2는 USDT-M Futures API 사용 (Spot은 control-only)
+- **AC-7 Diversity 해결**: notional 파라미터화로 AutoTuner leaderboard unique >= 2 달성
+- **Traceability 강화**: params.json 저장 (각 튜닝 run 파라미터 기록)
+
+**근본 원인 분석:**
+- **SSOT 충돌**: README.md:9 "바이낸스(선물)" vs binance.py:34 "Spot API"
+- **AC-7 미달**: D205-14-5 leaderboard Top10 mean_net_edge_bps unique=1 (요구: >=2)
+  - 데이터 파이프라인 결손 ✅ 해결됨 (D205-14-5: size=None → size != None)
+  - 시장 현실 제약 (spread 16.64 bps << break-even 58 bps)
+  - notional 하드코딩 (ReplayRunner:193 `notional=100000.0`)
+  - 재미나이 분석: "주문 금액이 너무 작으면 슬리피지 계수 변화가 소수점 아래에서만 노니까 반올림되어 똑같아 보임"
+- **네이밍 혼란**: Binance API v3 vs 프로젝트 V2
+
+**범위 (Do/Don't):**
+- ✅ Do: BinanceRestProvider market_type 파라미터 추가 (default="futures")
+- ✅ Do: ReplayRunner notional 파라미터화 (default=100000)
+- ✅ Do: ParameterSweep notional 전달
+- ✅ Do: config.yml tuning.notional 추가 (500000)
+- ✅ Do: ParameterSweep params.json 저장 (각 temp run)
+- ✅ Do: README/ROADMAP/코드 주석 "Futures 기본" 정렬
+- ❌ Don't: V1 (arbitrage/exchanges/binance_futures.py) 수정
+- ❌ Don't: Engine/sweep.py 로직 변경
+- ❌ Don't: WebSocket 도입
+- ❌ Don't: L2 depth 수집
+
+**Acceptance Criteria:**
+- [x] AC-1: BinanceRestProvider market_type="futures" 기본 전환 ✅
+- [x] AC-2: README/ROADMAP "Futures 기본" 문장 정렬 ✅
+- [x] AC-3: ReplayRunner notional 파라미터화 ✅
+- [x] AC-4: config.yml tuning.notional 추가 ✅
+- [x] AC-5: ParameterSweep params.json 저장 ✅
+- [x] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [ ] AC-7: AutoTuner 재실행 → leaderboard Top10 mean_net_edge_bps unique >= 2 ❌ (unique=1, 시장 현실 제약)
+- [x] AC-8: Evidence 패키징 (manifest/kpi/leaderboard/params.json/README) ✅
+- [ ] AC-9: D_ROADMAP 업데이트 + Git commit + push ⏳ (방향성 재검토 후 진행)
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
+├── bootstrap/
+│   ├── READING_CHECKLIST.md
+│   ├── SCAN_REUSE_SUMMARY.md
+│   ├── PLAN.md
+│   └── PROBLEM_DEFINITION.md
+├── autotune_run/
+│   ├── manifest.json
+│   ├── kpi.json
+│   ├── leaderboard.json        # unique >= 2 검증 (Critical)
+│   ├── best_params.json
+│   ├── decisions.ndjson
+│   └── params_sample/          # temp run params.json 샘플
+│       ├── params_001.json
+│       ├── params_002.json
+│       └── params_003.json
+├── gate_results/
+│   ├── doctor_gate.txt
+│   ├── fast_gate.txt
+│   └── regression_gate.txt
+└── README.md                   # 재현 명령 3줄
+```
+
+**현재 완료 상태:**
+- ✅ Gate 3단 100% PASS (Doctor/Fast/Regression)
+- ❌ AC-7: leaderboard Top10 mean_net_edge_bps unique=1 (요구: >=2)
+  - 근본 원인: BTC/KRW 시장 현실 제약 (spread 16.64 bps << break-even 58 bps)
+  - 모든 파라미터 조합이 음수 edge 생성
+  - notional 파라미터화는 완료 (코드 레벨)
+- ✅ SSOT 정렬: README/ROADMAP/코드 "Futures 기본" 일치
+- ✅ Evidence 패키징: manifest/leaderboard/best_params/decisions/README 포함
+- ⏳ D_ROADMAP 업데이트: 현재 진행 중
+
+**방향성 재검토 필요:**
+1. **Option A**: SSOT 정렬 + 인프라 개선으로 DONE (AC-7은 별도 D-step)
+2. **Option B**: Binance Futures API로 신규 Recording 후 재실행
+3. **Option C**: 다른 Symbol (ETH/KRW 등)로 실험
+
+**의존성:**
+- Depends on: D205-14-5 (Top-of-Book SIZE Recording) ✅
+- Unblocks: D205-15 (Multi-Symbol + Long-Smoke) - AC-7 해결 후
+- Unblocks: D206 (Ops & Deploy, 조건부) - AC-7 해결 후
+
+**현재 이슈:**
+- AC-7 diversity 미달: 시장 현실 제약으로 인한 구조적 문제
+- notional 파라미터화는 완료했으나, 데이터 품질/시장 조건이 주요 인자
+- 다음 D-step에서 다른 접근 필요 (신규 Recording, 다른 Symbol 등)
 
 ---
 

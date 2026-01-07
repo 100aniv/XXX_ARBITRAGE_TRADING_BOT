@@ -33,10 +33,21 @@ from arbitrage.v2.marketdata.ratelimit import RateLimitCounter
 class TestRestProviderContract:
     """RestProvider 계약 테스트 (ticker/orderbook/trades)"""
     
+    @patch('arbitrage.v2.marketdata.rest.upbit.UpbitRestProvider.get_orderbook')
     @patch('requests.Session.get')
-    def test_upbit_ticker_contract(self, mock_get):
-        """Upbit ticker 응답 파싱 contract"""
-        # Mock response
+    def test_upbit_ticker_contract(self, mock_get, mock_orderbook):
+        """Upbit ticker 응답 파싱 contract (D205-14-5: orderbook 기반)"""
+        # Mock orderbook response (D205-14-5: get_ticker가 get_orderbook 호출)
+        mock_orderbook_obj = Orderbook(
+            exchange="upbit",
+            symbol="BTC/KRW",
+            bids=[OrderbookLevel(price=50000000.0, quantity=0.5)],
+            asks=[OrderbookLevel(price=50100000.0, quantity=0.3)],
+            timestamp=datetime.now(),
+        )
+        mock_orderbook.return_value = mock_orderbook_obj
+        
+        # Mock ticker API response (volume만 사용)
         mock_resp = Mock()
         mock_resp.json.return_value = [{
             "trade_price": 50000000.0,
@@ -54,24 +65,29 @@ class TestRestProviderContract:
         assert ticker.exchange == "upbit"
         assert ticker.symbol == "BTC/KRW"
         assert ticker.bid == 50000000.0
-        assert ticker.last == 50000000.0
+        assert ticker.ask == 50100000.0  # D205-14-5: orderbook에서 가져옴
         assert ticker.volume == 123.45
         assert isinstance(ticker.timestamp, datetime)
+        # D205-14-5: size 필드 검증
+        assert ticker.bid_size == 0.5
+        assert ticker.ask_size == 0.3
     
     @patch('requests.Session.get')
     def test_binance_ticker_contract(self, mock_get):
         """Binance ticker 응답 파싱 contract"""
-        # Mock response
+        # Mock response (D205-14-5: size 필드 추가)
         mock_resp = Mock()
         mock_resp.json.return_value = {
             "bidPrice": "50000.0",
             "askPrice": "50100.0",
+            "bidQty": "0.5",
+            "askQty": "0.3",
         }
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
         
-        # Execute
-        provider = BinanceRestProvider()
+        # Execute (D205-14-6: 테스트는 Spot API 사용)
+        provider = BinanceRestProvider(market_type="spot")
         ticker = provider.get_ticker("BTC/USDT")
         
         # Assert contract
@@ -122,8 +138,8 @@ class TestRestProviderContract:
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
         
-        # Execute
-        provider = BinanceRestProvider()
+        # Execute (D205-14-6: 테스트는 Spot API 사용)
+        provider = BinanceRestProvider(market_type="spot")
         orderbook = provider.get_orderbook("BTC/USDT", depth=2)
         
         # Assert contract
@@ -182,8 +198,8 @@ class TestRestProviderContract:
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
         
-        # Execute
-        provider = BinanceRestProvider()
+        # Execute (D205-14-6: 테스트는 Spot API 사용)
+        provider = BinanceRestProvider(market_type="spot")
         trades = provider.get_trades("BTC/USDT", limit=1)
         
         # Assert contract

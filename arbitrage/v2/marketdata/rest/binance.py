@@ -27,17 +27,28 @@ class BinanceRestProvider(RestProvider):
     """
     Binance REST API Provider
     
-    API 문서: https://binance-docs.github.io/apidocs/spot/en/
+    V2 기본: Futures (USDT-M) API
+    Control-only: Spot API (파이프라인 검증용)
+    
+    API 문서:
+    - Futures: https://binance-docs.github.io/apidocs/futures/en/
+    - Spot: https://binance-docs.github.io/apidocs/spot/en/
     Rate limit: 1200 req/min (= 20 req/s)
     """
     
-    BASE_URL = "https://api.binance.com/api/v3"
-    
-    def __init__(self, timeout: float = 5.0):
+    def __init__(self, market_type: str = "futures", timeout: float = 5.0):
         """
         Args:
+            market_type: "spot" or "futures" (default: "futures")
             timeout: HTTP 요청 타임아웃 (초)
         """
+        if market_type == "futures":
+            self.base_url = "https://fapi.binance.com/fapi/v1"
+        elif market_type == "spot":
+            self.base_url = "https://api.binance.com/api/v3"
+        else:
+            raise ValueError(f"Invalid market_type: {market_type}")
+        
         self.timeout = timeout
         self.session = requests.Session()
     
@@ -55,7 +66,7 @@ class BinanceRestProvider(RestProvider):
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             
-            url = f"{self.BASE_URL}/ticker/bookTicker"
+            url = f"{self.base_url}/ticker/bookTicker"
             params = {"symbol": market}
             
             resp = self.session.get(url, params=params, timeout=self.timeout)
@@ -94,7 +105,7 @@ class BinanceRestProvider(RestProvider):
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             
-            url = f"{self.BASE_URL}/depth"
+            url = f"{self.base_url}/depth"
             params = {"symbol": market, "limit": depth}
             
             resp = self.session.get(url, params=params, timeout=self.timeout)
@@ -145,7 +156,7 @@ class BinanceRestProvider(RestProvider):
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             
-            url = f"{self.BASE_URL}/trades"
+            url = f"{self.base_url}/trades"
             params = {"symbol": market, "limit": min(limit, 1000)}
             
             resp = self.session.get(url, params=params, timeout=self.timeout)
