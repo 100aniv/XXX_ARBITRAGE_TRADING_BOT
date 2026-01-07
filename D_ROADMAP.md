@@ -4508,88 +4508,109 @@ logs/evidence/d205_14_4_top_of_book_<YYYYMMDD_HHMMSS>/
 - Upbit /v1/orderbook 레이트 리밋: ticker보다 엄격 (호출 간격 500ms~1s 권장)
 - Binance /api/v3/ticker/bookTicker Weight: 1 (매우 가벼움, 메인으로 활용)
 
----
-
-#### D205-14-5: Top-of-Book SIZE Recording + AutoTune Diversity REAL Fix
-**상태:** 📋 PLANNED (2026-01-07) - D205-14-4 분석 기반 선등록
-**커밋:** (pending)
-**테스트:** (pending)
-**문서:** (pending)
-**Evidence:** (pending)
-
-**목표:**
-- D205-14-4의 진짜 원인 해결: **Size(유동성) 미기록 → ExecutionQualityModel fallback → 파라미터 튜닝 무력화**
-- MarketTick에 `*_bid_size`, `*_ask_size` 실제 기록 (None 금지)
-- AutoTuner leaderboard에서 **mean_net_edge_bps diversity 실제 달성** (2종 이상)
-- 파라미터가 결과에 실제로 반영되는 증거 생성
-
-**범위 (Do/Don't):**
-- ✅ Do: Upbit orderbook에서 **best bid/ask size** 추출
-- ✅ Do: Binance bookTicker에서 **bidQty/askQty** 추출
-- ✅ Do: Ticker 인터페이스에 size 필드 추가 (옵셔널)
-- ✅ Do: Recorder에서 MarketTick의 `*_bid_size`, `*_ask_size` 채우기
-- ✅ Do: 10분 recording 재실행 → market.ndjson size None 검증
-- ✅ Do: AutoTuner 재실행 → leaderboard diversity 검증
-- ❌ Don't: API 응답 형식 변경 (Upbit/Binance 공식 스펙 유지)
-- ❌ Don't: ExecutionQualityModel 로직 수정 (입력 데이터만)
-- ❌ Don't: 장시간 smoke (1h 이상은 D205-15로 분리)
-
-**Acceptance Criteria:**
-- [ ] AC-1: Upbit/Binance bid/ask size가 None이 아닌 market 데이터 기록 (샘플 5줄 검증)
-- [ ] AC-2: AutoTuner leaderboard Top10에서 mean_net_edge_bps unique >= 2 (실제 diversity)
-- [ ] AC-3: 시장 통계에 cross-exchange edge 분포 포함 (gross_edge_bps + net_edge_bps)
-- [ ] AC-4: Gate 3단 PASS (Doctor/Fast/Regression)
-- [ ] AC-5: Micro-Smoke 1분 PASS (기본 런타임 검증)
-- [ ] AC-6: Evidence 패키징 완료 (gate_results + kpi + manifest + leaderboard + best_params)
-- [ ] AC-7: D_ROADMAP DONE 업데이트
-- [ ] AC-8: Git commit + push
-
-**증거 요구사항 (SSOT):**
-```
-logs/evidence/d205_14_5_top_of_book_size_<YYYYMMDD_HHMMSS>/
-├── market.ndjson              # size None이 없는 1000+ ticks
-├── market_stats.json          # cross-edge 분포 포함
-├── kpi.json                   # recording KPI
-├── manifest.json              # recording manifest
-├── autotune_run/
-│   ├── leaderboard.json       # Top10 mean_net_edge_bps unique >= 2 (Critical)
-│   ├── best_params.json       # 최적 파라미터 (파라미터별 차이 명시)
-│   └── manifest.json          # AutoTuner 메타데이터
-├── gate_results.txt           # Doctor/Fast/Regression 결과
-├── size_validation.txt        # market.ndjson 샘플 5줄 (size 필드 확인)
-└── README.md                  # 재현 명령 + 분석 요약
-```
-
-**PASS 판정 기준 (Fact-based):**
-1. **Size 기록:** market.ndjson 샘플 5줄에서 `upbit_bid_size`, `upbit_ask_size`, `binance_bid_size`, `binance_ask_size` 모두 None이 아님
-2. **Diversity:** leaderboard.json Top10의 `mean_net_edge_bps` unique count >= 2
-3. **파라미터 영향:** best_params.json에서 상위 5개 조합의 metrics가 서로 다름을 수치로 증명
-4. **Gate:** Doctor/Fast/Regression 100% PASS
-5. **Smoke:** Micro-Smoke 1분 정상 종료
-
-**재사용 모듈:**
-- ✅ `arbitrage/v2/marketdata/rest/upbit.py` - Upbit provider (get_orderbook 재사용, get_ticker 수정)
-- ✅ `arbitrage/v2/marketdata/rest/binance.py` - Binance provider (get_ticker 수정)
-- ✅ `arbitrage/v2/replay/schemas.py` - MarketTick schema (필드 이미 존재)
-- ✅ `scripts/run_d205_5_record_replay.py` - Record CLI (size 매핑 추가)
-- ✅ `scripts/run_d205_14_autotune.py` - AutoTuner CLI (재사용)
-- ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep (재사용)
-
-**재사용 비율:** >= 95% (신규: Ticker size 필드 추가 + Recorder 매핑만)
-
-**알려진 제약사항:**
-- Upbit orderbook size는 현재 호가 수량 (체결 가능성의 1차 근사)
-- Binance bookTicker bidQty/askQty도 동일 의미
-- Size 미제공 시 로그 경고 + `size_none_count` 통계 기록 (재발 방지)
-
 **의존성:**
 - Depends on: D205-14-3 (Real Market Data Recording) ✅
 - Unblocks: D205-15 (Other Runners thin wrapper)
 - Unblocks: D206 (Ops & Deploy, 조건부)
 
 **다음 단계 (구현 후):**
+- D205-14-5: Top-of-Book SIZE Recording (size=None → 모델 fallback 해결)
 - D205-15: LiveRunner, ReplayRunner를 Engine 기반 얇은 Wrapper로 전환
 - D206: Ops & Deploy (Grafana/Docker/Runbook, Prerequisites 충족 시)
+
+---
+
+#### D205-14-5: Top-of-Book SIZE Recording + AutoTune Diversity REAL Fix
+**상태:** 📋 PLANNED (2026-01-07) - D_ROADMAP 선등록 완료
+**커밋:** (planned)
+**테스트:** Gate 3단 (Doctor/Fast/Regression) 예정
+**문서:** `logs/evidence/d205_14_5_size_recording_<timestamp>/README.md` 예정
+**Evidence:** `logs/evidence/d205_14_5_size_recording_<timestamp>/` 예정
+
+**목표:**
+- D205-14-4 AC-5 FAIL의 **진짜 원인** 해결: size=None → ExecutionQualityModel fallback → 파라미터 튜닝 무력화
+- Upbit/Binance top-of-book **bid_size/ask_size** 실제 기록
+- AutoTuner leaderboard metrics **진짜 diversity** 달성 (mean_net_edge_bps unique >= 2)
+
+**근본 원인 분석 (GPT + CTO 합의):**
+- D205-14-4 증거 ZIP 직접 분석 결과:
+  - `market.ndjson`에서 `upbit_bid_size`, `upbit_ask_size`, `binance_bid_size`, `binance_ask_size` 모두 **None**
+  - `decisions.ndjson`에서 `break_even_bps`, `exec_cost_bps`가 **상수처럼** 고정
+  - ExecutionQualityModel은 size=None일 때 **fallback_slippage_bps 상수** 리턴
+  - 파라미터(slippage_alpha 등) 튜닝이 결과에 **전혀 반영되지 않음**
+  - 이는 "시장 현실" 문제가 아니라 **데이터 파이프라인 결손**
+
+**범위 (Do/Don't):**
+- ✅ Do: Upbit orderbook에서 **best bid/ask size** 추출 (bids[0].size, asks[0].size)
+- ✅ Do: Binance bookTicker에서 **bidQty/askQty** 추출
+- ✅ Do: Ticker 인터페이스에 **bid_size/ask_size** 필드 추가 (optional)
+- ✅ Do: Recorder에서 MarketTick에 **size None 금지** (오염 방지 가드)
+- ✅ Do: market_stats.json에 **size_none_count** 기록 (품질 모니터링)
+- ✅ Do: AutoTuner leaderboard Top10 mean_net_edge_bps **unique >= 2** 검증
+- ❌ Don't: Engine/sweep.py 로직 수정 (코드는 정상)
+- ❌ Don't: WebSocket 전환 (REST로 충분)
+- ❌ Don't: L2 depth 수집 (top-of-book size만으로 충분)
+
+**Acceptance Criteria:**
+- [ ] AC-1: Upbit REST provider에서 **bid_size/ask_size 기록** (None이 아닌 실제값)
+- [ ] AC-2: Binance REST provider에서 **bid_size/ask_size 기록** (bidQty/askQty 활용)
+- [ ] AC-3: Ticker schema에 **bid_size/ask_size 필드 추가** (optional, backward compatible)
+- [ ] AC-4: Recorder에서 MarketTick에 size 기록 시 **None 검증 가드** 추가
+- [ ] AC-5: 10분 recording 재실행 → market.ndjson 샘플 5줄에서 **size None 0건**
+- [ ] AC-6: market_stats.json에 **size_none_count** 필드 추가 (0 필수)
+- [ ] AC-7: AutoTuner 재실행 (144 combos) → leaderboard.json **mean_net_edge_bps unique >= 2**
+- [ ] AC-8: Gate 3단 PASS (Doctor/Fast/Regression)
+- [ ] AC-9: Evidence 패키징 (manifest.json + kpi.json + leaderboard.json + market_stats.json)
+- [ ] AC-10: D_ROADMAP DONE 업데이트 + Git commit + push
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_14_5_size_recording_<YYYYMMDD_HHMMSS>/
+├── market.ndjson              # 1000+ ticks, size != None (Critical)
+├── market_stats.json          # size_none_count = 0 (Critical)
+├── market_sample_5.txt        # 샘플 5줄 (size 검증용)
+├── kpi.json                   # recording KPI
+├── manifest.json              # recording manifest
+├── autotune_run/
+│   ├── leaderboard.json       # Top10 mean_net_edge_bps unique >= 2 (Critical)
+│   ├── best_params.json       # 최적 파라미터
+│   ├── decisions_sample_3.txt # decisions.ndjson 샘플 3줄 (exec_cost 변화 증명)
+│   └── manifest.json          # AutoTuner 메타데이터
+├── gate_results.txt           # Doctor/Fast/Regression PASS
+└── README.md                  # 재현 명령 + 결과 요약
+```
+
+**PASS 판정 기준 (Fact-based):**
+1. **Size Integrity:** market.ndjson에서 size=None 0건 ✅
+2. **Model Activation:** decisions.ndjson 샘플 3개에서 exec_cost_bps가 **파라미터에 따라 변함** ✅
+3. **Metrics Differentiation:** leaderboard.json Top10의 mean_net_edge_bps **unique >= 2** ✅
+
+**재사용 모듈 (Scan-First 확인됨):**
+- ✅ `arbitrage/v2/replay/schemas.py` - MarketTick (bid_size/ask_size 필드 이미 존재)
+- ✅ `arbitrage/v2/marketdata/rest/upbit.py` - UpbitRestProvider (get_orderbook 재사용)
+- ✅ `arbitrage/v2/marketdata/rest/binance.py` - BinanceRestProvider (bookTicker 재사용)
+- 🔍 `arbitrage/v2/marketdata/types.py` - Ticker 인터페이스 (bid_size/ask_size 추가 예정)
+- ✅ `scripts/run_d205_5_record_replay.py` - Recorder (ticker→tick 매핑 수정)
+- ✅ `scripts/run_d205_14_autotune.py` - AutoTuner (재실행만)
+- ✅ `arbitrage/v2/execution_quality/model_v1.py` - ExecutionQualityModel (size 입력 받으면 fallback 탈출)
+- ✅ `scripts/analyze_market_diversity.py` - Market analyzer (size_none_count 추가)
+
+**재사용 비율 목표:** >= 95% (신규: Ticker size 필드 추가 + recorder 매핑 10줄만)
+
+**알려진 제약사항:**
+- Upbit orderbook size는 **주문 수량(코인 개수)** 단위
+- Binance bookTicker bidQty/askQty는 **base currency** 단위
+- Size가 0이면 호가창에 없다는 의미 (None과 다름, 0도 유효값)
+
+**의존성:**
+- Depends on: D205-14-4 (Top-of-Book Price Recording) ✅
+- Unblocks: D205-15 (Other Runners thin wrapper)
+- Unblocks: D206 (Ops & Deploy, 조건부)
+
+**다음 단계 (구현 후):**
+- D205-15: Multi-Symbol + Long-Smoke (1h+ wallclock) - 운영 준비 전 점검
+- D205-16: Paper-Live Integration Gate (실제 거래소 잔고 연동)
+- D206: Ops & Deploy (Prerequisites 충족 시)
 
 ---
 
