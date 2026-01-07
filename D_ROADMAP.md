@@ -3795,8 +3795,8 @@ Rationale:
 **AC (증거 기반 검증):**
 - [x] **AC-1:** D_ROADMAP.md D205-11 섹션 완전 복구 (목표/범위/AC 전부) ✅ DONE (Line 3506-3673, 21개 AC)
 - [x] **AC-2:** D205-11-1 정식 편입 (상태/문서/증거/테스트 경로 포함) ✅ DONE (Line 3533-3587)
-- ~~[ ] **AC-3:** Redis read/write(ms) 계측 (GET/SET/INCR/DECR)~~ ⏭️ **MOVED to D205-11-2**
-- ~~[ ] **AC-4:** DB write(ms) 계측 (INSERT/UPDATE)~~ ⏭️ **MOVED to D205-11-2**
+- ~~[ ] **AC-3:** Redis read/write(ms) 계측 (GET/SET/INCR/DECR)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / pending / Redis 계측은 D205-11-2에서 구현]
+- ~~[ ] **AC-4:** DB write(ms) 계측 (INSERT/UPDATE)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / pending / DB 계측은 D205-11-2에서 구현]
 - [x] **AC-5:** Gate 3단 PASS (Doctor/Fast/Regression) ✅ PASS (8+8+16 tests)
 - [x] **AC-6:** SSOT Docs Check PASS (check_ssot_docs.py) ✅ PASS (ExitCode=0)
 - [x] **AC-7:** Evidence 패키징 (latency_summary.json 업데이트) ✅ DONE (7개 파일)
@@ -3835,15 +3835,15 @@ Rationale:
 - ❌ Don't: 실제 최적화 수행 (D205-11-3으로 분리), 신규 계측 모듈 생성 (LatencyProfiler 재사용)
 
 **AC (증거 기반 검증):**
-- [x] **AC-1:** LatencyStage enum REDIS_READ/WRITE 추가 ✅
-- [x] **AC-2:** RedisLatencyWrapper 구현 (GET/SET/INCR/MGET/DELETE/HGET/PIPELINE) ✅
+- [x] **AC-1:** LatencyStage enum REDIS_READ/WRITE 추가 ✅ [FROM: D205-11-0 AC-3]
+- [x] **AC-2:** RedisLatencyWrapper 구현 (GET/SET/INCR/MGET/DELETE/HGET/PIPELINE) ✅ [FROM: D205-11-0 AC-3]
 - [x] **AC-3:** BottleneckAnalyzer 구현 (Top 3 병목 선정 + 최적화 권장) ✅
 - [x] **AC-4:** 유닛 테스트 21개 작성 (100% PASS) ✅
 - [x] **AC-5:** Smoke test N=200 (Redis latency 측정 확인) ✅
 - [x] **AC-6:** latency_summary.json, bottleneck_report.json 생성 ✅
 - [x] **AC-7:** Gate Doctor/Fast 100% PASS (37/37 tests) ✅
 - [x] **AC-8:** Evidence 패키징 (bootstrap + smoke) ✅
-- [x] **AC-9:** ~~최적화 후 latency 개선율 > 10%~~ ⏭️ **MOVED to D205-11-3**
+- [x] **AC-9:** ~~최적화 후 latency 개선율 > 10%~~ [MOVED_TO: D205-11-3 / 2026-01-08 / pending / 최적화는 D205-11-3에서 진행]
 
 **Evidence 요구사항:**
 - ✅ manifest.json
@@ -3884,11 +3884,11 @@ Rationale:
 - ❌ Don't: 계측 없는 최적화 (D205-11-1 baseline 기준 필수), 인프라 전면 개편
 
 **AC (증거 기반 검증):**
-- [ ] **AC-1:** RECEIVE_TICK latency p50 <25ms (목표)
-- [ ] **AC-2:** 전체 latency p95 <100ms (목표)
-- [ ] **AC-3:** 최적화 개선율 ≥ 10% (before/after 비교)
-- [ ] **AC-4:** Gate 3단 PASS
-- [ ] **AC-5:** Evidence (optimization_results.json)
+- [ ] **AC-1:** RECEIVE_TICK latency p50 <25ms (목표) [FROM: D205-11-2 AC-9]
+- [ ] **AC-2:** 전체 latency p95 <100ms (목표) [FROM: D205-11-2 AC-9]
+- [ ] **AC-3:** 최적화 개선률 ≥ 10% (before/after 비교) [FROM: D205-11-2 AC-9]
+- [ ] **AC-4:** Gate 3단 PASS [FROM: D205-11-2 AC-9]
+- [ ] **AC-5:** Evidence (optimization_results.json) [FROM: D205-11-2 AC-9]
 
 **Evidence 요구사항:**
 - manifest.json
@@ -4016,9 +4016,9 @@ Rationale:
 - [x] AC-2: EngineState enum 정의 (RUNNING/PAUSED/STOPPED/PANIC) ✅
 - [x] AC-3: AdminControl 훅 통합 (should_process_tick → tick skip) ✅
 - [x] AC-4: AdminControl 훅 통합 (is_symbol_blacklisted → symbol skip) ✅
-- [ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화 (차기 D205-12-2-1)
-- [ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT) (차기 D205-12-2-2)
-- [ ] AC-7: 포트 매핑 표 문서화 (D205-12-2_REPORT.md) (차기 D205-12-2-2)
+- ~~[ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화~~ [MOVED_TO: D205-12-2-1 / 2026-01-08 / pending / PaperRunner 얇은막 전환은 D205-13에서 먼저 진행됨]
+- ~~[ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / pending / ENV 단일화는 별도 인프라 단계로 이월]
+- ~~[ ] AC-7: 포트 매핑 표 문서화 (D205-12-2_REPORT.md)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / pending / 포트 매핑은 ENV 단일화와 함께 진행]
 - [x] AC-8: Doctor/Fast Gate PASS ✅ (Regression은 차기)
 - [x] AC-9: Evidence 패키징 (scan_report, manifest, gate 결과) ✅
 
