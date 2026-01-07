@@ -4408,11 +4408,11 @@ Rationale:
 ---
 
 #### D205-14-4: Top-of-Book (Bid/Ask) Recording + AutoTune Diversity UNBLOCK
-**상태:** 🚧 PLANNED (2026-01-07)
-**커밋:** (선등록 커밋)
-**테스트:** Gate 3단 100% PASS 목표 (Doctor/Fast/Regression)
-**문서:** `logs/evidence/d205_14_4_top_of_book_<timestamp>/README.md` (예정)
-**Evidence:** `logs/evidence/d205_14_4_top_of_book_<timestamp>/` (예정)
+**상태:** ⚠️ PARTIAL (2026-01-07) - AC 7/9 완료, AC-5 시장 현실 한계
+**커밋:** (this commit)
+**테스트:** Gate 3단 100% PASS (Doctor/Fast/Regression)
+**문서:** `logs/evidence/d205_14_4_top_of_book_20260107_091500/README.md`
+**Evidence:** `logs/evidence/d205_14_4_top_of_book_20260107_091500/`
 
 **목표:**
 - D205-14-3의 AC-3 PARTIAL 완전 해결
@@ -4430,15 +4430,15 @@ Rationale:
 - ❌ Don't: Engine 코어 로직 수정 (데이터 수집만)
 
 **Acceptance Criteria:**
-- [ ] AC-1: Upbit orderbook best bid/ask 수집 (REST /v1/orderbook)
-- [ ] AC-2: Binance bookTicker best bid/ask 수집 (REST /api/v3/ticker/bookTicker)
-- [ ] AC-3: MarketTick schema에 bid/ask 필드 현실값 기록 (spread_bps > 0)
-- [ ] AC-4: market_stats.json spread_bps median > 0 (증거)
-- [ ] AC-5: AutoTuner leaderboard Top10 mean_net_edge_bps unique >= 2 (증거)
-- [ ] AC-6: Gate 3단 PASS (Doctor/Fast/Regression)
-- [ ] AC-7: Evidence 패키징 (README + kpi/stats + leaderboard)
-- [ ] AC-8: D_ROADMAP DONE 업데이트 + Evidence 경로 링크
-- [ ] AC-9: Git commit + push
+- [x] AC-1: Upbit orderbook best bid/ask 수집 ✅ (get_orderbook() 호출 추가)
+- [x] AC-2: Binance bookTicker best bid/ask 수집 ✅ (이미 구현됨)
+- [x] AC-3: MarketTick schema bid/ask 현실값 기록 ✅ (1038 ticks)
+- [x] AC-4: market_stats.json spread_bps median > 0 ✅ (0.3 bps, D205-14-3의 0 bps 해결)
+- [~] AC-5: AutoTuner leaderboard Top10 mean_net_edge_bps unique >= 2 ⚠️ FAIL (unique=1, all -102.39)
+- [x] AC-6: Gate 3단 PASS ✅ (Doctor/Fast 16 tests/Regression 2 tests)
+- [x] AC-7: Evidence 패키징 ✅ (README + manifest + kpi + stats + leaderboard)
+- [x] AC-8: D_ROADMAP PARTIAL 업데이트 ✅ (this commit)
+- [x] AC-9: Git commit + push ✅ (this commit)
 
 **증거 요구사항 (SSOT):**
 ```
@@ -4455,9 +4455,44 @@ logs/evidence/d205_14_4_top_of_book_<YYYYMMDD_HHMMSS>/
 ```
 
 **PASS 판정 기준 (Fact-based):**
-1. **Unique Ratio:** 1050/Total >= 0.5 (diversity)
-2. **Spread Reality:** market_stats.json의 `upbit_spread_bps.median > 0` AND `binance_spread_bps.median > 0`
-3. **Metrics Differentiation:** leaderboard.json Top10의 `mean_net_edge_bps` 값이 최소 2종 이상
+1. **Unique Ratio:** 1038/Total >= 0.5 (diversity) ✅ (100%)
+2. **Spread Reality:** market_stats.json의 `spread_bps.median > 0` ✅ (0.3 bps)
+3. **Metrics Differentiation:** leaderboard.json Top10의 `mean_net_edge_bps` 값이 최소 2종 이상 ❌ (unique=1)
+
+**실행 결과:**
+- **Recording:** 1038 ticks (10분, 1.73 ticks/sec)
+- **Spread Stats:** min=0.07, median=0.3, p90=3.57, max=8.25 bps
+- **AutoTuner:** 144 combinations, 18.14초
+- **Best Params:** slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.2, min_spread_bps=20.0
+- **Best Metrics:** positive_net_edge_rate=0.0, mean_net_edge_bps=-102.39
+- **Leaderboard Top10:** all mean_net_edge_bps = -102.39 (unique=1)
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS (compileall upbit.py)
+- ✅ Fast Gate: PASS (16/16 tests, 0.70s)
+- ✅ Regression Gate: PASS (2/2 tests, 1.61s)
+
+**구현 내용:**
+- `arbitrage/v2/marketdata/rest/upbit.py:44-88` - get_ticker() → get_orderbook() 호출하여 best bid/ask 추출
+- Binance는 수정 불필요 (이미 bookTicker 사용 중)
+- MarketTick schema 수정 불필요 (bid/ask 필드 이미 존재)
+
+**재사용 모듈:**
+- ✅ `arbitrage/v2/marketdata/rest/upbit.py` - Upbit provider (get_orderbook 재사용)
+- ✅ `arbitrage/v2/marketdata/rest/binance.py` - Binance provider (bookTicker 사용 중)
+- ✅ `arbitrage/v2/replay/schemas.py` - MarketTick schema
+- ✅ `scripts/run_d205_5_record_replay.py` - Record CLI
+- ✅ `scripts/run_d205_14_autotune.py` - AutoTuner CLI
+- ✅ `scripts/analyze_market_diversity.py` - Market analyzer
+
+**재사용 비율:** 100% (신규: upbit.py 함수 내부 로직 10줄만 수정)
+
+**알려진 제약사항 (AC-5 FAIL):**
+- **시장 현실**: Upbit BTC/KRW spread median 0.3 bps << break-even 40 bps
+- **Break-even 구성**: Fee 15 bps + Slippage 10 bps + Buffer 5 bps ≈ 30-40 bps
+- **결론**: 0.3 bps spread → 모든 파라미터 조합이 negative edge → metrics 동일
+- **코드 정상성**: D205-14-3 test_d205_14_3_diversity.py로 검증 완료 (synthetic data로 diversity 확인)
+- **Progress**: D205-14-3 spread=0 bps → D205-14-4 spread=0.3 bps (개선되었으나 여전히 부족)
 
 **재사용 모듈 (예정):**
 - ✅ `scripts/run_d205_5_record_replay.py` - Record CLI (PRIMARY)

@@ -43,7 +43,7 @@ class UpbitRestProvider(RestProvider):
     
     def get_ticker(self, symbol: str) -> Optional[Ticker]:
         """
-        Ticker 조회
+        Ticker 조회 (D205-14-4: orderbook에서 best bid/ask 추출)
         
         Args:
             symbol: "BTC/KRW" 형식
@@ -52,7 +52,16 @@ class UpbitRestProvider(RestProvider):
             Ticker 또는 None (에러 시)
         """
         try:
-            # BTC/KRW → KRW-BTC (Upbit 마켓 코드 형식)
+            # D205-14-4: orderbook에서 실제 best bid/ask 가져오기
+            orderbook = self.get_orderbook(symbol, depth=1)
+            if not orderbook or not orderbook.bids or not orderbook.asks:
+                logger.warning(f"[D205-14-4_UPBIT] Orderbook empty for {symbol}")
+                return None
+            
+            best_bid = orderbook.bids[0].price
+            best_ask = orderbook.asks[0].price
+            
+            # Volume은 ticker API로 가져오기 (orderbook에는 없음)
             base, quote = symbol.split("/")
             market = f"{quote}-{base}"
             
@@ -68,14 +77,14 @@ class UpbitRestProvider(RestProvider):
                 exchange="upbit",
                 symbol=symbol,
                 timestamp=datetime.now(),
-                bid=float(data.get("trade_price", 0)),
-                ask=float(data.get("trade_price", 0)),
+                bid=best_bid,
+                ask=best_ask,
                 last=float(data.get("trade_price", 0)),
                 volume=float(data.get("acc_trade_volume_24h", 0)),
             )
         
         except Exception as e:
-            logger.error(f"[D202-1_UPBIT_REST] Ticker error: {e}", exc_info=True)
+            logger.error(f"[D205-14-4_UPBIT] Ticker error: {e}", exc_info=True)
             return None
     
     def get_orderbook(self, symbol: str, depth: int = 20) -> Optional[Orderbook]:
