@@ -4738,11 +4738,11 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 ---
 
 #### D205-15: Multi-Symbol Profit Candidate Scan (Upbit Spot × Binance Futures)
-**상태:** ⏳ IN PROGRESS (2026-01-07 20:37)
-**커밋:** (실행 중)
-**테스트:** Gate 3단 (Doctor/Fast/Regression)
-**문서:** `logs/evidence/d205_15_bootstrap_20260107_203700/`
-**Evidence:** (실행 후 업데이트)
+**상태:** 🔨 IMPLEMENTATION COMPLETE (2026-01-07 22:30)
+**커밋:** (Step 8 후 업데이트)
+**테스트:** Gate 3단 PASS (Doctor: 2875 collected, Fast: 516 passed, Regression: 61 passed)
+**문서:** `logs/evidence/d205_15_bootstrap_20260107_213400/`
+**Evidence:** Bootstrap 완료, Evidence Run은 커밋 후 별도 실행
 
 **목표:**
 - **전략 전환**: "파이프라인 수리" → "돈 되는 후보 탐색"
@@ -4780,7 +4780,7 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 - [ ] AC-5: TopK별 AutoTune leaderboard 생성 (Futures data 기반)
 - [ ] AC-6: 최소 1개 심볼에서 mean_net_edge_bps unique >= 2 달성
 - [ ] AC-7: cost_breakdown.json (수수료/슬리피지/환산 분해)
-- [ ] AC-8: Gate 3단 PASS (Doctor/Fast/Regression)
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-07 22:25
 - [ ] AC-9: Evidence 패키징 (manifest/scan_summary/leaderboard/README)
 - [ ] AC-10: D_ROADMAP 업데이트 + Git commit + push
 

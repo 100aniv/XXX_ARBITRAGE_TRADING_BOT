@@ -34,6 +34,11 @@ class BinanceRestProvider(RestProvider):
     - Futures: https://binance-docs.github.io/apidocs/futures/en/
     - Spot: https://binance-docs.github.io/apidocs/spot/en/
     Rate limit: 1200 req/min (= 20 req/s)
+    
+    네이밍 규칙 (D205-15):
+    - 프로젝트 시즌: v1/v2 (예: arbitrage/v2/, V2 기본)
+    - Binance API Release Channel: R1/R3 (예: /fapi/v1=R1, /api/v3=R3)
+    - 혼동 방지: "V2"는 우리 프로젝트 시즌, "R1/R3"는 Binance API 버전
     """
     
     def __init__(self, market_type: str = "futures", timeout: float = 5.0):
