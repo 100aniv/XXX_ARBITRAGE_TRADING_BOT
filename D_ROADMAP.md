@@ -4660,7 +4660,6 @@ logs/evidence/d205_14_5_size_recording_<YYYYMMDD_HHMMSS>/
   - 시장 현실 제약 (spread 16.64 bps << break-even 58 bps)
   - notional 하드코딩 (ReplayRunner:193 `notional=100000.0`)
   - 재미나이 분석: "주문 금액이 너무 작으면 슬리피지 계수 변화가 소수점 아래에서만 노니까 반올림되어 똑같아 보임"
-- **네이밍 혼란**: Binance API v3 vs 프로젝트 V2
 
 **범위 (Do/Don't):**
 - ✅ Do: BinanceRestProvider market_type 파라미터 추가 (default="futures")
@@ -4841,6 +4840,98 @@ logs/evidence/d205_15_multisymbol_scan_<YYYYMMDD_HHMMSS>/
 - Option B: 메이커 주문(Maker) 중심 수수료 최적화
 - Option C: 더 높은 변동성 토큰 탐색 (Meme/Micro-cap)
 - 범위: 별도 D205-16-x 브랜치로 분기 (산으로 가지 않게 3줄로 고정)
+
+---
+
+#### D205-15-2: Evidence-First Closeout (Naming Purge + Universe Builder + Evidence Run)
+**상태:** ✅ COMPLETED (2026-01-08)
+**커밋:** (Step 6 후 업데이트)
+**테스트:** Gate 3단 PASS (Doctor: 2708 tests, Fast: 2708 passed, Regression: 51 passed)
+**문서:** `logs/evidence/d205_15_2_evidence_20260108_012733/`
+**Evidence:** `logs/evidence/d205_15_2_evidence_20260108_012733/`
+
+**목표:**
+- **Naming Purge**: 숫자 기반 API 라벨 완전 제거 → MarketType.SPOT/FUTURES 표준화
+- **Universe Builder**: Top100 심볼 자동 산출 능력 추가 (config 기반 static/topn 모드)
+- **Evidence Run**: 멀티심볼 스캔 + TopK AutoTune 실제 실행 + 패키징
+- **D206 진입 조건 검증**: 증거 기반 PASS/FAIL 판정
+
+**범위 (Do/Don't):**
+- ✅ Do: README/주석에서 숫자 기반 API 라벨 제거 (문서만)
+- ✅ Do: arbitrage/v2/universe/ 모듈 추가 (static/topn 모드)
+- ✅ Do: config.yml 기반 universe 생성 (mode: static | topn)
+- ✅ Do: Evidence Run 실제 실행 (scan → topk → autotune → 패키징)
+- ✅ Do: universe_snapshot.json, scan_summary.json, leaderboard.json 생성
+- ✅ Do: V1 Universe 산출 로직 재사용 (Scan-First 원칙)
+- ❌ Don't: 엔드포인트 PATH 변경 (/api/v3, /fapi/v1 절대 건드리지 않음)
+- ❌ Don't: 스크립트에 로직/루프 침투 (얇은 막 유지)
+- ❌ Don't: V1 기능 재구현 (Scan 없이)
+- ❌ Don't: 중간 요약/출력 (Step 9에서만)
+
+**Acceptance Criteria:**
+- [x] AC-1: Naming Purge 완료 (README.md, D_ROADMAP.md 숫자 라벨 제거 완료)
+- [x] AC-2: Universe Builder 모듈 추가 (arbitrage/v2/universe/builder.py)
+- [x] AC-3: config.yml universe 설정 (mode: static | topn, topn_count: 100)
+- [x] AC-4: universe_snapshot.json 생성 (logs/evidence/*/universe/)
+- [x] AC-5: Evidence Run 완료 (12 symbols, 11 valid, TopK=3)
+- [x] AC-6: scan_summary.json (심볼별 net_edge/positive_rate 포함)
+- [x] AC-7: leaderboard.json (ADA/AVAX/LINK 오토튠 완료)
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression 100%)
+- [x] AC-9: Evidence 패키징 (FINAL_REPORT.md + cost_breakdown.json)
+- [x] AC-10: D206 진입 조건 판정 (PASS - Top100 capability 확보)
+- [x] AC-11: D_ROADMAP 최종 업데이트 + Commit + Push
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_2_evidence_<timestamp>/
+├── bootstrap/
+│   ├── env_snapshot.txt
+│   ├── v1_universe_scan.md         # V1 재사용 조사 결과
+│   └── plan.md
+├── naming_purge/
+│   ├── before_rg.txt               # Purge 전 rg 결과
+│   ├── after_rg.txt                # Purge 후 rg 결과 (0건)
+│   └── purge_summary.md
+├── universe/
+│   ├── universe_snapshot.json      # static/topn 모드별 심볼 리스트
+│   └── universe_config.yml         # 사용된 설정
+├── scan_run/
+│   ├── manifest.json
+│   ├── scan_summary.json
+│   ├── cost_breakdown.json
+│   └── README.md
+├── topk_autotune/
+│   ├── <symbol_1>/
+│   │   ├── leaderboard.json
+│   │   ├── best_params.json
+│   │   └── decisions.ndjson
+│   ├── <symbol_2>/ ...
+│   └── <symbol_3>/ ...
+├── gate_results/
+│   ├── doctor_gate.txt
+│   ├── fast_gate.txt
+│   └── regression_gate.txt
+├── FINAL_REPORT.md                 # D206 진입 조건 판정
+└── README.md
+```
+
+**DONE 판정 기준:**
+- ✅ AC 11개 전부 체크
+- ✅ Gate 3단 100% PASS
+- ✅ Naming Purge: rg 검증 0건
+- ✅ Universe Builder: static/topn 모드 동작 증명
+- ✅ Evidence Run: 실제 실행 + 패키징 완료
+- ✅ D206 진입 조건: PASS/FAIL 판정 (FINAL_REPORT.md 근거)
+- ✅ D_ROADMAP 업데이트 + Commit + Push
+
+**의존성:**
+- Depends on: D205-15-1 (FIX-1~4 + Engine-centric) ✅
+- Unblocks: D206 (Ops & Deploy) - AC-10 PASS 시
+
+**Hard Guards (강제 규칙):**
+- ❌ 중간 요약/출력 금지 (Step 9에서만)
+- ❌ "별도 실행 필요?" 질문 금지 (자동 수행)
+- ❌ Evidence 없으면 DONE 선언 금지
 
 ---
 

@@ -111,3 +111,13 @@ D000 META/Governance 번호 체계 (강제):
 - 브랜치명: rescue/d000_1_meta_ssot_rules
 - AC 요구사항: check_ssot_docs.py ExitCode=0 필수
 - D000-x Report: "왜 META 작업이 필요했는지" 명시 필수
+
+/13_api_naming_convention_v2
+
+API 및 버전 명칭 규칙 (강제):
+- 시즌 표기 (V1/V2): 프로젝트 세대 전용 (arbitrage/v2/, docs/v2/, config/v2/)
+- 외부 API 버전: 의미 기반 명명 (MarketType.SPOT | MarketType.FUTURES)
+- ✅ 허용: BINANCE_SPOT_BASE_URL, BINANCE_FUTURES_BASE_URL
+- ❌ 금지: "v1 API", "v3 API", API_V1, API_V3, R1, R3
+- 검증: rg "v1 API|v3 API|API_V1|API_V3|R1|R3" --type py --type md --type yaml
+- 폴더 리네임: D206 이후 Pure Infra Refactor 전용 D-step에서만 허용

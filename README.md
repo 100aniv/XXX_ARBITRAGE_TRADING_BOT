@@ -17,10 +17,11 @@
 - **Gate 검증**: doctor/fast/regression 100% PASS 필수
 - **인프라 재사용**: Docker/PostgreSQL/Redis/Prometheus/Grafana 즉시 활용
 
-### 네이밍 규칙 (D205-15)
-- **프로젝트 시즌**: v1/v2 (예: `arbitrage/v1/`, `arbitrage/v2/`, "V2 Engine-Centric")
-- **Binance API Release Channel**: R1/R3 (예: `/fapi/v1`=R1, `/api/v3`=R3)
-- **구분 목적**: "V2"는 우리 프로젝트 시즌, "R1/R3"는 Binance 거래소 API 버전
+### 네이밍 규칙 (D205-15-2)
+- **프로젝트 시즌**: V1/V2 (예: `arbitrage/v2/`, `docs/v2/`, "V2 Engine-Centric")
+- **거래 시장 타입**: MarketType.SPOT / MarketType.FUTURES
+- **구분 목적**: "V1/V2"는 프로젝트 세대, "SPOT/FUTURES"는 거래 시장 구분
+- **URL 경로**: `/api/v3` (Spot), `/fapi/v1` (Futures)은 구현 디테일로만 취급
 
 ---
 

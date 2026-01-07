@@ -51,21 +51,40 @@ exchanges:
       orders_per_second: 10
       requests_per_second: 50
 
-# Universe (거래 대상)
+# Universe (거래 대상) - D205-15-2
 universe:
-  # Top N 심볼 선택 (거래량 기준)
+  # Mode: "static" | "topn"
+  mode: "static"  # D205-15-2: static (고정 리스트) or topn (동적 Top N)
+  
+  # TopN 설정 (mode="topn"일 때만 사용)
+  topn_count: 100
+  data_source: "mock"  # "mock" | "real"
+  cache_ttl_seconds: 600
+  min_volume_usd: 1000000.0
+  min_liquidity_usd: 50000.0
+  max_spread_bps: 50.0
+  
+  # Static 심볼 리스트 (mode="static"일 때만 사용)
+  static_symbols:
+    - ["BTC/KRW", "BTC/USDT"]
+    - ["ETH/KRW", "ETH/USDT"]
+    - ["XRP/KRW", "XRP/USDT"]
+    - ["SOL/KRW", "SOL/USDT"]
+    - ["DOGE/KRW", "DOGE/USDT"]
+    - ["ADA/KRW", "ADA/USDT"]
+    - ["AVAX/KRW", "AVAX/USDT"]
+    - ["DOT/KRW", "DOT/USDT"]
+    - ["MATIC/KRW", "MATIC/USDT"]
+    - ["LINK/KRW", "LINK/USDT"]
+    - ["ATOM/KRW", "ATOM/USDT"]
+    - ["ETC/KRW", "ETC/USDT"]
+  
+  # Legacy (Deprecated, use universe.mode instead)
   symbols_top_n: 10
-  
-  # Allowlist (명시적 허용, 비어있으면 Top N 사용)
   allowlist: []
-  # 예시:
-  # - "BTC/KRW"
-  # - "ETH/KRW"
-  
-  # Denylist (명시적 차단)
   denylist:
-    - "DOGE/KRW"  # 변동성 과다
-    - "SHIB/KRW"  # 유동성 부족
+    - "DOGE/KRW"
+    - "SHIB/KRW"
 
 # Strategy (전략 파라미터)
 strategy:

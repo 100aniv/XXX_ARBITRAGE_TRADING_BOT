@@ -200,8 +200,9 @@ def create_scan_config_from_v2_config(config, fx_krw_per_usdt: float) -> ScanCon
     Returns:
         ScanConfig
     """
-    upbit_fee_bps = config.exchanges.get('upbit', {}).get('taker_fee_bps', 5.0)
-    binance_fee_bps = config.exchanges.get('binance', {}).get('taker_fee_bps', 4.0)
+    # V2Config.exchanges는 dict[str, ExchangeConfig]
+    upbit_fee_bps = config.exchanges['upbit'].taker_fee_bps if 'upbit' in config.exchanges else 5.0
+    binance_fee_bps = config.exchanges['binance'].taker_fee_bps if 'binance' in config.exchanges else 4.0
     slippage_bps = config.strategy.threshold.slippage_bps
     buffer_bps = config.strategy.threshold.buffer_bps
     

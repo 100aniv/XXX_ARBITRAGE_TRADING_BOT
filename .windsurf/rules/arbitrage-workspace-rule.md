@@ -259,3 +259,13 @@ trigger: always_on
 - ✅ 실패 시 오염 방지 (Rollback 원칙)
 
 ---
+### API 명칭 규칙 원칙 (신규 - Section L)
+- ✅ 시즌 표기 (V1/V2): 프로젝트 세대 전용 (arbitrage/v2/, docs/v2/, config/v2/)
+- ✅ 외부 API 버전: 의미 기반 명명 (MarketType.SPOT | MarketType.FUTURES)
+- ✅ 허용: BINANCE_SPOT_BASE_URL, BINANCE_FUTURES_BASE_URL
+- ❌ 금지: "v1 API", "v3 API", API_V1, API_V3, R1, R3
+- ✅ 검증: rg "v1 API|v3 API|API_V1|API_V3|R1|R3" --type py --type md --type yaml
+- ✅ 폴더 리네임: D206 이후 Pure Infra Refactor 전용 D-step에서만 허용
+- ✅ URL 경로 (/api/v3, /fapi/v1)는 구현 디테일로만 취급 (외부 노출 금지)
+
+---
