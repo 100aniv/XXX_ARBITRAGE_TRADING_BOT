@@ -4407,6 +4407,83 @@ Rationale:
 
 ---
 
+#### D205-14-4: Top-of-Book (Bid/Ask) Recording + AutoTune Diversity UNBLOCK
+**상태:** 🚧 PLANNED (2026-01-07)
+**커밋:** (선등록 커밋)
+**테스트:** Gate 3단 100% PASS 목표 (Doctor/Fast/Regression)
+**문서:** `logs/evidence/d205_14_4_top_of_book_<timestamp>/README.md` (예정)
+**Evidence:** `logs/evidence/d205_14_4_top_of_book_<timestamp>/` (예정)
+
+**목표:**
+- D205-14-3의 AC-3 PARTIAL 완전 해결
+- REST ticker 대신 **top-of-book bid/ask** 실제 수집
+- AutoTuner leaderboard metrics diversity 2종 이상 달성 (spread > 0 bps 확보)
+
+**범위 (Do/Don't):**
+- ✅ Do: Upbit orderbook (/v1/orderbook) best bid/ask 수집
+- ✅ Do: Binance bookTicker (/api/v3/ticker/bookTicker) best bid/ask 수집
+- ✅ Do: MarketTick에 bid/ask 실제 값 기록 (0이 아닌 현실값)
+- ✅ Do: market_stats.json에서 spread_bps > 0 확인
+- ✅ Do: AutoTuner leaderboard Top10 mean_net_edge_bps 2종 이상 검증
+- ❌ Don't: WebSocket 전환 (REST로 충분하면 최소 구현)
+- ❌ Don't: sweep.py 로직 수정 (코드는 정상)
+- ❌ Don't: Engine 코어 로직 수정 (데이터 수집만)
+
+**Acceptance Criteria:**
+- [ ] AC-1: Upbit orderbook best bid/ask 수집 (REST /v1/orderbook)
+- [ ] AC-2: Binance bookTicker best bid/ask 수집 (REST /api/v3/ticker/bookTicker)
+- [ ] AC-3: MarketTick schema에 bid/ask 필드 현실값 기록 (spread_bps > 0)
+- [ ] AC-4: market_stats.json spread_bps median > 0 (증거)
+- [ ] AC-5: AutoTuner leaderboard Top10 mean_net_edge_bps unique >= 2 (증거)
+- [ ] AC-6: Gate 3단 PASS (Doctor/Fast/Regression)
+- [ ] AC-7: Evidence 패키징 (README + kpi/stats + leaderboard)
+- [ ] AC-8: D_ROADMAP DONE 업데이트 + Evidence 경로 링크
+- [ ] AC-9: Git commit + push
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_14_4_top_of_book_<YYYYMMDD_HHMMSS>/
+├── market.ndjson              # 1000+ ticks with real bid/ask
+├── market_stats.json          # spread_bps median > 0 (Critical)
+├── kpi.json                   # recording KPI
+├── manifest.json              # recording manifest
+├── autotune_run/
+│   ├── leaderboard.json       # Top10 mean_net_edge_bps unique >= 2 (Critical)
+│   ├── best_params.json       # 최적 파라미터
+│   └── manifest.json          # AutoTuner 메타데이터
+└── README.md                  # 재현 명령 + 결과 요약
+```
+
+**PASS 판정 기준 (Fact-based):**
+1. **Unique Ratio:** 1050/Total >= 0.5 (diversity)
+2. **Spread Reality:** market_stats.json의 `upbit_spread_bps.median > 0` AND `binance_spread_bps.median > 0`
+3. **Metrics Differentiation:** leaderboard.json Top10의 `mean_net_edge_bps` 값이 최소 2종 이상
+
+**재사용 모듈 (예정):**
+- ✅ `scripts/run_d205_5_record_replay.py` - Record CLI (PRIMARY)
+- ✅ `scripts/run_d205_14_autotune.py` - AutoTuner CLI
+- ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep
+- ✅ `arbitrage/v2/replay/replay_runner.py` - Replay Runner
+- 🔍 `arbitrage/v2/marketdata/rest/upbit.py` - Upbit provider (orderbook 추가 예정)
+- 🔍 `arbitrage/v2/marketdata/rest/binance.py` - Binance provider (bookTicker 추가 예정)
+
+**재사용 비율 목표:** >= 90% (신규: bid/ask 수집 로직만)
+
+**알려진 제약사항:**
+- Upbit /v1/orderbook 레이트 리밋: ticker보다 엄격 (호출 간격 500ms~1s 권장)
+- Binance /api/v3/ticker/bookTicker Weight: 1 (매우 가벼움, 메인으로 활용)
+
+**의존성:**
+- Depends on: D205-14-3 (Real Market Data Recording) ✅
+- Unblocks: D205-15 (Other Runners thin wrapper)
+- Unblocks: D206 (Ops & Deploy, 조건부)
+
+**다음 단계 (구현 후):**
+- D205-15: LiveRunner, ReplayRunner를 Engine 기반 얇은 Wrapper로 전환
+- D206: Ops & Deploy (Grafana/Docker/Runbook, Prerequisites 충족 시)
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**
