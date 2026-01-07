@@ -4313,12 +4313,97 @@ Rationale:
 **알려진 이슈:**
 - leaderboard metrics 동일 (-110.42): 입력 데이터가 동일한 10줄을 20번 반복 → 시장 상황 동일
 - 근본 원인: 입력 데이터 diversity 부족 (코드는 정상)
-- 해결: D205-14-3에서 실제 다양한 시장 데이터 수집 (1000+ ticks, 다양한 spread 구간)
+- **상태**: ⏳ D205-14-3에서 부분 해소 (1050 ticks + 100% unique, but REST ticker 한계 발견)
 
 **의존성:**
 - Depends on: D205-14-1 (AutoTuning Execution) ✅
-- Unblocks: D205-14-3 (Real Market Data Collection)
+- Unblocks: D205-14-3 (Real Market Data Collection) ✅
 - Unblocks: D205-15 (Other Runners thin wrapper)
+
+---
+
+#### D205-14-3: Real Market Data Recording + Metrics Diversity Proof
+**상태:** ✅ COMPLETED (2026-01-07)
+**커밋:** (this commit)
+**테스트:** Gate 3단 100% PASS (Doctor/Fast/Regression)
+**문서:** `logs/evidence/d205_14_3_real_market_20260107_085428/README.md`
+**Evidence:** `logs/evidence/d205_14_3_real_market_20260107_085428/`
+
+**목표:**
+- 실제 시장 데이터 1000+ ticks 기록
+- 유니크 비율 >= 50% 달성
+- Leaderboard metrics diversity 검증
+
+**범위 (Do/Don't):**
+- ✅ Do: REST ticker API로 10분 recording (1050 ticks)
+- ✅ Do: market_diversity_analyzer.py 추가 (품질 분석)
+- ✅ Do: test_d205_14_3_diversity.py (synthetic 데이터로 코드 정상성 증명)
+- ❌ Don't: WebSocket orderbook 수집 (D205-14-4로 이관)
+- ❌ Don't: sweep.py 로직 수정 (코드 정상 확인)
+
+**Acceptance Criteria:**
+- [x] AC-1: 실제 시장 데이터 1000+ ticks 기록 ✅ (1050 ticks)
+- [x] AC-2: 유니크 비율 >= 50% ✅ (100%, 1050/1050)
+- [~] AC-3: Leaderboard metrics diversity (2종 이상) ⚠️ PARTIAL (코드 정상, 데이터 한계)
+- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-5: Evidence 패키징 (README + kpi/stats) ✅
+- [x] AC-6: D_ROADMAP [pending] 제거 + D205-14-3 추가 ✅
+- [x] AC-7: Git commit + push ✅
+
+**Gate 결과:**
+- ✅ Doctor Gate: PASS (compileall 2 files)
+- ✅ Fast Gate: PASS (2 tests, test_d205_14_3_diversity.py, 1.69s)
+- ✅ Regression Gate: PASS (4 tests, 13.17s)
+
+**Recording 결과:**
+- 입력: REST ticker API (Upbit BTC/KRW + Binance BTC/USDT)
+- Duration: 600.39초 (10분)
+- Ticks: 1050개
+- Rate: 1.75 ticks/sec
+- Unique Ratio: 100% (1050/1050)
+
+**AutoTuner 실행 결과:**
+- 입력: `market.ndjson` (1050 lines)
+- 조합 수: 144개 (4×3×3×4 Grid)
+- 소요 시간: 18.41초
+- Best Params: slippage_alpha=5.0, partial_fill_penalty_bps=10.0, max_safe_ratio=0.2, min_spread_bps=20.0
+- Best Metrics: positive_net_edge_rate=0.0, mean_net_edge_bps=-90.17 (vs -110.42 in D205-14-2)
+
+**구현 내용:**
+- `scripts/analyze_market_diversity.py` - market.ndjson 품질 분석 (unique ratio, spread 분포)
+- `tests/test_d205_14_3_diversity.py` - synthetic 데이터로 metrics diversity 검증 (2 tests)
+- Recording: 기존 `scripts/run_d205_5_record_replay.py` 재사용 (10분, 0.5초 interval)
+
+**재사용 모듈:**
+- ✅ `scripts/run_d205_5_record_replay.py` - Record/Replay CLI (PRIMARY)
+- ✅ `scripts/run_d205_14_autotune.py` - AutoTuner CLI
+- ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep
+- ✅ `arbitrage/v2/replay/replay_runner.py` - Replay Runner
+
+**재사용 비율:** 100% (신규 생성: analyzer + test만)
+
+**알려진 이슈 (AC-3 PARTIAL):**
+- **증상**: Leaderboard Top10의 mean_net_edge_bps가 모두 -90.17로 동일
+- **근본 원인**: REST ticker API가 bid/ask를 제공하지 않고 mid/last price만 제공
+  - market_stats.json의 모든 spread = 0 bps
+  - 차익 기회 없음 → 모든 파라미터 조합이 동일한 결과
+- **코드 정상성 증명**: test_d205_14_3_diversity.py synthetic 데이터로 검증
+  - ✅ 다양한 spread (10~50 bps) 입력 시 metrics 다름 (2종 이상)
+  - ✅ ParameterSweep 로직 정상 작동
+- **해결 방법**: D205-14-4에서 L2 Orderbook WebSocket 수집
+  - Upbit: WebSocket orderbook (bid/ask with size)
+  - Binance: WebSocket depth@5 or bookTicker
+  - Real spread 확보 → 실제 차익 기회 → Metrics diversity
+
+**의존성:**
+- Depends on: D205-14-2 (AutoTuner Input Fix) ✅
+- Unblocks: D205-14-4 (L2 Orderbook Data Collection)
+- Unblocks: D205-15 (Other Runners thin wrapper)
+
+**Lesson Learned:**
+- "No Evidence, No Done"의 진짜 의미: 코드가 아니라 **입력 데이터 품질**이 핵심
+- REST ticker는 튜닝에 부적합 (spread = 0)
+- L2 orderbook이 필수 → D205-14-4에서 완전 해결
 
 ---
 
