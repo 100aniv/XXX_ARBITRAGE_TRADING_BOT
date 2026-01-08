@@ -4096,13 +4096,6 @@ Rationale:
 - `tests/test_d205_13_engine_ssot.py` - 증명 테스트 4개 (while 루프 0건, config.mode 로딩, Engine 단일 루프, 콜백 파라미터)
 
 **의존성:**
-- Depends on: D205-12-2 (Engine Unification baseline) ✅
-- Blocks: D205-15 (Other Runners thin wrapper)
-
----
-
-#### D205-13-1: Regression Recovery - D205-12-1 Integration Tests PASS
-**상태:** ✅ COMPLETED (2026-01-06)
 **커밋:** 538a9ac
 **테스트:** Regression Gate 100% PASS (4/4 tests, 13.13s)
 **Evidence:** `logs/evidence/d205_13_1_regression_recovery_20260106_201800/`
@@ -4844,9 +4837,9 @@ logs/evidence/d205_15_multisymbol_scan_<YYYYMMDD_HHMMSS>/
 ---
 
 #### D205-15-2: Evidence-First Closeout (Naming Purge + Universe Builder + Evidence Run)
-**상태:** ✅ COMPLETED (2026-01-08)
-**커밋:** (Step 6 후 업데이트)
-**테스트:** Gate 3단 PASS (Doctor: 2708 tests, Fast: 2708 passed, Regression: 51 passed)
+**상태:** ⚠️ PARTIAL (2026-01-08) - 인프라 PASS, 수익성 검증 FAIL (Futures Premium)
+**커밋:** b3fcd8a (AC 현행화), [Step 8 commit]
+**테스트:** Gate 3단 PASS (Doctor/Fast: 2379 passed, 36 skipped)
 **문서:** `logs/evidence/d205_15_2_evidence_20260108_012733/`
 **Evidence:** `logs/evidence/d205_15_2_evidence_20260108_012733/`
 
@@ -4869,17 +4862,17 @@ logs/evidence/d205_15_multisymbol_scan_<YYYYMMDD_HHMMSS>/
 - ❌ Don't: 중간 요약/출력 (Step 9에서만)
 
 **Acceptance Criteria:**
-- [x] AC-1: Naming Purge 완료 (README.md, D_ROADMAP.md 숫자 라벨 제거 완료)
-- [x] AC-2: Universe Builder 모듈 추가 (arbitrage/v2/universe/builder.py)
-- [x] AC-3: config.yml universe 설정 (mode: static | topn, topn_count: 100)
-- [x] AC-4: universe_snapshot.json 생성 (logs/evidence/*/universe/)
-- [x] AC-5: Evidence Run 완료 (12 symbols, 11 valid, TopK=3)
-- [x] AC-6: scan_summary.json (심볼별 net_edge/positive_rate 포함)
-- [x] AC-7: leaderboard.json (ADA/AVAX/LINK 오토튠 완료)
-- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression 100%)
-- [x] AC-9: Evidence 패키징 (FINAL_REPORT.md + cost_breakdown.json)
-- [x] AC-10: D206 진입 조건 판정 (PASS - Top100 capability 확보)
-- [x] AC-11: D_ROADMAP 최종 업데이트 + Commit + Push
+- [x] AC-1: Naming Purge 완료 (README.md, D_ROADMAP.md 숫자 라벨 제거) ✅
+- [x] AC-2: Universe Builder 모듈 추가 (arbitrage/v2/universe/builder.py) ✅
+- [x] AC-3: config.yml universe 설정 (mode: static | topn, topn_count: 100) ✅
+- [~] AC-4: universe_snapshot.json 생성 ⚠️ PARTIAL (null bytes 오염, SNAPSHOT_MANUAL.json으로 대체)
+- [x] AC-5: Evidence Run 완료 (12 symbols, 11 valid, TopK=3) ✅
+- [~] AC-6: scan_summary.json (심볼별 net_edge/positive_rate) ⚠️ PARTIAL (Futures Premium 포함, 실제 수익성 미검증)
+- [x] AC-7: leaderboard.json (ADA/AVAX/LINK 오토튠 완료) ✅
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast 2379 passed) ✅
+- [x] AC-9: Evidence 패키징 (FINAL_REPORT.md + cost_breakdown.json) ✅
+- [~] AC-10: D206 진입 조건 판정 ⚠️ PARTIAL (인프라 PASS, 수익성 검증 D206-1에서 재검증 필수)
+- [x] AC-11: D_ROADMAP 최종 업데이트 + Commit + Push ✅
 
 **증거 요구사항 (SSOT):**
 ```
@@ -4948,6 +4941,15 @@ logs/evidence/d205_15_2_evidence_<timestamp>/
 
 **⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지**
 
+**0. Futures Premium 수익성 검증 (D205-15-2 PARTIAL 해결) 🔥**
+- ❌ Futures Premium (~1060 bps)과 실제 수익성 분리 완료?
+- ❌ Funding Rate API 통합 완료? (Binance `/fapi/v1/fundingRate`)
+- ❌ `funding_adjusted_edge_bps` KPI 정의 및 계산 완료?
+- ❌ 1~2시간 Paper Run으로 펀딩비 변화 관찰 완료?
+- **Reason:** Futures Premium을 "수익"으로 오인하면 실거래 시 손실 발생
+- **Implementation:** `arbitrage/v2/scan/funding_rate.py` (신규 모듈)
+- **Validation:** Paper Run 1~2h → Net Edge가 펀딩비 차감 후에도 양수인지 검증
+
 **1. Real-time FX Integration Check (Critical) 🚨**
 - ❌ Fixed FX 로직이 제거되었는가?
 - ❌ Live config에서 FX API가 연결되지 않으면 부팅이 차단되는가?
@@ -4962,7 +4964,8 @@ logs/evidence/d205_15_2_evidence_<timestamp>/
 - [ ] DLQ/Error alerting
 
 **Gate 조건:**
-- Prerequisites 1~3 전부 충족 전 D206 진입 금지
+- Prerequisites 0~3 전부 충족 전 D206 진입 금지
+- **특히 Prerequisite #0 (Futures Premium)은 D206-1 첫 AC로 강제 검증**
 - **특히 Prerequisite #1 (FX Integration)은 LIVE 진입 시 필수 (Fail Fast)**
 
 ---
