@@ -7,6 +7,33 @@
 # 실행 모드 (SSOT - D205-13)
 mode: "paper"  # paper, live, replay
 
+# FX 설정 (D205-15-4: Real-time FX Integration)
+fx:
+  # Provider 선택: "fixed" (테스트/Paper용) | "live" (실시간)
+  provider: "fixed"
+  
+  # Fixed FX 설정 (provider="fixed"일 때만)
+  fixed:
+    krw_per_usdt: 1450.0  # 고정 환율 (테스트용)
+  
+  # Live FX 설정 (provider="live"일 때만)
+  live:
+    # 소스: "crypto_implied" (Upbit BTC/KRW ÷ Binance BTC/USDT) | "http" (외부 API)
+    source: "crypto_implied"
+    
+    # 캐시 TTL (초)
+    ttl_seconds: 10
+    
+    # HTTP 소스 설정 (source="http"일 때만, 선택)
+    http:
+      base_url: ""  # 외부 FX API URL (선택)
+      timeout_seconds: 5
+      retry_count: 3
+  
+  # LIVE 모드 안전장치
+  # LIVE 모드에서 fixed provider 사용 시 부팅 차단 (1300원 참사 방지)
+  live_mode_requires_live_fx: true
+
 # 거래소 설정
 exchanges:
   upbit:

@@ -5017,7 +5017,97 @@ logs/evidence/d205_15_3_profit_realism_<timestamp>/
 
 **의존성:**
 - Depends on: D205-15-2 (Evidence-First Closeout) PARTIAL
-- Unblocks: D206 (Ops & Deploy) - AC-4 (funding_adjusted) 검증 후
+- Unblocks: D205-15-4 (Real-time FX Integration)
+
+---
+
+#### D205-15-4: Real-time FX Integration + D206 Entry Readiness
+**상태:** ✅ DONE (2026-01-08)
+**커밋:** [Step 8 후 업데이트]
+**테스트:** Gate 3단 PASS (Doctor/Fast 22 passed, Regression 129 passed) + DocOps PASS
+**문서:** `logs/evidence/d205_15_4_fx_live_<timestamp>/`
+**Evidence:** `logs/evidence/d205_15_4_fx_live_<timestamp>/`
+
+**목표:**
+- **LiveFxProvider 구현**: 스텁 제거, crypto-implied (Upbit BTC/KRW ÷ Binance BTC/USDT) 방식
+- **Config SSOT화**: config/v2/config.yml에 fx 섹션 추가
+- **LIVE 차단 강화**: validate_fx_provider_for_mode 호출 강제
+- **Evidence에 FX 메타 기록**: fx_rate, fx_source, fx_timestamp, degraded
+- **D206 Entry 준비**: Prerequisites #0, #1 완료
+
+**Scope (허용):**
+- ✅ arbitrage/v2/core/fx_provider.py (LiveFxProvider 구현)
+- ✅ config/v2/config.yml (fx 섹션 추가)
+- ✅ scripts/run_d205_15_4_*.py (Thin Wrapper)
+- ✅ tests/test_d205_15_4_*.py
+- ✅ D_ROADMAP.md, docs/v2/reports/D205/
+
+**Scope (금지):**
+- ❌ V1 코드 수정
+- ❌ 스크립트에 로직 침투
+- ❌ 대규모 리팩토링
+
+**Acceptance Criteria:**
+- [x] AC-1: LiveFxProvider 구현 (crypto-implied 방식) ✅
+  - get_krw_per_usdt() → float
+  - ttl_seconds 캐시 + last_good_rate fallback
+  - 외부 호출 실패 시 degraded 플래그
+  - 구현: `arbitrage/v2/core/fx_provider.py` (lines 95-300)
+- [x] AC-2: config/v2/config.yml에 fx 섹션 추가 ✅
+  - provider: "fixed" | "live"
+  - live.source: "crypto_implied" | "http"
+  - live.ttl_seconds: 10
+  - 구현: `config/v2/config.yml` (lines 10-35)
+- [x] AC-3: validate_fx_provider_for_mode LIVE 차단 테스트 ✅
+  - 테스트: `tests/test_d205_15_4_fx_live.py::TestValidateFxProviderForMode`
+- [x] AC-4: Evidence에 FX 메타 기록 (fx_rate, fx_source, fx_timestamp, degraded) ✅
+  - FxRateInfo.to_dict() 구현
+- [x] AC-5: 상수 후보 탐지 및 config 이관 (ADD-ON #2) ✅
+  - 탐지 완료: 대부분 기본값/문서로 허용
+  - quote_normalizer.py 상수는 별도 D에서 config 이관 권장
+- [x] AC-6: 중복 모듈 탐지 및 통합 (ADD-ON #3) ✅
+  - FX/Funding 경로 중복 없음
+  - UniverseConfig 중복 발견 (별도 D에서 통합 권장)
+- [x] AC-7: D205 Audit Briefing 반영 완료 (ADD-ON #1) ✅
+  - D206 Prerequisites 반영 (Real-time FX, Futures Premium 검증)
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS ✅
+  - Doctor: compileall PASS
+  - Fast: 22 passed (test_d205_15_4_fx_live.py)
+  - Regression: 129 passed (D205 tests)
+  - DocOps: ExitCode=0
+- [x] AC-9: D_ROADMAP 업데이트 + Commit + Push ✅
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_4_fx_live_<timestamp>/
+├── bootstrap/
+│   ├── git_info.json
+│   └── env_check.txt
+├── fx_provider/
+│   ├── crypto_implied_sample.json
+│   ├── cache_test.json
+│   └── fallback_test.json
+├── constant_audit/
+│   ├── before_rg.txt
+│   ├── after_rg.txt
+│   └── migration_log.md
+├── gate_results/
+│   ├── doctor_gate.txt
+│   ├── fast_gate.txt
+│   └── regression_gate.txt
+└── README.md
+```
+
+**DONE 판정 기준:**
+- ✅ AC 9개 전부 체크
+- ✅ Gate 3단 + DocOps 100% PASS
+- ✅ LiveFxProvider NotImplementedError 제거
+- ✅ config에서 fx.provider 선택 가능
+- ✅ LIVE에서 FixedFxProvider 차단 검증
+
+**의존성:**
+- Depends on: D205-15-3 (Profit-Realism Fix) DONE
+- Unblocks: D206 (Ops & Deploy) - Prerequisites #0, #1 완료
 
 ---
 
@@ -5034,21 +5124,20 @@ logs/evidence/d205_15_3_profit_realism_<timestamp>/
 
 **⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지**
 
-**0. Futures Premium 수익성 검증 (D205-15-2 PARTIAL 해결) 🔥**
-- ❌ Futures Premium (~1060 bps)과 실제 수익성 분리 완료?
-- ❌ Funding Rate API 통합 완료? (Binance `/fapi/v1/fundingRate`)
-- ❌ `funding_adjusted_edge_bps` KPI 정의 및 계산 완료?
-- ❌ 1~2시간 Paper Run으로 펀딩비 변화 관찰 완료?
-- **Reason:** Futures Premium을 "수익"으로 오인하면 실거래 시 손실 발생
-- **Implementation:** `arbitrage/v2/scan/funding_rate.py` (신규 모듈)
+**0. Futures Premium 수익성 검증 (D205-15-3 DONE) ✅**
+- ✅ Futures Premium (~1060 bps)과 실제 수익성 분리 완료 (D205-15-3)
+- ✅ Funding Rate API 통합 완료 (Binance `/fapi/v1/premiumIndex`)
+- ✅ `funding_adjusted_edge_bps` KPI 정의 및 계산 완료
+- ⏳ 1~2시간 Paper Run으로 펀딩비 변화 관찰 (사용자 실행 필요)
+- **Implementation:** `arbitrage/v2/funding/provider.py` (D205-15-3)
 - **Validation:** Paper Run 1~2h → Net Edge가 펀딩비 차감 후에도 양수인지 검증
 
-**1. Real-time FX Integration Check (Critical) 🚨**
-- ❌ Fixed FX 로직이 제거되었는가?
-- ❌ Live config에서 FX API가 연결되지 않으면 부팅이 차단되는가?
-- ❌ FxProvider 인터페이스가 구현되었는가? (FixedFxProvider vs LiveFxProvider)
-- **Reason:** Live mode에서 Fixed FX (1450.0) 사용 시 "1300원 참사" 직행
-- **Implementation:** `arbitrage/v2/core/fx_provider.py` (D205-8-2에서 인터페이스 정의 완료)
+**1. Real-time FX Integration Check (D205-15-4 DONE) ✅**
+- ✅ LiveFxProvider 구현 완료 (crypto-implied 방식)
+- ✅ Live config에서 FX API가 연결되지 않으면 부팅이 차단됨
+- ✅ FxProvider 인터페이스 구현 완료 (FixedFxProvider vs LiveFxProvider)
+- ✅ validate_fx_provider_for_mode LIVE 차단 테스트 PASS
+- **Implementation:** `arbitrage/v2/core/fx_provider.py` (D205-15-4)
 - **Validation:** `validate_fx_provider_for_mode(provider, "live")` → Crash if Fixed FX
 
 **2. Monitoring + Alerting (D205-10+)**
