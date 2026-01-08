@@ -1,9 +1,11 @@
 """
 D205-15: Scan Metrics Calculator
 
-메트릭 계산기 (Fix-3: Config-driven costs)
+메트릭 계산기 (Fix-3: Config-driven costs + D205-15-3: Directional/Executable KPI)
 - Config에서 fee/slippage/fx_conversion 로드
 - FX 정규화된 데이터 기반 spread/edge 계산
+- D205-15-3: Directional/Executable spread 추가 (방향성 반영)
+- D205-15-3: tradeable_rate 추가 (Upbit BUY + Binance SHORT만 tradeable)
 """
 
 import json
@@ -94,6 +96,11 @@ class ScanMetricsCalculator:
         raw_edges = []
         net_edges = []
         
+        # D205-15-3: Directional/Executable KPI 추가
+        executable_spreads = []
+        executable_edges = []
+        tradeable_flags = []
+        
         for tick in ticks:
             # FX가 이미 정규화된 데이터 사용 (둘 다 KRW)
             upbit_mid = (tick["upbit_bid"] + tick["upbit_ask"]) / 2.0
@@ -102,7 +109,7 @@ class ScanMetricsCalculator:
             if upbit_mid <= 0 or binance_mid <= 0:
                 continue
             
-            # Spread 계산 (이미 같은 통화 단위)
+            # 기존: Spread 계산 (abs mid 기반 - diagnostic용으로 유지)
             spread_abs = abs(upbit_mid - binance_mid)
             spread_bps = (spread_abs / upbit_mid) * 10000
             
@@ -113,6 +120,28 @@ class ScanMetricsCalculator:
             spreads.append(spread_bps)
             raw_edges.append(raw_edge_bps)
             net_edges.append(net_edge_bps)
+            
+            # D205-15-3: Directional/Executable spread 계산
+            # 방향성: Upbit BUY @ask + Binance FUTURES SHORT @bid
+            # executable_spread = (binance_bid - upbit_ask) / upbit_ask * 10000
+            upbit_ask = tick["upbit_ask"]
+            binance_bid = tick["binance_bid"]
+            
+            if upbit_ask > 0:
+                executable_spread_bps = ((binance_bid - upbit_ask) / upbit_ask) * 10000
+            else:
+                executable_spread_bps = 0.0
+            
+            # Executable edge (비용 차감)
+            executable_raw_edge_bps = executable_spread_bps - self.total_fee_bps
+            executable_net_edge_bps = executable_raw_edge_bps - self.slippage_bps - self.fx_conversion_bps - self.buffer_bps
+            
+            executable_spreads.append(executable_spread_bps)
+            executable_edges.append(executable_net_edge_bps)
+            
+            # tradeable = executable_net_edge > 0 (실제 수익 가능)
+            is_tradeable = executable_net_edge_bps > 0
+            tradeable_flags.append(is_tradeable)
         
         if not spreads:
             return {
@@ -121,9 +150,25 @@ class ScanMetricsCalculator:
                 "skip_reason": "all_ticks_invalid",
             }
         
-        # Fix-4 지표: positive_rate 계산
+        # Fix-4 지표: positive_rate 계산 (abs mid 기반 - diagnostic)
         positive_count = sum(1 for edge in net_edges if edge > 0)
         positive_rate = positive_count / len(net_edges) if net_edges else 0.0
+        
+        # D205-15-3: tradeable_rate 계산 (Directional/Executable 기반 - 실제 수익성)
+        tradeable_count = sum(tradeable_flags)
+        tradeable_rate = tradeable_count / len(tradeable_flags) if tradeable_flags else 0.0
+        
+        # D205-15-3: Executable KPI 통계
+        exec_stats = {}
+        if executable_edges:
+            exec_stats = {
+                "mean_executable_spread_bps": round(mean(executable_spreads), 4),
+                "mean_executable_edge_bps": round(mean(executable_edges), 4),
+                "median_executable_edge_bps": round(median(executable_edges), 4),
+                "min_executable_edge_bps": round(min(executable_edges), 4),
+                "max_executable_edge_bps": round(max(executable_edges), 4),
+                "std_executable_edge_bps": round(float(np.std(executable_edges)), 4),
+            }
         
         return {
             "symbol": symbol,
@@ -131,15 +176,20 @@ class ScanMetricsCalculator:
             "tick_count": len(ticks),
             "valid_tick_count": len(spreads),
             "metrics": {
+                # 기존 (abs mid 기반 - diagnostic으로 유지)
                 "mean_spread_bps": round(mean(spreads), 4),
                 "median_spread_bps": round(median(spreads), 4),
                 "p90_spread_bps": round(float(np.percentile(spreads, 90)), 4),
                 "mean_raw_edge_bps": round(mean(raw_edges), 4),
-                "mean_net_edge_bps": round(mean(net_edges), 4),  # Fix-4: TopK 선정 기준
+                "mean_net_edge_bps": round(mean(net_edges), 4),  # diagnostic
                 "median_net_edge_bps": round(median(net_edges), 4),
                 "p90_net_edge_bps": round(float(np.percentile(net_edges, 90)), 4),
-                "positive_rate": round(positive_rate, 4),  # Fix-4: TopK 선정 기준
+                "positive_rate": round(positive_rate, 4),  # diagnostic
                 "positive_count": positive_count,
+                # D205-15-3: Directional/Executable KPI (실제 수익성 판단 기준)
+                **exec_stats,
+                "tradeable_rate": round(tradeable_rate, 4),  # 핵심 KPI
+                "tradeable_count": tradeable_count,
             },
             "cost_breakdown": {
                 "upbit_fee_bps": self.upbit_fee_bps,
@@ -150,7 +200,8 @@ class ScanMetricsCalculator:
                 "buffer_bps": self.buffer_bps,
                 "total_cost_bps": self.total_cost_bps,
                 "source": "config/v2/config.yml (SSOT)",
-            }
+            },
+            "kpi_note": "D205-15-3: executable_edge_bps = Directional (Upbit BUY @ask + Binance SHORT @bid)",
         }
     
     def calculate_all_metrics(

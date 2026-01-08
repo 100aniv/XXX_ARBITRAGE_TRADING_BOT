@@ -4928,6 +4928,99 @@ logs/evidence/d205_15_2_evidence_<timestamp>/
 
 ---
 
+#### D205-15-3: Profit-Realism Fix (Directional/Executable KPI + Funding-Adjusted)
+**상태:** ✅ DONE (2026-01-08)
+**커밋:** [Step 8 후 업데이트]
+**테스트:** Gate 3단 PASS (Doctor/Fast 14 passed, Regression 107 passed)
+**문서:** `logs/evidence/d205_15_3_profit_realism_20260108_132233/`
+**Evidence:** `logs/evidence/d205_15_3_profit_realism_20260108_132233/`
+
+**목표:**
+- **KPI 정의 수정**: abs(mid) 기반 → Directional/Executable spread 기반
+- **방향성 반영**: Upbit BUY + Binance FUTURES SELL만 tradeable로 간주
+- **Funding-adjusted KPI**: 펀딩비 차감 후 실제 수익성 산출
+- **Evidence integrity 강화**: atomic write + 즉시 검증
+
+**문제 인식 (D205-15-2 PARTIAL 원인):**
+- 기존 KPI(`mean_net_edge_bps`)가 abs(mid) 기반으로 계산됨
+- 방향성(Upbit spot은 숏 불가) 미반영 → "수익"이 아니라 "프리미엄 관측값"
+- Futures Premium (~1060 bps)이 실제 수익인지 구조적 프리미엄인지 구분 불가
+- Evidence JSON 오염(null bytes) 발생 → 무결성 검증 강화 필요
+
+**범위 (Do/Don't):**
+- ✅ Do: metrics.py에 Directional/Executable spread KPI 추가
+- ✅ Do: Funding Rate 수집 모듈 추가 (`arbitrage/v2/funding/provider.py`)
+- ✅ Do: `funding_adjusted_edge_bps` KPI 계산
+- ✅ Do: `tradeable_rate` (방향성 기반) KPI 추가
+- ✅ Do: evidence_guard.py 강화 (atomic write + fsync)
+- ✅ Do: 10-15분 짧은 Evidence Re-run (분포 검증)
+- ❌ Don't: 1-2h 장시간 Paper Run (사용자 실행으로 분리)
+- ❌ Don't: V1 코드 수정
+- ❌ Don't: 스크립트에 로직 침투
+
+**Acceptance Criteria:**
+- [x] AC-1: Directional/Executable spread KPI 추가 (`executable_spread_bps`) ✅
+  - 공식: `((binance_bid_krw - upbit_ask_krw) / upbit_ask_krw) * 10000`
+  - 방향성: Upbit BUY @ask + Binance SHORT @bid만 tradeable
+  - 구현: `arbitrage/v2/scan/metrics.py` (lines 124-144)
+- [x] AC-2: `tradeable_rate` KPI 추가 (executable > 0인 비율) ✅
+  - 구현: `arbitrage/v2/scan/metrics.py` (lines 157-159, 191-192)
+- [x] AC-3: Funding Rate Provider 모듈 추가 (`arbitrage/v2/funding/provider.py`) ✅
+  - Binance Futures `/fapi/v1/premiumIndex` 활용
+  - 구현: `arbitrage/v2/funding/provider.py` (228 lines)
+- [x] AC-4: `funding_adjusted_edge_bps` KPI 계산 ✅
+  - 공식: `net_edge_bps - funding_component_bps`
+  - `funding_component_bps` = funding_rate * horizon_hours / 8
+  - 구현: `FundingRateProvider.calculate_funding_adjusted_edge()` (lines 175-211)
+- [x] AC-5: evidence_guard.py 강화 (atomic write: temp → fsync → rename) ✅
+  - 구현: `arbitrage/v2/scan/evidence_guard.py` (lines 59-121)
+- [x] AC-6: KPI 비교 Evidence 완료 ✅
+  - `tradeable_rate` = 0.85 (≠ 100%)
+  - Before/After KPI 비교: `logs/evidence/d205_15_3_profit_realism_20260108_132233/kpi_definition/`
+- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+  - Doctor: compileall PASS
+  - Fast: 14 passed (test_d205_15_3_profit_realism.py)
+  - Regression: 107 passed (D205 tests)
+- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push ✅
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_3_profit_realism_<timestamp>/
+├── bootstrap/
+│   ├── READING_CHECKLIST.md
+│   ├── SCAN_REUSE_SUMMARY.md
+│   └── PLAN.md
+├── kpi_definition/
+│   ├── before_kpi.json         # abs(mid) 기반 (기존)
+│   ├── after_kpi.json          # executable 기반 (신규)
+│   └── comparison.md           # Before/After 비교
+├── funding/
+│   ├── funding_rate_sample.json
+│   └── funding_adjusted_kpi.json
+├── scan_run/
+│   ├── scan_summary.json       # executable + funding_adjusted 포함
+│   ├── tradeable_rate.json
+│   └── README.md
+├── gate_results/
+│   ├── doctor_gate.txt
+│   ├── fast_gate.txt
+│   └── regression_gate.txt
+└── README.md
+```
+
+**DONE 판정 기준:**
+- ✅ AC 8개 전부 체크
+- ✅ Gate 3단 100% PASS
+- ✅ `tradeable_rate` ≠ 100% (방향성 반영 증명)
+- ✅ `funding_adjusted_edge_bps` 계산 완료
+- ✅ Evidence 무결성 검증 PASS (JSON 오염 0건)
+
+**의존성:**
+- Depends on: D205-15-2 (Evidence-First Closeout) PARTIAL
+- Unblocks: D206 (Ops & Deploy) - AC-4 (funding_adjusted) 검증 후
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**
