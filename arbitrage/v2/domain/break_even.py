@@ -93,23 +93,25 @@ def compute_break_even_bps(params: BreakEvenParams) -> float:
     """
     Break-even spread (bps) 계산.
     
-    D205-9-2 FIX: 실제 PnL과 일치하도록 round-trip 비용 포함.
+    D205-15-5d FIX: execution_risk 재포함 (정확한 필터링 기준)
+    - break_even = "이 기회가 profitable한지 판단하는 기준"
+    - fill model = "실제 체결가 시뮬레이션"
+    - 둘 다 execution_risk 포함해야 일치함!
     
     포함 항목:
     - entry/exit fee (round-trip)
-    - execution_risk (round-trip): slippage + latency 왕복 영향
+    - execution_risk (round-trip): 실제 fill에서 발생할 비용
     - buffer (safety margin)
     
     Note:
-    - Fill model에서 execution_risk를 가격 왜곡으로 반영하므로,
-      break_even에서 예측하고 filtering해야 이중 적용이 아님.
-    - 핵심: "필터 기준 = 실제 PnL 비용" 일치
+    - 핵심: "필터 기준 = 실제 비용"
+    - execution_risk는 필터와 fill 둘 다 필요 (이중 적용 아님, 일치시킴)
     """
     fee_entry_bps = params.fee_model.total_entry_fee_bps()
     fee_exit_bps = params.fee_model.total_exit_fee_bps()
     execution_risk_round_trip = compute_execution_risk_round_trip(params)
     
-    # D205-9-2 FIX: execution_risk_round_trip 포함
+    # D205-15-5d FIX: execution_risk 재포함
     break_even_bps = (
         fee_entry_bps +
         fee_exit_bps +

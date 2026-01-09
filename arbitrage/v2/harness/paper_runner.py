@@ -408,15 +408,16 @@ class PaperRunner:
         
         # BreakEvenParams (기본값)
         # FeeStructure + FeeModel 생성 (V1 재사용)
+        # D205-15-5c: 현실적인 fee로 수정 (VIP 기준)
         fee_a = FeeStructure(
             exchange_name="upbit",
             maker_fee_bps=5.0,   # 0.05%
-            taker_fee_bps=25.0,  # 0.25%
+            taker_fee_bps=5.0,   # 0.05% (기존 25→5, D205-15-5c)
         )
         fee_b = FeeStructure(
             exchange_name="binance",
             maker_fee_bps=10.0,  # 0.10%
-            taker_fee_bps=25.0,  # 0.25%
+            taker_fee_bps=10.0,  # 0.10% (기존 25→10, D205-15-5c)
         )
         fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
         

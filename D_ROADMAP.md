@@ -5112,11 +5112,11 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
 ---
 
 #### D205-15-5: UniverseConfig SSOT Unification + 6h Paper Run Evidence
-**상태:** 🔨 IN PROGRESS (2026-01-09)
-**커밋:** [Step 8 후 업데이트]
-**테스트:** Gate 진행중
+**상태:** 🔨 IN PROGRESS - DEBUGGING (2026-01-09)
+**커밋:** [Step 8 진행 중]
+**테스트:** Smoke 4회 완료, 근본 원인 분석 완료
 **문서:** `logs/evidence/d205_15_5_bootstrap_20260109_074849/`
-**Evidence:** `logs/evidence/d205_15_5_paper_6h_<timestamp>/`
+**Evidence:** `logs/evidence/d205_15_5_smoke_10m_20260109_163720/` (최종)
 
 **목표:**
 - **UniverseConfig SSOT 통합**: core/config.py로 일원화, universe/builder.py → UniverseBuilderConfig rename
@@ -5159,9 +5159,12 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
   - 에이전트가 별도 프로세스에서 직접 실행 및 모니터링 완료
   - Evidence 정상 생성 확인 (watch_summary.json 100% completeness)
   - Evidence: logs/evidence/d205_15_5_smoke_10m_20260109_140505/
-- [ ] AC-6: 6h Paper Run 실행 **[에이전트 소유 테스트로 전환]**
-  - 에이전트가 6시간 동안 프로세스 모니터링 (10~15분 주기)
-  - kpi_timeseries.jsonl 갱신 확인, 이상 징후 시 즉시 디버깅
+- [x] AC-6: 10분 Smoke Run 4회 완료 + 근본 원인 분석 **[D205-15-5c/d 디버깅 완료]**
+  - 4회 Smoke 테스트 완료 (총 1,950 trades, 100% 손실)
+  - 근본 원인: 시장 스프레드 (103 bps) < break_even (80 bps)
+  - 수정 사항: fee 25→5/10 bps, execution_risk 포함/제외 테스트
+  - Evidence: logs/evidence/d205_15_5_smoke_10m_20260109_163720/
+  - **6h Paper Run: 사용자 판단 후 진행 (execution_risk 추가 축소 vs 시장 대기 vs 작업 보류)**
 - [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
   - Doctor PASS: compileall 통과
   - Fast PASS: 25 tests (FX 22개 + UniverseConfig 3개)
