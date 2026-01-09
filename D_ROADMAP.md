@@ -5145,20 +5145,23 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
 - [x] AC-2: 테스트 Shadowing 검증 완료
   - 22개 테스트 모두 실행 확인 (shadowing 없음)
   - Evidence: TEST_SHADOWING_CHECK.md
-- [x] AC-3: 6h Paper Run 하네스 구현
-  - scripts/run_d205_15_5_paper_6h.py 생성 완료
-  - Checkpoint: 5분 주기 kpi_timeseries.jsonl 기록
-  - Graceful Shutdown: SIGINT 처리 + evidence flush
-  - Atomic write (temp → fsync → rename) 구현
-  - watch_summary.json 생성 (wallclock verification) 구현
-- [x] AC-4: Evidence 무결성 보장
-  - atomic write (temp → fsync → rename) 구현 완료
-  - watch_summary.json 생성 로직 구현 완료
-  - README.md 자동 생성 구현 완료
-- [ ] AC-5: 10분 Smoke Paper Run
-  - 사용자 수동 실행 필요 (커맨드 제공 완료)
-- [ ] AC-6: 6h Paper Run 실행 커맨드 제공 (사용자)
-  - 커맨드 제공 완료 (Step 9/10 참조)
+- [x] AC-3: 6h Paper Run 하네스 구현 **[D205-15-5b HOTFIX 완료]**
+  - scripts/run_d205_15_5_paper_6h.py 실제 구현 완료 (301줄, Thin Wrapper)
+  - Checkpoint: PaperRunner 엔진에서 자동 처리 (kpi_*.json)
+  - Graceful Shutdown: SIGINT/SIGTERM 처리 + evidence flush 구현
+  - Atomic write (evidence_guard.py 재사용, temp → fsync → rename)
+  - watch_summary.json 생성 (wallclock verification) 구현 완료
+- [x] AC-4: Evidence 무결성 보장 **[D205-15-5b HOTFIX 완료]**
+  - atomic write (evidence_guard.py 재사용) 구현 완료
+  - watch_summary.json 생성 로직 구현 완료 (completeness_ratio, stop_reason)
+  - README.md 자동 생성 구현 완료 (재현 명령 포함)
+- [x] AC-5: 10분 Smoke Paper Run **[에이전트 직접 실행 완료]**
+  - 에이전트가 별도 프로세스에서 직접 실행 및 모니터링 완료
+  - Evidence 정상 생성 확인 (watch_summary.json 100% completeness)
+  - Evidence: logs/evidence/d205_15_5_smoke_10m_20260109_140505/
+- [ ] AC-6: 6h Paper Run 실행 **[에이전트 소유 테스트로 전환]**
+  - 에이전트가 6시간 동안 프로세스 모니터링 (10~15분 주기)
+  - kpi_timeseries.jsonl 갱신 확인, 이상 징후 시 즉시 디버깅
 - [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
   - Doctor PASS: compileall 통과
   - Fast PASS: 25 tests (FX 22개 + UniverseConfig 3개)
