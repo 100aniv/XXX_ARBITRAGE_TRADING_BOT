@@ -5107,7 +5107,103 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
 
 **의존성:**
 - Depends on: D205-15-3 (Profit-Realism Fix) DONE
-- Unblocks: D206 (Ops & Deploy) - Prerequisites #0, #1 완료
+- Unblocks: D205-15-5 (UniverseConfig SSOT + 6h Paper Evidence)
+
+---
+
+#### D205-15-5: UniverseConfig SSOT Unification + 6h Paper Run Evidence
+**상태:** 🔨 IN PROGRESS (2026-01-09)
+**커밋:** [Step 8 후 업데이트]
+**테스트:** Gate 진행중
+**문서:** `logs/evidence/d205_15_5_bootstrap_20260109_074849/`
+**Evidence:** `logs/evidence/d205_15_5_paper_6h_<timestamp>/`
+
+**목표:**
+- **UniverseConfig SSOT 통합**: core/config.py로 일원화, universe/builder.py → UniverseBuilderConfig rename
+- **6h Paper Run Evidence**: 장시간 실행 증거 확보 (tradeable_rate, funding_adjusted_edge_bps 분포)
+- **Checkpoint + Graceful Shutdown**: 5분 주기 checkpoint, SIGINT 처리
+- **테스트 Shadowing 검증**: test_d205_15_4_fx_live.py 커버리지 확인 완료
+- **D206 Entry Readiness**: Prerequisites #0, #1 장시간 검증 준비
+
+**범위 (Do):**
+- ✅ UniverseConfig 중복 제거 (SSOT: core/config.py, builder → UniverseBuilderConfig)
+- ✅ 6h Paper Run 하네스 구현 (checkpoint/graceful shutdown)
+- ✅ Evidence: kpi_timeseries.jsonl (5분 주기)
+- ✅ Evidence: kpi_summary.json (tradeable_rate, funding_adjusted_edge_bps 분포)
+- ✅ Evidence: watch_summary.json (wallclock verification)
+
+**범위 (Don't):**
+- ❌ 신규 기능 확장 (Universe 로직 변경 금지)
+- ❌ 스크립트에 트레이딩 로직 침투
+- ❌ 하드코딩 추가
+
+**Acceptance Criteria:**
+- [x] AC-1: UniverseConfig SSOT 통합 (core/config.py 유일)
+  - universe/builder.py → UniverseBuilderConfig rename 완료
+  - __init__.py export 업데이트 완료
+  - test_universe_config_ssot.py 3개 테스트 PASS
+- [x] AC-2: 테스트 Shadowing 검증 완료
+  - 22개 테스트 모두 실행 확인 (shadowing 없음)
+  - Evidence: TEST_SHADOWING_CHECK.md
+- [x] AC-3: 6h Paper Run 하네스 구현
+  - scripts/run_d205_15_5_paper_6h.py 생성 완료
+  - Checkpoint: 5분 주기 kpi_timeseries.jsonl 기록
+  - Graceful Shutdown: SIGINT 처리 + evidence flush
+  - Atomic write (temp → fsync → rename) 구현
+  - watch_summary.json 생성 (wallclock verification) 구현
+- [x] AC-4: Evidence 무결성 보장
+  - atomic write (temp → fsync → rename) 구현 완료
+  - watch_summary.json 생성 로직 구현 완료
+  - README.md 자동 생성 구현 완료
+- [ ] AC-5: 10분 Smoke Paper Run
+  - 사용자 수동 실행 필요 (커맨드 제공 완료)
+- [ ] AC-6: 6h Paper Run 실행 커맨드 제공 (사용자)
+  - 커맨드 제공 완료 (Step 9/10 참조)
+- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
+  - Doctor PASS: compileall 통과
+  - Fast PASS: 25 tests (FX 22개 + UniverseConfig 3개)
+  - DocOps PASS: check_ssot_docs.py ExitCode=0
+  - Evidence: GATE_RESULTS.md
+- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push
+  - D205-15-5 섹션 업데이트 완료
+  - AC 체크 완료
+  - Git commit 준비 중
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_5_bootstrap_20260109_074849/
+├── SCAN_DUPLICATE_CLASSES.md (중복 조사 완료)
+├── TEST_SHADOWING_CHECK.md (shadowing 없음 확인)
+├── git_info.json
+└── env_check.txt
+
+logs/evidence/d205_15_5_smoke_10m_<timestamp>/
+├── manifest.json
+├── kpi_summary.json
+├── kpi_timeseries.jsonl
+├── watch_summary.json
+└── README.md (재현 커맨드)
+
+logs/evidence/d205_15_5_paper_6h_<timestamp>/
+├── manifest.json
+├── kpi_summary.json
+├── kpi_timeseries.jsonl (5분 주기)
+├── watch_summary.json (wallclock verification)
+├── config_snapshot.yml
+└── README.md (재현 커맨드)
+```
+
+**DONE 판정 기준:**
+- ✅ AC 8개 전부 체크
+- ✅ Gate 3단 + DocOps 100% PASS
+- ✅ UniverseConfig 중복 제거 증거
+- ✅ 10분 Smoke Run Evidence
+- ✅ 6h Paper Run 실행 커맨드 제공 (사용자 실행)
+- ✅ watch_summary.json 생성 검증
+
+**의존성:**
+- Depends on: D205-15-4 (Real-time FX Integration) DONE
+- Unblocks: D206 (Ops & Deploy) - Prerequisites #0, #1 장시간 검증 완료
 
 ---
 

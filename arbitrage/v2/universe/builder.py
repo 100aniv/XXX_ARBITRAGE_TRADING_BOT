@@ -25,8 +25,14 @@ class UniverseMode(Enum):
 
 
 @dataclass
-class UniverseConfig:
-    """Universe 설정"""
+class UniverseBuilderConfig:
+    """
+    Universe Builder 설정
+    
+    Note: core/config.py의 UniverseConfig와 구분하기 위해 rename (D205-15-5)
+    - core/config.py UniverseConfig: V2Config 스키마 일부 (symbols_top_n, allowlist/denylist)
+    - universe/builder.py UniverseBuilderConfig: UniverseBuilder 초기화 파라미터
+    """
     mode: UniverseMode
     static_symbols: List[Tuple[str, str]] = None  # [(symbol_a, symbol_b), ...]
     topn_count: int = 100
@@ -44,15 +50,15 @@ class UniverseBuilder:
     TopNProvider(V1)를 재사용하여 심볼 Universe 생성.
     
     Usage:
-        config = UniverseConfig(mode=UniverseMode.TOPN, topn_count=100)
+        config = UniverseBuilderConfig(mode=UniverseMode.TOPN, topn_count=100)
         builder = UniverseBuilder(config)
         symbols = builder.get_symbols()
     """
     
-    def __init__(self, config: UniverseConfig):
+    def __init__(self, config: UniverseBuilderConfig):
         """
         Args:
-            config: UniverseConfig
+            config: UniverseBuilderConfig
         """
         self.config = config
         self._provider = None  # Lazy init
@@ -206,7 +212,7 @@ def from_config_dict(config_dict: Dict[str, Any]) -> UniverseBuilder:
             for pair in config_dict["static_symbols"]
         ]
     
-    config = UniverseConfig(
+    config = UniverseBuilderConfig(
         mode=mode,
         static_symbols=static_symbols,
         topn_count=config_dict.get("topn_count", 100),
