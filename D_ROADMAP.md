@@ -5209,6 +5209,83 @@ logs/evidence/d205_15_5_paper_6h_<timestamp>/
 
 **의존성:**
 - Depends on: D205-15-4 (Real-time FX Integration) DONE
+- Unblocks: D205-15-6 (Paper Self-Monitor + Logic vs Market Audit)
+
+---
+
+#### D205-15-6: Paper Self-Monitor + Logic vs Market Audit
+**상태:** 🔨 IN PROGRESS (2026-01-10)
+**커밋:** [Step 8 후 업데이트]
+**테스트:** Gate 진행 예정
+**문서:** `logs/evidence/d205_15_6_bootstrap_20260110_105213/`
+**Evidence:** `logs/evidence/d205_15_6_smoke_10m_<timestamp>/`
+
+**목표:**
+- **"시장 vs 로직" 판정 체계**: wins=0 현상이 시장 문제인지 로직 버그인지 데이터로 판정
+- **Self-Monitor (RunWatcher)**: 사람 개입 없이 FAIL-fast 자동 중단 (wins=0 연속, edge<0 지속)
+- **Evidence Decomposition**: predicted_edge vs realized_pnl 분해 지표 저장
+- **Config SSOT화**: break_even 파라미터 config.yml 이관, 하드코딩 제거
+
+**범위 (Do):**
+- ✅ RunWatcher 엔진화 (60초 heartbeat, FAIL 조건 자동 감지)
+- ✅ Evidence 분해 지표 (metrics_snapshot.json, decision_trace_samples.jsonl)
+- ✅ Config SSOT 준수 (config.yml에서 break_even 로드, override snapshot 저장)
+- ✅ "시장 vs 로직" 판정 자동화 (DIAGNOSIS.md 생성)
+
+**범위 (Don't):**
+- ❌ PaperRunner fill model 변경 금지 (기존 로직 유지)
+- ❌ 대규모 리팩토링 금지 (최소 변경 원칙)
+- ❌ 6시간 모니터링 떠넘기기 금지 (자기감시로 해결)
+
+**Acceptance Criteria:**
+- [ ] AC-1: RunWatcher 구현 (arbitrage/v2/core/run_watcher.py)
+  - 60초 heartbeat, wins=0 연속 감지, edge<0 지속 감지
+  - FAIL 조건 충족 시 graceful stop + stop_reason 기록
+- [ ] AC-2: Evidence Decomposition
+  - metrics_snapshot.json: executable_spread vs realized_pnl 분포
+  - decision_trace_samples.jsonl: 최근 20개 트레이드 상세 추적
+- [ ] AC-3: Config SSOT화
+  - config.yml에 break_even 섹션 추가
+  - PaperRunner에서 config.yml 로드
+  - CLI override 시 runner_overrides.json 저장
+- [ ] AC-4: "시장 vs 로직" 판정 자동화
+  - RunWatcher FAIL 시 DIAGNOSIS.md 자동 생성
+  - predicted_edge 분포 vs realized_pnl 분포 비교
+  - 판정: "시장 기회 부족" vs "로직/모델 불일치"
+- [ ] AC-5: 10분 Smoke 테스트
+  - FAIL-fast 동작 검증 (wins=0 조건 or edge<0 연속)
+  - Evidence 정상 생성 확인
+- [ ] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
+- [ ] AC-7: D_ROADMAP 업데이트 + Commit + Push
+- [ ] AC-8: Closeout Summary (Compare Patch URL 포함)
+
+**증거 요구사항 (SSOT):**
+```
+logs/evidence/d205_15_6_bootstrap_20260110_105213/
+├── READING_CHECKLIST.md
+├── SCAN_ANALYSIS.md
+└── PLAN.md
+
+logs/evidence/d205_15_6_smoke_10m_<timestamp>/
+├── manifest.json
+├── kpi_summary.json
+├── metrics_snapshot.json (NEW)
+├── decision_trace_samples.jsonl (NEW)
+├── runner_overrides.json (if CLI override)
+├── watch_summary.json
+├── DIAGNOSIS.md (if FAIL)
+└── README.md
+```
+
+**DONE 판정 기준:**
+- ✅ AC 8개 전부 체크
+- ✅ Gate 3단 + DocOps 100% PASS
+- ✅ RunWatcher FAIL-fast 동작 검증
+- ✅ "시장 vs 로직" 판정 가능 증거 확보
+- ✅ Compare Patch URL 포함된 Closeout Summary
+
+**의존성:**
+- Depends on: D205-15-5 (UniverseConfig SSOT + 6h Paper Evidence) DEBUGGING
 - Unblocks: D206 (Ops & Deploy) - Prerequisites #0, #1 장시간 검증 완료
 
 ---

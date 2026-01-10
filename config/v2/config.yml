@@ -115,16 +115,27 @@ universe:
 
 # Strategy (전략 파라미터)
 strategy:
-  # Threshold 계산식: break_even_spread = fee_a + fee_b + slippage + buffer
-  threshold:
+  # Break-even 계산식 (D205-15-6: Config SSOT)
+  # break_even_bps = fee_entry + fee_exit + execution_risk_round_trip + buffer
+  # execution_risk_round_trip = (slippage + latency) * 2
+  break_even:
     # 수수료 (거래소 설정에서 자동 로드)
     use_exchange_fees: true
     
-    # Slippage 예상 (%)
-    slippage_bps: 5.0  # 0.05%
+    # Execution Risk: Slippage (%)
+    slippage_bps: 15.0  # 0.15% (D205-15-5d: 기본값)
+    
+    # Execution Risk: Latency (%)
+    latency_bps: 10.0   # 0.10% (D205-15-6: 신규 추가)
     
     # Buffer (안전 마진, %)
-    buffer_bps: 10.0   # 0.1%
+    buffer_bps: 0.0     # 0.00% (D205-15-6: 기본값 0, CLI override 가능)
+  
+  # Deprecated: 하위 호환용 (break_even으로 이관됨)
+  threshold:
+    use_exchange_fees: true
+    slippage_bps: 5.0
+    buffer_bps: 10.0
   
   # Order Size Policy (주문 크기 결정)
   order_size_policy:

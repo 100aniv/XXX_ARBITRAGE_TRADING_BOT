@@ -35,6 +35,8 @@ except ImportError:
 
 # V2 imports
 from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
+from arbitrage.v2.core.run_watcher import create_watcher  # D205-15-6: Self-Monitor
+from arbitrage.v2.core.trade_processor import TradeProcessor  # D205-15-6: Engine-Centric
 from arbitrage.v2.opportunity import (
     BreakEvenParams,
     build_candidate,
@@ -268,10 +270,17 @@ class PaperRunner:
         if admin_control:
             logger.info(f"[D205-12-1] AdminControl enabled: {admin_control.state_key}")
         
+        # D205-15-6: Self-Monitor (RunWatcher)
+        self._stop_requested = False
+        self._watcher = None
+        
         # V2 Components
         self.mock_adapter = MockAdapter(exchange_name="mock_paper")
         self.balance = MockBalance()
         self.kpi = KPICollector()
+        
+        # D205-15-6: TradeProcessor (Engine-Centric, break_even 이후 초기화)
+        self.trade_processor = None
         
         # D205-9: Real MarketData Providers (BOTH Upbit + Binance REQUIRED)
         self.use_real_data = config.use_real_data
@@ -406,31 +415,52 @@ class PaperRunner:
                     logger.warning(f"[D204-2] DB mode: optional, will skip DB operations")
                     self.storage = None
         
-        # BreakEvenParams (기본값)
-        # FeeStructure + FeeModel 생성 (V1 재사용)
-        # D205-15-5c: 현실적인 fee로 수정 (VIP 기준)
-        fee_a = FeeStructure(
-            exchange_name="upbit",
-            maker_fee_bps=5.0,   # 0.05%
-            taker_fee_bps=5.0,   # 0.05% (기존 25→5, D205-15-5c)
-        )
-        fee_b = FeeStructure(
-            exchange_name="binance",
-            maker_fee_bps=10.0,  # 0.10%
-            taker_fee_bps=10.0,  # 0.10% (기존 25→10, D205-15-5c)
-        )
-        fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
-        
-        # D205-11: buffer_bps를 외부에서 주입 가능하도록 기본값 유지하되, break_even_params 인자 추가
+        # D205-15-6: Config SSOT - break_even 파라미터 config.yml에서 로드
+        # BreakEvenParams: config.break_even_params가 주입되었으면 우선 사용, 아니면 config.yml에서 로드
         if config.break_even_params is not None:
+            # 외부 주입 (테스트용)
             self.break_even_params = config.break_even_params
+            logger.info("[D205-15-6] BreakEvenParams: injected from config object")
         else:
+            # config.yml에서 로드 (SSOT)
+            # Fee: exchanges.upbit/binance.taker_fee_bps
+            upbit_fee_bps = getattr(config, 'upbit_taker_fee_bps', 5.0)  # 기본값 5.0
+            binance_fee_bps = getattr(config, 'binance_taker_fee_bps', 10.0)  # 기본값 10.0
+            
+            # Break-even: strategy.break_even
+            break_even_cfg = getattr(config, 'break_even', {})
+            slippage_bps = break_even_cfg.get('slippage_bps', 15.0)
+            latency_bps = break_even_cfg.get('latency_bps', 10.0)
+            buffer_bps = break_even_cfg.get('buffer_bps', 0.0)
+            
+            # FeeStructure + FeeModel
+            fee_a = FeeStructure(
+                exchange_name="upbit",
+                maker_fee_bps=upbit_fee_bps,
+                taker_fee_bps=upbit_fee_bps,
+            )
+            fee_b = FeeStructure(
+                exchange_name="binance",
+                maker_fee_bps=binance_fee_bps,
+                taker_fee_bps=binance_fee_bps,
+            )
+            fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
+            
             self.break_even_params = BreakEvenParams(
                 fee_model=fee_model,
-                slippage_bps=15.0,   # 15 bps (0.15%)
-                latency_bps=10.0,    # 10 bps (0.10%)
-                buffer_bps=0.0,      # D205-10: Intent Loss 해결 (기존 5.0 → 0.0)
+                slippage_bps=slippage_bps,
+                latency_bps=latency_bps,
+                buffer_bps=buffer_bps,
             )
+            logger.info(
+                f"[D205-15-6] BreakEvenParams loaded from config.yml: "
+                f"upbit={upbit_fee_bps}, binance={binance_fee_bps}, "
+                f"slippage={slippage_bps}, latency={latency_bps}, buffer={buffer_bps}"
+            )
+        
+        # D205-15-6: TradeProcessor 초기화 (Engine-Centric)
+        self.trade_processor = TradeProcessor(self.break_even_params)
+        logger.info("[D205-15-6] TradeProcessor initialized (Engine-Centric)")
         
         logger.info(f"[D204-2] PaperRunner initialized")
         logger.info(f"[D204-2] run_id: {config.run_id}")
@@ -470,6 +500,13 @@ class PaperRunner:
             logger.error(f"[D204-2] Schema verification: FAIL - {e}")
             raise
     
+    def request_stop(self):
+        """
+        D205-15-6: RunWatcher가 호출하는 Graceful Stop 메서드
+        """
+        logger.warning("[D205-15-6] Stop requested by RunWatcher")
+        self._stop_requested = True
+    
     def run(self):
         """
         메인 실행 루프 (Duration-based)
@@ -489,6 +526,16 @@ class PaperRunner:
         logger.info("[D205-13] ========================================")
         logger.info(f"[D205-13] PAPER EXECUTION via Engine.run() - {self.config.phase.upper()}")
         logger.info("[D205-13] ========================================")
+        
+        # D205-15-6: RunWatcher 시작 (Self-Monitor)
+        self._watcher = create_watcher(
+            kpi_getter=lambda: self.kpi,
+            stop_callback=self.request_stop,
+            heartbeat_sec=60,
+            min_trades_for_check=100
+        )
+        self._watcher.start()
+        logger.info("[D205-15-6] RunWatcher started (60s heartbeat, min_trades=100)")
         
         # D205-13: Engine 생성 (단일 실행 경로)
         from arbitrage.v2.core.engine import ArbitrageEngine, EngineConfig
@@ -527,6 +574,11 @@ class PaperRunner:
         # D205-13: Tick 처리 콜백 (intent 변환 + 실행)
         def process_tick(iteration, opportunities, intents):
             """Engine의 process_tick 콜백 - intent 변환 및 실행"""
+            # D205-15-6: RunWatcher FAIL-fast 체크
+            if self._stop_requested:
+                logger.warning("[D205-15-6] Stop requested, skipping tick processing")
+                raise RuntimeError("RunWatcher triggered stop")
+            
             # opportunities는 리스트이지만 현재는 단일 candidate 반환
             if not opportunities or opportunities[0] is None:
                 return
@@ -589,6 +641,12 @@ class PaperRunner:
             self._save_kpi()
             self._save_db_counts()
             return 1
+        
+        finally:
+            # D205-15-6: RunWatcher 정리
+            if self._watcher:
+                self._watcher.stop()
+                logger.info("[D205-15-6] RunWatcher stopped")
         
         # D205-9: DB REQUIRED 검증 (strict mode)
         if self.config.db_mode == "strict":
@@ -1048,71 +1106,32 @@ class PaperRunner:
         rows_inserted = 0
         
         try:
+            # D205-15-6: Engine-Centric - TradeProcessor로 계산 위임
+            trade_result = self.trade_processor.process_intents(
+                entry_intent,
+                exit_intent,
+                entry_result,
+                exit_result
+            )
+            
             # Entry order
-            # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
             order_id = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_entry"
-            entry_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
-            entry_base_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
-            
-            # D205-9-1: Execution-Risk Fill Model (가격 왜곡)
-            # BUY: 슬리피지+레이턴시로 인해 더 비싸게 체결
-            # SELL: 슬리피지+레이턴시로 인해 더 싸게 체결
-            slippage_bps = self.break_even_params.slippage_bps
-            latency_bps = self.break_even_params.latency_bps
-            execution_risk_bps = slippage_bps + latency_bps
-            
-            if entry_intent.side.value.upper() == "BUY":
-                entry_price = entry_base_price * (1 + execution_risk_bps / 10000.0)
-            else:  # SELL
-                entry_price = entry_base_price * (1 - execution_risk_bps / 10000.0)
-            
-            # Entry fee
-            if entry_intent.exchange == "upbit":
-                entry_fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
-            else:
-                entry_fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
-            entry_fee = entry_qty * entry_price * entry_fee_bps / 10000.0
-            entry_fee_currency = "KRW" if "KRW" in entry_intent.symbol else "USDT"
+            entry_qty = trade_result.entry_qty
+            entry_price = trade_result.entry_price
+            entry_fee = trade_result.entry_fee
+            entry_fee_currency = trade_result.entry_fee_currency
             
             # Exit order
-            # D205-2 REOPEN-2: uuid4 기반 order_id (충돌 제거)
             order_id_exit = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_exit"
-            exit_qty = exit_result.filled_qty or exit_intent.base_qty or 0.01
-            exit_base_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
+            exit_qty = trade_result.exit_qty
+            exit_price = trade_result.exit_price
+            exit_fee = trade_result.exit_fee
+            exit_fee_currency = trade_result.exit_fee_currency
             
-            # D205-9-1: Execution-Risk Fill Model (가격 왜곡)
-            if exit_intent.side.value.upper() == "BUY":
-                exit_price = exit_base_price * (1 + execution_risk_bps / 10000.0)
-            else:  # SELL
-                exit_price = exit_base_price * (1 - execution_risk_bps / 10000.0)
-            
-            # Exit fee
-            if exit_intent.exchange == "upbit":
-                exit_fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
-            else:
-                exit_fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
-            exit_fee = exit_qty * exit_price * exit_fee_bps / 10000.0
-            exit_fee_currency = "KRW" if "KRW" in exit_intent.symbol else "USDT"
-            
-            total_fee = entry_fee + exit_fee
-            
-            # D205-9-1: realized_pnl 계산 (Arbitrage 방향 고려)
-            # entry/exit fill price에 execution_risk(슬리피지+레이턴시)가 이미 반영되어 있음
-            # intents[0] = entry (BUY exchange), intents[1] = exit (SELL exchange)
-            if entry_intent.side.value.upper() == "BUY" and exit_intent.side.value.upper() == "SELL":
-                # Normal arbitrage: BUY at entry_price, SELL at exit_price
-                # profit = (SELL price - BUY price) * qty - fees
-                gross_pnl = (exit_price - entry_price) * entry_qty
-            elif entry_intent.side.value.upper() == "SELL" and exit_intent.side.value.upper() == "BUY":
-                # Reverse arbitrage: SELL at entry_price, BUY at exit_price
-                # profit = (SELL price - BUY price) * qty - fees
-                gross_pnl = (entry_price - exit_price) * entry_qty
-            else:
-                # Unexpected: both BUY or both SELL
-                logger.error(f"[D205-9-1] Unexpected side combination: entry={entry_intent.side.value}, exit={exit_intent.side.value}")
-                gross_pnl = 0.0
-            
-            realized_pnl = gross_pnl - total_fee
+            # PnL
+            total_fee = trade_result.total_fee
+            gross_pnl = trade_result.gross_pnl
+            realized_pnl = trade_result.realized_pnl
             
             # DB 기록 (storage 있을 때만)
             if self.storage:
@@ -1244,6 +1263,67 @@ class PaperRunner:
             
             self.kpi.db_inserts_failed += rows_inserted
     
+    def _generate_metrics_snapshot(self) -> Dict[str, Any]:
+        """
+        D205-15-6: Evidence Decomposition - Metrics Snapshot 생성
+        
+        predicted_edge vs realized_pnl 분포를 저장하여 "시장 vs 로직" 판정 가능
+        
+        Returns:
+            metrics_snapshot.json 내용
+        """
+        # KPI 기반 기본 지표
+        snapshot = {
+            "run_id": self.config.run_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "closed_trades": self.kpi.closed_trades,
+            "wins": self.kpi.wins,
+            "losses": self.kpi.losses,
+            "gross_pnl": round(self.kpi.gross_pnl, 2),
+            "net_pnl": round(self.kpi.net_pnl, 2),
+            "fees": round(self.kpi.fees, 2),
+        }
+        
+        # 평균 지표 계산
+        if self.kpi.closed_trades > 0:
+            snapshot["avg_pnl_per_trade"] = round(self.kpi.net_pnl / self.kpi.closed_trades, 2)
+            snapshot["avg_fee_per_trade"] = round(self.kpi.fees / self.kpi.closed_trades, 2)
+        else:
+            snapshot["avg_pnl_per_trade"] = 0.0
+            snapshot["avg_fee_per_trade"] = 0.0
+        
+        # D205-15-6: Engine-Centric - break_even 계산은 domain 모듈로 위임
+        from arbitrage.v2.domain.break_even import compute_break_even_bps
+        
+        # Break-even 파라미터 기록 (계산은 Engine이 함)
+        snapshot["break_even_params"] = {
+            "upbit_fee_bps": self.break_even_params.fee_model.fee_a.taker_fee_bps,
+            "binance_fee_bps": self.break_even_params.fee_model.fee_b.taker_fee_bps,
+            "slippage_bps": self.break_even_params.slippage_bps,
+            "latency_bps": self.break_even_params.latency_bps,
+            "buffer_bps": self.break_even_params.buffer_bps,
+            "total_break_even_bps": round(compute_break_even_bps(self.break_even_params), 2)
+        }
+        
+        return snapshot
+    
+    def _generate_decision_trace_samples(self, max_samples: int = 20) -> List[Dict[str, Any]]:
+        """
+        D205-15-6: Evidence Decomposition - Decision Trace Samples 생성
+        
+        최근 N개 트레이드 샘플을 저장하여 "왜 진입? 왜 손실?" 추적 가능
+        
+        Args:
+            max_samples: 저장할 최대 샘플 수 (기본 20개)
+        
+        Returns:
+            decision_trace_samples.jsonl 내용 (List)
+        """
+        # Note: 현재 PaperRunner는 트레이드 히스토리를 메모리에 보관하지 않음
+        # 향후 개선: 최근 N개 트레이드를 self._recent_trades에 저장하도록 수정 필요
+        # 현재는 빈 리스트 반환
+        return []
+    
     def _save_kpi(self):
         """KPI JSON 저장 (+ result.json 통합)"""
         kpi_dict = self.kpi.to_dict()
@@ -1299,6 +1379,39 @@ class PaperRunner:
         with open(result_file, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
         logger.info(f"[D205-9] Result saved: {result_file}")
+        
+        # D205-15-6: Evidence Decomposition 파일 저장
+        try:
+            # metrics_snapshot.json
+            metrics_snapshot = self._generate_metrics_snapshot()
+            metrics_file = self.output_dir / "metrics_snapshot.json"
+            with open(metrics_file, "w", encoding="utf-8") as f:
+                json.dump(metrics_snapshot, f, indent=2, ensure_ascii=False)
+            logger.info(f"[D205-15-6] Metrics snapshot saved: {metrics_file}")
+            
+            # decision_trace_samples.jsonl
+            decision_samples = self._generate_decision_trace_samples(max_samples=20)
+            if decision_samples:
+                trace_file = self.output_dir / "decision_trace_samples.jsonl"
+                with open(trace_file, "w", encoding="utf-8") as f:
+                    for sample in decision_samples:
+                        f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+                logger.info(f"[D205-15-6] Decision trace samples saved: {trace_file} ({len(decision_samples)} samples)")
+            else:
+                logger.info("[D205-15-6] No decision trace samples to save (trade history not tracked)")
+            
+            # RunWatcher diagnosis (FAIL 시에만)
+            if self._watcher and self._watcher.diagnosis:
+                diagnosis_file = self.output_dir / "DIAGNOSIS.md"
+                with open(diagnosis_file, "w", encoding="utf-8") as f:
+                    f.write(f"# D205-15-6 RunWatcher Diagnosis\n\n")
+                    f.write(f"**Stop Reason:** {self._watcher.stop_reason}\n\n")
+                    f.write(f"**Diagnosis:**\n{self._watcher.diagnosis}\n\n")
+                    f.write(f"## Metrics Snapshot\n\n")
+                    f.write(f"```json\n{json.dumps(metrics_snapshot, indent=2)}\n```\n")
+                logger.info(f"[D205-15-6] RunWatcher diagnosis saved: {diagnosis_file}")
+        except Exception as e:
+            logger.error(f"[D205-15-6] Failed to save Evidence Decomposition files: {e}", exc_info=True)
     
     def _save_db_counts(self):
         """DB row count 저장 (v2_orders/fills/trades)"""
