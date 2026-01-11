@@ -5324,6 +5324,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 구현: FeatureGuard (Bootstrap 시 ESSENTIAL 기능 검증)
   - 구현: paper_runner에 FeatureGuard 통합 (ops phase 자동 실행)
   - 문서: SSOT_RULES.md에 Component Registry 원칙 추가
+  - 상태: COMPLETED (Gate 3단 PASS)
+- **2026-01-11:** D205-15-6d - OPS Gate Hardening (False PASS 제거)
+  - 목표: Fail-Fast 복구, WARN=FAIL 정책, Exit Code 전파
+  - 문제: winrate_guard_trigger.json 생성되었으나 preflight Exit 0 반환 (False PASS)
+  - 문제: Redis/DB 미초기화 시 WARN만 출력, FAIL 전파 실패
+  - 구현: preflight_checker.py - runner.run() 반환값 체크 추가
+  - 구현: preflight_checker.py - Redis WARN→FAIL 전환 (OPS Gate 정책)
+  - 구현: component_registry_checker.py - ops_critical/required 플래그 강화
+  - 구현: V2_COMPONENT_REGISTRY.json - ops.real_marketdata, ops.db_strict에 required: true 추가
+  - 문서: SSOT_RULES.md Section 7 추가 (OPS Gate Hardening 원칙)
   - 상태: IN PROGRESS (구현 완료, Gate 진행 예정)
 
 ---

@@ -42,6 +42,8 @@ class ComponentRegistryChecker:
         """컴포넌트 파일 존재 확인"""
         comp_id = component.get("id", "unknown")
         files = component.get("files", [])
+        ops_critical = component.get("ops_critical", False)
+        required = component.get("required", False)
         
         if not files:
             return True  # files 없으면 스킵
@@ -50,9 +52,15 @@ class ComponentRegistryChecker:
         for file_path in files:
             full_path = self.repo_root / file_path
             if not full_path.exists():
-                self.errors.append(
-                    f"[{comp_id}] File not found: {file_path}"
-                )
+                # OPS Gate 정책: ops_critical or required → ERROR
+                if ops_critical or required:
+                    self.errors.append(
+                        f"[{comp_id}] CRITICAL: File not found: {file_path}"
+                    )
+                else:
+                    self.warnings.append(
+                        f"[{comp_id}] File not found: {file_path}"
+                    )
                 all_exist = False
         
         return all_exist
@@ -82,6 +90,8 @@ class ComponentRegistryChecker:
         """config_keys가 PaperRunnerConfig에 존재하는지 확인"""
         comp_id = component.get("id", "unknown")
         config_keys = component.get("config_keys", [])
+        ops_critical = component.get("ops_critical", False)
+        required = component.get("required", False)
         
         if not config_keys:
             return True  # config_keys 없으면 스킵
@@ -90,10 +100,16 @@ class ComponentRegistryChecker:
         for key in config_keys:
             # PaperRunnerConfig에서 key 존재 확인 (간단한 텍스트 검색)
             if key not in paper_runner_content:
-                self.warnings.append(
-                    f"[{comp_id}] Config key not found: {key}"
-                )
-                # Config key는 warning으로 처리 (error 아님)
+                # OPS Gate 정책: ops_critical or required → ERROR
+                if ops_critical or required:
+                    self.errors.append(
+                        f"[{comp_id}] CRITICAL: Config key not found: {key}"
+                    )
+                    all_found = False
+                else:
+                    self.warnings.append(
+                        f"[{comp_id}] Config key not found: {key}"
+                    )
         
         return all_found
     

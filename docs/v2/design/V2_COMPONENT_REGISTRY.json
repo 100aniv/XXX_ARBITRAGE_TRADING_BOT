@@ -7,6 +7,7 @@
       "id": "ops.real_marketdata",
       "name": "Real MarketData Providers",
       "ops_critical": true,
+      "required": true,
       "description": "Upbit/Binance real-time market data providers (Smoke/Baseline/Longrun 필수)",
       "files": [
         "arbitrage/v2/marketdata/rest/upbit.py",
@@ -34,6 +35,7 @@
       "id": "ops.db_strict",
       "name": "PostgreSQL Strict Mode",
       "ops_critical": true,
+      "required": true,
       "description": "DB strict mode for Ledger/Truth, Audit, Replay source",
       "files": [
         "arbitrage/v2/storage/ledger_storage.py",

@@ -270,6 +270,29 @@
 - "만들었는데 안 쓰는 참사" 방지 (Silent Failure 차단)
 - 상용급 시스템 안전장치 (하나라도 녹슬면 작동 중지)
 
+### 7. OPS Gate Hardening (D205-15-6d)
+**원칙:** False PASS 제거, Fail-Fast 복구
+
+**강제 규칙:**
+1. **WARN = FAIL 정책 (OPS Gate)**
+   - Preflight/Component Registry 검증에서 WARNING은 FAIL로 처리
+   - Redis/DB 미초기화, Config Key 누락, 필수 파일 부재 → 모두 FAIL
+   - Optional은 명시적으로 "ops_critical: false" + "required: false"로만 허용
+
+2. **Exit Code 전파 필수**
+   - runner.run() 반환값 무시 금지
+   - Winrate Guard 트리거 → non-zero exit code 반환 필수
+   - Exception 발생 시 상위로 전파 (catch-and-ignore 금지)
+
+3. **증거 기록 + 실패 전파 동시 수행**
+   - winrate_guard_trigger.json 기록 ✅
+   - 동시에 return 1 (또는 raise RuntimeError) ✅
+   - "기록만 하고 PASS" 절대 금지 ❌
+
+**근거:**
+- 운영 환경에서 "거짓 양성(False PASS)"는 운영 사고로 직결
+- FAIL은 반드시 FAIL로 보고되어야 함 (Silent Failure 금지)
+
 ---
 
 ## 📐 경로 규칙

@@ -68,14 +68,14 @@ class PreflightChecker:
             return False
     
     def check_redis(self, runner: "PaperRunner") -> bool:
-        """Redis 연결 확인"""
+        """Redis 연결 확인 (OPS Gate: STRICT)"""
         self.log("[CHECK] Redis connection...")
         
         try:
-            # Redis client 존재 확인
+            # OPS Gate 정책: Redis 미초기화는 FAIL
             if not hasattr(runner, 'redis_client') or not runner.redis_client:
-                self.log("  WARN: redis_client not initialized (optional mode)")
-                return True  # Redis는 optional일 수 있음
+                self.log("  FAIL: redis_client not initialized (OPS Gate requires Redis)")
+                return False
             
             # Ping 테스트
             runner.redis_client.ping()
@@ -83,8 +83,8 @@ class PreflightChecker:
             return True
         
         except Exception as e:
-            self.log(f"  WARN: Redis check failed: {e}")
-            return True  # Redis 실패는 warning으로 처리
+            self.log(f"  FAIL: Redis check failed: {e}")
+            return False
     
     def check_db_strict(self, runner: "PaperRunner") -> bool:
         """DB strict 모드 확인"""
@@ -143,14 +143,21 @@ class PreflightChecker:
                 self.log("  FAIL: Pre-smoke checks failed")
                 return False
             
-            # Smoke 실행
+            # Smoke 실행 (반환값 체크 필수)
             self.log(f"  Starting {duration_minutes}min smoke...")
             start_time = time.time()
             
-            runner.run()
+            exit_code = runner.run()
             
             elapsed = time.time() - start_time
-            self.log(f"  PASS: Smoke completed in {elapsed:.1f}s")
+            
+            # OPS Gate: runner.run() 반환값 체크 (Fail-Fast)
+            if exit_code != 0:
+                self.log(f"  FAIL: Smoke failed with exit code {exit_code}")
+                self.log(f"  Check logs for winrate_guard or other failures")
+                return False
+            
+            self.log(f"  PASS: Smoke completed in {elapsed:.1f}s (exit code 0)")
             
             # KPI 검증
             if runner.kpi.closed_trades > 0:
