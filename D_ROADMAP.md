@@ -5346,6 +5346,47 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 남은 작업: baseline(20m) + longrun(1h) 실행 (D206 진입 전 필수)
   - 상태: PARTIAL (구현+Gate 완료, baseline/longrun 미실행)
   - Evidence: logs/evidence/d205_17_paper_acceptance_20260111_175000/
+- **2026-01-11:** D205-18 - Paper Acceptance Truthfulness Hardening (REAL 강제 + Harness Purge)
+  - 목표: D205-17 통합 + GPT+Gemini+제미나이 3개 프롬프트 완전 통합
+  - 배경: "은밀한 Mock 경로", "하네스 지방 축적(1600+ lines)", "config.yml SSOT 불완전"
+  - 전략: P1(REAL 강제) → P2(Logic Evacuation) → P3(Safety) → P4(증거)
+  - 상태: IN PROGRESS (설계 완료, 구현 시작)
+
+**D205-18-1: REAL Data 강제 + SSOT 통합 (P1 긴급)**
+  - 목표: Mock 경로 완전 차단, config.yml SSOT 완성
+  - AC-1: paper_chain.py에 --use-real-data 플래그 추가
+  - AC-2: run_paper_with_watchdog.ps1에 --use-real-data 전달
+  - AC-3: paper_runner.py baseline/longrun에서 use_real_data=False 감지 시 FAIL
+  - AC-4: FeatureGuard baseline/longrun Mock opportunity 경로 탐지 시 FAIL
+  - AC-5: MockAdapter 슬리피지 파라미터를 config.yml로 이관
+  - AC-6: Gate Doctor/Fast/Regression 100% PASS
+  - 상태: PENDING
+
+**D205-18-2: Harness Logic Evacuation (P2 구조)**
+  - 목표: PaperRunner 500줄 이내로 축소, 지능을 v2/core로 이관
+  - AC-1: v2/core/metrics.py 생성, KPI 집계 로직 이관
+  - AC-2: v2/core/trade_processor.py 확장, Trade history 관리 이관
+  - AC-3: PaperRunner 500줄 이내로 축소 (config + Engine.run()만)
+  - AC-4: Gate Doctor/Fast/Regression 100% PASS
+  - 상태: PENDING
+
+**D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**
+  - 목표: RunWatcher 작동 확인, 손절/이익실현 기준 강화
+  - AC-1: RunWatcher baseline/longrun heartbeat 체크 증거 확보
+  - AC-2: (Optional) Win-Rate Guard 이외 Safety Guard 추가 (SL/TP)
+  - AC-3: Gate Doctor/Fast/Regression 100% PASS
+  - 상태: PENDING
+
+**D205-18-4: Paper Acceptance Execution (P4 증거)**
+  - 목표: REAL 환경에서 baseline(20m) + longrun(1h) 실행, 증거 확보
+  - AC-1: baseline(20m) 실행 (use_real_data=true, DB/Redis strict)
+  - AC-2: longrun(1h) 실행 (use_real_data=true, DB/Redis strict)
+  - AC-3: Winrate 50-90% 범위 (95%+ FAIL)
+  - AC-4: Evidence 패키징 (KPI, Decision Trace, RunWatcher logs)
+  - AC-5: D_ROADMAP.md에 D205-18 COMPLETED 기록
+  - AC-6: SSOT_RULES.md에 "Paper Acceptance REAL 강제 규칙" 영구화
+  - 상태: PENDING
+  - Evidence: logs/evidence/d205_18_paper_truthfulness_YYYYMMDD_HHMMSS/
 
 ---
 

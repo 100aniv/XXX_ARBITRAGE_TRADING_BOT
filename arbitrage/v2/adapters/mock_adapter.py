@@ -4,11 +4,11 @@ MockAdapter - Test Adapter
 Mock implementation for testing without real API calls.
 
 D205-17: Realism Injection
-- Slippage model: 2-5bps (보수적, 랜덤)
+- Slippage model: 20-50bps (config.yml SSOT, D205-18-1)
 - 목적: 100% 승률 가짜 낙관 제거, 현실적 50-80% 승률 목표
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import uuid
 import random
 
@@ -19,8 +19,8 @@ class MockAdapter(ExchangeAdapter):
     """
     Mock adapter for testing.
     
-    D205-17: Realism Injection
-    - 슬리피지 모델: 2-5bps (random uniform)
+    D205-18-1: SSOT 통합
+    - 슬리피지 설정: config.yml에서 로드 (하드코딩 제거)
     - BUY: filled_price = ref_price * (1 + slippage)
     - SELL: filled_price = ref_price * (1 - slippage)
     
@@ -30,18 +30,41 @@ class MockAdapter(ExchangeAdapter):
     - Smoke testing with realistic friction
     """
     
-    def __init__(self, exchange_name: str = "mock", enable_slippage: bool = True, slippage_bps: tuple = (20.0, 50.0)):
+    def __init__(
+        self, 
+        exchange_name: str = "mock", 
+        enable_slippage: Optional[bool] = None,
+        slippage_bps_min: Optional[float] = None,
+        slippage_bps_max: Optional[float] = None,
+        config: Optional[Dict[str, Any]] = None
+    ):
         """
         Initialize mock adapter.
         
+        D205-18-1: Config SSOT 통합
+        - 우선순위: config > 명시적 파라미터 > 기본값
+        - 기본값은 백업용 (config 없을 때만)
+        
         Args:
             exchange_name: Exchange identifier (default: "mock")
-            enable_slippage: Enable realistic slippage (default: True, D205-17)
-            slippage_bps: Slippage range in bps (default: 20-50bps, Net edge 77bps의 25-65%, 목표 50-75% 승률)
+            enable_slippage: Enable realistic slippage (None = config에서 로드)
+            slippage_bps_min: Min slippage bps (None = config에서 로드)
+            slippage_bps_max: Max slippage bps (None = config에서 로드)
+            config: Config dict (execution.mock_adapter 섹션)
         """
         self.exchange_name = exchange_name
-        self.enable_slippage = enable_slippage
-        self.slippage_bps_min, self.slippage_bps_max = slippage_bps
+        
+        # D205-18-1: Config SSOT 우선
+        if config and "mock_adapter" in config:
+            mock_cfg = config["mock_adapter"]
+            self.enable_slippage = mock_cfg.get("enable_slippage", True)
+            self.slippage_bps_min = mock_cfg.get("slippage_bps_min", 20.0)
+            self.slippage_bps_max = mock_cfg.get("slippage_bps_max", 50.0)
+        else:
+            # 명시적 파라미터 또는 기본값
+            self.enable_slippage = enable_slippage if enable_slippage is not None else True
+            self.slippage_bps_min = slippage_bps_min if slippage_bps_min is not None else 20.0
+            self.slippage_bps_max = slippage_bps_max if slippage_bps_max is not None else 50.0
     
     def translate_intent(self, intent: OrderIntent) -> Dict[str, Any]:
         """

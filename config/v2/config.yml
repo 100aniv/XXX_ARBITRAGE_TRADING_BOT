@@ -158,6 +158,16 @@ execution:
   
   # Dry-run 모드 (실제 주문 없이 로그만)
   dry_run: true
+  
+  # MockAdapter 설정 (테스트 전용, D205-18-1)
+  mock_adapter:
+    # 슬리피지 활성화 여부
+    enable_slippage: true
+    
+    # 슬리피지 범위 (bps)
+    # D205-17: Net edge 77bps 기준, 20-50bps (25-65% of edge)
+    slippage_bps_min: 20.0
+    slippage_bps_max: 50.0
 
 # Safety (안전 장치)
 safety:

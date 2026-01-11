@@ -177,6 +177,7 @@ class ChainRunner:
         runner_phase = phase
         
         # paper_runner 실행
+        # D205-18-1: baseline/longrun은 REAL data 강제 (Paper-LIVE Parity)
         cmd = [
             sys.executable,
             "-m", "arbitrage.v2.harness.paper_runner",
@@ -184,6 +185,11 @@ class ChainRunner:
             "--phase", runner_phase,
             "--db-mode", self.db_mode,
         ]
+        
+        # D205-18-1: 운영 검증 단계는 Real MarketData 필수
+        if runner_phase in ["smoke", "baseline", "longrun"]:
+            cmd.extend(["--use-real-data"])
+            logger.info(f"[D205-18-1] ✅ REAL data enforced for phase '{runner_phase}'")
         
         logger.info(f"[ChainRunner] Running: {' '.join(cmd)}")
         

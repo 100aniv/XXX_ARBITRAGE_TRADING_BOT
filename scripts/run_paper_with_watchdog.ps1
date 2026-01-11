@@ -94,15 +94,30 @@ if (-not (Test-Path $pythonExe)) {
     exit 1
 }
 
+# D205-18-1: REAL data 강제 체크 (baseline/longrun 포함 시)
+$phaseList = $Phases -split ","
+$useRealData = $false
+foreach ($phase in $phaseList) {
+    $phaseTrimmed = $phase.Trim()
+    if ($phaseTrimmed -in @("smoke", "baseline", "longrun")) {
+        $useRealData = $true
+        Write-Log "✅ REAL data enforced for phase '$phaseTrimmed' (D205-18-1)" "SUCCESS"
+        break
+    }
+}
+
 # paper_chain 실행 명령어 구성
 $cmd = "$pythonExe -m arbitrage.v2.harness.paper_chain --durations $Durations --phases $Phases --profile $Profile --db-mode $DbMode"
 Write-Log "Command: $cmd" "INFO"
+Write-Log "REAL data mode: $useRealData" "INFO"
 
 # 프로세스 시작
 Write-Log "Starting paper_chain process..." "INFO"
 $startTime = Get-Date
 
 try {
+    # D205-18-1: ArgumentList는 paper_chain 내부에서 --use-real-data 처리
+    # (paper_chain.py가 phase별로 자동 추가)
     $process = Start-Process -FilePath $pythonExe `
         -ArgumentList "-m", "arbitrage.v2.harness.paper_chain", `
                       "--durations", $Durations, `
