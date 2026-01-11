@@ -60,18 +60,6 @@ class TestPaperRunnerConfig:
         assert config.symbols_top == 20
 
 
-class TestPaperExecutor:
-    """PaperExecutor 테스트 (Core 모듈)"""
-    
-    @pytest.mark.skip(reason="D205-18-2D: Core 테스트는 별도 test_core.py로 분리 예정")
-    def test_initial_balance(self):
-        pass
-    
-    @pytest.mark.skip(reason="D205-18-2D: Core 테스트는 별도 test_core.py로 분리 예정")
-    def test_update_balance(self):
-        pass
-
-
 class TestPaperMetrics:
     """PaperMetrics 테스트 (D205-18-2: Harness Purge)"""
     

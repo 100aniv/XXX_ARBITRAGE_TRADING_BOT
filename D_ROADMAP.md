@@ -5365,28 +5365,41 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 증거: logs/evidence/d205_18_1_gate_recovery_20260111_201309/
 
 **D205-18-2: Harness Logic Evacuation (P2 구조)**
-  - 목표: PaperRunner 500줄 이내로 축소, 지능을 v2/core로 이관
-  - AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관 (커밋 6771366)
-  - AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관 (커밋 6771366)
-  - AC-3: ✅#### D205-18-2: Orchestrator 생성 + PaperRunner 슬림화
-**Status:** ✅ COMPLETED
+
+**Status:** ✅ COMPLETED (2026-01-11)  
 **Date:** 2026-01-11
 
 **목표:**
 - PaperRunner를 True Thin Wrapper로 전환 (500 LOC 이하)
 - 모든 로직을 Core 모듈로 환수
+- Gate Fast 100% PASS (Zero-Skip Policy)
+
+**Acceptance Criteria:**
+- AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관
+- AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관
+- AC-3: ✅ Orchestrator + RuntimeFactory 생성, PaperRunner 149 LOC 달성
+- AC-4: ✅ Core 모듈 6개 생성 (OpportunitySource, PaperExecutor, LedgerWriter, RuntimeFactory, Orchestrator, Metrics/Monitor)
+- AC-5: ✅ DIP 달성 (Core는 Harness를 모른다)
+- AC-6: ✅ Gate Fast 100% PASS, Zero-Skip 달성 (6 PASS, 0 SKIP)
 
 **달성:**
 - ✅ PaperRunner: **149 LOC** (목표 500 이하, **-88% 감축**)
 - ✅ Logic Methods: **0개** (14개 → 0개, 100% 환수)
 - ✅ Core 모듈 6개 생성 (OpportunitySource, PaperExecutor, LedgerWriter, RuntimeFactory, Orchestrator 재작성, Metrics/Monitor 재사용)
 - ✅ DIP 달성 (Core는 Harness를 모른다)
-- ✅ Gate Fast: 5 PASS, 8 SKIP
+- ✅ Gate Fast: **6 PASS, 0 SKIP** (Zero-Skip Policy 달성)
+- ✅ SKIP 감축: 8개 → 0개 (완전 제거)
 
 **Evidence:**
-- `logs/evidence/d205_18_2d_runner_unbraining_20260111_220900/`
-- Commit: [pending]
-  - 다음: D205-18-2D (Opportunity/Intent evacuation, 747 LOC 감축)
+- D205-18-2D: `logs/evidence/d205_18_2d_runner_unbraining_20260111_220900/`
+- D205-18-2E: `logs/evidence/d205_18_2e_gate_repair_20260111_224500/`
+- D205-18-2F: `logs/evidence/d205_18_2f_integrity_recovery_20260111_233100/`
+
+**Commits:**
+- 6771366: D205-18-2 Initial (Metrics/Monitor 이관)
+- 75fa0bf: D205-18-2D (Orchestrator 생성, PaperRunner 149 LOC)
+- b930710: D205-18-2E (Gate Repair, SKIP 8→2)
+- [current]: D205-18-2F (Zero-Skip 달성, SKIP 2→0)
 
 **D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**
   - 목표: RunWatcher 작동 확인, 손절/이익실현 기준 강화
