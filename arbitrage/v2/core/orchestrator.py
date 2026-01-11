@@ -1,27 +1,30 @@
 """
-D205-18-2C: Paper Orchestrator (Engine-Centric)
+D205-18-2D: Paper Orchestrator (Engine-Centric, No Runner Callbacks)
 
-PaperRunner에서 분리된 orchestration 로직.
-Runner는 이 Orchestrator를 호출만 함.
+Core 컴포넌트만 사용, Runner 의존성 완전 제거.
 
 Purpose:
-- Opportunity 생성 로직
-- Intent 변환 및 실행
-- KPI/Evidence 저장
+- OpportunitySource, PaperExecutor, LedgerWriter 통합
+- Engine.run() 콜백 생성
 - RunWatcher 통합
+- Evidence 저장
 
 Author: arbitrage-lite V2
 Date: 2026-01-11
 """
 
 import logging
-from typing import Dict, Any, Optional, Callable
-from pathlib import Path
+from typing import Dict, Optional, Any
+from datetime import datetime
+import uuid
 
+from arbitrage.v2.core.opportunity_source import OpportunitySource
+from arbitrage.v2.core.paper_executor import PaperExecutor
+from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.run_watcher import create_watcher
-from arbitrage.v2.opportunity import OpportunityCandidate
+from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
 
 logger = logging.getLogger(__name__)
 
@@ -30,143 +33,179 @@ class PaperOrchestrator:
     """
     Paper Execution Orchestrator (Engine-Centric)
     
-    D205-18-2C: PaperRunner의 orchestration 로직을 분리
-    - Opportunity 생성 콜백
-    - Intent 처리 콜백
-    - RunWatcher 통합
-    - Evidence 저장
+    D205-18-2D: Runner 콜백 의존 제거, Core 컴포넌트만 사용
+    - OpportunitySource: Opportunity 생성
+    - PaperExecutor: 주문 실행
+    - LedgerWriter: DB 기록
+    - PaperMetrics: KPI 집계
+    - EvidenceCollector: 증거 생성
     """
     
     def __init__(
         self,
-        metrics: PaperMetrics,
+        config,
+        opportunity_source: OpportunitySource,
+        executor: PaperExecutor,
+        ledger_writer: LedgerWriter,
+        kpi: PaperMetrics,
         evidence_collector: EvidenceCollector,
-        opportunity_generator: Callable[[int], Optional[OpportunityCandidate]],
-        intent_converter: Callable[[OpportunityCandidate, int], list],
-        trade_processor: Callable[[OpportunityCandidate, list], int],
         admin_control: Optional[Any] = None
     ):
-        """
-        Args:
-            metrics: PaperMetrics 인스턴스
-            evidence_collector: EvidenceCollector 인스턴스
-            opportunity_generator: Opportunity 생성 콜백 (iteration -> candidate)
-            intent_converter: Intent 변환 콜백 (candidate, iteration -> intents)
-            trade_processor: Trade 처리 콜백 (candidate, intents -> exit_code)
-            admin_control: AdminControl 인스턴스 (optional)
-        """
-        self.metrics = metrics
+        self.config = config
+        self.opportunity_source = opportunity_source
+        self.executor = executor
+        self.ledger_writer = ledger_writer
+        self.kpi = kpi
         self.evidence_collector = evidence_collector
-        self.opportunity_generator = opportunity_generator
-        self.intent_converter = intent_converter
-        self.trade_processor = trade_processor
         self.admin_control = admin_control
         
         self._stop_requested = False
         self._watcher = None
+        self.trade_history = []
     
     def request_stop(self):
-        """RunWatcher에서 호출되는 중단 요청"""
-        logger.warning("[Orchestrator] Stop requested by RunWatcher")
+        """RunWatcher 중단 요청"""
+        logger.warning("[D205-18-2D] Stop requested by RunWatcher")
         self._stop_requested = True
     
-    def create_fetch_callback(self):
-        """
-        Engine.run()에 전달할 fetch_tick_data 콜백 생성
+    def run(self) -> int:
+        """메인 실행 루프"""
+        logger.info(f"[D205-18-2D] Orchestrator starting...")
         
-        Returns:
-            Callable[[int], Optional[OpportunityCandidate]]
-        """
-        def fetch_tick_data(iteration):
-            """Opportunity 생성 콜백"""
-            candidate = self.opportunity_generator(iteration)
-            
-            if not candidate:
-                self.metrics.bump_reject("candidate_none")
-                return None
-            
-            self.metrics.opportunities_generated += 1
-            return candidate
+        # RunWatcher 시작
+        self.start_watcher()
         
-        return fetch_tick_data
-    
-    def create_process_callback(self):
-        """
-        Engine.run()에 전달할 process_tick 콜백 생성
-        
-        Returns:
-            Callable[[int, list, list], None]
-        """
-        def process_tick(iteration, opportunities, intents):
-            """Intent 변환 및 Trade 처리"""
-            # RunWatcher FAIL-fast
-            if self._stop_requested:
-                logger.warning("[Orchestrator] Stop requested, skipping tick")
-                raise RuntimeError("RunWatcher triggered stop")
+        try:
+            duration_sec = self.config.duration_minutes * 60
+            iteration = 0
             
-            # Opportunity 검증
-            if not opportunities or opportunities[0] is None:
-                return
+            import time
+            start_time = time.time()
             
-            candidate = opportunities[0]
-            
-            # AdminControl 체크
-            if self.admin_control:
-                if not self.admin_control.should_process_tick():
-                    self.metrics.bump_reject("admin_paused")
-                    return
+            while time.time() - start_time < duration_sec:
+                iteration += 1
                 
-                if self.admin_control.is_symbol_blacklisted(candidate.symbol):
-                    self.metrics.bump_reject("symbol_blacklisted")
-                    return
+                if self._stop_requested:
+                    logger.warning("[D205-18-2D] Stop requested")
+                    break
+                
+                # 1. Opportunity 생성
+                candidate = self.opportunity_source.generate(iteration)
+                if not candidate:
+                    self.kpi.bump_reject("candidate_none")
+                    continue
+                
+                self.kpi.opportunities_generated += 1
+                
+                # AdminControl 체크
+                if self.admin_control:
+                    if not self.admin_control.should_process_tick():
+                        self.kpi.bump_reject("admin_paused")
+                        continue
+                    
+                    if self.admin_control.is_symbol_blacklisted(candidate.symbol):
+                        self.kpi.bump_reject("symbol_blacklisted")
+                        continue
+                
+                # 2. Intent 변환
+                intents = candidate_to_order_intents(candidate, quote_amount=100000.0)
+                if not intents or len(intents) != 2:
+                    self.kpi.bump_reject("intent_conversion_failed")
+                    continue
+                
+                self.kpi.intents_created += len(intents)
+                
+                # 3. 주문 실행
+                entry_result = self.executor.execute(intents[0], ref_price=candidate.price_a)
+                exit_result = self.executor.execute(intents[1], ref_price=candidate.price_b)
+                
+                self.kpi.mock_executions += 2
+                
+                # 4. DB 기록
+                self.ledger_writer.record_order_and_fill(intents[0], entry_result, candidate, self.kpi)
+                self.ledger_writer.record_order_and_fill(intents[1], exit_result, candidate, self.kpi)
+                
+                # 5. Trade 완료 기록
+                realized_pnl = (exit_result.filled_price - entry_result.filled_price) * entry_result.filled_qty - (entry_result.fee + exit_result.fee)
+                
+                trade_id = str(uuid.uuid4())
+                self.ledger_writer.record_trade_complete(
+                    trade_id=trade_id,
+                    candidate=candidate,
+                    intents=intents,
+                    entry_result=entry_result,
+                    exit_result=exit_result,
+                    realized_pnl=realized_pnl,
+                    kpi=self.kpi,
+                )
+                
+                # 6. KPI 업데이트
+                self.kpi.closed_trades += 1
+                self.kpi.gross_pnl += realized_pnl
+                self.kpi.fees += (entry_result.fee + exit_result.fee)
+                self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
+                
+                if realized_pnl > 0:
+                    self.kpi.wins += 1
+                else:
+                    self.kpi.losses += 1
+                
+                if self.kpi.closed_trades > 0:
+                    self.kpi.winrate_pct = (self.kpi.wins / self.kpi.closed_trades) * 100.0
+                
+                # 7. Trade History 기록
+                self.trade_history.append({
+                    "trade_id": trade_id,
+                    "iteration": iteration,
+                    "candidate_spread_bps": candidate.spread_bps,
+                    "candidate_edge_bps": candidate.edge_bps,
+                    "realized_pnl": realized_pnl,
+                })
+                
+                # KPI 출력 (10 iteration마다)
+                if iteration % 10 == 0:
+                    logger.info(f"[D205-18-2D KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, closed={self.kpi.closed_trades}, pnl={self.kpi.net_pnl:.2f}")
+                
+                time.sleep(0.1)
             
-            # Intent 변환
-            intents_local = self.intent_converter(candidate, iteration)
-            intents.extend(intents_local)
-            self.metrics.intents_created += len(intents_local)
+            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations")
             
-            # Trade 처리
-            exit_code = self.trade_processor(candidate, intents_local)
-            if exit_code == 1:
-                logger.error("[Orchestrator] Fake-Optimism detected")
-                raise RuntimeError("Fake-Optimism detected")
+            # Evidence 저장
+            db_counts = self.ledger_writer.get_counts()
+            self.save_evidence(db_counts=db_counts)
             
-            # KPI 출력 (10 iteration마다)
-            if iteration % 10 == 0:
-                logger.info(f"[Orchestrator KPI] {self.metrics.to_dict()}")
+            return 0
+            
+        except Exception as e:
+            logger.error(f"[D205-18-2D] Orchestrator failed: {e}", exc_info=True)
+            return 1
         
-        return process_tick
+        finally:
+            self.stop_watcher()
     
     def start_watcher(self):
         """RunWatcher 시작"""
         self._watcher = create_watcher(
-            kpi_getter=lambda: self.metrics,
+            kpi_getter=lambda: self.kpi,
             stop_callback=self.request_stop,
             heartbeat_sec=60,
             min_trades_for_check=100
         )
         self._watcher.start()
-        logger.info("[Orchestrator] RunWatcher started (60s heartbeat)")
+        logger.info("[D205-18-2D] RunWatcher started")
     
     def stop_watcher(self):
         """RunWatcher 정리"""
         if self._watcher:
             self._watcher.stop()
-            logger.info("[Orchestrator] RunWatcher stopped")
+            logger.info("[D205-18-2D] RunWatcher stopped")
     
-    def save_evidence(self, trade_history: list, db_counts: Optional[Dict[str, int]] = None, phase: str = "unknown"):
-        """
-        Evidence 저장
-        
-        Args:
-            trade_history: Trade 기록 리스트
-            db_counts: DB row counts
-            phase: 실행 phase
-        """
+    def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
+        """Evidence 저장"""
         self.evidence_collector.save(
-            metrics=self.metrics,
-            trade_history=trade_history,
+            metrics=self.kpi,
+            trade_history=self.trade_history,
             db_counts=db_counts,
-            phase=phase
+            phase=self.config.phase
         )
-        logger.info(f"[Orchestrator] Evidence saved: {self.evidence_collector.output_dir}")
+        logger.info(f"[D205-18-2D] Evidence saved")

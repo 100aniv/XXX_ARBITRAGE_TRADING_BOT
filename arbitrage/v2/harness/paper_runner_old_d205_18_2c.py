@@ -1,0 +1,1181 @@
+"""
+D204-2: Paper Execution Gate Runner
+
+계단식 Paper 테스트 (20m → 1h → 3~12h) 자동 실행
+
+Purpose:
+- Opportunity 생성 → OrderIntent 변환 → 모의 실행 → DB ledger 기록
+- KPI 자동 집계 (1분 단위)
+- Evidence 저장 (logs/evidence/d204_2_{duration}_YYYYMMDD_HHMM/)
+
+Usage:
+    python -m arbitrage.v2.harness.paper_runner --duration 20 --phase smoke
+    python -m arbitrage.v2.harness.paper_runner --duration 60 --phase baseline
+    python -m arbitrage.v2.harness.paper_runner --duration 180 --phase longrun
+
+Author: arbitrage-lite V2
+Date: 2025-12-30
+"""
+
+import argparse
+import json
+import logging
+import os
+import sys
+import time
+from dataclasses import dataclass, field, asdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+# V2 imports
+from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
+from arbitrage.v2.core.run_watcher import create_watcher  # D205-15-6: Self-Monitor
+from arbitrage.v2.core.trade_processor import TradeProcessor, TradeResult
+from arbitrage.v2.core.feature_guard import FeatureGuard # D205-15-6: Engine-Centric
+from arbitrage.v2.core.metrics import PaperMetrics  # D205-18-2: Harness Purge
+from arbitrage.v2.core.monitor import EvidenceCollector  # D205-18-2: Harness Purge
+from arbitrage.v2.core.orchestrator import PaperOrchestrator  # D205-18-2C: Orchestrator
+from arbitrage.v2.opportunity import (
+    BreakEvenParams,
+    build_candidate,
+    candidate_to_order_intents,
+)
+from arbitrage.v2.adapters import MockAdapter
+from arbitrage.v2.storage import V2LedgerStorage
+from arbitrage.v2.utils.timestamp import to_utc_naive, now_utc_naive
+from arbitrage.domain.fee_model import FeeModel, FeeStructure
+from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
+from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
+from arbitrage.redis_client import RedisClient
+from arbitrage.infrastructure.rate_limiter import TokenBucketRateLimiter, RateLimitConfig
+# D205-9-3: FX Provider (D205-8 인프라 재사용)
+from arbitrage.v2.core.fx_provider import FixedFxProvider
+from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw
+# D205-12-1: AdminControl 통합
+from arbitrage.v2.core.admin_control import AdminControl
+
+import uuid
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PaperRunnerConfig:
+    """
+    Paper Runner 설정
+    
+    Attributes:
+        duration_minutes: 실행 시간 (분)
+        phase: 실행 단계 (smoke/baseline/longrun)
+        run_id: 실행 ID (자동 생성: d204_2_20m_YYYYMMDD_HHMM)
+        output_dir: Evidence 저장 경로
+        symbols_top: Top N 심볼 (기본값: 10)
+        db_connection_string: PostgreSQL 연결 문자열
+        read_only: READ_ONLY 강제 (기본값: True)
+        db_mode: DB 모드 (strict/optional/off)
+        ensure_schema: 스키마 체크 (기본값: True)
+        use_real_data: Real MarketData 사용 여부 (기본값: False)
+        fx_krw_per_usdt: USDT → KRW 환율 (기본값: 1450.0, D205-9-3)
+        break_even_params: Break-even params (기본값: None)
+    """
+    duration_minutes: int
+    phase: str = "smoke"
+    run_id: str = ""
+    output_dir: str = ""
+    symbols_top: int = 10
+    db_connection_string: str = ""
+    read_only: bool = True
+    db_mode: str = "optional"  # strict/optional/off
+    ensure_schema: bool = True  # strict면 강제 True
+    use_real_data: bool = False  # D205-9: Real MarketData 사용 여부
+    fx_krw_per_usdt: float = 1450.0  # D205-9-3: FX rate (USDT → KRW)
+    break_even_params: Optional[BreakEvenParams] = None
+    
+    def __post_init__(self):
+        """자동 생성: run_id, output_dir"""
+        if not self.run_id:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            self.run_id = f"d204_2_{self.phase}_{timestamp}"
+        
+        if not self.output_dir:
+            self.output_dir = f"logs/evidence/{self.run_id}"
+        
+        if not self.db_connection_string:
+            self.db_connection_string = os.getenv(
+                "POSTGRES_CONNECTION_STRING",
+                "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
+            )
+        
+        # strict mode면 ensure_schema 강제
+        if self.db_mode == "strict":
+            self.ensure_schema = True
+
+
+@dataclass
+class MockBalance:
+    """Mock 잔고 관리"""
+    balances: Dict[str, float] = field(default_factory=lambda: {
+        "KRW": 10_000_000.0,  # 1천만원
+        "USDT": 10_000.0,     # 1만 USDT
+        "BTC": 0.0,
+        "ETH": 0.0,
+    })
+    
+    def get(self, currency: str) -> float:
+        """잔고 조회"""
+        return self.balances.get(currency, 0.0)
+    
+    def update(self, currency: str, amount: float):
+        """잔고 업데이트 (증가/감소)"""
+        self.balances[currency] = self.balances.get(currency, 0.0) + amount
+
+
+class PaperRunner:
+    """
+    Paper Execution Gate Runner
+    
+    Flow:
+        1. Opportunity 생성 (Mock 가격)
+        2. OrderIntent 변환 (candidate_to_order_intents)
+        3. 모의 실행 (MockAdapter)
+        4. DB 기록 (V2LedgerStorage)
+        5. KPI 집계 (1분 단위)
+    """
+    
+    def __init__(self, config: PaperRunnerConfig, admin_control: Optional['AdminControl'] = None):
+        """
+        Initialize Paper Runner
+        
+        Args:
+            config: Paper Runner 설정
+            admin_control: AdminControl 인스턴스 (Optional, D205-12-1)
+        """
+        self.config = config
+        self.output_dir = Path(config.output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # D205-12-1: AdminControl 훅
+        self.admin_control = admin_control
+        if admin_control:
+            logger.info(f"[D205-12-1] AdminControl enabled: {admin_control.state_key}")
+        
+        # D205-15-6: Self-Monitor (RunWatcher)
+        self._stop_requested = False
+        self._watcher = None
+        
+        # V2 Components
+        self.mock_adapter = MockAdapter(exchange_name="mock_paper")
+        self.balance = MockBalance()
+        self.kpi = PaperMetrics()  # D205-18-2: Harness Purge (v2/core/metrics.py)
+        self.evidence_collector = EvidenceCollector(config.output_dir)  # D205-18-2: Harness Purge
+        
+        # D205-15-6: TradeProcessor (Engine-Centric, break_even 이후 초기화)
+        self.trade_processor = None
+        
+        # D205-15-6a: Trade history for decision_trace_samples.jsonl
+        self.trade_history: List[dict] = []
+        
+        # D205-18-2C: Orchestrator (Thin Wrapper)
+        self.orchestrator = None
+        
+        # D205-9-REOPEN: Paper-LIVE Parity 강제 (Real MarketData + DB/Redis Strict)
+        # Smoke/Baseline/Longrun = 운영 검증 단계 (Real Data 필수)
+        # MOCK은 test_1min 같은 계약/유닛 전용 phase로만 제한
+        if config.phase in ["smoke", "baseline", "longrun", "smoke_test"]:
+            if not config.use_real_data:
+                logger.error(f"[D205-9-REOPEN] ❌ FAIL-FAST: Phase '{config.phase}' requires Real MarketData")
+                logger.error(f"[D205-9-REOPEN] Set --use-real-data flag. MOCK is only for test_1min phase.")
+                logger.error(f"[D205-9-REOPEN] Reason: Smoke/Baseline/Longrun are 'Ops Validation' stages")
+                logger.error(f"[D205-9-REOPEN] MOCK data cannot reflect real market friction (slippage/fees/latency)")
+                raise RuntimeError(
+                    f"[D205-9-REOPEN] Phase '{config.phase}' requires Real MarketData. "
+                    f"Current: use_real_data={config.use_real_data}. "
+                    f"Fix: Add --use-real-data flag to command."
+                )
+            
+            if config.db_mode != "strict":
+                logger.error(f"[D205-9-REOPEN] ❌ FAIL-FAST: Phase '{config.phase}' requires db_mode='strict'")
+                logger.error(f"[D205-9-REOPEN] Current: db_mode='{config.db_mode}'")
+                logger.error(f"[D205-9-REOPEN] Reason: Infrastructure validation is mandatory for Ops stages")
+                logger.error(f"[D205-9-REOPEN] DB off/optional = Cannot validate write performance & data integrity")
+                raise RuntimeError(
+                    f"[D205-9-REOPEN] Phase '{config.phase}' requires db_mode='strict'. "
+                    f"Current: db_mode='{config.db_mode}'. "
+                    f"Fix: Add --db-mode strict to command."
+                )
+            
+            logger.info(f"[D205-9-REOPEN] ✅ Paper-LIVE Parity: Phase '{config.phase}' with Real Data + DB Strict")
+        
+        # D205-9: Real MarketData Providers (BOTH Upbit + Binance REQUIRED)
+        self.use_real_data = config.use_real_data
+        if self.use_real_data:
+            logger.info("[D205-9] Real MarketData mode: Initializing Upbit + Binance providers...")
+            
+            # Upbit Provider (retry 3회)
+            upbit_ok = False
+            for attempt in range(1, 4):
+                try:
+                    self.upbit_provider = UpbitRestProvider(timeout=15.0)
+                    # 연결 테스트
+                    test_ticker = self.upbit_provider.get_ticker("BTC/KRW")
+                    if test_ticker and test_ticker.last > 0:
+                        logger.info(f"[D205-9] ✅ Upbit Provider initialized (attempt {attempt}/3, price={test_ticker.last:.0f} KRW)")
+                        upbit_ok = True
+                        self.kpi.upbit_marketdata_ok = True
+                        break
+                    else:
+                        logger.warning(f"[D205-9] ⚠️ Upbit ticker invalid (attempt {attempt}/3)")
+                except Exception as e:
+                    logger.warning(f"[D205-9] ⚠️ Upbit init failed (attempt {attempt}/3): {e}")
+                    if attempt < 3:
+                        time.sleep(2 ** attempt)  # backoff: 2s, 4s, 8s
+            
+            if not upbit_ok:
+                logger.error("[D205-9] ❌ CRITICAL: Upbit Provider init FAILED after 3 attempts")
+                raise RuntimeError("Upbit Provider initialization failed (required for D205-9)")
+            
+            # Binance Provider (retry 3회)
+            binance_ok = False
+            for attempt in range(1, 4):
+                try:
+                    self.binance_provider = BinanceRestProvider(timeout=15.0)
+                    # 연결 테스트
+                    test_ticker = self.binance_provider.get_ticker("BTC/USDT")
+                    if test_ticker and test_ticker.last > 0:
+                        logger.info(f"[D205-9] ✅ Binance Provider initialized (attempt {attempt}/3, price={test_ticker.last:.2f} USDT)")
+                        binance_ok = True
+                        self.kpi.binance_marketdata_ok = True
+                        break
+                    else:
+                        logger.warning(f"[D205-9] ⚠️ Binance ticker invalid (attempt {attempt}/3)")
+                except Exception as e:
+                    logger.warning(f"[D205-9] ⚠️ Binance init failed (attempt {attempt}/3): {e}")
+                    if attempt < 3:
+                        time.sleep(2 ** attempt)  # backoff: 2s, 4s, 8s
+            
+            if not binance_ok:
+                logger.error("[D205-9] ❌ CRITICAL: Binance Provider init FAILED after 3 attempts")
+                raise RuntimeError("Binance Provider initialization failed (required for D205-9)")
+            
+            # BOTH OK: Real Data 모드 확정
+            self.kpi.marketdata_mode = "REAL"
+            logger.info("[D205-9] ✅ Real MarketData mode: BOTH Upbit + Binance initialized")
+            
+        else:
+            self.upbit_provider = None
+            self.binance_provider = None
+            self.kpi.marketdata_mode = "MOCK"
+            logger.info("[D204-2] Mock Data mode")
+        
+        # D205-2 REOPEN: trade tracking (opportunity 단위)
+        self.open_trades: Dict[str, Dict[str, Any]] = {}  # trade_id -> {entry_*, candidate, orders_executed}
+        
+        # D205-9-3: FX Provider 초기화 (D205-8 인프라 재사용)
+        self.fx_provider = FixedFxProvider(fx_krw_per_usdt=config.fx_krw_per_usdt)
+        logger.info(f"[D205-9-3] ✅ FX Provider initialized: {config.fx_krw_per_usdt} KRW/USDT")
+        
+        # FX Safety Guard (1300원 참사 방지)
+        if config.fx_krw_per_usdt < 1000 or config.fx_krw_per_usdt > 2000:
+            raise ValueError(
+                f"🚨 FATAL: Suspicious FX rate {config.fx_krw_per_usdt} KRW/USDT!\n"
+                f"Expected range: 1000~2000 (typical: 1300~1500).\n"
+                f"This safeguard prevents '1300원 참사' (wrong FX orders)."
+            )
+        
+        # D205-9 RECOVERY: Redis REQUIRED (SSOT_DATA_ARCHITECTURE 헌법)
+        logger.info("[D205-9 RECOVERY] Initializing Redis (REQUIRED for Paper/Live)")
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = os.getenv("REDIS_PORT", "6380")  # D205-12-2: infra/docker-compose.yml default
+        redis_config = {
+            "enabled": True,
+            "url": f"redis://{redis_host}:{redis_port}/0",
+            "prefix": f"v2:{config.run_id}",
+            "health_ttl_seconds": 60,
+        }
+        try:
+            self.redis = RedisClient(redis_config)
+            if not self.redis.available:
+                raise RuntimeError("Redis connection failed (REQUIRED)")
+            self.kpi.redis_ok = True
+            logger.info(f"[D205-9 RECOVERY] ✅ Redis initialized: {redis_config['url']}")
+        except Exception as e:
+            logger.error(f"[D205-9 RECOVERY] ❌ CRITICAL: Redis init failed: {e}")
+            raise RuntimeError(f"Redis REQUIRED for Paper mode (SSOT violation): {e}")
+        
+        # D205-9 RECOVERY: RateLimit (Upbit/Binance)
+        self.rate_limiter_upbit = TokenBucketRateLimiter(
+            RateLimitConfig(max_requests=10, window_seconds=1.0, burst_allowance=5)
+        )
+        self.rate_limiter_binance = TokenBucketRateLimiter(
+            RateLimitConfig(max_requests=20, window_seconds=1.0, burst_allowance=10)
+        )
+        logger.info("[D205-9 RECOVERY] ✅ RateLimit initialized (Upbit: 10req/s, Binance: 20req/s)")
+        
+        # D205-9 RECOVERY: Dedup tracking
+        self.dedup_hits = 0
+        logger.info("[D205-9 RECOVERY] ✅ Dedup tracking initialized")
+        
+        # V2 Storage (PostgreSQL) - D204-2 REOPEN: strict mode
+        if config.db_mode == "off":
+            logger.info(f"[D204-2] DB mode: OFF (no DB operations)")
+            self.storage = None
+        else:
+            try:
+                self.storage = V2LedgerStorage(config.db_connection_string)
+                logger.info(f"[D204-2] V2LedgerStorage initialized: {config.db_connection_string}")
+                
+                # strict mode: 스키마 체크 필수
+                if config.ensure_schema:
+                    self._verify_schema()
+                    
+            except Exception as e:
+                error_msg = f"V2LedgerStorage init failed: {e}"
+                logger.error(f"[D204-2] {error_msg}")
+                
+                if config.db_mode == "strict":
+                    logger.error(f"[D204-2] ❌ FAIL: DB mode is strict, cannot continue")
+                    raise RuntimeError(f"DB init failed in strict mode: {e}")
+                else:
+                    logger.warning(f"[D204-2] DB mode: optional, will skip DB operations")
+                    self.storage = None
+        
+        # D205-15-6: Config SSOT - break_even 파라미터 config.yml에서 로드
+        # BreakEvenParams: config.break_even_params가 주입되었으면 우선 사용, 아니면 config.yml에서 로드
+        if config.break_even_params is not None:
+            # 외부 주입 (테스트용)
+            self.break_even_params = config.break_even_params
+            logger.info("[D205-15-6] BreakEvenParams: injected from config object")
+        else:
+            # config.yml에서 로드 (SSOT)
+            # Fee: exchanges.upbit/binance.taker_fee_bps
+            upbit_fee_bps = getattr(config, 'upbit_taker_fee_bps', 5.0)  # 기본값 5.0
+            binance_fee_bps = getattr(config, 'binance_taker_fee_bps', 10.0)  # 기본값 10.0
+            
+            # Break-even: strategy.break_even
+            break_even_cfg = getattr(config, 'break_even', {})
+            slippage_bps = break_even_cfg.get('slippage_bps', 15.0)
+            latency_bps = break_even_cfg.get('latency_bps', 10.0)
+            buffer_bps = break_even_cfg.get('buffer_bps', 0.0)
+            
+            # FeeStructure + FeeModel
+            fee_a = FeeStructure(
+                exchange_name="upbit",
+                maker_fee_bps=upbit_fee_bps,
+                taker_fee_bps=upbit_fee_bps,
+            )
+            fee_b = FeeStructure(
+                exchange_name="binance",
+                maker_fee_bps=binance_fee_bps,
+                taker_fee_bps=binance_fee_bps,
+            )
+            fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
+            
+            self.break_even_params = BreakEvenParams(
+                fee_model=fee_model,
+                slippage_bps=slippage_bps,
+                latency_bps=latency_bps,
+                buffer_bps=buffer_bps,
+            )
+            logger.info(
+                f"[D205-15-6] BreakEvenParams loaded from config.yml: "
+                f"upbit={upbit_fee_bps}, binance={binance_fee_bps}, "
+                f"slippage={slippage_bps}, latency={latency_bps}, buffer={buffer_bps}"
+            )
+        
+        # D205-15-6: TradeProcessor 초기화 (Engine-Centric)
+        self.trade_processor = TradeProcessor(self.break_even_params)
+        logger.info("[D205-15-6] TradeProcessor initialized (Engine-Centric)")
+        
+        # D205-15-6c: FeatureGuard - Bootstrap 시 ESSENTIAL 기능 검증
+        if config.phase in ["smoke", "baseline", "longrun", "smoke_test", "live"]:
+            logger.info("[D205-15-6c] Running FeatureGuard verification...")
+            feature_guard = FeatureGuard(config)
+            
+            marketdata_providers = {}
+            if self.use_real_data:
+                marketdata_providers = {
+                    'upbit': self.upbit_provider,
+                    'binance': self.binance_provider,
+                }
+            
+            # 모든 ESSENTIAL 기능 검증 (FAIL 시 RuntimeError)
+            feature_guard.verify_all_essential(
+                storage=self.storage,
+                redis_client=self.redis_client if hasattr(self, 'redis_client') else None,
+                use_real_data=self.use_real_data,
+                marketdata_providers=marketdata_providers,
+                fx_provider=None,  # FX provider는 아직 초기화 안됨 (paper에서는 Fixed FX)
+            )
+            logger.info("[D205-15-6c] FeatureGuard verification PASSED")
+        else:
+            logger.info(f"[D205-15-6c] FeatureGuard SKIP (phase={config.phase}, test phase)")
+        
+        logger.info(f"[D204-2] PaperRunner initialized")
+        logger.info(f"[D204-2] run_id: {config.run_id}")
+        logger.info(f"[D204-2] output_dir: {self.output_dir}")
+        logger.info(f"[D204-2] duration: {config.duration_minutes} min")
+        logger.info(f"[D204-2] db_mode: {config.db_mode}")
+        logger.info(f"[D204-2] ensure_schema: {config.ensure_schema}")
+    
+    def _verify_schema(self):
+        """스키마 검증 (strict mode)"""
+        required_tables = ["v2_orders", "v2_fills", "v2_trades"]
+        
+        try:
+            # V2LedgerStorage는 connection pool 사용, _execute_query() 메서드로 쿼리 실행
+            for table_name in required_tables:
+                query = "SELECT to_regclass(%s) IS NOT NULL AS exists"
+                
+                # 직접 psycopg2 연결 사용
+                import psycopg2
+                conn = psycopg2.connect(self.config.db_connection_string)
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(query, (f"public.{table_name}",))
+                        row = cur.fetchone()
+                        exists = row[0] if row else False
+                        
+                        if not exists:
+                            raise RuntimeError(f"Required table '{table_name}' does not exist")
+                        
+                        logger.info(f"[D204-2] ✅ {table_name} exists")
+                finally:
+                    conn.close()
+            
+            logger.info(f"[D204-2] Schema verification: PASS")
+            
+        except Exception as e:
+            logger.error(f"[D204-2] Schema verification: FAIL - {e}")
+            raise
+    
+    def request_stop(self):
+        """
+        D205-15-6: RunWatcher가 호출하는 Graceful Stop 메서드
+        """
+        logger.warning("[D205-15-6] Stop requested by RunWatcher")
+        self._stop_requested = True
+    
+    def run(self):
+        """
+        메인 실행 루프 (Thin Wrapper)
+        
+        D205-18-2C: Orchestrator 기반 전환 - Runner는 설정/호출만
+        
+        Returns:
+            0: 성공
+            1: 실패
+        """
+        if not self.config.read_only:
+            logger.error("[D205-18-2C] ❌ READ_ONLY=False 금지 (Paper 전용)")
+            return 1
+        
+        logger.info("[D205-18-2C] ========================================")
+        logger.info(f"[D205-18-2C] PAPER EXECUTION - {self.config.phase.upper()}")
+        logger.info("[D205-18-2C] ========================================")
+        
+        # D205-18-2C: Orchestrator 생성
+        self.orchestrator = PaperOrchestrator(
+            metrics=self.kpi,
+            evidence_collector=self.evidence_collector,
+            opportunity_generator=lambda iteration: (
+                self._generate_real_opportunity(iteration) if self.use_real_data
+                else self._generate_mock_opportunity(iteration)
+            ),
+            intent_converter=self._convert_to_intents,
+            trade_processor=self._process_opportunity_as_trade,
+            admin_control=self.admin_control
+        )
+        
+        # RunWatcher 시작
+        self.orchestrator.start_watcher()
+        
+        # Engine 생성
+        from arbitrage.v2.core.engine import ArbitrageEngine, EngineConfig
+        
+        engine_config = EngineConfig(
+            min_spread_bps=30.0,
+            max_position_usd=1000.0,
+            enable_execution=False,
+            tick_interval_sec=1.0,
+            kpi_log_interval=10
+        )
+        
+        engine = ArbitrageEngine(config=engine_config, admin_control=self.admin_control)
+        
+        # Engine.run() 호출
+        try:
+            exit_code = engine.run(
+                duration_minutes=self.config.duration_minutes,
+                fetch_tick_data=self.orchestrator.create_fetch_callback(),
+                process_tick=self.orchestrator.create_process_callback()
+            )
+            
+            # Evidence 저장
+            db_counts = self._get_db_counts() if self.storage else None
+            self.orchestrator.save_evidence(
+                trade_history=self.trade_history,
+                db_counts=db_counts,
+                phase=self.config.phase
+            )
+            
+            logger.info("[D205-18-2C] ========================================")
+            logger.info(f"[D205-18-2C] EXECUTION COMPLETE - {self.config.phase.upper()}")
+            logger.info("[D205-18-2C] ========================================")
+            logger.info(f"[D205-18-2C FINAL KPI] {self.kpi.to_dict()}")
+            
+            return exit_code
+        
+        except KeyboardInterrupt:
+            logger.warning("[D205-18-2C] Interrupted by user")
+            self.orchestrator.save_evidence(self.trade_history, phase=self.config.phase)
+            return 1
+        
+        except Exception as e:
+            logger.error(f"[D205-18-2C] Fatal error: {e}", exc_info=True)
+            self.kpi.errors.append(str(e))
+            self.orchestrator.save_evidence(self.trade_history, phase=self.config.phase)
+            return 1
+        
+        finally:
+            self.orchestrator.stop_watcher()
+    
+    def _generate_real_opportunity(self, iteration: int):
+        """Real MarketData 기반 Opportunity 생성 (D205-9)
+        
+        REQUIRED: Upbit + Binance BOTH OK
+        - Market Data: Upbit BTC/KRW + Binance BTC/USDT (REAL)
+        - Execution: Paper (simulated)
+        - Spread: Real spread between Upbit/Binance prices
+        """
+        try:
+            # Defensive: 둘 다 None이면 즉시 에러
+            if self.upbit_provider is None or self.binance_provider is None:
+                logger.error(f"[D205-9] ❌ CRITICAL: provider is None (upbit={self.upbit_provider}, binance={self.binance_provider})")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # D205-9 RECOVERY: RateLimit 체크 (Upbit)
+            if not self.rate_limiter_upbit.consume(weight=1):
+                self.kpi.ratelimit_hits += 1
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9 RECOVERY] ⚠️ Upbit RateLimit exceeded")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # Real 시세 조회 (Upbit BTC/KRW)
+            ticker_upbit = self.upbit_provider.get_ticker("BTC/KRW")
+            if not ticker_upbit or ticker_upbit.last <= 0:
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9] ❌ Upbit ticker fetch failed")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # D205-9 RECOVERY: RateLimit 체크 (Binance)
+            if not self.rate_limiter_binance.consume(weight=1):
+                self.kpi.ratelimit_hits += 1
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9 RECOVERY] ⚠️ Binance RateLimit exceeded")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # Real 시세 조회 (Binance BTC/USDT)
+            ticker_binance = self.binance_provider.get_ticker("BTC/USDT")
+            if not ticker_binance or ticker_binance.last <= 0:
+                if iteration % 10 == 1:  # spam 방지
+                    logger.warning(f"[D205-9] ❌ Binance ticker fetch failed")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # 가격 범위 확인 (Mock 의심 감지)
+            if ticker_upbit.last < 50_000_000 or ticker_upbit.last > 200_000_000:
+                logger.error(f"[D205-9] ❌ Upbit price suspicious: {ticker_upbit.last:.0f} KRW (expected 50M~200M)")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            if ticker_binance.last < 20_000 or ticker_binance.last > 150_000:
+                logger.error(f"[D205-9] ❌ Binance price suspicious: {ticker_binance.last:.2f} USDT (expected 20k~150k)")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # Real Data 확인 로그 (첫 iteration만)
+            if iteration == 1:
+                logger.info(f"[D205-9] ✅ Real Upbit price: {ticker_upbit.last:,.0f} KRW")
+                logger.info(f"[D205-9] ✅ Real Binance price: {ticker_binance.last:.2f} USDT")
+            
+            # D205-9-3: FX Provider 사용 (하드코딩 제거)
+            fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+            
+            # D205-10: FX Safety Guard (환율 이상 감지)
+            if fx_rate < 1000 or fx_rate > 2000:
+                logger.error(f"[D205-10] ❌ FX rate suspicious: {fx_rate} KRW/USDT (expected 1000~2000)")
+                self.kpi.bump_reject("sanity_guard")
+                self.kpi.real_ticks_fail_count += 1
+                return None
+            
+            # D205-9-3: Quote Normalizer로 통화 정규화
+            price_a = ticker_upbit.last  # KRW (이미 정규화됨)
+            price_b_usdt = ticker_binance.last  # USDT (원본)
+            price_b = normalize_price_to_krw(price_b_usdt, "USDT", fx_rate)
+            
+            if iteration == 1:
+                logger.info(f"[D205-9-3] ✅ FX rate: {fx_rate} KRW/USDT")
+                logger.info(f"[D205-9-3] ✅ Normalized Binance: {price_b:,.0f} KRW (from {price_b_usdt:.2f} USDT)")
+            
+            candidate = build_candidate(
+                symbol="BTC/KRW",
+                exchange_a="upbit",
+                exchange_b="binance",
+                price_a=price_a,
+                price_b=price_b,
+                params=self.break_even_params,
+            )
+            
+            self.kpi.real_ticks_ok_count += 1
+            return candidate
+            
+        except Exception as e:
+            logger.warning(f"[D205-9] Real opportunity generation failed: {e}")
+            self.kpi.errors.append(f"real_opportunity: {e}")
+            self.kpi.real_ticks_fail_count += 1
+            return None
+    
+    def _generate_mock_opportunity(self, iteration: int):
+        """
+        Mock Opportunity 생성 (가상 가격)
+        
+        D205-9-3: FX Provider 적용 (Mock mode에서도 통화 정규화 일관성 유지)
+        """
+        # Mock 가격 (iteration 기반으로 변동)
+        base_price_a_krw = 50_000_000.0  # Upbit BTC/KRW
+        base_price_b_usdt = 40_000.0      # Binance BTC/USDT
+        
+        # D205-9-3: FX Provider로 통화 정규화
+        fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+        base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)
+        
+        # 스프레드 시뮬레이션 (0.3%~0.5% 변동)
+        spread_pct = 0.003 + (iteration % 10) * 0.0002
+        price_a = base_price_a_krw * (1 + spread_pct / 2)
+        price_b = base_price_b_krw * (1 - spread_pct / 2)
+        
+        try:
+            candidate = build_candidate(
+                symbol="BTC/KRW",
+                exchange_a="upbit",
+                exchange_b="binance",
+                price_a=price_a,
+                price_b=price_b,
+                params=self.break_even_params,
+            )
+            return candidate
+        except Exception as e:
+            logger.warning(f"[D204-2] Failed to build candidate: {e}")
+            self.kpi.errors.append(f"build_candidate: {e}")
+            return None
+    
+    def _convert_to_intents(self, candidate, iteration: int) -> List[OrderIntent]:
+        """OpportunityCandidate → OrderIntent 변환 (D205-10: reject reason 추적)"""
+        try:
+            # D205-16: base_qty 하드코딩 제거, quote_amount만 지정
+            # exit qty는 entry filled_qty로 동기화됨 (qty_source="from_entry_fill")
+            intents = candidate_to_order_intents(
+                candidate=candidate,
+                quote_amount=500_000.0,  # 50만원
+                order_type=OrderType.MARKET,
+            )
+            
+            # D205-10: intents 비어있을 때 reject reason 기록
+            if len(intents) == 0:
+                if not candidate.profitable:
+                    self.kpi.bump_reject("profitable_false")
+                    if iteration <= 3:  # 초기 3회만 상세 로그
+                        logger.info(f"[D205-10 REJECT] profitable=False | spread={candidate.spread_bps:.1f} < break_even={candidate.break_even_bps:.1f} | edge={candidate.edge_bps:.1f}")
+                elif candidate.direction.value == "none":
+                    self.kpi.bump_reject("direction_none")
+                    if iteration <= 3:
+                        logger.info(f"[D205-10 REJECT] direction=NONE | price_a={candidate.price_a:.0f}, price_b={candidate.price_b:.0f}")
+                else:
+                    self.kpi.bump_reject("other")
+                    logger.warning(f"[D205-10 REJECT] Logic bug? profitable={candidate.profitable}, direction={candidate.direction.value}, but intents=0")
+            
+            return intents
+        except Exception as e:
+            logger.error(f"[D204-2] Failed to convert to intents: {e}", exc_info=True)
+            self.kpi.errors.append(f"candidate_to_order_intents: {e}")
+            self.kpi.bump_reject("other")
+            return []
+    
+    def _execute_order(self, intent: OrderIntent, ref_price: Optional[float] = None):
+        """Mock 주문 실행 (DB 기록 없이 순수 실행만)
+        
+        D205-2 REOPEN: trade close를 위해 분리
+        D205-15-6a: ref_price 주입 (candidate의 실제 호가)
+        
+        Args:
+            intent: OrderIntent
+            ref_price: Reference price (candidate의 price_a 또는 price_b)
+        """
+        # 1. MockAdapter로 변환
+        payload = self.mock_adapter.translate_intent(intent)
+        
+        # D205-15-6a: ref_price 주입 (시뮬레이션 입력값 현실화)
+        if ref_price is not None:
+            payload["ref_price"] = ref_price
+        
+        # 2. Mock 체결 (항상 성공)
+        response = self.mock_adapter.submit_order(payload)
+        order_result = self.mock_adapter.parse_response(response)
+        
+        # 3. KPI 업데이트
+        self.kpi.mock_executions += 1
+        
+        return order_result
+    
+    def _execute_mock_order(self, intent: OrderIntent):
+        """Mock 주문 실행 + DB 기록"""
+        try:
+            # 1. MockAdapter로 변환
+            payload = self.mock_adapter.translate_intent(intent)
+            
+            # 2. Mock 체결 (항상 성공)
+            response = self.mock_adapter.submit_order(payload)
+            order_result = self.mock_adapter.parse_response(response)
+            
+            # 3. Balance 업데이트 (Mock)
+            self._update_mock_balance(intent, order_result)
+            
+            # 4. DB 기록 (V2LedgerStorage)
+            if self.storage:
+                self._record_to_db(intent, order_result)
+                self.kpi.db_inserts_ok += 1
+            
+            logger.debug(f"[D204-2] Mock executed: {order_result.order_id}")
+        
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[D204-2] Failed to execute mock order: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"execute_mock_order: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            # strict mode: DB insert 실패 시 즉시 종료
+            if self.config.db_mode == "strict" and "relation" in error_msg:
+                logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
+                raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
+            self.kpi.db_inserts_failed += 1
+    
+    def _update_mock_balance(self, intent: OrderIntent, order_result):
+        """Mock Balance 업데이트"""
+        if intent.side == OrderSide.BUY:
+            # BUY: KRW/USDT 차감, BTC/ETH 증가
+            if "KRW" in intent.symbol:
+                self.balance.update("KRW", -intent.quote_amount)
+                self.balance.update("BTC", order_result.filled_qty or 0.01)
+            else:
+                self.balance.update("USDT", -intent.quote_amount)
+                self.balance.update("BTC", order_result.filled_qty or 0.01)
+        else:
+            # SELL: BTC/ETH 차감, KRW/USDT 증가
+            if "KRW" in intent.symbol:
+                self.balance.update("BTC", -(intent.base_qty or 0.01))
+                self.balance.update("KRW", (order_result.filled_qty or 0.01) * (order_result.filled_price or 50_000_000.0))
+            else:
+                self.balance.update("BTC", -(intent.base_qty or 0.01))
+                self.balance.update("USDT", (order_result.filled_qty or 0.01) * (order_result.filled_price or 40_000.0))
+    
+    def _record_to_db(self, intent: OrderIntent, order_result):
+        """DB 기록 (v2_orders, v2_fills, v2_trades)
+        
+        D205-1 Hotfix:
+        - insert_order + insert_fill + insert_trade (리포팅 재료 확보)
+        - KPI db_inserts_ok = 실제 rows inserted (중복 카운트 제거)
+        """
+        timestamp = datetime.now(timezone.utc)
+        rows_inserted = 0
+        
+        if not self.storage:
+            return
+        
+        try:
+            # 1. v2_orders 기록
+            self.storage.insert_order(
+                run_id=self.config.run_id,
+                order_id=order_result.order_id,
+                timestamp=timestamp,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                order_type=intent.order_type.value,
+                quantity=intent.base_qty or order_result.filled_qty,
+                price=intent.quote_amount or order_result.filled_price,
+                status="filled",
+                route_id=intent.route_id,
+                strategy_id=intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # 2. v2_fills 기록 (D205-1 Hotfix: 리포팅 재료)
+            # fee 계산: FeeModel 활용 (taker_fee_bps)
+            filled_qty = order_result.filled_qty or intent.base_qty or 0.01
+            filled_price = order_result.filled_price or intent.limit_price or 50_000_000.0
+            
+            # exchange별 fee_bps (self.break_even_params.fee_model 사용)
+            if intent.exchange == "upbit":
+                fee_bps = self.break_even_params.fee_model.fee_a.taker_fee_bps
+            else:
+                fee_bps = self.break_even_params.fee_model.fee_b.taker_fee_bps
+            
+            # fee 계산: filled_qty * filled_price * fee_bps / 10000
+            fee = filled_qty * filled_price * fee_bps / 10000.0
+            fee_currency = "KRW" if "KRW" in intent.symbol else "USDT"
+            
+            # D205-2 REOPEN-2: uuid4 기반 fill_id (충돌 제거)
+            fill_id = f"{order_result.order_id}_fill_{uuid.uuid4().hex[:8]}"
+            
+            self.storage.insert_fill(
+                run_id=self.config.run_id,
+                order_id=order_result.order_id,
+                fill_id=fill_id,
+                timestamp=timestamp,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                filled_quantity=filled_qty,
+                filled_price=filled_price,
+                fee=fee,
+                fee_currency=fee_currency,
+            )
+            rows_inserted += 1
+            
+            # 3. v2_trades 기록 (D205-1 Hotfix: 리포팅 재료)
+            # 단일 주문 → trade entry로 기록 (exit은 나중에)
+            # D205-2 REOPEN-2: uuid4 기반 trade_id (초 단위 충돌 제거)
+            trade_id = f"trade_{self.config.run_id}_{uuid.uuid4().hex[:8]}"
+            
+            self.storage.insert_trade(
+                run_id=self.config.run_id,
+                trade_id=trade_id,
+                timestamp=timestamp,
+                entry_exchange=intent.exchange,
+                entry_symbol=intent.symbol,
+                entry_side=intent.side.value,
+                entry_order_id=order_result.order_id,
+                entry_quantity=filled_qty,
+                entry_price=filled_price,
+                entry_timestamp=timestamp,
+                status="open",  # paper에서는 즉시 entry만
+                total_fee=fee,
+                route_id=intent.route_id,
+                strategy_id=intent.strategy_id or "d204_2_paper",
+            )
+            rows_inserted += 1
+            
+            # KPI: 실제 insert rows 수 (order + fill + trade = 3)
+            self.kpi.db_inserts_ok += rows_inserted
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[D204-2] Failed to record to DB: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"record_to_db: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            # strict mode: DB insert 실패 시 즉시 종료
+            if self.config.db_mode == "strict":
+                logger.error(f"[D204-2] ❌ FAIL: DB insert failed in strict mode")
+                raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
+            
+            self.kpi.db_inserts_failed += rows_inserted  # 실패한 rows 수
+    
+    def _process_opportunity_as_trade(
+        self,
+        candidate,
+        intents: List[OrderIntent],
+    ):
+        """
+        D205-2 REOPEN: Opportunity를 하나의 trade로 처리 (entry + exit)
+        
+        Args:
+            candidate: OpportunityCandidate
+            intents: 2개의 OrderIntent (entry, exit)
+        
+        Flow:
+            1. 첫 번째 order: entry 기록 (trade status=open)
+            2. 두 번째 order: exit 기록 + trade close (status=closed, realized_pnl 계산)
+        """
+        if len(intents) != 2:
+            logger.warning(f"[D205-2] Expected 2 intents, got {len(intents)}")
+            # Fallback: 기존 로직
+            for intent in intents:
+                order_result = self._execute_order(intent)
+                self._update_mock_balance(intent, order_result)
+            return
+        
+        # D205-2 REOPEN-2: UTC naive timestamp + uuid4 기반 trade_id
+        timestamp = now_utc_naive()
+        trade_id = f"trade_{self.config.run_id}_{uuid.uuid4().hex[:8]}"
+        
+        # D205-15-6a: ref_price 계산 (candidate의 실제 호가)
+        # entry가 exchange_a면 price_a, exchange_b면 price_b
+        entry_intent = intents[0]
+        entry_ref_price = (
+            candidate.price_a if entry_intent.exchange == candidate.exchange_a
+            else candidate.price_b
+        )
+        entry_result = self._execute_order(entry_intent, ref_price=entry_ref_price)
+        self._update_mock_balance(entry_intent, entry_result)
+        
+        # D205-16: Exit qty 동기화 (entry filled_qty 기반)
+        exit_intent = intents[1]
+        if exit_intent.qty_source == "from_entry_fill":
+            # Exit qty를 entry fill qty로 동기화
+            entry_filled_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
+            if entry_filled_qty > 0:
+                exit_intent.base_qty = entry_filled_qty
+                logger.debug(
+                    f"[D205-16] Exit qty synchronized: "
+                    f"exit_intent.base_qty={exit_intent.base_qty:.8f} (from entry_result.filled_qty)"
+                )
+        exit_ref_price = (
+            candidate.price_a if exit_intent.exchange == candidate.exchange_a
+            else candidate.price_b
+        )
+        exit_result = self._execute_order(exit_intent, ref_price=exit_ref_price)
+        self._update_mock_balance(exit_intent, exit_result)
+        
+        # DB 기록 (entry + exit + trade close)
+        self._record_trade_complete(
+            trade_id=trade_id,
+            candidate=candidate,
+            entry_intent=entry_intent,
+            entry_result=entry_result,
+            exit_intent=exit_intent,
+            exit_result=exit_result,
+            timestamp=timestamp,
+        )
+        
+        # D205-9-REOPEN: Winrate Guard 강화 (0% 또는 100% 조기 중단)
+        # SSOT_RULES: "winrate 0%/100% → 계약/측정 검증 단계로 강제 이동"
+        # D205-9-REOPEN + D205-17: Winrate Guard (임계값 완화 95%)
+        is_ops_validation_phase = self.config.phase in ["smoke", "baseline", "longrun", "smoke_test"]
+        if is_ops_validation_phase and self.kpi.closed_trades >= 50:
+            winrate = self.kpi.winrate_pct
+            is_zero_winrate = (winrate <= 0.1)
+            is_perfect_winrate = (winrate >= 95.0)  # D205-17: 95% 이상도 비현실적
+            
+            if is_zero_winrate or is_perfect_winrate:
+                logger.error("[D205-9-REOPEN] ❌ FAIL: Unrealistic winrate detected")
+                logger.error(f"[D205-9-REOPEN] winrate={self.kpi.winrate_pct:.1f}%, trades={self.kpi.closed_trades}")
+                logger.error(f"[D205-9-REOPEN] wins={self.kpi.wins}, losses={self.kpi.losses}")
+                logger.error(f"[D205-9-REOPEN] use_real_data={self.use_real_data}, phase={self.config.phase}")
+                
+                if is_zero_winrate:
+                    logger.error("[D205-9-REOPEN] Reason: 0% winrate = Logic bug or No market opportunities")
+                elif is_perfect_winrate:
+                    logger.error(f"[D205-17] Reason: {winrate:.1f}% winrate ≥95% = Unrealistic (slippage/friction 부족)")
+                    logger.error("[D205-17] Check: MockAdapter slippage model (10-30bps), market friction")
+                
+                logger.error("[D205-9-REOPEN] SSOT Rule: winrate 0%/100% → Contract/Measurement validation required")
+                
+                # 마지막 트레이드 요약 덤프 (evidence)
+                winrate_trigger = "winrate_0%" if is_zero_winrate else "winrate_100%"
+                last_trades_summary = {
+                    "trigger": winrate_trigger,
+                    "closed_trades": self.kpi.closed_trades,
+                    "wins": self.kpi.wins,
+                    "losses": self.kpi.losses,
+                    "winrate_pct": self.kpi.winrate_pct,
+                    "gross_pnl": self.kpi.gross_pnl,
+                    "fees": self.kpi.fees,
+                    "net_pnl": self.kpi.net_pnl,
+                    "use_real_data": self.use_real_data,
+                    "phase": self.config.phase,
+                    "marketdata_mode": self.kpi.marketdata_mode,
+                }
+                
+                # evidence 저장
+                winrate_guard_file = self.output_dir / "winrate_guard_trigger.json"
+                with open(winrate_guard_file, "w", encoding="utf-8") as f:
+                    json.dump(last_trades_summary, f, indent=2)
+                
+                logger.error(f"[D205-9-REOPEN] Winrate guard evidence saved: {winrate_guard_file}")
+                
+                self._save_kpi()
+                self._save_db_counts()
+                return 1
+    
+    def _record_trade_complete(
+        self,
+        trade_id: str,
+        candidate,
+        entry_intent: OrderIntent,
+        entry_result,
+        exit_intent: OrderIntent,
+        exit_result,
+        timestamp: datetime,
+    ):
+        """
+        D205-2 REOPEN: 완전한 trade 기록 (entry + exit + close)
+        
+        Args:
+            trade_id: Trade ID
+            candidate: OpportunityCandidate
+            entry_intent: Entry order intent
+            entry_result: Entry order result
+            exit_intent: Exit order intent
+            exit_result: Exit order result
+            timestamp: Trade timestamp
+        """
+        rows_inserted = 0
+        
+        try:
+            # D205-15-6: Engine-Centric - TradeProcessor로 계산 위임
+            trade_result = self.trade_processor.process_intents(
+                entry_intent,
+                exit_intent,
+                entry_result,
+                exit_result
+            )
+            
+            # Entry order
+            order_id = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_entry"
+            entry_qty = trade_result.entry_qty
+            entry_price = trade_result.entry_price
+            entry_fee = trade_result.entry_fee
+            entry_fee_currency = trade_result.entry_fee_currency
+            
+            # Exit order
+            order_id_exit = f"order_{self.config.run_id}_{uuid.uuid4().hex[:8]}_exit"
+            exit_qty = trade_result.exit_qty
+            exit_price = trade_result.exit_price
+            exit_fee = trade_result.exit_fee
+            exit_fee_currency = trade_result.exit_fee_currency
+            
+            # PnL
+                    entry_timestamp=timestamp,
+                    exit_exchange=exit_intent.exchange,
+                    exit_symbol=exit_intent.symbol,
+                    exit_side=exit_intent.side.value,
+                    exit_order_id=exit_result.order_id,
+                    exit_quantity=exit_qty,
+                    exit_price=exit_price,
+                    exit_timestamp=timestamp,
+                    realized_pnl=realized_pnl,
+                    unrealized_pnl=0.0,  # Paper에서는 즉시 close
+                    total_fee=total_fee,
+                    status="closed",  # D205-2 REOPEN: closed trade
+                    route_id=entry_intent.route_id,
+                    strategy_id=entry_intent.strategy_id or "d204_2_paper",
+                )
+                rows_inserted += 1
+                
+                # KPI 업데이트 (DB inserts)
+                self.kpi.db_inserts_ok += rows_inserted
+            
+            # D205-3: PnL KPI 업데이트 (DB off 모드에서도 실행)
+            self.kpi.closed_trades += 1
+            self.kpi.gross_pnl += realized_pnl
+            self.kpi.fees += total_fee
+            self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
+            
+            if realized_pnl > 0:
+                self.kpi.wins += 1
+            else:
+                self.kpi.losses += 1
+            
+            if self.kpi.closed_trades > 0:
+                self.kpi.winrate_pct = (self.kpi.wins / self.kpi.closed_trades) * 100
+            
+            # D205-15-6a: trade_history 저장 (decision_trace_samples.jsonl용)
+            self.trade_history.append({
+                "trade_id": trade_id,
+                "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp),
+                "candidate_spread_bps": getattr(candidate, 'spread_bps', None),
+                "candidate_edge_bps": getattr(candidate, 'edge_bps', None),
+                "candidate_break_even_bps": getattr(candidate, 'break_even_bps', None),
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "entry_qty": entry_qty,
+                "gross_pnl": gross_pnl,
+                "total_fee": total_fee,
+                "realized_pnl": realized_pnl,
+                "is_win": realized_pnl > 0,
+            })
+            
+            logger.debug(f"[D205-2] Trade closed: {trade_id}, realized_pnl={realized_pnl:.2f}, total_fee={total_fee:.2f}")
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[D205-2] Failed to record trade: {error_msg}")
+            self.kpi.error_count += 1
+            self.kpi.errors.append(f"record_trade: {error_msg}")
+            self.kpi.db_last_error = error_msg
+            
+            if self.config.db_mode == "strict":
+                logger.error(f"[D205-2] ❌ FAIL: Trade record failed in strict mode")
+                raise RuntimeError(f"Trade record failed in strict mode: {error_msg}")
+            
+            self.kpi.db_inserts_failed += rows_inserted
+    
+    def _get_db_counts(self) -> Optional[Dict[str, int]]:
+        """DB row count 조회 (v2_orders/fills/trades)"""
+        if not self.storage:
+            return None
+        
+        try:
+            orders = self.storage.get_orders_by_run_id(self.config.run_id, limit=10000)
+            fills = self.storage.get_fills_by_run_id(self.config.run_id, limit=10000)
+            trades = self.storage.get_trades_by_run_id(self.config.run_id, limit=10000)
+            
+            return {
+                "v2_orders": len(orders),
+                "v2_fills": len(fills),
+                "v2_trades": len(trades),
+            }
+        
+        except Exception as e:
+            logger.warning(f"[D205-18-2C] Failed to get DB counts: {e}")
+            return None
+
+
+def main():
+    """CLI 엔트리포인트"""
+    parser = argparse.ArgumentParser(description="D204-2 Paper Execution Gate Runner")
+    parser.add_argument("--duration", type=int, required=True, help="Duration in minutes")
+    parser.add_argument("--phase", default="smoke", choices=["smoke", "smoke_test", "baseline", "longrun", "test_1min"], help="Execution phase")
+    parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols")
+    parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
+    parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode (strict: FAIL on DB error, optional: skip on DB error, off: no DB)")
+    parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema before run (default: True, use --no-ensure-schema to disable)")
+    parser.add_argument("--use-real-data", action="store_true", help="D205-9: Use Real MarketData (Upbit + Binance)")
+    
+    args = parser.parse_args()
+    
+    config = PaperRunnerConfig(
+        duration_minutes=args.duration,
+        phase=args.phase,
+        symbols_top=args.symbols_top,
+        db_connection_string=args.db_connection_string or "",
+        db_mode=args.db_mode,
+        ensure_schema=args.ensure_schema,
+        use_real_data=args.use_real_data,
+    )
+    
+    runner = PaperRunner(config)
+    exit_code = runner.run()
+    
+    sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()
