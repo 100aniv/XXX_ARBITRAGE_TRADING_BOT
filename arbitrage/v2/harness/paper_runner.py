@@ -1137,11 +1137,12 @@ class PaperRunner:
         
         # D205-9-REOPEN: Winrate Guard 강화 (0% 또는 100% 조기 중단)
         # SSOT_RULES: "winrate 0%/100% → 계약/측정 검증 단계로 강제 이동"
-        # 운영 검증 phase에서만 체크 (test_1min은 계약/유닛 테스트 전용이므로 예외)
+        # D205-9-REOPEN + D205-17: Winrate Guard (임계값 완화 95%)
         is_ops_validation_phase = self.config.phase in ["smoke", "baseline", "longrun", "smoke_test"]
         if is_ops_validation_phase and self.kpi.closed_trades >= 50:
-            is_zero_winrate = self.kpi.winrate_pct <= 0.1
-            is_perfect_winrate = self.kpi.winrate_pct >= 99.9
+            winrate = self.kpi.winrate_pct
+            is_zero_winrate = (winrate <= 0.1)
+            is_perfect_winrate = (winrate >= 95.0)  # D205-17: 95% 이상도 비현실적
             
             if is_zero_winrate or is_perfect_winrate:
                 logger.error("[D205-9-REOPEN] ❌ FAIL: Unrealistic winrate detected")
@@ -1152,8 +1153,8 @@ class PaperRunner:
                 if is_zero_winrate:
                     logger.error("[D205-9-REOPEN] Reason: 0% winrate = Logic bug or No market opportunities")
                 elif is_perfect_winrate:
-                    logger.error("[D205-9-REOPEN] Reason: 100% winrate = Contract violation or MOCK data")
-                    logger.error("[D205-9-REOPEN] Check: filled_qty contract, slippage model, market friction")
+                    logger.error(f"[D205-17] Reason: {winrate:.1f}% winrate ≥95% = Unrealistic (slippage/friction 부족)")
+                    logger.error("[D205-17] Check: MockAdapter slippage model (10-30bps), market friction")
                 
                 logger.error("[D205-9-REOPEN] SSOT Rule: winrate 0%/100% → Contract/Measurement validation required")
                 

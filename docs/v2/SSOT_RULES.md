@@ -293,6 +293,12 @@
 - 운영 환경에서 "거짓 양성(False PASS)"는 운영 사고로 직결
 - FAIL은 반드시 FAIL로 보고되어야 함 (Silent Failure 금지)
 
+**D206 진입 조건 (D205-17 Paper Acceptance):**
+- baseline(20m) + longrun(1h) 실행 완료 필수
+- 승률 50-95% 범위 (95% 이상은 비현실적)
+- Winrate Guard 정상 작동 (0%/95%+ 감지 → FAIL)
+- Evidence: KPI + Decision Trace + RunWatcher logs
+
 ---
 
 ## 📐 경로 규칙

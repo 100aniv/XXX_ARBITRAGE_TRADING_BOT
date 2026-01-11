@@ -2,10 +2,15 @@
 MockAdapter - Test Adapter
 
 Mock implementation for testing without real API calls.
+
+D205-17: Realism Injection
+- Slippage model: 2-5bps (보수적, 랜덤)
+- 목적: 100% 승률 가짜 낙관 제거, 현실적 50-80% 승률 목표
 """
 
 from typing import Dict, Any
 import uuid
+import random
 
 from arbitrage.v2.core import ExchangeAdapter, OrderIntent, OrderResult, OrderSide, OrderType
 
@@ -14,21 +19,29 @@ class MockAdapter(ExchangeAdapter):
     """
     Mock adapter for testing.
     
-    Always succeeds with fake order IDs and fill data.
+    D205-17: Realism Injection
+    - 슬리피지 모델: 2-5bps (random uniform)
+    - BUY: filled_price = ref_price * (1 + slippage)
+    - SELL: filled_price = ref_price * (1 - slippage)
+    
     Useful for:
     - Unit testing
     - Integration testing without real APIs
-    - Smoke testing the Engine flow
+    - Smoke testing with realistic friction
     """
     
-    def __init__(self, exchange_name: str = "mock"):
+    def __init__(self, exchange_name: str = "mock", enable_slippage: bool = True, slippage_bps: tuple = (10.0, 30.0)):
         """
         Initialize mock adapter.
         
         Args:
             exchange_name: Exchange identifier (default: "mock")
+            enable_slippage: Enable realistic slippage (default: True, D205-17)
+            slippage_bps: Slippage range in bps (default: 10-30bps)
         """
         self.exchange_name = exchange_name
+        self.enable_slippage = enable_slippage
+        self.slippage_bps_min, self.slippage_bps_max = slippage_bps
     
     def translate_intent(self, intent: OrderIntent) -> Dict[str, Any]:
         """
@@ -84,16 +97,38 @@ class MockAdapter(ExchangeAdapter):
         order_id = f"mock-{uuid.uuid4().hex[:8]}"
         
         # D205-15-6a: ref_price 우선, 없으면 limit_price, 둘 다 없으면 fallback (경고)
-        filled_price = payload.get("ref_price") or payload.get("limit_price")
-        if filled_price is None:
+        base_price = payload.get("ref_price") or payload.get("limit_price")
+        if base_price is None:
             # Fallback for testing without ref_price (경고 로그)
-            filled_price = 100.0
+            base_price = 100.0
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"[D205-15-6a] MockAdapter: filled_price fallback to 100.0. "
+                f"[D205-15-6a] MockAdapter: base_price fallback to 100.0. "
                 f"Consider providing 'ref_price' or 'limit_price'. "
                 f"payload keys: {list(payload.keys())}"
+            )
+        
+        # D205-17: Realism Injection - Slippage 적용
+        filled_price = base_price
+        if self.enable_slippage:
+            slippage_bps = random.uniform(self.slippage_bps_min, self.slippage_bps_max)
+            slippage_ratio = slippage_bps / 10000.0
+            
+            side = payload.get("side", "").upper()
+            if side == "BUY":
+                # BUY: 불리하게 (더 높은 가격에 체결)
+                filled_price = base_price * (1 + slippage_ratio)
+            elif side == "SELL":
+                # SELL: 불리하게 (더 낮은 가격에 체결)
+                filled_price = base_price * (1 - slippage_ratio)
+            
+            # 슬리피지 적용 로그 (검증용)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"[D205-17 Slippage] {side} base={base_price:.2f}, "
+                f"slippage={slippage_bps:.2f}bps, filled={filled_price:.2f}"
             )
         
         # D205-15-6b: MARKET BUY filled_qty 계약 고정 (V2_ARCHITECTURE invariant)
@@ -144,10 +179,13 @@ class MockAdapter(ExchangeAdapter):
         Returns:
             OrderResult
         """
+        status = response.get("status", "filled")
+        success = (status == "filled")
+        
         return OrderResult(
-            success=True,
+            success=success,
             order_id=response["order_id"],
-            filled_qty=response.get("filled_qty"),
-            filled_price=response.get("filled_price"),
+            filled_qty=response.get("filled_qty") if success else 0.0,
+            filled_price=response.get("filled_price") if success else 0.0,
             raw_response=response
         )

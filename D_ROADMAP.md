@@ -5334,7 +5334,18 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 구현: component_registry_checker.py - ops_critical/required 플래그 강화
   - 구현: V2_COMPONENT_REGISTRY.json - ops.real_marketdata, ops.db_strict에 required: true 추가
   - 문서: SSOT_RULES.md Section 7 추가 (OPS Gate Hardening 원칙)
-  - 상태: IN PROGRESS (구현 완료, Gate 진행 예정)
+  - 상태: COMPLETED (Gate 3단 PASS, Commit 4721c25)
+- **2026-01-11:** D205-17 - Paper Acceptance (Registry 정합화 + Realism Injection)
+  - 목표: D206 진입 전 OPS Gate 최종 검증 (GPT+Gemini 통합 프롬프트)
+  - GPT 지적: RunWatcher "planned" → "integrated", Redis 정책 불일치, PaperRunner 1608 lines
+  - Gemini 애드온: MockAdapter 슬리피지 10-30bps, Liveness Check, Graceful Shutdown
+  - 구현: V2_COMPONENT_REGISTRY.json - RunWatcher/Redis ops_critical=true, required=true
+  - 구현: mock_adapter.py - 슬리피지 10-30bps (BUY +슬리피지, SELL -슬리피지)
+  - 구현: paper_runner.py - Winrate Guard 임계값 95% 완화 (99.9% → 95%)
+  - 검증: Preflight FAIL (정상, 100% 승률 감지 → Exit 1), Gate 3단 PASS
+  - 남은 작업: baseline(20m) + longrun(1h) 실행 (D206 진입 전 필수)
+  - 상태: PARTIAL (구현+Gate 완료, baseline/longrun 미실행)
+  - Evidence: logs/evidence/d205_17_paper_acceptance_20260111_175000/
 
 ---
 

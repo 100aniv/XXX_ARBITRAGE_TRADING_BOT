@@ -21,13 +21,14 @@
     {
       "id": "ops.redis",
       "name": "Redis Cache/Dedup",
-      "ops_critical": false,
-      "description": "Redis for rate limit counters, dedup keys, hot-state (optional, degraded mode allowed)",
+      "ops_critical": true,
+      "required": true,
+      "description": "Redis for rate limit counters, dedup keys, hot-state (OPS Gate: STRICT via preflight_checker, D205-15-6d)",
       "files": [
         "arbitrage/redis_client.py"
       ],
-      "config_keys": ["redis.host", "redis.port"],
-      "evidence_kpi_fields": ["redis_ok"],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
       "verification_method": "ping",
       "phase_required": ["smoke", "baseline", "longrun", "smoke_test"]
     },
@@ -49,8 +50,9 @@
     {
       "id": "ops.runwatcher",
       "name": "RunWatcher (FAIL-fast Monitor)",
-      "ops_critical": false,
-      "description": "60초 heartbeat, wins=0 연속 감지, edge<0 지속 감지 (planned, not yet integrated)",
+      "ops_critical": true,
+      "required": true,
+      "description": "60초 heartbeat, wins=0 연속 감지, edge<0 지속 감지 (integrated in paper_runner.py:593)",
       "files": [
         "arbitrage/v2/core/run_watcher.py"
       ],
