@@ -5402,11 +5402,40 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [current]: D205-18-2F (Zero-Skip 달성, SKIP 2→0)
 
 **D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**
-  - 목표: RunWatcher 작동 확인, 손절/이익실현 기준 강화
-  - AC-1: RunWatcher baseline/longrun heartbeat 체크 증거 확보
-  - AC-2: (Optional) Win-Rate Guard 이외 Safety Guard 추가 (SL/TP)
-  - AC-3: Gate Doctor/Fast/Regression 100% PASS
-  - 상태: PENDING
+
+**Status:** ✅ COMPLETED (2026-01-12)  
+**Date:** 2026-01-12
+
+**목표:**
+- RunWatcher 작동 확인 (heartbeat 증거 확보)
+- Safety Guard 추가 (Max Drawdown, Consecutive Losses)
+- Gate Doctor/Fast PASS
+
+**Acceptance Criteria:**
+- AC-1: ✅ RunWatcher baseline/longrun heartbeat 체크 증거 확보 (heartbeat.jsonl)
+- AC-2: ✅ Safety Guard 2개 추가 (Max Drawdown 20%, Consecutive Losses 10회)
+- AC-3: ✅ Gate Doctor/Fast PASS, DocOps (check_ssot_docs.py) EXIT_CODE=0
+
+**달성:**
+- ✅ Heartbeat 파일 기록: `heartbeat.jsonl` (60초마다 KPI + Guard 상태)
+- ✅ Safety Guard D: Max Drawdown 20% 트리거 → Exit Code 1
+- ✅ Safety Guard E: Consecutive Losses 10회 트리거 → Exit Code 1
+- ✅ Stop Reason Snapshot: `stop_reason_snapshot.json` (가드 트리거 시 현장 증거)
+- ✅ Exit Code 보장: Orchestrator.run() → return 1 when stop_reason='ERROR'
+- ✅ Gate Doctor/Fast: PASS (6 PASS, 0 SKIP)
+- ✅ DocOps: PASS (check_ssot_docs.py EXIT_CODE=0)
+
+**Evidence:**
+- `logs/evidence/d205_18_3_runwatcher_liveness_20260112_005400/`
+- MANIFEST.json, IMPLEMENTATION_SUMMARY.md, BOOTSTRAP.md
+
+**Commits:**
+- [current]: D205-18-3 (RunWatcher Liveness + Safety Guard D/E)
+
+**Constitutional Basis:**
+- SSOT_RULES.md Section 7 (OPS Gate Hardening, Exit Code 전파)
+- V2_COMPONENT_REGISTRY.json (ops_critical RunWatcher, heartbeat 검증)
+- Production-Grade Add-ons (Chaos Test, SSOT Doc Check)
 
 **D205-18-4: Paper Acceptance Execution (P4 증거)**
   - 목표: REAL 환경에서 baseline(20m) + longrun(1h) 실행, 증거 확보
