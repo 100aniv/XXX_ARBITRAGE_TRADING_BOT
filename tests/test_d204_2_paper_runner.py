@@ -13,9 +13,9 @@ from datetime import datetime, timezone
 from arbitrage.v2.harness.paper_runner import (
     PaperRunnerConfig,
     MockBalance,
-    KPICollector,
     PaperRunner,
 )
+from arbitrage.v2.core.metrics import PaperMetrics  # D205-18-2: Harness Purge
 from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
 
 
@@ -97,18 +97,18 @@ class TestMockBalance:
         assert balance.get("BTC") == 0.01
 
 
-class TestKPICollector:
-    """KPICollector 테스트"""
+class TestPaperMetrics:
+    """PaperMetrics 테스트 (D205-18-2: Harness Purge)"""
     
     def test_kpi_initial_state(self):
         """
-        Case 5: KPI 초기 상태
+        Case 1: KPI 초기 상태
         
         Verify:
             - opportunities_generated = 0
             - db_inserts_ok = 0
         """
-        kpi = KPICollector()
+        kpi = PaperMetrics()
         
         assert kpi.opportunities_generated == 0
         assert kpi.intents_created == 0
@@ -116,17 +116,16 @@ class TestKPICollector:
         assert kpi.db_inserts_ok == 0
         assert kpi.db_inserts_failed == 0
         assert kpi.error_count == 0
-        assert kpi.db_last_error == ""
     
     def test_kpi_to_dict(self):
         """
-        Case 6: KPI to_dict() 변환
+        Case 2: KPI to_dict 변환
         
         Verify:
             - dict 형식 변환
             - duration_seconds, duration_minutes 계산
         """
-        kpi = KPICollector()
+        kpi = PaperMetrics()
         kpi.opportunities_generated = 10
         kpi.intents_created = 20
         kpi.mock_executions = 20

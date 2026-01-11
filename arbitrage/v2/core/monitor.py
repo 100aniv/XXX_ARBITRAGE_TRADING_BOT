@@ -1,0 +1,202 @@
+"""
+D205-18-2: Evidence Collector (Engine-Centric)
+
+PaperRunner에서 Evidence 생성 로직 분리.
+
+Purpose:
+- Metrics snapshot 생성
+- Decision trace 수집
+- Evidence 파일 저장 (manifest, kpi, decision_trace)
+- Runner는 collector.save() 호출만
+
+Author: arbitrage-lite V2
+Date: 2026-01-11
+"""
+
+import os
+import json
+import logging
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class EvidenceCollector:
+    """
+    Evidence 수집 및 저장
+    
+    D205-18-2: PaperRunner에서 분리
+    - Metrics → snapshot
+    - Trade history → decision trace
+    - 파일 저장 (manifest, kpi, decision_trace)
+    """
+    
+    def __init__(self, output_dir: str):
+        """
+        Args:
+            output_dir: Evidence 저장 경로
+        """
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+    
+    def generate_metrics_snapshot(
+        self,
+        metrics: Any,
+        db_counts: Optional[Dict[str, int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Metrics snapshot 생성
+        
+        Args:
+            metrics: PaperMetrics 인스턴스
+            db_counts: DB row counts (v2_orders, v2_fills, v2_trades)
+        
+        Returns:
+            Snapshot dict
+        """
+        snapshot = {
+            "type": "metrics_snapshot",
+            "timestamp": metrics.to_dict().get("start_time"),
+            "duration_seconds": metrics.to_dict().get("duration_seconds"),
+            
+            # Opportunity 통계
+            "opportunities": {
+                "generated": metrics.opportunities_generated,
+                "intents_created": metrics.intents_created,
+                "reject_reasons": dict(metrics.reject_reasons),
+            },
+            
+            # Execution 통계
+            "execution": {
+                "mock_executions": metrics.mock_executions,
+                "db_inserts_ok": metrics.db_inserts_ok,
+                "db_inserts_failed": metrics.db_inserts_failed,
+            },
+            
+            # PnL 통계
+            "pnl": {
+                "closed_trades": metrics.closed_trades,
+                "gross_pnl": round(metrics.gross_pnl, 2),
+                "net_pnl": round(metrics.net_pnl, 2),
+                "fees": round(metrics.fees, 2),
+                "wins": metrics.wins,
+                "losses": metrics.losses,
+                "winrate_pct": round(metrics.winrate_pct, 2),
+            },
+            
+            # MarketData 상태
+            "marketdata": {
+                "mode": metrics.marketdata_mode,
+                "upbit_ok": metrics.upbit_marketdata_ok,
+                "binance_ok": metrics.binance_marketdata_ok,
+                "real_ticks_ok": metrics.real_ticks_ok_count,
+                "real_ticks_fail": metrics.real_ticks_fail_count,
+            },
+            
+            # Redis 상태
+            "redis": {
+                "ok": metrics.redis_ok,
+                "ratelimit_hits": metrics.ratelimit_hits,
+                "dedup_hits": metrics.dedup_hits,
+            },
+            
+            # 시스템 리소스
+            "system": {
+                "memory_mb": metrics.memory_mb,
+                "cpu_pct": metrics.cpu_pct,
+            },
+            
+            # Error 통계
+            "errors": {
+                "count": metrics.error_count,
+                "samples": metrics.errors[:10],
+                "db_last_error": metrics.db_last_error,
+            },
+        }
+        
+        # DB counts 추가
+        if db_counts:
+            snapshot["db_counts"] = db_counts
+        
+        return snapshot
+    
+    def generate_decision_trace(
+        self,
+        trade_history: List[Dict[str, Any]],
+        max_samples: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Decision trace 생성
+        
+        Args:
+            trade_history: Trade 기록 리스트
+            max_samples: 최대 샘플 수
+        
+        Returns:
+            Decision trace samples (최근 N개)
+        """
+        # 최근 max_samples개만 반환
+        return trade_history[-max_samples:] if trade_history else []
+    
+    def save(
+        self,
+        metrics: Any,
+        trade_history: List[Dict[str, Any]],
+        db_counts: Optional[Dict[str, int]] = None,
+        phase: str = "unknown"
+    ) -> None:
+        """
+        Evidence 파일 저장
+        
+        Args:
+            metrics: PaperMetrics 인스턴스
+            trade_history: Trade 기록 리스트
+            db_counts: DB row counts
+            phase: 실행 phase (smoke, baseline, longrun)
+        """
+        try:
+            # 1. KPI JSON
+            kpi_dict = metrics.to_dict()
+            kpi_path = self.output_dir / "kpi.json"
+            with open(kpi_path, "w", encoding="utf-8") as f:
+                json.dump(kpi_dict, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] KPI saved: {kpi_path}")
+            
+            # 2. Metrics Snapshot
+            snapshot = self.generate_metrics_snapshot(metrics, db_counts)
+            snapshot_path = self.output_dir / "metrics_snapshot.json"
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                json.dump(snapshot, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Metrics snapshot saved: {snapshot_path}")
+            
+            # 3. Decision Trace
+            decision_trace = self.generate_decision_trace(trade_history)
+            trace_path = self.output_dir / "decision_trace.json"
+            with open(trace_path, "w", encoding="utf-8") as f:
+                json.dump(decision_trace, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Decision trace saved: {trace_path} ({len(decision_trace)} samples)")
+            
+            # 4. Manifest
+            manifest = {
+                "phase": phase,
+                "duration_seconds": kpi_dict.get("duration_seconds"),
+                "closed_trades": kpi_dict.get("closed_trades"),
+                "winrate_pct": kpi_dict.get("winrate_pct"),
+                "net_pnl": kpi_dict.get("net_pnl"),
+                "marketdata_mode": kpi_dict.get("marketdata_mode"),
+                "files": [
+                    "kpi.json",
+                    "metrics_snapshot.json",
+                    "decision_trace.json",
+                    "manifest.json"
+                ]
+            }
+            manifest_path = self.output_dir / "manifest.json"
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Manifest saved: {manifest_path}")
+            
+        except Exception as e:
+            logger.error(f"[EvidenceCollector] Failed to save evidence: {e}", exc_info=True)
+            raise

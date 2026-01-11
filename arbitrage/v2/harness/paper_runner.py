@@ -38,6 +38,8 @@ from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
 from arbitrage.v2.core.run_watcher import create_watcher  # D205-15-6: Self-Monitor
 from arbitrage.v2.core.trade_processor import TradeProcessor, TradeResult
 from arbitrage.v2.core.feature_guard import FeatureGuard # D205-15-6: Engine-Centric
+from arbitrage.v2.core.metrics import PaperMetrics  # D205-18-2: Harness Purge
+from arbitrage.v2.core.monitor import EvidenceCollector  # D205-18-2: Harness Purge
 from arbitrage.v2.opportunity import (
     BreakEvenParams,
     build_candidate,
@@ -137,111 +139,6 @@ class MockBalance:
         self.balances[currency] = self.balances.get(currency, 0.0) + amount
 
 
-@dataclass
-class KPICollector:
-    """KPI 수집기"""
-    start_time: float = field(default_factory=time.time)
-    opportunities_generated: int = 0
-    intents_created: int = 0
-    mock_executions: int = 0
-    db_inserts_ok: int = 0
-    db_inserts_failed: int = 0
-    error_count: int = 0
-    errors: List[str] = field(default_factory=list)
-    db_last_error: str = ""
-    memory_mb: float = 0.0
-    cpu_pct: float = 0.0
-    
-    # D205-3: PnL 필드 추가
-    closed_trades: int = 0
-    gross_pnl: float = 0.0
-    net_pnl: float = 0.0
-    fees: float = 0.0
-    wins: int = 0
-    losses: int = 0
-    winrate_pct: float = 0.0
-    
-    # D205-9: Real MarketData 증거 필드
-    marketdata_mode: str = "MOCK"  # MOCK or REAL
-    upbit_marketdata_ok: bool = False
-    binance_marketdata_ok: bool = False
-    real_ticks_ok_count: int = 0
-    real_ticks_fail_count: int = 0
-    
-    # D205-9 RECOVERY: Redis 지표
-    redis_ok: bool = False
-    ratelimit_hits: int = 0
-    dedup_hits: int = 0
-    
-    # D205-10: Decision Trace (reject reason 카운트)
-    reject_reasons: Dict[str, int] = field(default_factory=lambda: {
-        "profitable_false": 0,
-        "direction_none": 0,
-        "edge_bps_below_zero": 0,
-        "units_mismatch": 0,
-        "sanity_guard": 0,
-        "other": 0,
-        "candidate_none": 0,
-        "admin_paused": 0,  # D205-12-1: AdminControl reject
-        "symbol_blacklisted": 0,  # D205-12-1: AdminControl reject
-    })
-    
-    def bump_reject(self, reason: str) -> None:
-        """Reject reason 카운트 증가 (D205-10)"""
-        if reason in self.reject_reasons:
-            self.reject_reasons[reason] += 1
-        else:
-            self.reject_reasons["other"] += 1
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """KPI를 dict로 변환"""
-        duration_seconds = time.time() - self.start_time
-        
-        kpi = {
-            "start_time": datetime.fromtimestamp(self.start_time).isoformat(),
-            "duration_seconds": round(duration_seconds, 2),
-            "duration_minutes": round(duration_seconds / 60, 2),
-            "opportunities_generated": self.opportunities_generated,
-            "intents_created": self.intents_created,
-            "mock_executions": self.mock_executions,
-            "db_inserts_ok": self.db_inserts_ok,
-            "db_inserts_failed": self.db_inserts_failed,
-            "error_count": self.error_count,
-            "errors": self.errors[:10],  # 최대 10개만
-            "db_last_error": self.db_last_error,
-            "memory_mb": self.memory_mb,
-            "cpu_pct": self.cpu_pct,
-            # D205-3: PnL 필드
-            "closed_trades": self.closed_trades,
-            "gross_pnl": round(self.gross_pnl, 2),
-            "net_pnl": round(self.net_pnl, 2),
-            "fees": round(self.fees, 2),
-            "wins": self.wins,
-            "losses": self.losses,
-            "winrate_pct": round(self.winrate_pct, 2),
-            # D205-9: Real MarketData 증거
-            "marketdata_mode": self.marketdata_mode,
-            "upbit_marketdata_ok": self.upbit_marketdata_ok,
-            "binance_marketdata_ok": self.binance_marketdata_ok,
-            "real_ticks_ok_count": self.real_ticks_ok_count,
-            "real_ticks_fail_count": self.real_ticks_fail_count,
-            # D205-9 RECOVERY: Redis 지표
-            "redis_ok": self.redis_ok,
-            "ratelimit_hits": self.ratelimit_hits,
-            "dedup_hits": self.dedup_hits,
-            # D205-10: Decision Trace
-            "reject_reasons": dict(self.reject_reasons),
-        }
-        
-        # 시스템 메트릭 (psutil 있으면)
-        if psutil:
-            process = psutil.Process()
-            kpi["memory_mb"] = round(process.memory_info().rss / 1024 / 1024, 2)
-            kpi["cpu_pct"] = round(process.cpu_percent(interval=0.1), 2)
-        
-        return kpi
-
-
 class PaperRunner:
     """
     Paper Execution Gate Runner
@@ -278,7 +175,8 @@ class PaperRunner:
         # V2 Components
         self.mock_adapter = MockAdapter(exchange_name="mock_paper")
         self.balance = MockBalance()
-        self.kpi = KPICollector()
+        self.kpi = PaperMetrics()  # D205-18-2: Harness Purge (v2/core/metrics.py)
+        self.evidence_collector = EvidenceCollector(config.output_dir)  # D205-18-2: Harness Purge
         
         # D205-15-6: TradeProcessor (Engine-Centric, break_even 이후 초기화)
         self.trade_processor = None
