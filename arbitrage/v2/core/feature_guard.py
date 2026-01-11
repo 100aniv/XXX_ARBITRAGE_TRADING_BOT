@@ -125,23 +125,35 @@ class FeatureGuard:
         """
         Real MarketData 검증
         
+        D205-18-1 AC-4: Mock opportunity 경로 탐지 강화
+        - baseline/longrun에서 use_real_data=False → 즉시 FAIL
+        - Mock 경로는 test_1min 같은 계약/유닛 테스트 전용
+        
         Args:
-            use_real_data: Real data 사용 플래그
-            providers: {'upbit': provider, 'binance': provider}
+            use_real_data: Real MarketData 사용 여부
+            providers: MarketData providers dict
         
         Returns:
-            True: 검증 성공
+            True: 검증 성공 (또는 optional phase)
             False: 검증 실패
         """
         logger.info("[FeatureGuard] Verifying Real MarketData...")
         
         try:
-            if self.phase in ["smoke", "baseline", "longrun", "smoke_test"]:
-                # Ops phase에서는 Real MarketData 필수 (D205-9-REOPEN)
+            # D205-18-1 AC-4: Ops phase는 Real MarketData 필수 (Mock 경로 차단)
+            if self.phase in ["smoke", "baseline", "longrun", "smoke_test", "live"]:
                 if not use_real_data:
                     logger.error(
-                        f"[FeatureGuard] ❌ Real MarketData FAIL: "
-                        f"phase='{self.phase}' requires use_real_data=True"
+                        f"[FeatureGuard] ❌ Real MarketData FAIL (D205-18-1 AC-4): "
+                        f"phase='{self.phase}' requires use_real_data=True, got: False"
+                    )
+                    logger.error(
+                        f"[FeatureGuard] Mock opportunity path detected in Ops phase. "
+                        f"This violates Paper-LIVE Parity (D205-9-REOPEN)."
+                    )
+                    logger.error(
+                        f"[FeatureGuard] MOCK is only for test_1min phase (contract/unit tests). "
+                        f"Fix: Add --use-real-data flag."
                     )
                     return False
                 
