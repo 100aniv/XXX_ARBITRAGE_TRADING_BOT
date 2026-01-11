@@ -80,16 +80,18 @@ class V2LedgerStorage:
         orders = storage.get_orders_by_run_id("d204_2_20251230_0300")
     """
     
-    def __init__(self, connection_string: str):
+    def __init__(self, connection_string: str, ensure_schema: bool = True):
         """
         Initialize V2 Ledger Storage
         
         Args:
             connection_string: PostgreSQL connection string
                 Example: "postgresql://arbitrage:password@localhost:5432/arbitrage"
+            ensure_schema: Whether to check schema existence (default: True)
         """
         self.connection_string = connection_string
-        self._ensure_schema_exists()
+        if ensure_schema:
+            self._ensure_schema_exists()
     
     def _get_connection(self):
         """Get database connection (Pattern: PostgreSQLAlertStorage)"""
@@ -122,6 +124,33 @@ class V2LedgerStorage:
                         logger.warning("v2_trades table not found. Run: psql -f db/migrations/v2_schema.sql")
         except Exception as e:
             logger.warning(f"Schema check failed: {e}")
+    
+    def verify_schema(self, required_tables: List[str]) -> List[str]:
+        """
+        Verify required tables exist
+        
+        Args:
+            required_tables: List of required table names
+            
+        Returns:
+            List of missing table names (empty if all exist)
+        """
+        check_sql = """
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+        """
+        
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(check_sql)
+                    existing_tables = [row[0] for row in cur.fetchall()]
+                    missing = [t for t in required_tables if t not in existing_tables]
+                    return missing
+        except Exception as e:
+            logger.error(f"Schema verification failed: {e}")
+            return required_tables
     
     # ========================================================================
     # Orders (v2_orders)

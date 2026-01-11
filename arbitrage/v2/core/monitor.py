@@ -32,13 +32,15 @@ class EvidenceCollector:
     - 파일 저장 (manifest, kpi, decision_trace)
     """
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, run_id: str = ""):
         """
         Args:
             output_dir: Evidence 저장 경로
+            run_id: Run ID (optional)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.run_id = run_id
     
     def generate_metrics_snapshot(
         self,

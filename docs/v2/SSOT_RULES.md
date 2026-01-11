@@ -157,18 +157,22 @@
 2. **D205-10~12:** 돈버는 알고리즘 최적화 (수익성/레이턴시/제어) 필수
 3. **D206:** Ops & Deploy (Grafana/Docker/Runbook) 조건부
 
-**위반 시 결과:**
+위반 시 결과:
 - D206 진입 조건 미충족 → 즉시 FAIL 처리
 - 인프라 우선 로드맵 → SSOT 재검토 강제
 
 ---
 
-## 📊 Profit Loop 강제 규칙 (D205-4~12 필수)
+## Profit Loop 강제 규칙 (D205-4~12 필수)
 
 ### 1. "측정 → 튜닝 → 운영" 순서 강제
 
-**원칙:** Grafana/Deploy/K8s는 Profit Loop + 돈버는 알고리즘 블록(D205-4~12) 통과 후에만 진행 가능
+원칙: Grafana/Deploy/K8s는 Profit Loop + 돈버는 알고리즘 블록(D205-4~12) 통과 후에만 진행 가능
 
+강제 규칙:
+1. D206 진입 조건: D205-12 PASS 필수 (Admin Control 완료)
+2. 진입 차단: D205-12 없으면 D206 불가
+3. SSOT 검증: D_ROADMAP.md에서 D206 진입 조건 명시 필수
 **강제 규칙:**
 1. **D206 진입 조건:** D205-12 PASS 필수 (Admin Control 완료)
 2. **진입 차단:** D205-12 없으면 D206 불가
@@ -1323,6 +1327,140 @@ binance_api_version: "v3"
 # ✅ After
 binance_market_type: "SPOT"  # 또는 "FUTURES"
 ```
+
+---
+
+## 📊 Section M: Paper Acceptance REAL 강제 규칙 (D205-18-4)
+
+**원칙:** Paper mode 실행 시 REAL 시장 데이터 강제, Mock 데이터 금지
+
+**배경:**
+- Paper mode는 "실제 체결 없이" 전략을 검증하는 단계
+- 시장 데이터(Market Data)는 REAL이어야 하며, Mock은 금지
+- 실행(Execution)은 MOCK이나, 시장 데이터는 실제 거래소 API 사용 필수
+
+### 1. REAL 데이터 강제 규칙
+
+**Paper mode 실행 시:**
+```bash
+# ✅ REAL 데이터 (필수)
+python -m arbitrage.v2.harness.paper_runner --use-real-data
+
+# ✅ PowerShell 스크립트 (REAL 데이터 강제)
+.\scripts\run_paper_with_watchdog.ps1 -UseRealData
+
+# ❌ Mock 데이터 (금지)
+python -m arbitrage.v2.harness.paper_runner --use-mock-data
+```
+
+**강제 검증:**
+- `paper_runner.py` 실행 시 `--use-real-data` 플래그 필수
+- KPI에 `marketdata_mode: "REAL"` 필드 존재 확인
+- 거래소별 market data 연결 상태 확인:
+  - `upbit_marketdata_ok: true`
+  - `binance_marketdata_ok: true`
+  - `real_ticks_ok_count > 0`
+  - `real_ticks_fail_count == 0`
+
+### 2. Winrate 역설 검증 (50-90% 범위)
+
+**원칙:** Paper mode winrate는 50-90%가 정상, 95%+ 또는 100%는 의심
+
+**검증 규칙:**
+- **50-90%:** ✅ PASS (정상 범위)
+- **95%+ ~ 99%:** ⚠️ WARNING (너무 완벽, Mock execution 한계)
+- **100%:** ❌ FAIL (비현실적, 실패 케이스 미반영)
+
+**Winrate WARNING 처리:**
+- WARNING은 FAIL이 아니므로 조건부 PASS 허용
+- 원인: Paper mode는 시장 데이터는 REAL이나 execution은 MOCK
+- 실제 체결 지연/슬리피지/거부가 미반영
+- Live mode 전환 시 50-90% 범위로 수렴 예상
+
+**Evidence 요구사항:**
+```json
+{
+  "winrate_pct": 98.0,
+  "wins": 49,
+  "losses": 1,
+  "closed_trades": 50,
+  "marketdata_mode": "REAL",
+  "upbit_marketdata_ok": true,
+  "binance_marketdata_ok": true,
+  "real_ticks_ok_count": 50,
+  "real_ticks_fail_count": 0
+}
+```
+
+### 3. DB Strict Mode 강제
+
+**원칙:** Paper mode 실행 시 DB strict mode 필수 (실제 DB 사용)
+
+**강제 규칙:**
+```bash
+# ✅ Strict mode (필수)
+python -m arbitrage.v2.harness.paper_runner --db-mode strict
+
+# ❌ Memory mode (금지)
+python -m arbitrage.v2.harness.paper_runner --db-mode memory
+```
+
+**검증:**
+- `db_inserts_ok > 0` (실제 DB에 데이터 저장)
+- `db_inserts_failed == 0` (DB 실패 없음)
+- PostgreSQL 연결 정상 확인
+
+### 4. Baseline + Longrun 실행 필수
+
+**원칙:** Paper Acceptance는 단일 실행이 아니라 다단계(chain) 실행
+
+**필수 Phase:**
+1. **Baseline (20m):** 초기 검증, 기본 KPI 수집
+2. **Longrun (60m):** 장기 안정성 검증
+
+**Profile:**
+- `quick` profile: 짧은 duration 허용 (개발/검증용)
+- `ssot` profile: SSOT 요구 duration 강제 (운영급)
+
+**실행 예시:**
+```powershell
+.\scripts\run_paper_with_watchdog.ps1 `
+  -Phases "baseline,longrun" `
+  -Durations "20,60" `
+  -Profile "quick" `
+  -DbMode "strict" `
+  -UseRealData
+```
+
+### 5. Evidence 패키징 필수
+
+**필수 파일:**
+- `chain_summary.json` - 전체 chain 실행 결과
+- `daily_report_YYYY-MM-DD.json` - 일일 PnL/OPS 리포트
+- `daily_report_status.json` - 리포트 생성 상태
+- `D205_18_4_ANALYSIS.md` - Winrate WARNING 분석 (필요 시)
+- `README.md` - 재현 명령 및 핵심 지표
+
+**Evidence 경로:**
+```
+logs/evidence/d204_2_chain_YYYYMMDD_HHMM/
+├── chain_summary.json
+├── daily_report_2026-01-12.json
+├── daily_report_status.json
+├── D205_18_4_ANALYSIS.md
+└── README.md
+```
+
+### 6. 적용 범위
+
+**필수 적용:**
+- D205-18-4 Paper Acceptance Execution
+- 모든 Paper mode 검증 작업
+- Gate Regression에서 Paper 테스트 실행 시
+
+**예외 없음:**
+- Paper mode 실행 시 REAL 데이터는 항상 필수
+- Mock 데이터는 개발 디버깅 외에는 사용 금지
 
 ---
 
