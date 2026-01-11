@@ -30,14 +30,14 @@ class MockAdapter(ExchangeAdapter):
     - Smoke testing with realistic friction
     """
     
-    def __init__(self, exchange_name: str = "mock", enable_slippage: bool = True, slippage_bps: tuple = (10.0, 30.0)):
+    def __init__(self, exchange_name: str = "mock", enable_slippage: bool = True, slippage_bps: tuple = (20.0, 50.0)):
         """
         Initialize mock adapter.
         
         Args:
             exchange_name: Exchange identifier (default: "mock")
             enable_slippage: Enable realistic slippage (default: True, D205-17)
-            slippage_bps: Slippage range in bps (default: 10-30bps)
+            slippage_bps: Slippage range in bps (default: 20-50bps, Net edge 77bps의 25-65%, 목표 50-75% 승률)
         """
         self.exchange_name = exchange_name
         self.enable_slippage = enable_slippage
