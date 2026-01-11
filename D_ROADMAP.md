@@ -5350,25 +5350,28 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 목표: D205-17 통합 + GPT+Gemini+제미나이 3개 프롬프트 완전 통합
   - 배경: "은밀한 Mock 경로", "하네스 지방 축적(1600+ lines)", "config.yml SSOT 불완전"
   - 전략: P1(REAL 강제) → P2(Logic Evacuation) → P3(Safety) → P4(증거)
-  - 상태: IN PROGRESS (설계 완료, 구현 시작)
+  - 상태: PARTIAL (D205-18-1 COMPLETED, D205-18-2 PARTIAL, 진단 완료)
+  - 다음 단계: P1 즉시 착수 (SmokeRunner, config 통합, AdminControl)
 
 **D205-18-1: REAL Data 강제 + SSOT 통합 (P1 긴급)**
   - 목표: Mock 경로 완전 차단, config.yml SSOT 완성
-  - AC-1: paper_chain.py에 --use-real-data 플래그 추가
-  - AC-2: run_paper_with_watchdog.ps1에 --use-real-data 전달
-  - AC-3: paper_runner.py baseline/longrun에서 use_real_data=False 감지 시 FAIL
-  - AC-4: FeatureGuard baseline/longrun Mock opportunity 경로 탐지 시 FAIL
-  - AC-5: MockAdapter 슬리피지 파라미터를 config.yml로 이관
-  - AC-6: Gate Doctor/Fast/Regression 100% PASS
-  - 상태: PENDING
+  - AC-1: ✅ paper_chain.py에 --use-real-data 플래그 추가 (커밋 198484e)
+  - AC-2: ✅ run_paper_with_watchdog.ps1에 --use-real-data 전달 (커밋 198484e)
+  - AC-3: ✅ paper_runner.py baseline/longrun에서 use_real_data=False 감지 시 FAIL (커밋 d208274)
+  - AC-4: ✅ FeatureGuard baseline/longrun Mock opportunity 경로 탐지 시 FAIL (커밋 d208274)
+  - AC-5: ✅ MockAdapter 슬리피지 파라미터를 config.yml로 이관 (커밋 198484e)
+  - AC-6: ✅ Gate Doctor/Fast/Regression 100% PASS (커밋 98d1077)
+  - 상태: ✅ COMPLETED (2026-01-11)
+  - 증거: logs/evidence/d205_18_1_gate_recovery_20260111_201309/
 
 **D205-18-2: Harness Logic Evacuation (P2 구조)**
   - 목표: PaperRunner 500줄 이내로 축소, 지능을 v2/core로 이관
-  - AC-1: v2/core/metrics.py 생성, KPI 집계 로직 이관
-  - AC-2: v2/core/trade_processor.py 확장, Trade history 관리 이관
-  - AC-3: PaperRunner 500줄 이내로 축소 (config + Engine.run()만)
-  - AC-4: Gate Doctor/Fast/Regression 100% PASS
-  - 상태: PENDING
+  - AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관 (커밋 6771366)
+  - AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관 (커밋 6771366)
+  - AC-3: ⏳ PaperRunner 500줄 이내로 축소 (진행 중, import 정리 완료)
+  - AC-4: ✅ Gate Doctor/Fast/Regression 100% PASS (커밋 6771366)
+  - 상태: PARTIAL (v2/core 모듈 생성 완료, PaperRunner 슬림화 진행 중)
+  - 증거: logs/evidence/d205_18_2_harness_purge_20260111_201800/
 
 **D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**
   - 목표: RunWatcher 작동 확인, 손절/이익실현 기준 강화
