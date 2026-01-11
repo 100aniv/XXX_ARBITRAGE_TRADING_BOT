@@ -5293,10 +5293,21 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 커밋: 1a147a8
   - 결과: 100% winrate (⚠️ FAIL 신호 - SSOT 위반)
   - 문제: filled_qty 계약 미적용 → PnL 뻥튀기 가능성
-- **2026-01-11:** D205-15-6b 진입 - Qty Contract Fix + Sanity Guards
+- **2026-01-11:** D205-15-6b 완료 - Qty Contract Fix + Sanity Guards
+  - 커밋: 0004220
   - 목표: MARKET BUY filled_qty = quote_amount / filled_price 강제
   - 목표: winrate 0%/100% 금지 규칙 추가
-  - 상태: IN PROGRESS
+  - 결과: filled_qty 계약 적용 완료, PnL 스케일 정상 (74K per trade)
+  - 상태: COMPLETED (하지만 여전히 winrate 100% - MOCK 데이터 한계)
+- **2026-01-11:** D205-9-REOPEN - Paper-LIVE Parity 강제
+  - 목표: Smoke/Baseline/Longrun에서 Real MarketData 강제
+  - 목표: DB/Redis strict 모드 강제
+  - 목표: Winrate 0%/100% 조기 중단 가드
+  - 결과: Real MarketData 로드 성공 ✅
+  - 결과: "치트키 시뮬레이터" 탈출 ✅
+  - 결과: Real data에서 qty mismatch 즉시 감지 (FAIL-fast 작동) ✅
+  - 발견: candidate_to_order_intents 버그 (Exit intent base_qty 하드코딩)
+  - 상태: IN PROGRESS (Gate 3단 100% PASS, Real Smoke 실행 완료)
 
 ---
 

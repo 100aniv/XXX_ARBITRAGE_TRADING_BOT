@@ -225,10 +225,37 @@
 - ✅ 엔진 기반 Smoke Harness (재사용 가능)
 - ✅ Adapter 패턴으로 거래소별 분리
 
-### 4. LIVE 중단 유지
+### 4. Paper-LIVE Parity 강제 (D205-9-REOPEN)
+
+**원칙:** Smoke/Baseline/Longrun = Real MarketData + Simulated Execution (운영 검증)
+
+**강제 규칙:**
+1. **Smoke/Baseline/Longrun Phase:**
+   - Real MarketData 필수 (use_real_data=true)
+   - DB/Redis strict 모드 필수 (db_mode=strict)
+   - MOCK 데이터 실행 시 즉시 FAIL-fast
+2. **MOCK 허용 범위:**
+   - test_1min 같은 계약/유닛 전용 phase로만 제한
+   - 개발자 로컬 테스트 전용
+3. **운영 검증 기준:**
+   - 실시장 마찰 반영 (슬리피지/수수료/지연/부분체결)
+   - 인프라 부하 검증 (DB insert latency, Redis dedup)
+   - 현실적 KPI (winrate 50~80%, edge_after_cost > 0)
+
+**근거:**
+- 상용 퀀트 시스템 표준 (Freqtrade/Hummingbot)
+- "가짜 수익의 마약"에서 벗어나 차가운 현실 데이터 마주하기
+- MOCK 데이터 = 손실 케이스 구조적 부재 → 100% winrate 허상
+
+**D205-15-6b 사례 (Before D205-9-REOPEN):**
+- filled_qty 계약 올바르게 적용됨 ✅
+- 하지만 use_real_data=false로 실행 ❌
+- 결과: winrate 100% (MOCK 데이터 특유의 낙관)
+
+### 5. LIVE 중단 유지
 - ❌ V2에서도 실거래 기본 금지
 - ✅ PAPER/READ_ONLY 모드 기본
-- ✅ Smoke 테스트는 Mock/Stub만 사용
+- ✅ Real MarketData + Simulated Execution (D205-9-REOPEN)
 
 ---
 

@@ -285,6 +285,34 @@ class PaperRunner:
         # D205-15-6a: Trade history for decision_trace_samples.jsonl
         self.trade_history: List[dict] = []
         
+        # D205-9-REOPEN: Paper-LIVE Parity 강제 (Real MarketData + DB/Redis Strict)
+        # Smoke/Baseline/Longrun = 운영 검증 단계 (Real Data 필수)
+        # MOCK은 test_1min 같은 계약/유닛 전용 phase로만 제한
+        if config.phase in ["smoke", "baseline", "longrun", "smoke_test"]:
+            if not config.use_real_data:
+                logger.error(f"[D205-9-REOPEN] ❌ FAIL-FAST: Phase '{config.phase}' requires Real MarketData")
+                logger.error(f"[D205-9-REOPEN] Set --use-real-data flag. MOCK is only for test_1min phase.")
+                logger.error(f"[D205-9-REOPEN] Reason: Smoke/Baseline/Longrun are 'Ops Validation' stages")
+                logger.error(f"[D205-9-REOPEN] MOCK data cannot reflect real market friction (slippage/fees/latency)")
+                raise RuntimeError(
+                    f"[D205-9-REOPEN] Phase '{config.phase}' requires Real MarketData. "
+                    f"Current: use_real_data={config.use_real_data}. "
+                    f"Fix: Add --use-real-data flag to command."
+                )
+            
+            if config.db_mode != "strict":
+                logger.error(f"[D205-9-REOPEN] ❌ FAIL-FAST: Phase '{config.phase}' requires db_mode='strict'")
+                logger.error(f"[D205-9-REOPEN] Current: db_mode='{config.db_mode}'")
+                logger.error(f"[D205-9-REOPEN] Reason: Infrastructure validation is mandatory for Ops stages")
+                logger.error(f"[D205-9-REOPEN] DB off/optional = Cannot validate write performance & data integrity")
+                raise RuntimeError(
+                    f"[D205-9-REOPEN] Phase '{config.phase}' requires db_mode='strict'. "
+                    f"Current: db_mode='{config.db_mode}'. "
+                    f"Fix: Add --db-mode strict to command."
+                )
+            
+            logger.info(f"[D205-9-REOPEN] ✅ Paper-LIVE Parity: Phase '{config.phase}' with Real Data + DB Strict")
+        
         # D205-9: Real MarketData Providers (BOTH Upbit + Binance REQUIRED)
         self.use_real_data = config.use_real_data
         if self.use_real_data:
@@ -1072,35 +1100,54 @@ class PaperRunner:
             timestamp=timestamp,
         )
         
-        # D205-9: Fake-Optimism 즉시중단 룰 (winrate 100% 감지)
-        # NOTE: Real Data 모드에서만 체크 (Mock 모드는 테스트/개발용이므로 100% winrate 허용)
-        if self.use_real_data and self.kpi.closed_trades >= 50 and self.kpi.winrate_pct >= 99.9:
-            logger.error("[D205-9] ❌ FAIL: Fake-Optimism detected (winrate 100% after 50+ trades)")
-            logger.error(f"[D205-9] closed_trades={self.kpi.closed_trades}, wins={self.kpi.wins}, losses={self.kpi.losses}")
-            logger.error("[D205-9] Reason: Unrealistic winrate indicates model does not reflect reality")
+        # D205-9-REOPEN: Winrate Guard 강화 (0% 또는 100% 조기 중단)
+        # SSOT_RULES: "winrate 0%/100% → 계약/측정 검증 단계로 강제 이동"
+        # 운영 검증 phase에서만 체크 (test_1min은 계약/유닛 테스트 전용이므로 예외)
+        is_ops_validation_phase = self.config.phase in ["smoke", "baseline", "longrun", "smoke_test"]
+        if is_ops_validation_phase and self.kpi.closed_trades >= 50:
+            is_zero_winrate = self.kpi.winrate_pct <= 0.1
+            is_perfect_winrate = self.kpi.winrate_pct >= 99.9
             
-            # 마지막 K개 트레이드 요약 덤프 (evidence)
-            last_trades_summary = {
-                "closed_trades": self.kpi.closed_trades,
-                "wins": self.kpi.wins,
-                "losses": self.kpi.losses,
-                "winrate_pct": self.kpi.winrate_pct,
-                "gross_pnl": self.kpi.gross_pnl,
-                "fees": self.kpi.fees,
-                "net_pnl": self.kpi.net_pnl,
-                "fake_optimism_trigger": "winrate >= 99.9% after 50+ trades",
-            }
-            
-            # evidence 저장
-            fake_optimism_file = self.output_dir / "fake_optimism_trigger.json"
-            with open(fake_optimism_file, "w", encoding="utf-8") as f:
-                json.dump(last_trades_summary, f, indent=2)
-            
-            logger.error(f"[D205-9] Fake-Optimism evidence saved: {fake_optimism_file}")
-            
-            self._save_kpi()
-            self._save_db_counts()
-            return 1
+            if is_zero_winrate or is_perfect_winrate:
+                logger.error("[D205-9-REOPEN] ❌ FAIL: Unrealistic winrate detected")
+                logger.error(f"[D205-9-REOPEN] winrate={self.kpi.winrate_pct:.1f}%, trades={self.kpi.closed_trades}")
+                logger.error(f"[D205-9-REOPEN] wins={self.kpi.wins}, losses={self.kpi.losses}")
+                logger.error(f"[D205-9-REOPEN] use_real_data={self.use_real_data}, phase={self.config.phase}")
+                
+                if is_zero_winrate:
+                    logger.error("[D205-9-REOPEN] Reason: 0% winrate = Logic bug or No market opportunities")
+                elif is_perfect_winrate:
+                    logger.error("[D205-9-REOPEN] Reason: 100% winrate = Contract violation or MOCK data")
+                    logger.error("[D205-9-REOPEN] Check: filled_qty contract, slippage model, market friction")
+                
+                logger.error("[D205-9-REOPEN] SSOT Rule: winrate 0%/100% → Contract/Measurement validation required")
+                
+                # 마지막 트레이드 요약 덤프 (evidence)
+                winrate_trigger = "winrate_0%" if is_zero_winrate else "winrate_100%"
+                last_trades_summary = {
+                    "trigger": winrate_trigger,
+                    "closed_trades": self.kpi.closed_trades,
+                    "wins": self.kpi.wins,
+                    "losses": self.kpi.losses,
+                    "winrate_pct": self.kpi.winrate_pct,
+                    "gross_pnl": self.kpi.gross_pnl,
+                    "fees": self.kpi.fees,
+                    "net_pnl": self.kpi.net_pnl,
+                    "use_real_data": self.use_real_data,
+                    "phase": self.config.phase,
+                    "marketdata_mode": self.kpi.marketdata_mode,
+                }
+                
+                # evidence 저장
+                winrate_guard_file = self.output_dir / "winrate_guard_trigger.json"
+                with open(winrate_guard_file, "w", encoding="utf-8") as f:
+                    json.dump(last_trades_summary, f, indent=2)
+                
+                logger.error(f"[D205-9-REOPEN] Winrate guard evidence saved: {winrate_guard_file}")
+                
+                self._save_kpi()
+                self._save_db_counts()
+                return 1
     
     def _record_trade_complete(
         self,
