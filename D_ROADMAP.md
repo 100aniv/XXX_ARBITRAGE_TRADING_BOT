@@ -5368,10 +5368,12 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 목표: PaperRunner 500줄 이내로 축소, 지능을 v2/core로 이관
   - AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관 (커밋 6771366)
   - AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관 (커밋 6771366)
-  - AC-3: ⏳ PaperRunner 500줄 이내로 축소 (진행 중, import 정리 완료)
-  - AC-4: ✅ Gate Doctor/Fast/Regression 100% PASS (커밋 6771366)
-  - 상태: PARTIAL (v2/core 모듈 생성 완료, PaperRunner 슬림화 진행 중)
-  - 증거: logs/evidence/d205_18_2_harness_purge_20260111_201800/
+  - AC-3: ⏳ v2/core/orchestrator.py 생성, 루프 제어 이관 (커밋 TBD, 1508→1247 LOC)
+  - AC-4: ⏳ PaperRunner 500줄 이내로 축소 (진행 중, 1247/500, 59.9% to go)
+  - AC-5: ✅ Gate Doctor PASS (컴파일 PASS)
+  - 상태: PARTIAL (Core evacuation 완료, LOC 목표 진행 중)
+  - 증거: logs/evidence/d205_18_2c_final_purge_20260111_215000/
+  - 다음: D205-18-2D (Opportunity/Intent evacuation, 747 LOC 감축)
 
 **D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**
   - 목표: RunWatcher 작동 확인, 손절/이익실현 기준 강화

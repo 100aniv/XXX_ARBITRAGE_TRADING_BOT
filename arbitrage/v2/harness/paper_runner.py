@@ -40,6 +40,7 @@ from arbitrage.v2.core.trade_processor import TradeProcessor, TradeResult
 from arbitrage.v2.core.feature_guard import FeatureGuard # D205-15-6: Engine-Centric
 from arbitrage.v2.core.metrics import PaperMetrics  # D205-18-2: Harness Purge
 from arbitrage.v2.core.monitor import EvidenceCollector  # D205-18-2: Harness Purge
+from arbitrage.v2.core.orchestrator import PaperOrchestrator  # D205-18-2C: Orchestrator
 from arbitrage.v2.opportunity import (
     BreakEvenParams,
     build_candidate,
@@ -183,6 +184,9 @@ class PaperRunner:
         
         # D205-15-6a: Trade history for decision_trace_samples.jsonl
         self.trade_history: List[dict] = []
+        
+        # D205-18-2C: Orchestrator (Thin Wrapper)
+        self.orchestrator = None
         
         # D205-9-REOPEN: Paper-LIVE Parity 강제 (Real MarketData + DB/Redis Strict)
         # Smoke/Baseline/Longrun = 운영 검증 단계 (Real Data 필수)
@@ -463,160 +467,87 @@ class PaperRunner:
     
     def run(self):
         """
-        메인 실행 루프 (Duration-based)
+        메인 실행 루프 (Thin Wrapper)
         
-        D205-13: Engine SSOT 전환 - PaperRunner는 Thin Wrapper로 전환
-        - while 루프 제거 → Engine.run()에 위임
-        - opportunity 생성 로직은 fetch_tick_data 콜백으로 전달
+        D205-18-2C: Orchestrator 기반 전환 - Runner는 설정/호출만
         
         Returns:
             0: 성공
             1: 실패
         """
         if not self.config.read_only:
-            logger.error("[D204-2] ❌ READ_ONLY=False 금지 (Paper 전용)")
+            logger.error("[D205-18-2C] ❌ READ_ONLY=False 금지 (Paper 전용)")
             return 1
         
-        logger.info("[D205-13] ========================================")
-        logger.info(f"[D205-13] PAPER EXECUTION via Engine.run() - {self.config.phase.upper()}")
-        logger.info("[D205-13] ========================================")
+        logger.info("[D205-18-2C] ========================================")
+        logger.info(f"[D205-18-2C] PAPER EXECUTION - {self.config.phase.upper()}")
+        logger.info("[D205-18-2C] ========================================")
         
-        # D205-15-6: RunWatcher 시작 (Self-Monitor)
-        self._watcher = create_watcher(
-            kpi_getter=lambda: self.kpi,
-            stop_callback=self.request_stop,
-            heartbeat_sec=60,
-            min_trades_for_check=100
+        # D205-18-2C: Orchestrator 생성
+        self.orchestrator = PaperOrchestrator(
+            metrics=self.kpi,
+            evidence_collector=self.evidence_collector,
+            opportunity_generator=lambda iteration: (
+                self._generate_real_opportunity(iteration) if self.use_real_data
+                else self._generate_mock_opportunity(iteration)
+            ),
+            intent_converter=self._convert_to_intents,
+            trade_processor=self._process_opportunity_as_trade,
+            admin_control=self.admin_control
         )
-        self._watcher.start()
-        logger.info("[D205-15-6] RunWatcher started (60s heartbeat, min_trades=100)")
         
-        # D205-13: Engine 생성 (단일 실행 경로)
+        # RunWatcher 시작
+        self.orchestrator.start_watcher()
+        
+        # Engine 생성
         from arbitrage.v2.core.engine import ArbitrageEngine, EngineConfig
         
         engine_config = EngineConfig(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
-            enable_execution=False,  # Paper mode
+            enable_execution=False,
             tick_interval_sec=1.0,
             kpi_log_interval=10
         )
         
         engine = ArbitrageEngine(config=engine_config, admin_control=self.admin_control)
         
-        # D205-13: Opportunity 생성 콜백 (tick data 생성)
-        iteration_counter = [0]  # mutable for closure
-        
-        def fetch_tick_data(iteration):
-            """Engine의 fetch_tick_data 콜백 - opportunity 생성"""
-            iteration_counter[0] = iteration
-            
-            # Opportunity 생성 (Real or Mock)
-            if self.use_real_data:
-                candidate = self._generate_real_opportunity(iteration)
-            else:
-                candidate = self._generate_mock_opportunity(iteration)
-            
-            # D205-10: candidate None 시 reject reason 추적
-            if not candidate:
-                self.kpi.bump_reject("candidate_none")
-                return None
-            
-            self.kpi.opportunities_generated += 1
-            return candidate
-        
-        # D205-13: Tick 처리 콜백 (intent 변환 + 실행)
-        def process_tick(iteration, opportunities, intents):
-            """Engine의 process_tick 콜백 - intent 변환 및 실행"""
-            # D205-15-6: RunWatcher FAIL-fast 체크
-            if self._stop_requested:
-                logger.warning("[D205-15-6] Stop requested, skipping tick processing")
-                raise RuntimeError("RunWatcher triggered stop")
-            
-            # opportunities는 리스트이지만 현재는 단일 candidate 반환
-            if not opportunities or opportunities[0] is None:
-                return
-            
-            candidate = opportunities[0]
-            
-            # AdminControl 체크 (D205-12-1 regression 보호)
-            if self.admin_control and not self.admin_control.should_process_tick():
-                self.kpi.bump_reject("admin_paused")
-                return
-            
-            # Symbol Blacklist 체크 (D205-12-1 regression 보호)
-            if self.admin_control and self.admin_control.is_symbol_blacklisted(candidate.symbol):
-                self.kpi.bump_reject("symbol_blacklisted")
-                return
-            
-            # OrderIntent 변환
-            intents_local = self._convert_to_intents(candidate, iteration)
-            intents.extend(intents_local)
-            self.kpi.intents_created += len(intents_local)
-            
-            # Trade 처리
-            exit_code = self._process_opportunity_as_trade(candidate, intents_local)
-            if exit_code == 1:
-                logger.error("[D205-9] Fake-Optimism detected")
-                raise RuntimeError("Fake-Optimism detected")
-            
-            # KPI 출력 (10 iteration마다)
-            if iteration % 10 == 0:
-                logger.info(f"[D205-13 KPI] {self.kpi.to_dict()}")
-        
-        # D205-13: Engine.run() 호출 (유일한 tick 루프)
+        # Engine.run() 호출
         try:
             exit_code = engine.run(
                 duration_minutes=self.config.duration_minutes,
-                fetch_tick_data=fetch_tick_data,
-                process_tick=process_tick
+                fetch_tick_data=self.orchestrator.create_fetch_callback(),
+                process_tick=self.orchestrator.create_process_callback()
             )
             
-            # 종료 시 KPI 저장
-            self._save_kpi()
-            self._save_db_counts()
+            # Evidence 저장
+            db_counts = self._get_db_counts() if self.storage else None
+            self.orchestrator.save_evidence(
+                trade_history=self.trade_history,
+                db_counts=db_counts,
+                phase=self.config.phase
+            )
             
-            logger.info("[D205-13] ========================================")
-            logger.info(f"[D205-13] Engine.run() COMPLETE - {self.config.phase.upper()}")
-            logger.info("[D205-13] ========================================")
-            logger.info(f"[D205-13 FINAL KPI] {self.kpi.to_dict()}")
+            logger.info("[D205-18-2C] ========================================")
+            logger.info(f"[D205-18-2C] EXECUTION COMPLETE - {self.config.phase.upper()}")
+            logger.info("[D205-18-2C] ========================================")
+            logger.info(f"[D205-18-2C FINAL KPI] {self.kpi.to_dict()}")
             
             return exit_code
         
         except KeyboardInterrupt:
-            logger.warning("[D205-13] Interrupted by user (Ctrl+C)")
-            self._save_kpi()
-            self._save_db_counts()
+            logger.warning("[D205-18-2C] Interrupted by user")
+            self.orchestrator.save_evidence(self.trade_history, phase=self.config.phase)
             return 1
         
         except Exception as e:
-            logger.error(f"[D205-13] Fatal error: {e}", exc_info=True)
+            logger.error(f"[D205-18-2C] Fatal error: {e}", exc_info=True)
             self.kpi.errors.append(str(e))
-            self._save_kpi()
-            self._save_db_counts()
+            self.orchestrator.save_evidence(self.trade_history, phase=self.config.phase)
             return 1
         
         finally:
-            # D205-15-6: RunWatcher 정리
-            if self._watcher:
-                self._watcher.stop()
-                logger.info("[D205-15-6] RunWatcher stopped")
-        
-        # D205-9: DB REQUIRED 검증 (strict mode)
-        if self.config.db_mode == "strict":
-            if self.storage and self.kpi.db_inserts_ok == 0:
-                logger.error("[D205-9] ❌ FAIL: DB mode is strict, but db_inserts_ok = 0 (no ledger growth)")
-                self._save_kpi()
-                self._save_db_counts()
-                return 1
-        
-        # 성공 종료
-        logger.info("[D204-2] ========================================")
-        logger.info(f"[D204-2] PAPER EXECUTION GATE - {self.config.phase.upper()} - SUCCESS")
-        logger.info("[D204-2] ========================================")
-        self._save_kpi()
-        self._save_db_counts()
-        return 0
+            self.orchestrator.stop_watcher()
     
     def _generate_real_opportunity(self, iteration: int):
         """Real MarketData 기반 Opportunity 생성 (D205-9)
@@ -1281,197 +1212,25 @@ class PaperRunner:
             
             self.kpi.db_inserts_failed += rows_inserted
     
-    def _generate_metrics_snapshot(self) -> Dict[str, Any]:
-        """
-        D205-15-6: Evidence Decomposition - Metrics Snapshot 생성
-        
-        predicted_edge vs realized_pnl 분포를 저장하여 "시장 vs 로직" 판정 가능
-        
-        Returns:
-            metrics_snapshot.json 내용
-        """
-        # KPI 기반 기본 지표
-        snapshot = {
-            "run_id": self.config.run_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "closed_trades": self.kpi.closed_trades,
-            "wins": self.kpi.wins,
-            "losses": self.kpi.losses,
-            "gross_pnl": round(self.kpi.gross_pnl, 2),
-            "net_pnl": round(self.kpi.net_pnl, 2),
-            "fees": round(self.kpi.fees, 2),
-        }
-        
-        # 평균 지표 계산
-        if self.kpi.closed_trades > 0:
-            snapshot["avg_pnl_per_trade"] = round(self.kpi.net_pnl / self.kpi.closed_trades, 2)
-            snapshot["avg_fee_per_trade"] = round(self.kpi.fees / self.kpi.closed_trades, 2)
-        else:
-            snapshot["avg_pnl_per_trade"] = 0.0
-            snapshot["avg_fee_per_trade"] = 0.0
-        
-        # D205-15-6: Engine-Centric - break_even 계산은 domain 모듈로 위임
-        from arbitrage.v2.domain.break_even import compute_break_even_bps
-        
-        # Break-even 파라미터 기록 (계산은 Engine이 함)
-        snapshot["break_even_params"] = {
-            "upbit_fee_bps": self.break_even_params.fee_model.fee_a.taker_fee_bps,
-            "binance_fee_bps": self.break_even_params.fee_model.fee_b.taker_fee_bps,
-            "slippage_bps": self.break_even_params.slippage_bps,
-            "latency_bps": self.break_even_params.latency_bps,
-            "buffer_bps": self.break_even_params.buffer_bps,
-            "total_break_even_bps": round(compute_break_even_bps(self.break_even_params), 2)
-        }
-        
-        # D205-15-6a: trade_history 기반 집계 (시장 vs 로직 판정)
-        if self.trade_history:
-            spread_values = [t["candidate_spread_bps"] for t in self.trade_history if t.get("candidate_spread_bps") is not None]
-            edge_values = [t["candidate_edge_bps"] for t in self.trade_history if t.get("candidate_edge_bps") is not None]
-            realized_pnl_values = [t["realized_pnl"] for t in self.trade_history if t.get("realized_pnl") is not None]
-            
-            snapshot["avg_spread_bps"] = round(sum(spread_values) / len(spread_values), 2) if spread_values else 0.0
-            snapshot["avg_edge_bps"] = round(sum(edge_values) / len(edge_values), 2) if edge_values else 0.0
-            snapshot["avg_realized_pnl"] = round(sum(realized_pnl_values) / len(realized_pnl_values), 2) if realized_pnl_values else 0.0
-        else:
-            snapshot["avg_spread_bps"] = 0.0
-            snapshot["avg_edge_bps"] = 0.0
-            snapshot["avg_realized_pnl"] = 0.0
-        
-        return snapshot
-    
-    def _generate_decision_trace_samples(self, max_samples: int = 50) -> List[Dict[str, Any]]:
-        """
-        D205-15-6a: Evidence Decomposition - Decision Trace Samples 생성
-        
-        최근 N개 트레이드 샘플을 저장하여 "왜 진입? 왜 손실?" 추적 가능
-        
-        Args:
-            max_samples: 저장할 최대 샘플 수 (기본 50개)
-        
-        Returns:
-            decision_trace_samples.jsonl 내용 (List)
-        """
-        # D205-15-6a: trade_history에서 최근 N개 추출
-        if not self.trade_history:
-            return []
-        
-        # 최근 max_samples개만 반환 (메모리 절약)
-        return self.trade_history[-max_samples:]
-    
-    def _save_kpi(self):
-        """KPI JSON 저장 (+ result.json 통합)"""
-        kpi_dict = self.kpi.to_dict()
-        
-        # D205-9: result.json 통합 (DB counts 포함)
-        result = {
-            "run_id": self.config.run_id,
-            "phase": self.config.phase,
-            "duration_minutes": self.config.duration_minutes,
-            "db_mode": self.config.db_mode,
-            "use_real_data": self.use_real_data,
-            "kpi": kpi_dict,
-        }
-        
-        # DB counts 추가 (storage 있을 때만)
-        if self.storage:
-            try:
-                import psycopg2
-                conn = psycopg2.connect(self.config.db_connection_string)
-                try:
-                    with conn.cursor() as cur:
-                        # run_id 기준 count
-                        cur.execute("SELECT COUNT(*) FROM v2_orders WHERE run_id = %s", (self.config.run_id,))
-                        orders_count = cur.fetchone()[0]
-                        
-                        cur.execute("SELECT COUNT(*) FROM v2_fills WHERE run_id = %s", (self.config.run_id,))
-                        fills_count = cur.fetchone()[0]
-                        
-                        cur.execute("SELECT COUNT(*) FROM v2_trades WHERE run_id = %s", (self.config.run_id,))
-                        trades_count = cur.fetchone()[0]
-                        
-                        result["db_ledger_counts"] = {
-                            "v2_orders": orders_count,
-                            "v2_fills": fills_count,
-                            "v2_trades": trades_count,
-                        }
-                        
-                        logger.info(f"[D205-9] DB ledger counts: orders={orders_count}, fills={fills_count}, trades={trades_count}")
-                finally:
-                    conn.close()
-            except Exception as e:
-                logger.warning(f"[D205-9] Failed to query DB ledger counts: {e}")
-                result["db_ledger_counts"] = {"error": str(e)}
-        
-        # kpi_*.json 저장 (기존 호환)
-        kpi_file = self.output_dir / f"kpi_{self.config.phase}.json"
-        with open(kpi_file, "w", encoding="utf-8") as f:
-            json.dump(kpi_dict, f, indent=2, ensure_ascii=False)
-        logger.info(f"[D204-2] KPI saved: {kpi_file}")
-        
-        # result.json 저장 (D205-9 통합)
-        result_file = self.output_dir / "result.json"
-        with open(result_file, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-        logger.info(f"[D205-9] Result saved: {result_file}")
-        
-        # D205-15-6: Evidence Decomposition 파일 저장
-        try:
-            # metrics_snapshot.json
-            metrics_snapshot = self._generate_metrics_snapshot()
-            metrics_file = self.output_dir / "metrics_snapshot.json"
-            with open(metrics_file, "w", encoding="utf-8") as f:
-                json.dump(metrics_snapshot, f, indent=2, ensure_ascii=False)
-            logger.info(f"[D205-15-6] Metrics snapshot saved: {metrics_file}")
-            
-            # decision_trace_samples.jsonl
-            decision_samples = self._generate_decision_trace_samples(max_samples=20)
-            if decision_samples:
-                trace_file = self.output_dir / "decision_trace_samples.jsonl"
-                with open(trace_file, "w", encoding="utf-8") as f:
-                    for sample in decision_samples:
-                        f.write(json.dumps(sample, ensure_ascii=False) + "\n")
-                logger.info(f"[D205-15-6] Decision trace samples saved: {trace_file} ({len(decision_samples)} samples)")
-            else:
-                logger.info("[D205-15-6] No decision trace samples to save (trade history not tracked)")
-            
-            # RunWatcher diagnosis (FAIL 시에만)
-            if self._watcher and self._watcher.diagnosis:
-                diagnosis_file = self.output_dir / "DIAGNOSIS.md"
-                with open(diagnosis_file, "w", encoding="utf-8") as f:
-                    f.write(f"# D205-15-6 RunWatcher Diagnosis\n\n")
-                    f.write(f"**Stop Reason:** {self._watcher.stop_reason}\n\n")
-                    f.write(f"**Diagnosis:**\n{self._watcher.diagnosis}\n\n")
-                    f.write(f"## Metrics Snapshot\n\n")
-                    f.write(f"```json\n{json.dumps(metrics_snapshot, indent=2)}\n```\n")
-                logger.info(f"[D205-15-6] RunWatcher diagnosis saved: {diagnosis_file}")
-        except Exception as e:
-            logger.error(f"[D205-15-6] Failed to save Evidence Decomposition files: {e}", exc_info=True)
-    
-    def _save_db_counts(self):
-        """DB row count 저장 (v2_orders/fills/trades)"""
+    def _get_db_counts(self) -> Optional[Dict[str, int]]:
+        """DB row count 조회 (v2_orders/fills/trades)"""
         if not self.storage:
-            return
+            return None
         
         try:
             orders = self.storage.get_orders_by_run_id(self.config.run_id, limit=10000)
             fills = self.storage.get_fills_by_run_id(self.config.run_id, limit=10000)
             trades = self.storage.get_trades_by_run_id(self.config.run_id, limit=10000)
             
-            db_counts = {
+            return {
                 "v2_orders": len(orders),
                 "v2_fills": len(fills),
                 "v2_trades": len(trades),
             }
-            
-            db_file = self.output_dir / f"db_counts_{self.config.phase}.json"
-            with open(db_file, "w", encoding="utf-8") as f:
-                json.dump(db_counts, f, indent=2)
-            
-            logger.info(f"[D204-2] DB counts saved: {db_file}")
-            logger.info(f"[D204-2] DB counts: {db_counts}")
         
         except Exception as e:
-            logger.warning(f"[D204-2] Failed to save DB counts: {e}")
+            logger.warning(f"[D205-18-2C] Failed to get DB counts: {e}")
+            return None
 
 
 def main():
