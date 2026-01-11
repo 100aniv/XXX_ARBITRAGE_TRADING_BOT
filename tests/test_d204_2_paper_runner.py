@@ -117,46 +117,25 @@ class TestPaperMetrics:
 
 
 class TestPaperRunner:
-    """PaperRunner 통합 테스트"""
+    """PaperRunner Thin Wrapper 테스트"""
     
-    @pytest.mark.skip(reason="D205-18-2D: Thin Wrapper로 전환, 내부 상태 접근 불가")
-    def test_runner_initialization(self):
+    def test_runner_config_storage(self):
         """
-        Case 7: PaperRunner 초기화
+        D205-18-2E: Thin Wrapper는 Config를 저장만 함
         
         Verify:
-            - Config 적용
-            - MockAdapter, MockBalance 생성
-            - output_dir 생성
+            - Config 저장
+            - admin_control 저장 (optional)
         """
         config = PaperRunnerConfig(
             duration_minutes=1,
             phase="test",
         )
         
-        runner = PaperRunner(config)
+        runner = PaperRunner(config, admin_control=None)
         
         assert runner.config == config
-    
-    @pytest.mark.skip(reason="D205-18-2D: Thin Wrapper, READ_ONLY 체크는 Core로 이동")
-    def test_runner_read_only_enforcement(self):
-        pass
-    
-    @pytest.mark.skip(reason="D205-18-2D: _generate_mock_opportunity() → OpportunitySource로 이동")
-    def test_runner_mock_opportunity_generation(self):
-        pass
-    
-    @pytest.mark.skip(reason="D205-18-2D: _convert_to_intents() → IntentBuilder로 이동")
-    def test_runner_convert_to_intents(self):
-        pass
-    
-    @pytest.mark.skip(reason="D205-18-2D: _execute_mock_order() → PaperExecutor로 이동")
-    def test_runner_execute_mock_order(self):
-        pass
-    
-    @pytest.mark.skip(reason="D205-18-2D: 1분 실행은 통합 테스트로 별도 진행")
-    def test_runner_1min_execution(self):
-        pass
+        assert runner.admin_control is None
 
 
 class TestPaperRunnerCLI:

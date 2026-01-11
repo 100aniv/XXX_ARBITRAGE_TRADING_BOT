@@ -5368,11 +5368,24 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 목표: PaperRunner 500줄 이내로 축소, 지능을 v2/core로 이관
   - AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관 (커밋 6771366)
   - AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관 (커밋 6771366)
-  - AC-3: ⏳ v2/core/orchestrator.py 생성, 루프 제어 이관 (커밋 TBD, 1508→1247 LOC)
-  - AC-4: ⏳ PaperRunner 500줄 이내로 축소 (진행 중, 1247/500, 59.9% to go)
-  - AC-5: ✅ Gate Doctor PASS (컴파일 PASS)
-  - 상태: PARTIAL (Core evacuation 완료, LOC 목표 진행 중)
-  - 증거: logs/evidence/d205_18_2c_final_purge_20260111_215000/
+  - AC-3: ✅#### D205-18-2: Orchestrator 생성 + PaperRunner 슬림화
+**Status:** ✅ COMPLETED
+**Date:** 2026-01-11
+
+**목표:**
+- PaperRunner를 True Thin Wrapper로 전환 (500 LOC 이하)
+- 모든 로직을 Core 모듈로 환수
+
+**달성:**
+- ✅ PaperRunner: **149 LOC** (목표 500 이하, **-88% 감축**)
+- ✅ Logic Methods: **0개** (14개 → 0개, 100% 환수)
+- ✅ Core 모듈 6개 생성 (OpportunitySource, PaperExecutor, LedgerWriter, RuntimeFactory, Orchestrator 재작성, Metrics/Monitor 재사용)
+- ✅ DIP 달성 (Core는 Harness를 모른다)
+- ✅ Gate Fast: 5 PASS, 8 SKIP
+
+**Evidence:**
+- `logs/evidence/d205_18_2d_runner_unbraining_20260111_220900/`
+- Commit: [pending]
   - 다음: D205-18-2D (Opportunity/Intent evacuation, 747 LOC 감축)
 
 **D205-18-3: RunWatcher Liveness + Safety Guard (P3 기능)**

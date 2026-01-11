@@ -2,9 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Optional
 import logging
 
-from arbitrage.v2.opportunity.candidate import OpportunityCandidate, build_candidate
+from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
 from arbitrage.v2.domain.break_even import BreakEvenParams
-from arbitrage.v2.marketdata.fx_provider import FXProvider
 from arbitrage.v2.opportunity.price_normalizer import normalize_price_to_krw
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ class RealOpportunitySource(OpportunitySource):
         binance_provider,
         rate_limiter_upbit,
         rate_limiter_binance,
-        fx_provider: FXProvider,
+        fx_provider,  # FixedFxProvider or LiveFxProvider
         break_even_params: BreakEvenParams,
         kpi,
     ):
@@ -130,7 +129,7 @@ class MockOpportunitySource(OpportunitySource):
     
     def __init__(
         self,
-        fx_provider: FXProvider,
+        fx_provider,  # FixedFxProvider or LiveFxProvider
         break_even_params: BreakEvenParams,
         kpi,
     ):
