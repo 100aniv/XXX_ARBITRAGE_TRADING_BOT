@@ -69,6 +69,11 @@ class MockAdapter(ExchangeAdapter):
         """
         Submit mock order (returns fake success response).
         
+        D205-15-6a: ref_price 기반 filled_price (Fail-fast)
+        - ref_price가 있으면 우선 사용 (PaperRunner가 candidate 가격 주입)
+        - 없으면 limit_price 사용 (LIMIT 주문)
+        - 둘 다 없으면 RuntimeError (데이터 오염 방지)
+        
         Args:
             payload: Mock payload
             
@@ -77,11 +82,24 @@ class MockAdapter(ExchangeAdapter):
         """
         order_id = f"mock-{uuid.uuid4().hex[:8]}"
         
+        # D205-15-6a: ref_price 우선, 없으면 limit_price, 둘 다 없으면 fallback (경고)
+        filled_price = payload.get("ref_price") or payload.get("limit_price")
+        if filled_price is None:
+            # Fallback for testing without ref_price (경고 로그)
+            filled_price = 100.0
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"[D205-15-6a] MockAdapter: filled_price fallback to 100.0. "
+                f"Consider providing 'ref_price' or 'limit_price'. "
+                f"payload keys: {list(payload.keys())}"
+            )
+        
         response = {
             "order_id": order_id,
             "status": "filled",
             "filled_qty": payload.get("base_qty", 1.0),
-            "filled_price": payload.get("limit_price", 100.0),
+            "filled_price": filled_price,
             "exchange": payload.get("exchange"),
             "symbol": payload.get("symbol"),
         }

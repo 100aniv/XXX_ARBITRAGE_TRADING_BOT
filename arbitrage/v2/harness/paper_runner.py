@@ -282,6 +282,9 @@ class PaperRunner:
         # D205-15-6: TradeProcessor (Engine-Centric, break_even 이후 초기화)
         self.trade_processor = None
         
+        # D205-15-6a: Trade history for decision_trace_samples.jsonl
+        self.trade_history: List[dict] = []
+        
         # D205-9: Real MarketData Providers (BOTH Upbit + Binance REQUIRED)
         self.use_real_data = config.use_real_data
         if self.use_real_data:
@@ -829,13 +832,22 @@ class PaperRunner:
             self.kpi.bump_reject("other")
             return []
     
-    def _execute_order(self, intent: OrderIntent):
+    def _execute_order(self, intent: OrderIntent, ref_price: Optional[float] = None):
         """Mock 주문 실행 (DB 기록 없이 순수 실행만)
         
         D205-2 REOPEN: trade close를 위해 분리
+        D205-15-6a: ref_price 주입 (candidate의 실제 호가)
+        
+        Args:
+            intent: OrderIntent
+            ref_price: Reference price (candidate의 price_a 또는 price_b)
         """
         # 1. MockAdapter로 변환
         payload = self.mock_adapter.translate_intent(intent)
+        
+        # D205-15-6a: ref_price 주입 (시뮬레이션 입력값 현실화)
+        if ref_price is not None:
+            payload["ref_price"] = ref_price
         
         # 2. Mock 체결 (항상 성공)
         response = self.mock_adapter.submit_order(payload)
@@ -1030,14 +1042,23 @@ class PaperRunner:
         timestamp = now_utc_naive()
         trade_id = f"trade_{self.config.run_id}_{uuid.uuid4().hex[:8]}"
         
-        # Entry order (첫 번째)
+        # D205-15-6a: ref_price 계산 (candidate의 실제 호가)
+        # entry가 exchange_a면 price_a, exchange_b면 price_b
         entry_intent = intents[0]
-        entry_result = self._execute_order(entry_intent)
+        entry_ref_price = (
+            candidate.price_a if entry_intent.exchange == candidate.exchange_a
+            else candidate.price_b
+        )
+        entry_result = self._execute_order(entry_intent, ref_price=entry_ref_price)
         self._update_mock_balance(entry_intent, entry_result)
         
         # Exit order (두 번째)
         exit_intent = intents[1]
-        exit_result = self._execute_order(exit_intent)
+        exit_ref_price = (
+            candidate.price_a if exit_intent.exchange == candidate.exchange_a
+            else candidate.price_b
+        )
+        exit_result = self._execute_order(exit_intent, ref_price=exit_ref_price)
         self._update_mock_balance(exit_intent, exit_result)
         
         # DB 기록 (entry + exit + trade close)
@@ -1248,6 +1269,22 @@ class PaperRunner:
             if self.kpi.closed_trades > 0:
                 self.kpi.winrate_pct = (self.kpi.wins / self.kpi.closed_trades) * 100
             
+            # D205-15-6a: trade_history 저장 (decision_trace_samples.jsonl용)
+            self.trade_history.append({
+                "trade_id": trade_id,
+                "timestamp": timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp),
+                "candidate_spread_bps": getattr(candidate, 'spread_bps', None),
+                "candidate_edge_bps": getattr(candidate, 'edge_bps', None),
+                "candidate_break_even_bps": getattr(candidate, 'break_even_bps', None),
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "entry_qty": entry_qty,
+                "gross_pnl": gross_pnl,
+                "total_fee": total_fee,
+                "realized_pnl": realized_pnl,
+                "is_win": realized_pnl > 0,
+            })
+            
             logger.debug(f"[D205-2] Trade closed: {trade_id}, realized_pnl={realized_pnl:.2f}, total_fee={total_fee:.2f}")
             
         except Exception as e:
@@ -1305,24 +1342,40 @@ class PaperRunner:
             "total_break_even_bps": round(compute_break_even_bps(self.break_even_params), 2)
         }
         
+        # D205-15-6a: trade_history 기반 집계 (시장 vs 로직 판정)
+        if self.trade_history:
+            spread_values = [t["candidate_spread_bps"] for t in self.trade_history if t.get("candidate_spread_bps") is not None]
+            edge_values = [t["candidate_edge_bps"] for t in self.trade_history if t.get("candidate_edge_bps") is not None]
+            realized_pnl_values = [t["realized_pnl"] for t in self.trade_history if t.get("realized_pnl") is not None]
+            
+            snapshot["avg_spread_bps"] = round(sum(spread_values) / len(spread_values), 2) if spread_values else 0.0
+            snapshot["avg_edge_bps"] = round(sum(edge_values) / len(edge_values), 2) if edge_values else 0.0
+            snapshot["avg_realized_pnl"] = round(sum(realized_pnl_values) / len(realized_pnl_values), 2) if realized_pnl_values else 0.0
+        else:
+            snapshot["avg_spread_bps"] = 0.0
+            snapshot["avg_edge_bps"] = 0.0
+            snapshot["avg_realized_pnl"] = 0.0
+        
         return snapshot
     
-    def _generate_decision_trace_samples(self, max_samples: int = 20) -> List[Dict[str, Any]]:
+    def _generate_decision_trace_samples(self, max_samples: int = 50) -> List[Dict[str, Any]]:
         """
-        D205-15-6: Evidence Decomposition - Decision Trace Samples 생성
+        D205-15-6a: Evidence Decomposition - Decision Trace Samples 생성
         
         최근 N개 트레이드 샘플을 저장하여 "왜 진입? 왜 손실?" 추적 가능
         
         Args:
-            max_samples: 저장할 최대 샘플 수 (기본 20개)
+            max_samples: 저장할 최대 샘플 수 (기본 50개)
         
         Returns:
             decision_trace_samples.jsonl 내용 (List)
         """
-        # Note: 현재 PaperRunner는 트레이드 히스토리를 메모리에 보관하지 않음
-        # 향후 개선: 최근 N개 트레이드를 self._recent_trades에 저장하도록 수정 필요
-        # 현재는 빈 리스트 반환
-        return []
+        # D205-15-6a: trade_history에서 최근 N개 추출
+        if not self.trade_history:
+            return []
+        
+        # 최근 max_samples개만 반환 (메모리 절약)
+        return self.trade_history[-max_samples:]
     
     def _save_kpi(self):
         """KPI JSON 저장 (+ result.json 통합)"""

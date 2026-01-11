@@ -85,9 +85,21 @@ class TradeProcessor:
         Raises:
             ValueError: 유효하지 않은 arbitrage 방향 (BUY/BUY or SELL/SELL)
         """
-        # Entry 수량 및 기준 가격
-        entry_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
-        entry_base_price = entry_result.filled_price or entry_intent.limit_price or 50_000_000.0
+        # D205-15-6a: Fail-fast - filled data 필수 (마법 상수 제거)
+        entry_qty = entry_result.filled_qty or entry_intent.base_qty
+        if not entry_qty or entry_qty <= 0:
+            raise ValueError(
+                f"TradeProcessor: entry_qty missing or invalid. "
+                f"filled_qty={entry_result.filled_qty}, intent.base_qty={entry_intent.base_qty}"
+            )
+        
+        entry_base_price = entry_result.filled_price or entry_intent.limit_price
+        if not entry_base_price or entry_base_price <= 0:
+            raise ValueError(
+                f"TradeProcessor: entry_base_price missing or invalid. "
+                f"filled_price={entry_result.filled_price}, intent.limit_price={entry_intent.limit_price}. "
+                f"Ensure MockAdapter sets ref_price or intent has limit_price."
+            )
         
         # Entry 체결 가격 (execution risk 적용)
         entry_price = apply_execution_risk(
@@ -105,9 +117,21 @@ class TradeProcessor:
         entry_fee = calculate_fee(entry_price, entry_qty, entry_fee_bps)
         entry_fee_currency = "KRW" if "KRW" in entry_intent.symbol else "USDT"
         
-        # Exit 수량 및 기준 가격
-        exit_qty = exit_result.filled_qty or exit_intent.base_qty or 0.01
-        exit_base_price = exit_result.filled_price or exit_intent.limit_price or 50_000_000.0
+        # D205-15-6a: Fail-fast - exit filled data 필수
+        exit_qty = exit_result.filled_qty or exit_intent.base_qty
+        if not exit_qty or exit_qty <= 0:
+            raise ValueError(
+                f"TradeProcessor: exit_qty missing or invalid. "
+                f"filled_qty={exit_result.filled_qty}, intent.base_qty={exit_intent.base_qty}"
+            )
+        
+        exit_base_price = exit_result.filled_price or exit_intent.limit_price
+        if not exit_base_price or exit_base_price <= 0:
+            raise ValueError(
+                f"TradeProcessor: exit_base_price missing or invalid. "
+                f"filled_price={exit_result.filled_price}, intent.limit_price={exit_intent.limit_price}. "
+                f"Ensure MockAdapter sets ref_price or intent has limit_price."
+            )
         
         # Exit 체결 가격 (execution risk 적용)
         exit_price = apply_execution_risk(
