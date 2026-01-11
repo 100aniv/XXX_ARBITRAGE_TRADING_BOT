@@ -17,9 +17,12 @@ Architecture:
 import logging
 import threading
 import time
+import json
+import os
 from datetime import datetime, timezone
 from typing import Optional, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,15 @@ class WatcherConfig:
     
     # FAIL 조건 (C): profitable=0 지속
     no_opportunity_duration_sec: int = 600  # 10분
+    
+    # FAIL 조건 (D): Max Drawdown (최대 낙폭)
+    max_drawdown_pct: float = 20.0  # 20% 낙폭 시 중단
+    
+    # FAIL 조건 (E): Consecutive Losses (연속 손실)
+    max_consecutive_losses: int = 10  # 10연속 손실 시 중단
+    
+    # Evidence 경로
+    evidence_dir: str = "logs/evidence"
 
 
 class RunWatcher:
@@ -51,10 +63,12 @@ class RunWatcher:
         config: WatcherConfig,
         kpi_getter: Callable,  # PaperRunner.kpi를 반환하는 함수
         stop_callback: Callable,  # PaperRunner.request_stop()를 호출하는 함수
+        run_id: str = "unknown",
     ):
         self.config = config
         self.kpi_getter = kpi_getter
         self.stop_callback = stop_callback
+        self.run_id = run_id
         
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -65,8 +79,17 @@ class RunWatcher:
         self._no_opportunity_start: Optional[float] = None
         self._last_check_time: Optional[float] = None
         
+        # Safety Guard 추적
+        self._peak_pnl: float = 0.0
+        self._consecutive_losses: int = 0
+        self._last_trade_result: Optional[str] = None
+        
         self.stop_reason: Optional[str] = None
         self.diagnosis: Optional[str] = None
+        
+        # Evidence 경로 설정
+        self._heartbeat_file = self._get_heartbeat_path()
+        self._snapshot_file = self._get_snapshot_path()
     
     def start(self):
         """Watcher Thread 시작"""
@@ -119,11 +142,11 @@ class RunWatcher:
                 f"Possible causes: market spread < break_even OR logic/model bug."
             )
             logger.error(f"[RunWatcher] {self.diagnosis}")
+            self._save_stop_reason_snapshot(kpi, "FAIL_A_WINRATE_ZERO")
             self._trigger_graceful_stop()
             return
         
         # FAIL 조건 (B): realized_edge<0 연속 5분
-        # (간단 구현: net_pnl이 계속 감소하는지 체크)
         if kpi.closed_trades > 0:
             avg_pnl_per_trade = kpi.net_pnl / kpi.closed_trades
             if avg_pnl_per_trade < 0:
@@ -138,16 +161,60 @@ class RunWatcher:
                         f"Market spread likely < break_even."
                     )
                     logger.error(f"[RunWatcher] {self.diagnosis}")
+                    self._save_stop_reason_snapshot(kpi, "FAIL_B_NEGATIVE_EDGE")
                     self._trigger_graceful_stop()
                     return
             else:
                 self._negative_edge_start = None
         
-        # 정상: Heartbeat 로그
+        # FAIL 조건 (D): Max Drawdown
+        if kpi.net_pnl > self._peak_pnl:
+            self._peak_pnl = kpi.net_pnl
+        
+        if self._peak_pnl > 0:
+            drawdown = ((self._peak_pnl - kpi.net_pnl) / self._peak_pnl) * 100
+            if drawdown >= self.config.max_drawdown_pct:
+                self.stop_reason = "ERROR"
+                self.diagnosis = (
+                    f"FAIL (D): Max Drawdown exceeded. "
+                    f"Peak PnL: {self._peak_pnl:.2f}, Current PnL: {kpi.net_pnl:.2f}, "
+                    f"Drawdown: {drawdown:.1f}% >= {self.config.max_drawdown_pct}%"
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_D_MAX_DRAWDOWN")
+                self._trigger_graceful_stop()
+                return
+        
+        # FAIL 조건 (E): Consecutive Losses
+        if kpi.closed_trades > 0:
+            current_result = "win" if kpi.wins > 0 else "loss"
+            if current_result != self._last_trade_result:
+                if current_result == "loss":
+                    self._consecutive_losses = 1
+                else:
+                    self._consecutive_losses = 0
+                self._last_trade_result = current_result
+            elif current_result == "loss":
+                self._consecutive_losses += 1
+            
+            if self._consecutive_losses >= self.config.max_consecutive_losses:
+                self.stop_reason = "ERROR"
+                self.diagnosis = (
+                    f"FAIL (E): {self._consecutive_losses} consecutive losses. "
+                    f"Max allowed: {self.config.max_consecutive_losses}. "
+                    f"Possible causes: adverse market conditions OR strategy failure."
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_E_CONSECUTIVE_LOSSES")
+                self._trigger_graceful_stop()
+                return
+        
+        # 정상: Heartbeat 기록 (파일 + 로그)
+        self._save_heartbeat(kpi)
         logger.debug(
             f"[RunWatcher] Heartbeat OK - "
             f"trades={kpi.closed_trades}, wins={kpi.wins}, losses={kpi.losses}, "
-            f"net_pnl={kpi.net_pnl:.2f}"
+            f"net_pnl={kpi.net_pnl:.2f}, drawdown={(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0):.1f}%"
         )
     
     def _trigger_graceful_stop(self):
@@ -155,13 +222,84 @@ class RunWatcher:
         logger.info("[RunWatcher] Triggering graceful stop...")
         self.stop_callback()
         self._stop_event.set()
+    
+    def _get_heartbeat_path(self) -> str:
+        """Heartbeat 파일 경로 반환"""
+        evidence_dir = Path(self.config.evidence_dir) / self.run_id
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        return str(evidence_dir / "heartbeat.jsonl")
+    
+    def _get_snapshot_path(self) -> str:
+        """Stop Reason Snapshot 파일 경로 반환"""
+        evidence_dir = Path(self.config.evidence_dir) / self.run_id
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        return str(evidence_dir / "stop_reason_snapshot.json")
+    
+    def _save_heartbeat(self, kpi):
+        """Heartbeat를 파일에 기록 (JSONL 형식)"""
+        try:
+            heartbeat_data = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "epoch_time": time.time(),
+                "kpi": {
+                    "closed_trades": kpi.closed_trades,
+                    "wins": kpi.wins,
+                    "losses": kpi.losses,
+                    "net_pnl": float(kpi.net_pnl),
+                    "opportunities_generated": kpi.opportunities_generated,
+                },
+                "guards": {
+                    "peak_pnl": float(self._peak_pnl),
+                    "drawdown_pct": float(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
+                    "consecutive_losses": self._consecutive_losses,
+                },
+            }
+            
+            with open(self._heartbeat_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(heartbeat_data) + "\n")
+        except Exception as e:
+            logger.error(f"[RunWatcher] Failed to save heartbeat: {e}")
+    
+    def _save_stop_reason_snapshot(self, kpi, fail_code: str):
+        """가드 트리거 시 현장 증거 저장"""
+        try:
+            snapshot_data = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "fail_code": fail_code,
+                "stop_reason": self.stop_reason,
+                "diagnosis": self.diagnosis,
+                "kpi_snapshot": {
+                    "closed_trades": kpi.closed_trades,
+                    "wins": kpi.wins,
+                    "losses": kpi.losses,
+                    "net_pnl": float(kpi.net_pnl),
+                    "opportunities_generated": kpi.opportunities_generated,
+                },
+                "guard_state": {
+                    "peak_pnl": float(self._peak_pnl),
+                    "current_drawdown_pct": float(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
+                    "consecutive_losses": self._consecutive_losses,
+                    "negative_edge_duration_sec": float(time.time() - self._negative_edge_start) if self._negative_edge_start else 0,
+                },
+            }
+            
+            with open(self._snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(snapshot_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"[RunWatcher] Stop reason snapshot saved: {self._snapshot_file}")
+        except Exception as e:
+            logger.error(f"[RunWatcher] Failed to save stop reason snapshot: {e}")
 
 
 def create_watcher(
     kpi_getter: Callable,
     stop_callback: Callable,
+    run_id: str = "unknown",
     heartbeat_sec: int = 60,
     min_trades_for_check: int = 100,
+    max_drawdown_pct: float = 20.0,
+    max_consecutive_losses: int = 10,
+    evidence_dir: str = "logs/evidence",
 ) -> RunWatcher:
     """
     RunWatcher 인스턴스 생성 (Factory)
@@ -169,8 +307,12 @@ def create_watcher(
     Args:
         kpi_getter: PaperRunner.kpi를 반환하는 함수
         stop_callback: PaperRunner.request_stop()를 호출하는 함수
+        run_id: Run ID (evidence 경로용)
         heartbeat_sec: Heartbeat 주기 (초)
         min_trades_for_check: wins=0 체크할 최소 거래 수
+        max_drawdown_pct: 최대 낙폭 비율 (%) - Safety Guard D
+        max_consecutive_losses: 최대 연속 손실 횟수 - Safety Guard E
+        evidence_dir: Evidence 저장 경로
     
     Returns:
         RunWatcher 인스턴스
@@ -178,5 +320,8 @@ def create_watcher(
     config = WatcherConfig(
         heartbeat_sec=heartbeat_sec,
         min_trades_for_winrate_check=min_trades_for_check,
+        max_drawdown_pct=max_drawdown_pct,
+        max_consecutive_losses=max_consecutive_losses,
+        evidence_dir=evidence_dir,
     )
-    return RunWatcher(config, kpi_getter, stop_callback)
+    return RunWatcher(config, kpi_getter, stop_callback, run_id)

@@ -49,7 +49,8 @@ class PaperOrchestrator:
         ledger_writer: LedgerWriter,
         kpi: PaperMetrics,
         evidence_collector: EvidenceCollector,
-        admin_control: Optional[Any] = None
+        admin_control: Optional[Any] = None,
+        run_id: str = "unknown"
     ):
         self.config = config
         self.opportunity_source = opportunity_source
@@ -58,6 +59,7 @@ class PaperOrchestrator:
         self.kpi = kpi
         self.evidence_collector = evidence_collector
         self.admin_control = admin_control
+        self.run_id = run_id
         
         self._stop_requested = False
         self._watcher = None
@@ -174,6 +176,14 @@ class PaperOrchestrator:
             db_counts = self.ledger_writer.get_counts()
             self.save_evidence(db_counts=db_counts)
             
+            # Exit Code 보장: watcher stop_reason='ERROR' 시 return 1
+            if self._watcher and self._watcher.stop_reason == "ERROR":
+                logger.error(
+                    f"[D205-18-3] RunWatcher triggered FAIL. "
+                    f"Diagnosis: {self._watcher.diagnosis}"
+                )
+                return 1
+            
             return 0
             
         except Exception as e:
@@ -188,11 +198,15 @@ class PaperOrchestrator:
         self._watcher = create_watcher(
             kpi_getter=lambda: self.kpi,
             stop_callback=self.request_stop,
+            run_id=self.run_id,
             heartbeat_sec=60,
-            min_trades_for_check=100
+            min_trades_for_check=100,
+            max_drawdown_pct=20.0,
+            max_consecutive_losses=10,
+            evidence_dir="logs/evidence"
         )
         self._watcher.start()
-        logger.info("[D205-18-2D] RunWatcher started")
+        logger.info("[D205-18-3] RunWatcher started (with Safety Guards D/E)")
     
     def stop_watcher(self):
         """RunWatcher 정리"""
