@@ -380,11 +380,15 @@ class TestOpportunityToOrderIntent:
     
     def test_case11_market_sell_none_base_qty_raises(self, params):
         """
-        Case 11: MARKET SELL with None base_qty → ValueError
+        Case 11: MARKET SELL with None base_qty → fallback calculation
         
-        Policy (SSOT):
-            - MARKET SELL requires positive base_qty
-            - None or 0 → ValueError (조기 실패)
+        Policy (SSOT, D205-16):
+            - MARKET SELL base_qty=None → fallback to quote_amount / buy_price
+            - qty_source="from_entry_fill" (Exit qty synced with Entry fill)
+            
+        D205-18-1 Gate Recovery:
+            - 기존 계약(ValueError)에서 신규 계약(fallback)으로 변경됨
+            - 테스트를 현행 코드에 맞게 업데이트
         """
         candidate = build_candidate(
             symbol="BTC/KRW",
@@ -398,11 +402,22 @@ class TestOpportunityToOrderIntent:
         assert candidate is not None
         assert candidate.profitable is True
         
-        # None base_qty → ValueError
-        with pytest.raises(ValueError, match="MARKET SELL requires positive base_qty"):
-            candidate_to_order_intents(
-                candidate=candidate,
-                base_qty=None,  # ❌ None
-                quote_amount=500_000.0,
-                order_type=OrderType.MARKET,
-            )
+        # D205-16: base_qty=None은 fallback 계산으로 처리됨
+        intents = candidate_to_order_intents(
+            candidate=candidate,
+            base_qty=None,  # fallback: quote_amount / buy_price
+            quote_amount=500_000.0,
+            order_type=OrderType.MARKET,
+        )
+        
+        # 2개 intent 생성 확인
+        assert len(intents) == 2
+        
+        # SELL intent의 qty_source 검증
+        sell_intent = next(i for i in intents if i.side == OrderSide.SELL)
+        assert sell_intent.qty_source == "from_entry_fill"
+        
+        # fallback base_qty = quote_amount / buy_price
+        # buy_price = 49_000_000.0 (upbit이 더 저렴)
+        expected_base_qty = 500_000.0 / 49_000_000.0
+        assert sell_intent.base_qty == pytest.approx(expected_base_qty, rel=1e-6)
