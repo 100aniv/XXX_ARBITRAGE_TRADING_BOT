@@ -70,9 +70,10 @@ class MockAdapter(ExchangeAdapter):
         Submit mock order (returns fake success response).
         
         D205-15-6a: ref_price 기반 filled_price (Fail-fast)
-        - ref_price가 있으면 우선 사용 (PaperRunner가 candidate 가격 주입)
-        - 없으면 limit_price 사용 (LIMIT 주문)
-        - 둘 다 없으면 RuntimeError (데이터 오염 방지)
+        D205-15-6b: MARKET BUY filled_qty 계약 고정
+        - MARKET BUY: filled_qty = quote_amount / filled_price (계산 필수)
+        - MARKET SELL: filled_qty = base_qty (직접 사용)
+        - 계산 불가 시 RuntimeError (Fail-fast)
         
         Args:
             payload: Mock payload
@@ -95,10 +96,37 @@ class MockAdapter(ExchangeAdapter):
                 f"payload keys: {list(payload.keys())}"
             )
         
+        # D205-15-6b: MARKET BUY filled_qty 계약 고정 (V2_ARCHITECTURE invariant)
+        order_type = payload.get("order_type", "").upper()
+        side = payload.get("side", "").upper()
+        
+        if order_type == "MARKET" and side == "BUY":
+            # MARKET BUY: filled_qty = quote_amount / filled_price
+            quote_amount = payload.get("quote_amount")
+            if not quote_amount or quote_amount <= 0:
+                raise RuntimeError(
+                    f"[D205-15-6b] MockAdapter: MARKET BUY requires positive quote_amount. "
+                    f"Got: {quote_amount}, payload: {payload}"
+                )
+            if not filled_price or filled_price <= 0:
+                raise RuntimeError(
+                    f"[D205-15-6b] MockAdapter: MARKET BUY requires positive filled_price. "
+                    f"Got: {filled_price}, payload: {payload}"
+                )
+            filled_qty = quote_amount / filled_price
+        else:
+            # MARKET SELL or LIMIT: base_qty 직접 사용
+            filled_qty = payload.get("base_qty")
+            if not filled_qty or filled_qty <= 0:
+                raise RuntimeError(
+                    f"[D205-15-6b] MockAdapter: filled_qty missing or invalid. "
+                    f"order_type={order_type}, side={side}, base_qty={filled_qty}, payload: {payload}"
+                )
+        
         response = {
             "order_id": order_id,
             "status": "filled",
-            "filled_qty": payload.get("base_qty", 1.0),
+            "filled_qty": filled_qty,
             "filled_price": filled_price,
             "exchange": payload.get("exchange"),
             "symbol": payload.get("symbol"),

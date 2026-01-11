@@ -198,16 +198,25 @@
 
 **근거:** 제어 없이 배포하면 장애 시 대응 불가능. 상용급 시스템은 최소 제어 필수
 
-### 5. 가짜 낙관 방지 규칙
+### 5. 가짜 낙관 방지 규칙 (D205-15-6b 강화)
 
-**원칙:** winrate 100% 같은 비현실적 KPI는 FAIL 처리
+**원칙:** winrate 0% 또는 100% 같은 비현실적 KPI는 계약/측정 검증 단계로 강제 이동
 
 **강제 규칙:**
-1. **D205-6 이후:** winrate 100% → "모델이 현실 미반영" 경고 + FAIL
-2. **D205-9 기준:** winrate 50~80% (현실적 범위), edge_after_cost > 0 필수
-3. **PASS 조건:** 현실적 KPI + PnL 안정성 (std < mean)
+1. **D205-6 이후:** winrate 0% 또는 100% → PASS 아님, 계약/측정 검증 단계로 강제 이동
+2. **D205-15-6b 계약:** MARKET BUY filled_qty = quote_amount / filled_price (불변식)
+3. **D205-9 기준:** winrate 50~80% (현실적 범위), edge_after_cost > 0 필수
+4. **PASS 조건:** 현실적 KPI + PnL 안정성 (std < mean) + 수량 계약 준수
 
-**근거:** 현실 마찰(수수료/슬리피지/부분체결/429) 미반영 시 가짜 낙관 발생
+**근거:** 
+- 현실 마찰(수수료/슬리피지/부분체결/429) 미반영 시 가짜 낙관 발생
+- winrate 100%는 시뮬레이터 계약 위반 신호 (filled_qty 뻥튀기 등)
+- winrate 0%는 로직 버그 또는 시장 기회 부족 신호
+
+**D205-15-6b 사례:**
+- Before: wins=0 (filled_price=None 버그)
+- After 6a: wins=60, winrate=100% (filled_qty 계약 위반)
+- After 6b: winrate 40~60% 예상 (계약 준수 + 현실적 슬리피지)
 
 ---
 

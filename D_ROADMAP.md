@@ -5288,6 +5288,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - Depends on: D205-15-5 (UniverseConfig SSOT + 6h Paper Evidence) DEBUGGING
 - Unblocks: D206 (Ops & Deploy) - Prerequisites #0, #1 장시간 검증 완료
 
+**Progress Log (Append-Only):**
+- **2026-01-11:** D205-15-6a HOTFIX 완료 (wins=0 → wins=60, filled_price 수정)
+  - 커밋: 1a147a8
+  - 결과: 100% winrate (⚠️ FAIL 신호 - SSOT 위반)
+  - 문제: filled_qty 계약 미적용 → PnL 뻥튀기 가능성
+- **2026-01-11:** D205-15-6b 진입 - Qty Contract Fix + Sanity Guards
+  - 목표: MARKET BUY filled_qty = quote_amount / filled_price 강제
+  - 목표: winrate 0%/100% 금지 규칙 추가
+  - 상태: IN PROGRESS
+
 ---
 
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입

@@ -149,16 +149,31 @@ class TradeProcessor:
         exit_fee = calculate_fee(exit_price, exit_qty, exit_fee_bps)
         exit_fee_currency = "KRW" if "KRW" in exit_intent.symbol else "USDT"
         
-        # 총 수수료
-        total_fee = entry_fee + exit_fee
+        # D205-15-6b: 수량 정합성 검증 (entry_qty ≠ exit_qty → PnL 왜곡 방지)
+        qty_diff_pct = abs(entry_qty - exit_qty) / entry_qty * 100 if entry_qty > 0 else 0
+        if qty_diff_pct > 1.0:
+            # 1% 이상 차이 → FAIL-fast (계약 위반)
+            raise ValueError(
+                f"[D205-15-6b] TradeProcessor: entry_qty and exit_qty mismatch. "
+                f"entry_qty={entry_qty}, exit_qty={exit_qty}, diff={qty_diff_pct:.2f}%. "
+                f"MockAdapter contract violation: MARKET BUY must use quote_amount/filled_price."
+            )
         
-        # PnL 계산 (gross, realized, win 판정)
+        # 보수적 계산: matched_qty = min(entry_qty, exit_qty)
+        matched_qty = min(entry_qty, exit_qty)
+        
+        # 총 수수료 (matched_qty 기준 재계산)
+        entry_fee_matched = calculate_fee(entry_price, matched_qty, entry_fee_bps)
+        exit_fee_matched = calculate_fee(exit_price, matched_qty, exit_fee_bps)
+        total_fee = entry_fee_matched + exit_fee_matched
+        
+        # PnL 계산 (gross, realized, win 판정) - matched_qty 기준
         gross_pnl, realized_pnl, is_win = calculate_pnl_summary(
             entry_intent.side.value.upper(),
             exit_intent.side.value.upper(),
             entry_price,
             exit_price,
-            entry_qty,
+            matched_qty,
             total_fee
         )
         
