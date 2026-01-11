@@ -5307,7 +5307,24 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - 결과: "치트키 시뮬레이터" 탈출 ✅
   - 결과: Real data에서 qty mismatch 즉시 감지 (FAIL-fast 작동) ✅
   - 발견: candidate_to_order_intents 버그 (Exit intent base_qty 하드코딩)
-  - 상태: IN PROGRESS (Gate 3단 100% PASS, Real Smoke 실행 완료)
+  - 상태: COMPLETED (Gate 3단 100% PASS, Real Smoke 실행 완료)
+- **2026-01-11:** D205-16 - Exit Qty Sync via Entry Fill
+  - 목표: Exit OrderIntent qty를 entry filled_qty 기반으로 동기화 (하드코딩 제거)
+  - 구현: OrderIntent qty_source 필드 추가 ("direct" | "from_entry_fill")
+  - 구현: intent_builder에서 exit intent qty_source="from_entry_fill" 설정
+  - 구현: paper_runner에서 entry fill qty 기반 exit qty 동기화
+  - 구현: base_qty=0.01 하드코딩 제거
+  - 테스트: test_d205_16_exit_qty_sync.py 추가
+  - 상태: IN PROGRESS (구현 완료, Gate 진행 예정)
+- **2026-01-11:** D205-15-6c - Component Registry + Preflight
+  - 목표: 운영 필수 기능 누락 방지 자동 검증
+  - 구현: V2_COMPONENT_REGISTRY.json (10개 컴포넌트 등록)
+  - 구현: check_component_registry.py (정적 검사)
+  - 구현: v2_preflight.py (런타임 검증)
+  - 구현: FeatureGuard (Bootstrap 시 ESSENTIAL 기능 검증)
+  - 구현: paper_runner에 FeatureGuard 통합 (ops phase 자동 실행)
+  - 문서: SSOT_RULES.md에 Component Registry 원칙 추가
+  - 상태: IN PROGRESS (구현 완료, Gate 진행 예정)
 
 ---
 

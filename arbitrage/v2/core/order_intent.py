@@ -6,7 +6,7 @@ Exchange-independent order intent representation.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Literal
 
 
 class OrderSide(Enum):
@@ -53,6 +53,9 @@ class OrderIntent:
     base_qty: Optional[float] = None
     quote_amount: Optional[float] = None
     limit_price: Optional[float] = None
+    
+    # D205-16: Qty determination method
+    qty_source: Literal["direct", "from_entry_fill"] = "direct"
     
     route_id: Optional[str] = None
     strategy_id: Optional[str] = None

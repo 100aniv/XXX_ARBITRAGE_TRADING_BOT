@@ -36,7 +36,8 @@ except ImportError:
 # V2 imports
 from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
 from arbitrage.v2.core.run_watcher import create_watcher  # D205-15-6: Self-Monitor
-from arbitrage.v2.core.trade_processor import TradeProcessor  # D205-15-6: Engine-Centric
+from arbitrage.v2.core.trade_processor import TradeProcessor, TradeResult
+from arbitrage.v2.core.feature_guard import FeatureGuard # D205-15-6: Engine-Centric
 from arbitrage.v2.opportunity import (
     BreakEvenParams,
     build_candidate,
@@ -493,6 +494,30 @@ class PaperRunner:
         self.trade_processor = TradeProcessor(self.break_even_params)
         logger.info("[D205-15-6] TradeProcessor initialized (Engine-Centric)")
         
+        # D205-15-6c: FeatureGuard - Bootstrap 시 ESSENTIAL 기능 검증
+        if config.phase in ["smoke", "baseline", "longrun", "smoke_test", "live"]:
+            logger.info("[D205-15-6c] Running FeatureGuard verification...")
+            feature_guard = FeatureGuard(config)
+            
+            marketdata_providers = {}
+            if self.use_real_data:
+                marketdata_providers = {
+                    'upbit': self.upbit_provider,
+                    'binance': self.binance_provider,
+                }
+            
+            # 모든 ESSENTIAL 기능 검증 (FAIL 시 RuntimeError)
+            feature_guard.verify_all_essential(
+                storage=self.storage,
+                redis_client=self.redis_client if hasattr(self, 'redis_client') else None,
+                use_real_data=self.use_real_data,
+                marketdata_providers=marketdata_providers,
+                fx_provider=None,  # FX provider는 아직 초기화 안됨 (paper에서는 Fixed FX)
+            )
+            logger.info("[D205-15-6c] FeatureGuard verification PASSED")
+        else:
+            logger.info(f"[D205-15-6c] FeatureGuard SKIP (phase={config.phase}, test phase)")
+        
         logger.info(f"[D204-2] PaperRunner initialized")
         logger.info(f"[D204-2] run_id: {config.run_id}")
         logger.info(f"[D204-2] output_dir: {self.output_dir}")
@@ -832,9 +857,10 @@ class PaperRunner:
     def _convert_to_intents(self, candidate, iteration: int) -> List[OrderIntent]:
         """OpportunityCandidate → OrderIntent 변환 (D205-10: reject reason 추적)"""
         try:
+            # D205-16: base_qty 하드코딩 제거, quote_amount만 지정
+            # exit qty는 entry filled_qty로 동기화됨 (qty_source="from_entry_fill")
             intents = candidate_to_order_intents(
                 candidate=candidate,
-                base_qty=0.01,  # 0.01 BTC
                 quote_amount=500_000.0,  # 50만원
                 order_type=OrderType.MARKET,
             )
@@ -1080,8 +1106,17 @@ class PaperRunner:
         entry_result = self._execute_order(entry_intent, ref_price=entry_ref_price)
         self._update_mock_balance(entry_intent, entry_result)
         
-        # Exit order (두 번째)
+        # D205-16: Exit qty 동기화 (entry filled_qty 기반)
         exit_intent = intents[1]
+        if exit_intent.qty_source == "from_entry_fill":
+            # Exit qty를 entry fill qty로 동기화
+            entry_filled_qty = entry_result.filled_qty or entry_intent.base_qty or 0.01
+            if entry_filled_qty > 0:
+                exit_intent.base_qty = entry_filled_qty
+                logger.debug(
+                    f"[D205-16] Exit qty synchronized: "
+                    f"exit_intent.base_qty={exit_intent.base_qty:.8f} (from entry_result.filled_qty)"
+                )
         exit_ref_price = (
             candidate.price_a if exit_intent.exchange == candidate.exchange_a
             else candidate.price_b

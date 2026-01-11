@@ -257,6 +257,19 @@
 - ✅ PAPER/READ_ONLY 모드 기본
 - ✅ Real MarketData + Simulated Execution (D205-9-REOPEN)
 
+### 6. Component Registry & Preflight (D205-15-6c)
+**원칙:** 운영 필수 기능 누락 방지 자동 검증
+
+**강제 규칙:**
+- ✅ `docs/v2/design/V2_COMPONENT_REGISTRY.json`은 운영 전 SSOT 부속 문서
+- ✅ `scripts/check_component_registry.py` 정적 검사 + `scripts/v2_preflight.py` 런타임 검증 PASS 없으면 D206 진입 FAIL
+- ✅ ops_critical 컴포넌트(Real MarketData/DB Strict/Redis/RunWatcher)는 Bootstrap 시 FeatureGuard 자동 검증
+- ❌ 세부 목록은 Registry에만 기록 (SSOT_RULES에 전화번호부 금지)
+
+**근거:**
+- "만들었는데 안 쓰는 참사" 방지 (Silent Failure 차단)
+- 상용급 시스템 안전장치 (하나라도 녹슬면 작동 중지)
+
 ---
 
 ## 📐 경로 규칙

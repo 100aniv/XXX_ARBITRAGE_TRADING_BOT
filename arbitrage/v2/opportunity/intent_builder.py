@@ -144,13 +144,13 @@ def candidate_to_order_intents(
             limit_price=limit_price or buy_price,  # fallback to market price
         )
     
-    # 2. SELL Intent
+    # 2. SELL Intent (Exit)
     if order_type == OrderType.MARKET:
-        # MARKET SELL: base_qty 필수
-        if base_qty is None or base_qty <= 0:
-            raise ValueError(
-                f"MARKET SELL requires positive base_qty, got: {base_qty}"
-            )
+        # D205-16: MARKET SELL은 entry filled_qty로 동기화되어야 함
+        # base_qty는 임시값으로 설정, qty_source로 동기화 방식 지정
+        if base_qty is None:
+            # quote_amount 기반 추정치 (entry BUY의 예상 filled_qty)
+            base_qty = quote_amount / buy_price if quote_amount and buy_price > 0 else 0.01
         
         sell_intent = OrderIntent(
             exchange=sell_exchange,
@@ -158,6 +158,7 @@ def candidate_to_order_intents(
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
             base_qty=base_qty,
+            qty_source="from_entry_fill",  # D205-16: Exit qty는 entry fill qty로 동기화
         )
     else:
         # LIMIT
