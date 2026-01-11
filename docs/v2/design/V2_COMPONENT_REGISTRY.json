@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "description": "V2 Component Registry - Single Source of Truth for operational capabilities",
+  "last_updated": "2026-01-11",
+  "components": [
+    {
+      "id": "ops.real_marketdata",
+      "name": "Real MarketData Providers",
+      "ops_critical": true,
+      "description": "Upbit/Binance real-time market data providers (Smoke/Baseline/Longrun 필수)",
+      "files": [
+        "arbitrage/v2/marketdata/rest/upbit.py",
+        "arbitrage/v2/marketdata/rest/binance.py"
+      ],
+      "config_keys": ["use_real_data"],
+      "evidence_kpi_fields": ["marketdata_mode", "upbit_marketdata_ok", "binance_marketdata_ok"],
+      "verification_method": "ping",
+      "phase_required": ["smoke", "baseline", "longrun", "smoke_test"]
+    },
+    {
+      "id": "ops.redis",
+      "name": "Redis Cache/Dedup",
+      "ops_critical": false,
+      "description": "Redis for rate limit counters, dedup keys, hot-state (optional, degraded mode allowed)",
+      "files": [
+        "arbitrage/redis_client.py"
+      ],
+      "config_keys": ["redis.host", "redis.port"],
+      "evidence_kpi_fields": ["redis_ok"],
+      "verification_method": "ping",
+      "phase_required": ["smoke", "baseline", "longrun", "smoke_test"]
+    },
+    {
+      "id": "ops.db_strict",
+      "name": "PostgreSQL Strict Mode",
+      "ops_critical": true,
+      "description": "DB strict mode for Ledger/Truth, Audit, Replay source",
+      "files": [
+        "arbitrage/v2/storage/ledger_storage.py",
+        "db/migrations/v2_schema.sql"
+      ],
+      "config_keys": ["db_mode"],
+      "evidence_kpi_fields": ["db_mode"],
+      "verification_method": "query_check",
+      "phase_required": ["smoke", "baseline", "longrun", "smoke_test"]
+    },
+    {
+      "id": "ops.runwatcher",
+      "name": "RunWatcher (FAIL-fast Monitor)",
+      "ops_critical": false,
+      "description": "60초 heartbeat, wins=0 연속 감지, edge<0 지속 감지 (planned, not yet integrated)",
+      "files": [
+        "arbitrage/v2/core/run_watcher.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "heartbeat",
+      "phase_required": ["smoke", "baseline", "longrun", "smoke_test"]
+    },
+    {
+      "id": "ops.fx_live",
+      "name": "Live FX Provider",
+      "ops_critical": false,
+      "description": "Real-time FX (crypto-implied), LIVE mode only (paper uses Fixed FX)",
+      "files": [
+        "arbitrage/v2/core/fx_provider.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "health_check",
+      "phase_required": ["live"]
+    },
+    {
+      "id": "ops.funding",
+      "name": "Funding Provider (Binance Futures Premium)",
+      "ops_critical": false,
+      "description": "Binance /fapi/v1/premiumIndex, funding_adjusted_edge_bps 계산 (planned)",
+      "files": [
+        "arbitrage/v2/funding/provider.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "api_call",
+      "phase_required": ["baseline", "longrun", "live"]
+    },
+    {
+      "id": "ops.trade_processor",
+      "name": "TradeProcessor (Engine-Centric)",
+      "ops_critical": true,
+      "description": "OrderIntent → TradeResult, qty 정합성 검증, PnL 계산",
+      "files": [
+        "arbitrage/v2/core/trade_processor.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": ["closed_trades", "wins", "losses"],
+      "verification_method": "test_coverage",
+      "phase_required": ["test_1min", "smoke", "baseline", "longrun"]
+    },
+    {
+      "id": "dev.autotune",
+      "name": "AutoTuner (Parameter Sweep)",
+      "ops_critical": false,
+      "description": "Threshold sensitivity sweep, Pareto front 탐색 (연구용)",
+      "files": [
+        "scripts/run_d205_10_1_sweep.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "test_coverage",
+      "phase_required": []
+    },
+    {
+      "id": "dev.mock_adapter",
+      "name": "MockAdapter (Test/Contract Validation)",
+      "ops_critical": false,
+      "description": "MARKET order fill simulation (test_1min 전용)",
+      "files": [
+        "arbitrage/v2/adapters/mock_adapter.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "test_coverage",
+      "phase_required": ["test_1min"]
+    },
+    {
+      "id": "dev.wait_harness",
+      "name": "Wait Harness (Market Watch)",
+      "ops_critical": false,
+      "description": "3h→5h phased market watch + trigger execution",
+      "files": [
+        "arbitrage/v2/harness/wait_harness_v2.py",
+        "scripts/run_d205_10_1_wait_and_execute.py"
+      ],
+      "config_keys": [],
+      "evidence_kpi_fields": [],
+      "verification_method": "smoke_run",
+      "phase_required": []
+    }
+  ],
+  "validation_rules": {
+    "ops_critical_must_exist": "All ops_critical=true components must have files that exist",
+    "evidence_fields_must_be_logged": "All evidence_kpi_fields must appear in paper_runner.py KPI logging",
+    "config_keys_must_be_defined": "All config_keys must exist in config.yml or PaperRunnerConfig",
+    "phase_enforcement": "ops_critical components must be verified in their phase_required phases"
+  }
+}
