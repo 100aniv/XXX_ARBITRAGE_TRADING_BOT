@@ -30,8 +30,13 @@ class PaperMetrics:
     D205-18-2: PaperRunner에서 분리
     - Runner는 이 클래스 인스턴스만 참조
     - 모든 집계 로직은 여기에 집중
+    
+    D205-18-4R: Wall-Clock Duration 검증 필드 추가
+    - start_time: phase 시작 시간 (wall-clock)
+    - actual_duration_sec: 실제 실행 시간 (초)
     """
     start_time: float = field(default_factory=time.time)
+    actual_duration_sec: float = 0.0  # Wall-clock 기반 실제 실행 시간
     opportunities_generated: int = 0
     intents_created: int = 0
     mock_executions: int = 0

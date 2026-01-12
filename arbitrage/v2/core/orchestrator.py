@@ -71,8 +71,8 @@ class PaperOrchestrator:
         self._stop_requested = True
     
     def run(self) -> int:
-        """메인 실행 루프"""
-        logger.info(f"[D205-18-2D] Orchestrator starting...")
+        """메인 실행 루프 (Wall-Clock 기반 Duration 측정)"""
+        logger.info(f"[D205-18-2D] Orchestrator starting (duration={self.config.duration_minutes}m)...")
         
         # RunWatcher 시작
         self.start_watcher()
@@ -83,6 +83,7 @@ class PaperOrchestrator:
             
             import time
             start_time = time.time()
+            self.kpi.start_time = start_time  # KPI에 시작 시간 기록
             
             while time.time() - start_time < duration_sec:
                 iteration += 1
@@ -170,7 +171,14 @@ class PaperOrchestrator:
                 
                 time.sleep(0.1)
             
-            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations")
+            # Wall-Clock Duration 측정
+            actual_duration_sec = time.time() - start_time
+            self.kpi.actual_duration_sec = actual_duration_sec
+            
+            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations, {actual_duration_sec:.2f}s wall-clock")
+            
+            # Duration 검증 (설정값 vs 실제값)
+            self._verify_wallclock_duration(duration_sec, actual_duration_sec)
             
             # Evidence 저장
             db_counts = self.ledger_writer.get_counts()
@@ -213,6 +221,38 @@ class PaperOrchestrator:
         if self._watcher:
             self._watcher.stop()
             logger.info("[D205-18-2D] RunWatcher stopped")
+    
+    def _verify_wallclock_duration(self, expected_sec: int, actual_sec: float) -> None:
+        """
+        Wall-Clock Duration 검증
+        
+        Args:
+            expected_sec: 설정된 duration (초)
+            actual_sec: 실제 실행 시간 (초)
+        """
+        tolerance_pct = 5.0  # ±5% 허용
+        tolerance_sec = expected_sec * (tolerance_pct / 100.0)
+        
+        logger.info(
+            f"[D205-18-4R] Duration Verification: "
+            f"expected={expected_sec}s, actual={actual_sec:.2f}s, "
+            f"tolerance=±{tolerance_sec:.2f}s ({tolerance_pct}%)"
+        )
+        
+        if actual_sec < (expected_sec - tolerance_sec):
+            logger.warning(
+                f"[D205-18-4R] WARN: Actual duration {actual_sec:.2f}s < "
+                f"expected {expected_sec}s (tolerance: {tolerance_sec:.2f}s). "
+                f"Execution may have terminated early."
+            )
+        elif actual_sec > (expected_sec + tolerance_sec):
+            logger.warning(
+                f"[D205-18-4R] WARN: Actual duration {actual_sec:.2f}s > "
+                f"expected {expected_sec}s (tolerance: {tolerance_sec:.2f}s). "
+                f"Execution may have run longer than expected."
+            )
+        else:
+            logger.info(f"[D205-18-4R] PASS: Duration within tolerance")
     
     def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
         """Evidence 저장"""

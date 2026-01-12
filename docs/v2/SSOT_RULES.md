@@ -1464,6 +1464,125 @@ logs/evidence/d204_2_chain_YYYYMMDD_HHMM/
 
 ---
 
+## Section N: Operational Hardening (운영 강화) - D205-18-4R
+
+**목적:** 스크립트 중심 검증 → Core 중심 통합 검증으로 전환
+
+### 1. Wall-Clock Duration 검증 (필수)
+
+**원칙:**
+- Orchestrator.run()은 wall-clock 기반 duration 측정 필수
+- 설정값 vs 실제값 비교 (±5% 허용)
+- 모든 검증은 Core에서 자동 수행
+
+**구현:**
+```python
+# orchestrator.py
+def run(self) -> int:
+    start_time = time.time()
+    self.kpi.start_time = start_time
+    
+    while time.time() - start_time < duration_sec:
+        # 메인 루프
+        ...
+    
+    actual_duration = time.time() - start_time
+    self.kpi.actual_duration_sec = actual_duration
+    self._verify_wallclock_duration(duration_sec, actual_duration)
+```
+
+**검증 기준:**
+- ✅ PASS: actual_duration ∈ [expected - 5%, expected + 5%]
+- ⚠️ WARN: 범위 초과 (로그 기록)
+- ❌ FAIL: 심각한 편차 (exit code 1)
+
+### 2. RunWatcher Heartbeat 검증 (필수)
+
+**원칙:**
+- heartbeat.jsonl 타임스탬프 밀도 검증 필수
+- 평균 간격 = 60초 ±10%
+- 최소 라인 수 = duration_minutes (예: 20m → 20줄 이상)
+
+**구현:**
+```python
+# run_watcher.py
+def verify_heartbeat_density(self) -> bool:
+    # heartbeat.jsonl 존재 확인
+    # 타임스탬프 간격 검증 (60초 ±10%)
+    # 라인 수 검증
+    return True/False
+```
+
+**검증 기준:**
+- ✅ PASS: 타임스탬프 간격 60초 ±10%, 라인 수 충분
+- ⚠️ WARN: 간격 편차 (로그 기록)
+- ❌ FAIL: heartbeat.jsonl 부재 또는 라인 수 부족
+
+### 3. EvidenceCollector Duration 검증 (필수)
+
+**원칙:**
+- chain_summary.json duration_seconds 정확성 검증
+- metrics.actual_duration_sec와 비교
+- 모든 검증 실패 시 exit code 1
+
+**구현:**
+```python
+# monitor.py
+def verify_duration_accuracy(self, metrics, expected_duration_sec) -> bool:
+    actual = metrics.actual_duration_sec
+    tolerance = expected_duration_sec * 0.05
+    return abs(actual - expected_duration_sec) <= tolerance
+```
+
+**검증 기준:**
+- ✅ PASS: duration_seconds ∈ [expected - 5%, expected + 5%]
+- ❌ FAIL: 범위 초과 (exit code 1)
+
+### 4. 통합 검증 Flow (Core 중심)
+
+**실행 순서:**
+1. **Orchestrator.run()** → wall-clock duration 측정 + 검증
+2. **RunWatcher** → heartbeat.jsonl 생성 + 타임스탬프 검증
+3. **EvidenceCollector.save()** → duration_seconds 정확성 검증
+4. **Exit Code 전파** → 모든 검증 실패 시 exit code 1
+
+**스크립트 역할 (최소화):**
+- ❌ 검증 로직 포함 금지
+- ✅ CLI 파싱 + Core 호출만 담당
+- ✅ 로그 수집 (watchdog_stderr.log)
+
+### 5. 강제 규칙
+
+**필수 적용:**
+- D205-18-4R Core 통합 운영 기준
+- 모든 Paper mode 실행 시
+- 20m baseline + 60m longrun 검증
+
+**금지 사항:**
+- ❌ 스크립트 중심 검증 (ps1, sh)
+- ❌ 수동 duration 체크
+- ❌ heartbeat 검증 스킵
+- ❌ 검증 실패 무시
+
+**위반 시:**
+- 즉시 exit code 1 반환
+- D_ROADMAP에 FAIL 기록
+- 재실행 필수
+
+### 6. 적용 범위
+
+**필수 적용:**
+- D205-18-4R Core 통합 운영 기준
+- 모든 Paper mode 검증 작업
+- Gate Regression에서 Paper 테스트 실행 시
+
+**예외 없음:**
+- 모든 검증은 Core에서 자동 수행
+- 스크립트는 CLI만 담당
+- 검증 실패 시 exit code 1 강제
+
+---
+
 ## 🔜 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.

@@ -5505,6 +5505,74 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
+**D205-18-4R: Core 통합 운영 기준 (Operational Hardening)**
+
+**Status:** 🚧 IN_PROGRESS (2026-01-12)  
+**Date:** 2026-01-12  
+**Scope:** Orchestrator/Metrics/RunWatcher/EvidenceCollector 통합 검증
+
+**목표:**
+- 스크립트 중심 검증 → Core 중심 통합 검증으로 전환
+- Wall-clock 기반 duration 정확성 보장
+- heartbeat.jsonl 타임스탐프 밀도 검증
+- 상용 운영 기준 적용
+
+**Acceptance Criteria:**
+- AC-1: ✅ Orchestrator wall-clock duration 측정 + 검증 메서드 추가
+- AC-2: ✅ PaperMetrics actual_duration_sec 필드 추가
+- AC-3: ✅ RunWatcher verify_heartbeat_density() 메서드 추가
+- AC-4: ✅ EvidenceCollector verify_duration_accuracy() 메서드 추가
+- AC-5: ✅ SSOT_RULES.md Section N 추가 (Operational Hardening)
+- AC-6: ⏳ D_ROADMAP.md D205-18-4R 섹션 추가 (진행 중)
+- AC-7: ⏳ 20m baseline 재실행 → duration 정확성 검증
+- AC-8: ⏳ 60m longrun 재실행 → heartbeat 라인 수 검증
+- AC-9: ⏳ Gate 3단 (Doctor/Fast/Regression) PASS
+- AC-10: ⏳ Git commit + push + Closeout
+
+**구현 내용:**
+
+1. **Orchestrator 강화** (`arbitrage/v2/core/orchestrator.py`)
+   - wall-clock duration 측정 (start_time 기록)
+   - `_verify_wallclock_duration()` 메서드 추가
+   - 설정값 vs 실제값 비교 (±5% 허용)
+
+2. **PaperMetrics 강화** (`arbitrage/v2/core/metrics.py`)
+   - `actual_duration_sec` 필드 추가
+   - wall-clock 기반 실제 실행 시간 기록
+
+3. **RunWatcher 강화** (`arbitrage/v2/core/run_watcher.py`)
+   - `verify_heartbeat_density()` 메서드 추가
+   - 타임스탬프 간격 검증 (60초 ±10%)
+   - 라인 수 검증
+
+4. **EvidenceCollector 강화** (`arbitrage/v2/core/monitor.py`)
+   - `verify_duration_accuracy()` 메서드 추가
+   - chain_summary.json duration_seconds 정확성 검증
+
+5. **SSOT_RULES.md 업데이트**
+   - Section N: Operational Hardening 추가
+   - Wall-Clock Duration 검증 규칙
+   - RunWatcher Heartbeat 검증 규칙
+   - EvidenceCollector Duration 검증 규칙
+   - 통합 검증 Flow (Core 중심)
+
+**검증 기준:**
+- Wall-Clock Duration: expected ±5%
+- Heartbeat Interval: 60초 ±10%
+- Duration Accuracy: expected ±5%
+
+**Evidence:**
+- 코드 변경: orchestrator.py, metrics.py, run_watcher.py, monitor.py
+- 문서: SSOT_RULES.md Section N
+- 테스트: 20m baseline + 60m longrun 재실행
+
+**Constitutional Basis:**
+- SSOT_RULES.md Section N (Operational Hardening)
+- Engine-Centric 구조 (스크립트 X, Core O)
+- 상용 운영 기준 (Wall-Clock 검증 필수)
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**
