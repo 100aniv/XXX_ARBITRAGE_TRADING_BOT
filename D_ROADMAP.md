@@ -5662,7 +5662,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 **Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
 **Strategy:** 문서 표준화 (OPS_PROTOCOL) → 컨테이너 (Docker/compose) → 운영 자동화 (Gate/CI)  
-**Constitutional Basis:** SSOT_RULES.md > OPS_PROTOCOL.md > V2_ARCHITECTURE.md > D_ROADMAP.md
+**Constitutional Basis:** SSOT_RULES.md > D_ROADMAP.md > OPS_PROTOCOL.md > V2_ARCHITECTURE.md
 
 **문제 인식:**
 - V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
