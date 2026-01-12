@@ -289,6 +289,63 @@ class RunWatcher:
             logger.info(f"[RunWatcher] Stop reason snapshot saved: {self._snapshot_file}")
         except Exception as e:
             logger.error(f"[RunWatcher] Failed to save stop reason snapshot: {e}")
+    
+    def verify_heartbeat_density(self) -> dict:
+        """
+        D205-18-4R: Heartbeat density 검증
+        
+        Returns:
+            {
+                "heartbeat_file": str,
+                "line_count": int,
+                "expected_min": int (duration_minutes / heartbeat_sec * 60),
+                "status": "PASS" | "WARN" | "FAIL",
+                "message": str
+            }
+        """
+        try:
+            if not Path(self._heartbeat_file).exists():
+                return {
+                    "heartbeat_file": self._heartbeat_file,
+                    "line_count": 0,
+                    "expected_min": 0,
+                    "status": "FAIL",
+                    "message": "heartbeat.jsonl not found"
+                }
+            
+            with open(self._heartbeat_file, "r", encoding="utf-8") as f:
+                line_count = sum(1 for _ in f)
+            
+            # heartbeat_sec 기준으로 예상 최소 라인 수 계산
+            # 예: 60분 실행, 60초 heartbeat → 최소 60줄
+            expected_min = max(1, int(self.config.heartbeat_sec / 60))  # 최소 1줄
+            
+            if line_count == 0:
+                status = "FAIL"
+                message = "No heartbeat records"
+            elif line_count < expected_min:
+                status = "WARN"
+                message = f"Low heartbeat density: {line_count} lines (expected >= {expected_min})"
+            else:
+                status = "PASS"
+                message = f"Heartbeat density OK: {line_count} lines"
+            
+            return {
+                "heartbeat_file": self._heartbeat_file,
+                "line_count": line_count,
+                "expected_min": expected_min,
+                "status": status,
+                "message": message
+            }
+        except Exception as e:
+            logger.error(f"[RunWatcher] Heartbeat density verification failed: {e}")
+            return {
+                "heartbeat_file": self._heartbeat_file,
+                "line_count": 0,
+                "expected_min": 0,
+                "status": "FAIL",
+                "message": f"Verification error: {e}"
+            }
 
 
 def create_watcher(

@@ -1464,122 +1464,118 @@ logs/evidence/d204_2_chain_YYYYMMDD_HHMM/
 
 ---
 
-## Section N: Operational Hardening (운영 강화) - D205-18-4R
+## Section N: Operational Hardening - Core Integration (D205-18-4R)
 
-**목적:** 스크립트 중심 검증 → Core 중심 통합 검증으로 전환
+**목적:** RunWatcher, heartbeat, wallclock 등 운영 체크를 코어로 중앙화하여 스크립트 의존성 제거
 
-### 1. Wall-Clock Duration 검증 (필수)
+### 1. Wallclock Duration Tracking (orchestrator.py)
 
-**원칙:**
-- Orchestrator.run()은 wall-clock 기반 duration 측정 필수
-- 설정값 vs 실제값 비교 (±5% 허용)
-- 모든 검증은 Core에서 자동 수행
+**원칙:** 모든 duration_seconds는 wall-clock 기준 (실제 경과 시간)
 
 **구현:**
+- `orchestrator.py`: `wallclock_start` 추적
+- `metrics.py`: `wallclock_start` 필드 + `to_dict()`에서 wall-clock 기준 계산
+- `runtime_factory.py`: metrics.wallclock_start 설정
+
+**검증:**
 ```python
-# orchestrator.py
-def run(self) -> int:
-    start_time = time.time()
-    self.kpi.start_time = start_time
-    
-    while time.time() - start_time < duration_sec:
-        # 메인 루프
-        ...
-    
-    actual_duration = time.time() - start_time
-    self.kpi.actual_duration_sec = actual_duration
-    self._verify_wallclock_duration(duration_sec, actual_duration)
+# orchestrator.run() 시작 시
+wallclock_start = time.time()
+self.kpi.wallclock_start = wallclock_start
+
+# metrics.to_dict()에서
+duration_seconds = time.time() - self.wallclock_start
 ```
 
-**검증 기준:**
-- ✅ PASS: actual_duration ∈ [expected - 5%, expected + 5%]
-- ⚠️ WARN: 범위 초과 (로그 기록)
-- ❌ FAIL: 심각한 편차 (exit code 1)
+**결과:**
+- chain_summary.json의 duration_seconds = 실제 wall-clock 시간
+- 스크립트의 watchdog 타임스탬프와 일치
 
-### 2. RunWatcher Heartbeat 검증 (필수)
+### 2. Heartbeat Density Verification (run_watcher.py)
 
-**원칙:**
-- heartbeat.jsonl 타임스탬프 밀도 검증 필수
-- 평균 간격 = 60초 ±10%
-- 최소 라인 수 = duration_minutes (예: 20m → 20줄 이상)
+**원칙:** heartbeat.jsonl 생성 및 밀도 검증 자동화
 
 **구현:**
+- `run_watcher.py`: `verify_heartbeat_density()` 메서드
+- 반환값: `{"status": "PASS|WARN|FAIL", "line_count": int, "expected_min": int, "message": str}`
+
+**검증:**
 ```python
-# run_watcher.py
-def verify_heartbeat_density(self) -> bool:
-    # heartbeat.jsonl 존재 확인
-    # 타임스탬프 간격 검증 (60초 ±10%)
-    # 라인 수 검증
-    return True/False
+# orchestrator.stop_watcher() 후
+heartbeat_check = self._watcher.verify_heartbeat_density()
+if heartbeat_check["status"] == "FAIL":
+    logger.error(f"Heartbeat verification failed: {heartbeat_check['message']}")
+    return 1
 ```
 
-**검증 기준:**
-- ✅ PASS: 타임스탬프 간격 60초 ±10%, 라인 수 충분
-- ⚠️ WARN: 간격 편차 (로그 기록)
-- ❌ FAIL: heartbeat.jsonl 부재 또는 라인 수 부족
+**기준:**
+- heartbeat_sec = 60초 기준
+- 60분 실행 → 최소 60줄
+- 20분 실행 → 최소 20줄
 
-### 3. EvidenceCollector Duration 검증 (필수)
+### 3. Duration Accuracy Validation (metrics.py)
 
-**원칙:**
-- chain_summary.json duration_seconds 정확성 검증
-- metrics.actual_duration_sec와 비교
-- 모든 검증 실패 시 exit code 1
+**원칙:** duration_seconds 오기록 방지 (wall-clock 기준으로만 계산)
 
 **구현:**
+- `PaperMetrics.wallclock_start`: 실제 실행 시작 시간
+- `to_dict()`: `duration_seconds = time.time() - self.wallclock_start`
+
+**금지:**
+- ❌ `start_time` 기준 계산 (초기화 시간과 실행 시간 차이)
+- ❌ iteration 기반 duration 추정
+- ❌ sleep 시간 누적
+
+### 4. Evidence Completeness (monitor.py)
+
+**필수 파일:**
+1. `chain_summary.json` - duration_seconds (wall-clock 기준)
+2. `heartbeat.jsonl` - 60초 간격 heartbeat
+3. `stop_reason_snapshot.json` - FAIL 조건 트리거 시
+4. `daily_report_YYYY-MM-DD.json` - PnL/OPS 리포트
+
+**검증:**
 ```python
-# monitor.py
-def verify_duration_accuracy(self, metrics, expected_duration_sec) -> bool:
-    actual = metrics.actual_duration_sec
-    tolerance = expected_duration_sec * 0.05
-    return abs(actual - expected_duration_sec) <= tolerance
+# Evidence 저장 후
+evidence_files = {
+    "chain_summary": Path(evidence_dir) / "chain_summary.json",
+    "heartbeat": Path(evidence_dir) / "heartbeat.jsonl",
+    "daily_report": Path(evidence_dir) / f"daily_report_{date}.json",
+}
+for name, path in evidence_files.items():
+    if not path.exists():
+        logger.error(f"Missing evidence: {name}")
+        return 1
 ```
 
-**검증 기준:**
-- ✅ PASS: duration_seconds ∈ [expected - 5%, expected + 5%]
-- ❌ FAIL: 범위 초과 (exit code 1)
-
-### 4. 통합 검증 Flow (Core 중심)
-
-**실행 순서:**
-1. **Orchestrator.run()** → wall-clock duration 측정 + 검증
-2. **RunWatcher** → heartbeat.jsonl 생성 + 타임스탬프 검증
-3. **EvidenceCollector.save()** → duration_seconds 정확성 검증
-4. **Exit Code 전파** → 모든 검증 실패 시 exit code 1
-
-**스크립트 역할 (최소화):**
-- ❌ 검증 로직 포함 금지
-- ✅ CLI 파싱 + Core 호출만 담당
-- ✅ 로그 수집 (watchdog_stderr.log)
-
-### 5. 강제 규칙
+### 5. 적용 범위 (D206 이전)
 
 **필수 적용:**
-- D205-18-4R Core 통합 운영 기준
-- 모든 Paper mode 실행 시
-- 20m baseline + 60m longrun 검증
+- D205-18-4R: Operational Core Integration
+- D205-18-4 이후 모든 Paper mode 실행
+- Gate Regression에서 Paper 테스트
 
-**금지 사항:**
-- ❌ 스크립트 중심 검증 (ps1, sh)
-- ❌ 수동 duration 체크
-- ❌ heartbeat 검증 스킵
-- ❌ 검증 실패 무시
+**스크립트 제거:**
+- ❌ `run_paper_with_watchdog.ps1`의 duration 검증 → orchestrator로 이동
+- ❌ `paper_chain.py`의 duration 검증 → metrics로 이동
+- ✅ 스크립트는 CLI 래퍼만 담당
 
-**위반 시:**
-- 즉시 exit code 1 반환
-- D_ROADMAP에 FAIL 기록
-- 재실행 필수
+### 6. 운영 환경 고려사항
 
-### 6. 적용 범위
+**상용 배포 시:**
+1. **Wallclock Verification**: 모든 duration은 wall-clock 기준
+2. **Heartbeat Monitoring**: 60초 간격 heartbeat 필수 (모니터링 시스템 연동)
+3. **Evidence Archival**: 모든 실행 증거 자동 저장 (감사 추적)
+4. **Graceful Shutdown**: RunWatcher 신호 → orchestrator 중단 → Evidence 저장
 
-**필수 적용:**
-- D205-18-4R Core 통합 운영 기준
-- 모든 Paper mode 검증 작업
-- Gate Regression에서 Paper 테스트 실행 시
-
-**예외 없음:**
-- 모든 검증은 Core에서 자동 수행
-- 스크립트는 CLI만 담당
-- 검증 실패 시 exit code 1 강제
+**예시 (Live mode):**
+```python
+# Live Runtime도 동일 구조
+orchestrator = build_live_runtime(config)
+orchestrator.start_watcher()  # RunWatcher 시작
+exit_code = orchestrator.run()  # Wall-clock 기준 실행
+heartbeat_check = orchestrator._watcher.verify_heartbeat_density()
+```
 
 ---
 

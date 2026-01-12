@@ -123,43 +123,6 @@ class EvidenceCollector:
         
         return snapshot
     
-    def verify_duration_accuracy(self, metrics: Any, expected_duration_sec: int) -> bool:
-        """
-        Duration 정확성 검증 (D205-18-4R)
-        
-        Args:
-            metrics: PaperMetrics 인스턴스
-            expected_duration_sec: 설정된 duration (초)
-        
-        Returns:
-            True if duration is accurate, False otherwise
-        """
-        actual_duration = metrics.actual_duration_sec
-        tolerance_pct = 5.0  # ±5% 허용
-        tolerance_sec = expected_duration_sec * (tolerance_pct / 100.0)
-        
-        logger.info(
-            f"[EvidenceCollector] Duration Accuracy: "
-            f"expected={expected_duration_sec}s, actual={actual_duration:.2f}s, "
-            f"tolerance=±{tolerance_sec:.2f}s ({tolerance_pct}%)"
-        )
-        
-        if actual_duration < (expected_duration_sec - tolerance_sec):
-            logger.warning(
-                f"[EvidenceCollector] WARN: Actual duration {actual_duration:.2f}s < "
-                f"expected {expected_duration_sec}s. Execution may have terminated early."
-            )
-            return False
-        elif actual_duration > (expected_duration_sec + tolerance_sec):
-            logger.warning(
-                f"[EvidenceCollector] WARN: Actual duration {actual_duration:.2f}s > "
-                f"expected {expected_duration_sec}s. Execution may have run longer."
-            )
-            return False
-        else:
-            logger.info(f"[EvidenceCollector] PASS: Duration within tolerance")
-            return True
-    
     def generate_decision_trace(
         self,
         trade_history: List[Dict[str, Any]],

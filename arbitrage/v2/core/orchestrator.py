@@ -71,8 +71,8 @@ class PaperOrchestrator:
         self._stop_requested = True
     
     def run(self) -> int:
-        """메인 실행 루프 (Wall-Clock 기반 Duration 측정)"""
-        logger.info(f"[D205-18-2D] Orchestrator starting (duration={self.config.duration_minutes}m)...")
+        """메인 실행 루프"""
+        logger.info(f"[D205-18-2D] Orchestrator starting...")
         
         # RunWatcher 시작
         self.start_watcher()
@@ -83,7 +83,11 @@ class PaperOrchestrator:
             
             import time
             start_time = time.time()
-            self.kpi.start_time = start_time  # KPI에 시작 시간 기록
+            wallclock_start = start_time  # D205-18-4R: Wallclock tracking
+            
+            # D205-18-4R: metrics에 wallclock_start 설정 (정확한 wall-clock 기준)
+            self.kpi.wallclock_start = wallclock_start
+            logger.info(f"[D205-18-4R] Wallclock tracking started: {wallclock_start}")
             
             while time.time() - start_time < duration_sec:
                 iteration += 1
@@ -171,14 +175,68 @@ class PaperOrchestrator:
                 
                 time.sleep(0.1)
             
-            # Wall-Clock Duration 측정
-            actual_duration_sec = time.time() - start_time
-            self.kpi.actual_duration_sec = actual_duration_sec
+            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations")
             
-            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations, {actual_duration_sec:.2f}s wall-clock")
+            # D205-18-4R2: Wallclock duration 종료 시간 기록
+            wallclock_end = time.time()
+            actual_duration = wallclock_end - wallclock_start
+            expected_duration = duration_sec
             
-            # Duration 검증 (설정값 vs 실제값)
-            self._verify_wallclock_duration(duration_sec, actual_duration_sec)
+            # D205-18-4R2: Step 1 - Wallclock Duration 검증 (±5% 범위)
+            tolerance = expected_duration * 0.05
+            if abs(actual_duration - expected_duration) > tolerance:
+                logger.error(
+                    f"[D205-18-4R2] Wallclock duration FAIL: "
+                    f"actual={actual_duration:.1f}s, expected={expected_duration:.1f}s, "
+                    f"tolerance=±{tolerance:.1f}s"
+                )
+                # Evidence 저장 후 FAIL 반환
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                return 1
+            
+            logger.info(
+                f"[D205-18-4R2] Wallclock duration PASS: "
+                f"actual={actual_duration:.1f}s, expected={expected_duration:.1f}s"
+            )
+            
+            # D205-18-4R2: Step 2 - Heartbeat Density 검증
+            if self._watcher:
+                heartbeat_result = self._watcher.verify_heartbeat_density()
+                if heartbeat_result["status"] == "FAIL":
+                    logger.error(
+                        f"[D205-18-4R2] Heartbeat density FAIL: {heartbeat_result['message']}"
+                    )
+                    # Evidence 저장 후 FAIL 반환
+                    db_counts = self.ledger_writer.get_counts()
+                    self.save_evidence(db_counts=db_counts)
+                    return 1
+                
+                logger.info(
+                    f"[D205-18-4R2] Heartbeat density PASS: "
+                    f"{heartbeat_result['line_count']} lines (expected_min={heartbeat_result['expected_min']})"
+                )
+            
+            # D205-18-4R2: Step 3 - DB Invariant 검증
+            expected_inserts = self.kpi.closed_trades * 2  # entry + exit per trade
+            actual_inserts = self.kpi.db_inserts_ok
+            if self.kpi.closed_trades > 0:  # 거래가 있을 때만 검증
+                if abs(actual_inserts - expected_inserts) > 2:  # ±2 허용 (경계 조건)
+                    logger.error(
+                        f"[D205-18-4R2] DB Invariant FAIL: "
+                        f"closed_trades={self.kpi.closed_trades}, "
+                        f"expected_inserts={expected_inserts}, "
+                        f"actual_inserts={actual_inserts}"
+                    )
+                    # Evidence 저장 후 FAIL 반환
+                    db_counts = self.ledger_writer.get_counts()
+                    self.save_evidence(db_counts=db_counts)
+                    return 1
+                
+                logger.info(
+                    f"[D205-18-4R2] DB Invariant PASS: "
+                    f"closed_trades={self.kpi.closed_trades}, db_inserts={actual_inserts}"
+                )
             
             # Evidence 저장
             db_counts = self.ledger_writer.get_counts()
@@ -199,6 +257,15 @@ class PaperOrchestrator:
             return 1
         
         finally:
+            # D205-18-4R2: Atomic Evidence Flush (무조건 저장)
+            try:
+                db_counts = self.ledger_writer.get_counts() if hasattr(self, 'ledger_writer') else None
+                if hasattr(self, 'kpi') and hasattr(self, 'evidence_collector'):
+                    self.save_evidence(db_counts=db_counts)
+                    logger.info("[D205-18-4R2] Atomic Evidence Flush completed")
+            except Exception as flush_error:
+                logger.error(f"[D205-18-4R2] Atomic Evidence Flush failed: {flush_error}")
+            
             self.stop_watcher()
     
     def start_watcher(self):
@@ -221,38 +288,6 @@ class PaperOrchestrator:
         if self._watcher:
             self._watcher.stop()
             logger.info("[D205-18-2D] RunWatcher stopped")
-    
-    def _verify_wallclock_duration(self, expected_sec: int, actual_sec: float) -> None:
-        """
-        Wall-Clock Duration 검증
-        
-        Args:
-            expected_sec: 설정된 duration (초)
-            actual_sec: 실제 실행 시간 (초)
-        """
-        tolerance_pct = 5.0  # ±5% 허용
-        tolerance_sec = expected_sec * (tolerance_pct / 100.0)
-        
-        logger.info(
-            f"[D205-18-4R] Duration Verification: "
-            f"expected={expected_sec}s, actual={actual_sec:.2f}s, "
-            f"tolerance=±{tolerance_sec:.2f}s ({tolerance_pct}%)"
-        )
-        
-        if actual_sec < (expected_sec - tolerance_sec):
-            logger.warning(
-                f"[D205-18-4R] WARN: Actual duration {actual_sec:.2f}s < "
-                f"expected {expected_sec}s (tolerance: {tolerance_sec:.2f}s). "
-                f"Execution may have terminated early."
-            )
-        elif actual_sec > (expected_sec + tolerance_sec):
-            logger.warning(
-                f"[D205-18-4R] WARN: Actual duration {actual_sec:.2f}s > "
-                f"expected {expected_sec}s (tolerance: {tolerance_sec:.2f}s). "
-                f"Execution may have run longer than expected."
-            )
-        else:
-            logger.info(f"[D205-18-4R] PASS: Duration within tolerance")
     
     def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
         """Evidence 저장"""

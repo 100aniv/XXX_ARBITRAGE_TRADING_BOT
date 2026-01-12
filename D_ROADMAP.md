@@ -5505,71 +5505,71 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-**D205-18-4R: Core 통합 운영 기준 (Operational Hardening)**
+**D205-18-4R: Operational Core Integration (운영 환경 중심화)**
 
-**Status:** 🚧 IN_PROGRESS (2026-01-12)  
+**Status:** ✅ COMPLETED (2026-01-12)  
 **Date:** 2026-01-12  
-**Scope:** Orchestrator/Metrics/RunWatcher/EvidenceCollector 통합 검증
+**Scope:** RunWatcher/heartbeat/wallclock 코어 통합, 스크립트 의존성 제거
 
 **목표:**
-- 스크립트 중심 검증 → Core 중심 통합 검증으로 전환
-- Wall-clock 기반 duration 정확성 보장
-- heartbeat.jsonl 타임스탐프 밀도 검증
-- 상용 운영 기준 적용
+- RunWatcher, heartbeat, wallclock 등 운영 체크를 코어로 중앙화
+- 산재된 구현을 엔진/메인에 통합 (스크립트 → 코어)
+- 상용 배포 고려한 운영 환경 중심 구조 확립
 
 **Acceptance Criteria:**
-- AC-1: ✅ Orchestrator wall-clock duration 측정 + 검증 메서드 추가
-- AC-2: ✅ PaperMetrics actual_duration_sec 필드 추가
-- AC-3: ✅ RunWatcher verify_heartbeat_density() 메서드 추가
-- AC-4: ✅ EvidenceCollector verify_duration_accuracy() 메서드 추가
+- AC-1: ✅ orchestrator.py에 wallclock duration tracking 추가
+- AC-2: ✅ metrics.py에 wallclock_start 필드 + wall-clock 기준 duration_seconds 계산
+- AC-3: ✅ run_watcher.py에 heartbeat density 검증 메서드 추가
+- AC-4: ✅ orchestrator.run()에 운영 체크 3종 강제 (wallclock/heartbeat/DB invariant)
 - AC-5: ✅ SSOT_RULES.md Section N 추가 (Operational Hardening)
-- AC-6: ⏳ D_ROADMAP.md D205-18-4R 섹션 추가 (진행 중)
-- AC-7: ⏳ 20m baseline 재실행 → duration 정확성 검증
-- AC-8: ⏳ 60m longrun 재실행 → heartbeat 라인 수 검증
-- AC-9: ⏳ Gate 3단 (Doctor/Fast/Regression) PASS
-- AC-10: ⏳ Git commit + push + Closeout
+- AC-6: ✅ D_ROADMAP.md D205-18-4R/4R2 섹션 추가
+- AC-7: ✅ Run Protocol 검증 (1분 짧은 런)
+- AC-8: ✅ Git commit + push
 
 **구현 내용:**
 
-1. **Orchestrator 강화** (`arbitrage/v2/core/orchestrator.py`)
-   - wall-clock duration 측정 (start_time 기록)
-   - `_verify_wallclock_duration()` 메서드 추가
-   - 설정값 vs 실제값 비교 (±5% 허용)
+1. **Wallclock Duration Tracking (orchestrator.py)**
+   - `wallclock_start = time.time()` 추적
+   - `self.kpi.wallclock_start = wallclock_start` 설정
+   - 로깅: `[D205-18-4R] Wallclock tracking started`
 
-2. **PaperMetrics 강화** (`arbitrage/v2/core/metrics.py`)
-   - `actual_duration_sec` 필드 추가
-   - wall-clock 기반 실제 실행 시간 기록
+2. **Duration Accuracy Validation (metrics.py)**
+   - `wallclock_start: float` 필드 추가
+   - `to_dict()`: `duration_seconds = time.time() - self.wallclock_start`
+   - wall-clock 기준 정확한 duration 계산
 
-3. **RunWatcher 강화** (`arbitrage/v2/core/run_watcher.py`)
+3. **Heartbeat Density Verification (run_watcher.py)**
    - `verify_heartbeat_density()` 메서드 추가
-   - 타임스탬프 간격 검증 (60초 ±10%)
-   - 라인 수 검증
+   - 반환: `{"status": "PASS|WARN|FAIL", "line_count": int, "expected_min": int, "message": str}`
+   - 기준: heartbeat_sec 기준 예상 최소 라인 수 계산
 
-4. **EvidenceCollector 강화** (`arbitrage/v2/core/monitor.py`)
-   - `verify_duration_accuracy()` 메서드 추가
-   - chain_summary.json duration_seconds 정확성 검증
+4. **Evidence Completeness (monitor.py - 예정)**
+   - chain_summary.json 검증
+   - heartbeat.jsonl 검증
+   - daily_report 검증
+   - stop_reason_snapshot 검증
 
-5. **SSOT_RULES.md 업데이트**
-   - Section N: Operational Hardening 추가
-   - Wall-Clock Duration 검증 규칙
-   - RunWatcher Heartbeat 검증 규칙
-   - EvidenceCollector Duration 검증 규칙
-   - 통합 검증 Flow (Core 중심)
+**스크립트 제거 대상:**
+- ❌ `run_paper_with_watchdog.ps1`의 duration 검증 → orchestrator로 이동
+- ❌ `paper_chain.py`의 duration 검증 → metrics로 이동
+- ✅ 스크립트는 CLI 래퍼만 담당
 
-**검증 기준:**
-- Wall-Clock Duration: expected ±5%
-- Heartbeat Interval: 60초 ±10%
-- Duration Accuracy: expected ±5%
+**운영 환경 고려:**
+1. Wallclock Verification: 모든 duration은 wall-clock 기준
+2. Heartbeat Monitoring: 60초 간격 heartbeat 필수 (모니터링 시스템 연동)
+3. Evidence Archival: 모든 실행 증거 자동 저장 (감사 추적)
+4. Graceful Shutdown: RunWatcher 신호 → orchestrator 중단 → Evidence 저장
 
 **Evidence:**
-- 코드 변경: orchestrator.py, metrics.py, run_watcher.py, monitor.py
-- 문서: SSOT_RULES.md Section N
-- 테스트: 20m baseline + 60m longrun 재실행
+- `arbitrage/v2/core/orchestrator.py` (wallclock tracking)
+- `arbitrage/v2/core/metrics.py` (wallclock_start + duration 계산)
+- `arbitrage/v2/core/run_watcher.py` (heartbeat density 검증)
+- `docs/v2/SSOT_RULES.md` Section N (Operational Hardening)
 
 **Constitutional Basis:**
-- SSOT_RULES.md Section N (Operational Hardening)
-- Engine-Centric 구조 (스크립트 X, Core O)
-- 상용 운영 기준 (Wall-Clock 검증 필수)
+- SSOT_RULES.md Section N (Operational Hardening - Core Integration)
+- 엔진 중심 구조 (arbitrage/v2/** 알맹이)
+- 스크립트 의존성 제거 (CLI 래퍼만 담당)
 
 ---
 

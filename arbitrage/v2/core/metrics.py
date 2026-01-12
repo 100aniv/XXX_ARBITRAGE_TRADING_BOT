@@ -31,12 +31,12 @@ class PaperMetrics:
     - Runner는 이 클래스 인스턴스만 참조
     - 모든 집계 로직은 여기에 집중
     
-    D205-18-4R: Wall-Clock Duration 검증 필드 추가
-    - start_time: phase 시작 시간 (wall-clock)
-    - actual_duration_sec: 실제 실행 시간 (초)
+    D205-18-4R: Wallclock duration tracking 추가
+    - start_time: 초기 생성 시간 (레거시)
+    - wallclock_start: 실제 실행 시작 시간 (wall-clock 기준)
     """
     start_time: float = field(default_factory=time.time)
-    actual_duration_sec: float = 0.0  # Wall-clock 기반 실제 실행 시간
+    wallclock_start: float = field(default_factory=time.time)  # D205-18-4R: Wall-clock 기준
     opportunities_generated: int = 0
     intents_created: int = 0
     mock_executions: int = 0
@@ -122,11 +122,14 @@ class PaperMetrics:
         
         Returns:
             KPI dict (JSON 직렬화 가능)
+        
+        D205-18-4R: duration_seconds는 wallclock_start 기준 (정확한 wall-clock 시간)
         """
-        duration_seconds = time.time() - self.start_time
+        # D205-18-4R: Wall-clock 기준 duration 계산
+        duration_seconds = time.time() - self.wallclock_start
         
         kpi = {
-            "start_time": datetime.fromtimestamp(self.start_time).isoformat(),
+            "start_time": datetime.fromtimestamp(self.wallclock_start).isoformat(),
             "duration_seconds": round(duration_seconds, 2),
             "duration_minutes": round(duration_seconds / 60, 2),
             "opportunities_generated": self.opportunities_generated,
