@@ -5573,6 +5573,250 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
+**D205-18-4R2: Run Protocol 강제화 (No more false PASS)**
+
+**Status:** ✅ COMPLETED (2026-01-12)  
+**Date:** 2026-01-12  
+**Scope:** WARN → FAIL 전환, Exit Code 강제 전파, 증거 무결성 확립
+
+**목표:**
+- "가짜 PASS" 원천 차단 (WARN = FAIL)
+- wallclock/heartbeat/DB invariant 검증 → Exit Code 1 강제
+- Atomic Evidence Flush (무조건 저장)
+
+**Acceptance Criteria:**
+- AC-1: ✅ orchestrator.run() wallclock duration ±5% 초과 시 Exit 1
+- AC-2: ✅ orchestrator.run() heartbeat density FAIL 시 Exit 1
+- AC-3: ✅ orchestrator.run() DB invariant FAIL 시 Exit 1 (closed_trades × 2 ≈ db_inserts)
+- AC-4: ✅ orchestrator.run() finally 블록에서 Atomic Evidence Flush
+- AC-5: ✅ 1분 짧은 런 검증 (wallclock/heartbeat PASS)
+- AC-6: ✅ DocOps PASS (check_ssot_docs.py exit code 0)
+
+**구현 내용:**
+
+1. **Wallclock Duration 강제 (orchestrator.py)**
+   ```python
+   tolerance = expected_duration * 0.05
+   if abs(actual_duration - expected_duration) > tolerance:
+       logger.error("[D205-18-4R2] Wallclock duration FAIL")
+       return 1
+   ```
+
+2. **Heartbeat Density 강제 (orchestrator.py)**
+   ```python
+   heartbeat_result = self._watcher.verify_heartbeat_density()
+   if heartbeat_result["status"] == "FAIL":
+       logger.error("[D205-18-4R2] Heartbeat density FAIL")
+       return 1
+   ```
+
+3. **DB Invariant 강제 (orchestrator.py)**
+   ```python
+   expected_inserts = self.kpi.closed_trades * 2
+   if abs(actual_inserts - expected_inserts) > 2:
+       logger.error("[D205-18-4R2] DB Invariant FAIL")
+       return 1
+   ```
+
+4. **Atomic Evidence Flush (orchestrator.py)**
+   ```python
+   finally:
+       try:
+           self.save_evidence(db_counts=db_counts)
+           logger.info("[D205-18-4R2] Atomic Evidence Flush completed")
+       except Exception as flush_error:
+           logger.error(f"[D205-18-4R2] Atomic Evidence Flush failed: {flush_error}")
+       self.stop_watcher()
+   ```
+
+**검증 결과 (1분 짧은 런):**
+- ✅ Wallclock duration: actual=60.0s, expected=60.0s → PASS
+- ✅ Heartbeat density: 86 lines (expected_min=1) → PASS
+- ✅ Atomic Evidence Flush: completed
+- ⚠️ RateLimiter 오류 (D205-18-4R2 범위 밖, 별도 수정 필요)
+
+**Evidence:**
+- `logs/evidence/STEP0_BOOTSTRAP_D205-18-4R2_20260112_112401/`
+  - manifest.json
+  - SCAN_REUSE_SUMMARY.md
+  - MINIMAL_PLAN.md
+  - RUN_PROTOCOL_VERIFICATION.md
+  - gate_fast_result.txt
+  - docops_check.txt
+  - short_run_1min.log
+- `arbitrage/v2/core/orchestrator.py` (Run Protocol 강제화)
+
+**Commits:**
+- 749f525: D205-18-4R (Operational Core Integration)
+- (예정): D205-18-4R2 (Run Protocol 강제화)
+
+**Constitutional Basis:**
+- SSOT_RULES.md Section N (Operational Hardening)
+- WARN = FAIL 원칙
+- Exit Code 강제 전파 (orchestrator → chain → runner)
+- Atomic Evidence Flush (무조건 저장)
+
+---
+
+## Post-D205 Rebuild Track (4-Axis Operational Hardening)
+
+**Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
+**Rebuild Rationale:** D205~ 구간 스코프 폭발 및 문서-코드 괴리 해소  
+**Strategy:** D-number immutability 유지 + 4축 Track으로 재구성
+
+**문제 진단 (D205 이후 산재 원인):**
+1. **스코프 폭발:** D205-18에서 운영 프로토콜 강화가 4R/4R2로 브랜치 확장되며 혼재
+2. **문서-코드 괴리:** SSOT_RULES Section N에 원칙만 있고, 실제 런북/헬스체크/컨테이너 문서화 안 됨
+3. **D206 진입 조건 불명확:** Prerequisites가 추상적이고 측정 불가능
+4. **중복 선언:** "엔진 중심", "thin wrapper" 원칙이 반복되지만 실행 가능한 D-step 없음
+5. **운영 프로토콜 부재:** Docker/compose/healthcheck/SIGTERM 실제 배포 시나리오 누락
+
+**Rebuild 원칙:**
+- ✅ 기존 D205 섹션 보존 (이력 유지)
+- ✅ D-number immutability 준수
+- ✅ 새 계획은 4축 Track으로 추가 (각 축마다 목표/AC/Evidence/Non-goals/Dependencies)
+- ✅ 문서 우선 (OPS_PROTOCOL 신설 → 코드 정렬 → 검증)
+
+---
+
+### Axis 1: OPS Protocol 확립 (문서 표준화)
+
+**목표:** Run Protocol/ExitCode/증거/헬스체크 운영 표준 문서화
+
+**Acceptance Criteria:**
+- [ ] AC-1: `docs/v2/OPS_PROTOCOL.md` 신설 (운영 프로토콜/런북)
+- [ ] AC-2: Operational Invariants 정의 (10초 drift → 종료, heartbeat 65초 초과 → FAIL)
+- [ ] AC-3: Run Protocol 절차 문서화 (wallclock/heartbeat/exit code/evidence)
+- [ ] AC-4: Execution Modes 정의 (baseline/longrun/smoke 각각 시간/AC/증거 명시)
+- [ ] AC-5: Evidence Minimum Set 정의 (chain_summary/heartbeat/daily_report 필수)
+- [ ] AC-6: Docker Healthcheck Integration 설계 (heartbeat.jsonl 기반)
+- [ ] AC-7: SIGTERM/Graceful Shutdown 시퀀스 문서화 (10초 내 Evidence Flush)
+- [ ] AC-8: Failure Modes & Recovery 정의
+- [ ] AC-9: SSOT_RULES → OPS_PROTOCOL 참조 링크 100% 정합성 (Atomic Cross-Linking)
+- [ ] AC-10: DocOps PASS (check_ssot_docs.py exit code 0)
+
+**Evidence:**
+- `docs/v2/OPS_PROTOCOL.md` (신규 생성)
+- `docs/v2/SSOT_RULES.md` (Section N 간소화 + OPS_PROTOCOL 참조 추가)
+- 링크 검증 결과 (Broken Link 0건)
+
+**Non-goals:**
+- ❌ 새 코드 기능 추가 (문서 확립만)
+- ❌ 실제 Docker/compose 파일 작성 (설계만)
+
+**Dependencies:**
+- ✅ D205-18-4R2 완료 (Run Protocol 코드 구현)
+
+**Constitutional Basis:**
+- SSOT_RULES.md 우선순위 유지 (OPS_PROTOCOL은 하위 문서)
+- "운영 프로토콜은 OPS_PROTOCOL.md를 따른다 (충돌 시 SSOT_RULES 우선)"
+
+---
+
+### Axis 2: Entrypoint/Runner 정리 (아키텍처 명확화)
+
+**목표:** 스크립트 의존 제거 방향 명확화, thin wrapper 규정 확립
+
+**Acceptance Criteria:**
+- [ ] AC-1: "thin wrapper" 정의 확립 (scripts는 CLI arg parsing + orchestrator 호출만)
+- [ ] AC-2: `docs/v2/V2_ARCHITECTURE.md`에 entrypoint → orchestrator → run_watcher → evidence 플로우 추가
+- [ ] AC-3: "스크립트는 폐기 예정" 명시 (arbitrage/v2/** 중심 구조)
+- [ ] AC-4: Runner vs Orchestrator vs Engine 역할 명확화
+- [ ] AC-5: 실제 entrypoint 목록 정리 (paper_runner.py, paper_chain.py 등)
+- [ ] AC-6: DocOps PASS
+
+**Evidence:**
+- `docs/v2/V2_ARCHITECTURE.md` (Operational Flow 섹션 추가)
+- entrypoint 목록 문서 (JSON/Table)
+
+**Non-goals:**
+- ❌ 실제 스크립트 제거/리팩토링 (문서 정의만)
+- ❌ 새 Runner 구현
+
+**Dependencies:**
+- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
+
+**Constitutional Basis:**
+- V2_ARCHITECTURE.md = 아키텍처 SSOT
+- Engine-Centric 원칙 유지
+
+---
+
+### Axis 3: Container Parity (배포 인프라 설계)
+
+**목표:** 로컬 PC 기반 docker-compose 표준 + infra parity 설계
+
+**Acceptance Criteria:**
+- [ ] AC-1: `docs/v2/V2_ARCHITECTURE.md`에 Docker/compose 헬스체크 플로우 추가
+- [ ] AC-2: PID1/SIGTERM 처리 시퀀스 문서화
+- [ ] AC-3: heartbeat.jsonl 기반 healthcheck 설계 (60초 간격, 3회 연속 실패 → unhealthy)
+- [ ] AC-4: 컨테이너 환경 변수 정의 (USE_REAL_DATA, PROFILE, DB_MODE 등)
+- [ ] AC-5: Volume 마운트 전략 (logs/evidence, config/v2)
+- [ ] AC-6: 네트워크 격리 (db/redis/app 분리)
+- [ ] AC-7: DocOps PASS
+
+**Evidence:**
+- `docs/v2/V2_ARCHITECTURE.md` (Docker/Compose Deployment 섹션 추가)
+- healthcheck 설계 문서
+
+**Non-goals:**
+- ❌ 실제 Dockerfile/compose.yml 작성 (설계만)
+- ❌ K8s/분산 환경 (로컬 docker-compose만)
+
+**Dependencies:**
+- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
+- ✅ Axis 2 완료 (Entrypoint 정리)
+
+**Constitutional Basis:**
+- Container Parity = 로컬 PC와 배포 환경 동일성
+- 재현성 우선 (docker-compose로 모든 환경 표준화)
+
+---
+
+### Axis 4: Gate/CI 운영화 (자동화/재현성)
+
+**목표:** Doctor/Fast/Regression 자동화 및 재현성 확립
+
+**Acceptance Criteria:**
+- [ ] AC-1: Gate 실행 표준 프로시저 문서화 (OPS_PROTOCOL.md Gate 섹션)
+- [ ] AC-2: Evidence 최소셋 재정의 (chain_summary/heartbeat/daily_report/kpi.json 필수)
+- [ ] AC-3: Gate 100% PASS 기준 명확화 (FAIL 1건도 허용 안 함)
+- [ ] AC-4: CI/CD 파이프라인 설계 (GitHub Actions 기반, 실제 구현은 별도)
+- [ ] AC-5: DocOps PASS
+
+**Evidence:**
+- `docs/v2/OPS_PROTOCOL.md` (Gate 섹션 추가)
+- CI/CD 설계 문서
+
+**Non-goals:**
+- ❌ 실제 CI/CD 파이프라인 구축 (설계만)
+- ❌ 새 테스트 추가
+
+**Dependencies:**
+- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
+
+**Constitutional Basis:**
+- Gate 100% PASS 필수 (SSOT_RULES 원칙)
+- 재현성 = 누가 언제 어디서 실행해도 동일 결과
+
+---
+
+### Post-D205 Rebuild Track: 다음 단계
+
+**문서 확립 후:**
+1. **Axis 1-4 순차 진행** (각 축마다 독립된 D-step 또는 브랜치)
+2. **OPS_PROTOCOL 기반 코드 정렬** (문서 → 코드 동기화)
+3. **실제 Docker/compose 구현** (Axis 3 설계 기반)
+4. **CI/CD 파이프라인 구축** (Axis 4 설계 기반)
+
+**D206 진입 조건 재정의:**
+- ✅ Axis 1-4 모두 완료 (문서 100% 정합)
+- ✅ OPS_PROTOCOL 기반 실제 운영 검증 (20m + 60m + 180m Paper Run)
+- ✅ Container Parity 검증 (로컬 docker-compose 실행 성공)
+- ✅ Gate 100% PASS (CI/CD 파이프라인 자동 실행)
+
+---
+
 ### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
 
 **문제 인식:**
