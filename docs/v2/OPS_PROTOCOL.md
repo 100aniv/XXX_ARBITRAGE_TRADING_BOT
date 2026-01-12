@@ -109,9 +109,23 @@
 | **1** | FAILURE | Invariant 위반, RunWatcher ERROR, Exception 발생 |
 | **2** | Reserved | (미사용) |
 
-**WARN = FAIL 원칙:**
-- ⚠️ WARNING 로그 = 즉시 Exit Code 1 (가짜 PASS 차단)
-- 예: `logger.warning()` 호출 시 Exit 1 강제
+**#### 2.4 WARN = FAIL Principle (Operational Warnings Only)
+- **원칙:** Operational WARNING은 Exit Code 1 (가짜 PASS 차단)
+- **범위:** 프리플라이트 체크, 런타임 무결성 검증 (wallclock/heartbeat/DB/evidence)
+- **제외:** KPI 경고 (winrate 0%, consecutive losses)는 RunWatcher가 별도 처리
+- **금지:** Operational WARNING을 PASS로 간주
+- **상세:** [`OPS_PROTOCOL.md#32-exit-code-규약`](OPS_PROTOCOL.md#32-exit-code-규약)
+
+**Operational WARN → FAIL 예시:**
+- ❌ wallclock duration ±5% 초과
+- ❌ heartbeat.jsonl 65초 초과 간격
+- ❌ DB invariant 위반 (closed_trades × 2 ≠ db_inserts ±2)
+- ❌ Evidence 파일 누락 (chain_summary/heartbeat/kpi/manifest)
+
+**KPI WARN → 로그만 (RunWatcher FAIL 조건으로 처리):**
+- ⚠️ winrate = 0% (100 거래 후 → RunWatcher FAIL 조건 A)
+- ⚠️ negative edge 5분 연속 (→ RunWatcher FAIL 조건 B)
+- ⚠️ consecutive losses 10회 (→ RunWatcher FAIL 조건 E)
 
 ---
 

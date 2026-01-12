@@ -5658,171 +5658,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-## Post-D205 Rebuild Track (4-Axis Operational Hardening)
+### D206: Ops & Deploy (운영/배포)
 
 **Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
-**Rebuild Rationale:** D205~ 구간 스코프 폭발 및 문서-코드 괴리 해소  
-**Strategy:** D-number immutability 유지 + 4축 Track으로 재구성
-
-**문제 진단 (D205 이후 산재 원인):**
-1. **스코프 폭발:** D205-18에서 운영 프로토콜 강화가 4R/4R2로 브랜치 확장되며 혼재
-2. **문서-코드 괴리:** SSOT_RULES Section N에 원칙만 있고, 실제 런북/헬스체크/컨테이너 문서화 안 됨
-3. **D206 진입 조건 불명확:** Prerequisites가 추상적이고 측정 불가능
-4. **중복 선언:** "엔진 중심", "thin wrapper" 원칙이 반복되지만 실행 가능한 D-step 없음
-5. **운영 프로토콜 부재:** Docker/compose/healthcheck/SIGTERM 실제 배포 시나리오 누락
-
-**Rebuild 원칙:**
-- ✅ 기존 D205 섹션 보존 (이력 유지)
-- ✅ D-number immutability 준수
-- ✅ 새 계획은 4축 Track으로 추가 (각 축마다 목표/AC/Evidence/Non-goals/Dependencies)
-- ✅ 문서 우선 (OPS_PROTOCOL 신설 → 코드 정렬 → 검증)
-
----
-
-### Axis 1: OPS Protocol 확립 (문서 표준화)
-
-**목표:** Run Protocol/ExitCode/증거/헬스체크 운영 표준 문서화
-
-**Acceptance Criteria:**
-- [ ] AC-1: `docs/v2/OPS_PROTOCOL.md` 신설 (운영 프로토콜/런북)
-- [ ] AC-2: Operational Invariants 정의 (10초 drift → 종료, heartbeat 65초 초과 → FAIL)
-- [ ] AC-3: Run Protocol 절차 문서화 (wallclock/heartbeat/exit code/evidence)
-- [ ] AC-4: Execution Modes 정의 (baseline/longrun/smoke 각각 시간/AC/증거 명시)
-- [ ] AC-5: Evidence Minimum Set 정의 (chain_summary/heartbeat/daily_report 필수)
-- [ ] AC-6: Docker Healthcheck Integration 설계 (heartbeat.jsonl 기반)
-- [ ] AC-7: SIGTERM/Graceful Shutdown 시퀀스 문서화 (10초 내 Evidence Flush)
-- [ ] AC-8: Failure Modes & Recovery 정의
-- [ ] AC-9: SSOT_RULES → OPS_PROTOCOL 참조 링크 100% 정합성 (Atomic Cross-Linking)
-- [ ] AC-10: DocOps PASS (check_ssot_docs.py exit code 0)
-
-**Evidence:**
-- `docs/v2/OPS_PROTOCOL.md` (신규 생성)
-- `docs/v2/SSOT_RULES.md` (Section N 간소화 + OPS_PROTOCOL 참조 추가)
-- 링크 검증 결과 (Broken Link 0건)
-
-**Non-goals:**
-- ❌ 새 코드 기능 추가 (문서 확립만)
-- ❌ 실제 Docker/compose 파일 작성 (설계만)
-
-**Dependencies:**
-- ✅ D205-18-4R2 완료 (Run Protocol 코드 구현)
-
-**Constitutional Basis:**
-- SSOT_RULES.md 우선순위 유지 (OPS_PROTOCOL은 하위 문서)
-- "운영 프로토콜은 OPS_PROTOCOL.md를 따른다 (충돌 시 SSOT_RULES 우선)"
-
----
-
-### Axis 2: Entrypoint/Runner 정리 (아키텍처 명확화)
-
-**목표:** 스크립트 의존 제거 방향 명확화, thin wrapper 규정 확립
-
-**Acceptance Criteria:**
-- [ ] AC-1: "thin wrapper" 정의 확립 (scripts는 CLI arg parsing + orchestrator 호출만)
-- [ ] AC-2: `docs/v2/V2_ARCHITECTURE.md`에 entrypoint → orchestrator → run_watcher → evidence 플로우 추가
-- [ ] AC-3: "스크립트는 폐기 예정" 명시 (arbitrage/v2/** 중심 구조)
-- [ ] AC-4: Runner vs Orchestrator vs Engine 역할 명확화
-- [ ] AC-5: 실제 entrypoint 목록 정리 (paper_runner.py, paper_chain.py 등)
-- [ ] AC-6: DocOps PASS
-
-**Evidence:**
-- `docs/v2/V2_ARCHITECTURE.md` (Operational Flow 섹션 추가)
-- entrypoint 목록 문서 (JSON/Table)
-
-**Non-goals:**
-- ❌ 실제 스크립트 제거/리팩토링 (문서 정의만)
-- ❌ 새 Runner 구현
-
-**Dependencies:**
-- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
-
-**Constitutional Basis:**
-- V2_ARCHITECTURE.md = 아키텍처 SSOT
-- Engine-Centric 원칙 유지
-
----
-
-### Axis 3: Container Parity (배포 인프라 설계)
-
-**목표:** 로컬 PC 기반 docker-compose 표준 + infra parity 설계
-
-**Acceptance Criteria:**
-- [ ] AC-1: `docs/v2/V2_ARCHITECTURE.md`에 Docker/compose 헬스체크 플로우 추가
-- [ ] AC-2: PID1/SIGTERM 처리 시퀀스 문서화
-- [ ] AC-3: heartbeat.jsonl 기반 healthcheck 설계 (60초 간격, 3회 연속 실패 → unhealthy)
-- [ ] AC-4: 컨테이너 환경 변수 정의 (USE_REAL_DATA, PROFILE, DB_MODE 등)
-- [ ] AC-5: Volume 마운트 전략 (logs/evidence, config/v2)
-- [ ] AC-6: 네트워크 격리 (db/redis/app 분리)
-- [ ] AC-7: DocOps PASS
-
-**Evidence:**
-- `docs/v2/V2_ARCHITECTURE.md` (Docker/Compose Deployment 섹션 추가)
-- healthcheck 설계 문서
-
-**Non-goals:**
-- ❌ 실제 Dockerfile/compose.yml 작성 (설계만)
-- ❌ K8s/분산 환경 (로컬 docker-compose만)
-
-**Dependencies:**
-- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
-- ✅ Axis 2 완료 (Entrypoint 정리)
-
-**Constitutional Basis:**
-- Container Parity = 로컬 PC와 배포 환경 동일성
-- 재현성 우선 (docker-compose로 모든 환경 표준화)
-
----
-
-### Axis 4: Gate/CI 운영화 (자동화/재현성)
-
-**목표:** Doctor/Fast/Regression 자동화 및 재현성 확립
-
-**Acceptance Criteria:**
-- [ ] AC-1: Gate 실행 표준 프로시저 문서화 (OPS_PROTOCOL.md Gate 섹션)
-- [ ] AC-2: Evidence 최소셋 재정의 (chain_summary/heartbeat/daily_report/kpi.json 필수)
-- [ ] AC-3: Gate 100% PASS 기준 명확화 (FAIL 1건도 허용 안 함)
-- [ ] AC-4: CI/CD 파이프라인 설계 (GitHub Actions 기반, 실제 구현은 별도)
-- [ ] AC-5: DocOps PASS
-
-**Evidence:**
-- `docs/v2/OPS_PROTOCOL.md` (Gate 섹션 추가)
-- CI/CD 설계 문서
-
-**Non-goals:**
-- ❌ 실제 CI/CD 파이프라인 구축 (설계만)
-- ❌ 새 테스트 추가
-
-**Dependencies:**
-- ✅ Axis 1 완료 (OPS_PROTOCOL 신설)
-
-**Constitutional Basis:**
-- Gate 100% PASS 필수 (SSOT_RULES 원칙)
-- 재현성 = 누가 언제 어디서 실행해도 동일 결과
-
----
-
-### Post-D205 Rebuild Track: 다음 단계
-
-**문서 확립 후:**
-1. **Axis 1-4 순차 진행** (각 축마다 독립된 D-step 또는 브랜치)
-2. **OPS_PROTOCOL 기반 코드 정렬** (문서 → 코드 동기화)
-3. **실제 Docker/compose 구현** (Axis 3 설계 기반)
-4. **CI/CD 파이프라인 구축** (Axis 4 설계 기반)
-
-**D206 진입 조건 재정의:**
-- ✅ Axis 1-4 모두 완료 (문서 100% 정합)
-- ✅ OPS_PROTOCOL 기반 실제 운영 검증 (20m + 60m + 180m Paper Run)
-- ✅ Container Parity 검증 (로컬 docker-compose 실행 성공)
-- ✅ Gate 100% PASS (CI/CD 파이프라인 자동 실행)
-
----
-
-### D206: Ops & Deploy (운영/배포) - ⚠️ 조건부 진입
+**Strategy:** 문서 표준화 (OPS_PROTOCOL) → 컨테이너 (Docker/compose) → 운영 자동화 (Gate/CI)  
+**Constitutional Basis:** SSOT_RULES.md > OPS_PROTOCOL.md > V2_ARCHITECTURE.md > D_ROADMAP.md
 
 **문제 인식:**
 - V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
 - V2 현재: Engine은 stub, PaperRunner가 사실상 엔진 역할
-- 해결: Engine에 유일한 루프, Runner는 얇은막
+- 해결: Engine에 유일한 루프, Runner는 얇은막 (OPS_PROTOCOL.md 참조)
 
 ---
 
@@ -5929,24 +5774,36 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-3: Failure Injection/Runbook
+#### D206-3: Runbook + Gate/CI Automation (운영 자동화)
 **상태:** PLANNED
 **커밋:** [pending]
 **테스트:** [pending]
 **문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
 
 **목표:**
-- 장애 주입 테스트 + 대응 절차 문서화
-- 429/WS disconnect/DB 지연/Redis flush 시나리오
+- 장애 시뮬레이션 + Runbook (운영자 매뉴얼) + Gate/CI 자동화
 
-**AC:**
-- [ ] 장애 시나리오 4종: 429 rate limit, WS disconnect, DB timeout, Redis flush
-- [ ] 각 시나리오별 Runbook 작성 (`docs/v2/runbooks/`)
-- [ ] Failure Injection 테스트 자동화 (pytest fixture)
-- [ ] 복구 시간 < 30초 (모든 시나리오)
-- [ ] 장애 발생 시 Admin Control로 즉시 대응 가능
+**AC (강화):**
+- [ ] AC-1: Failure Injection: DB 다운, Redis 다운, API 타임아웃 등
+- [ ] AC-2: Runbook: 장애 감지 → 원인 분석 → 복구 절차 (OPS_PROTOCOL.md #8 참조)
+- [ ] AC-3: **Failure Modes & Recovery 정의** (OPS_PROTOCOL.md #8 참조)
+  - F1: Wallclock Drift (시스템 과부하) → Exit 1 + 재실행
+  - F2: Heartbeat Loss (RunWatcher 중단) → Exit 1 + 재실행
+  - F3: DB Insert Fail (연결 끊김) → Exit 1 + DB 복구
+  - F4: Evidence Missing (디스크 Full) → Exit 1 + 디스크 정리
+  - F5: SIGTERM Timeout (Evidence Flush 10초 초과) → 수동 복구
+- [ ] AC-4: 자동 복구 vs 수동 개입 기준 정의
+- [ ] AC-5: 알람 시스템 (Slack/Email) 연동
+- [ ] AC-6: **Gate 실행 표준 프로시저** (OPS_PROTOCOL.md #9 참조)
+  - Doctor Gate: `python -m compileall` (< 10초)
+  - Fast Gate: `pytest -k "not slow and not integration"` (< 1분)
+  - Regression Gate: `pytest` (< 10분)
+- [ ] AC-7: **Gate 100% PASS 기준 명확화** (FAIL 1건도 허용 안 함)
+- [ ] AC-8: **CI/CD 파이프라인 설계** (GitHub Actions, 실제 구현은 별도)
+  - Trigger: push to rescue/*, PR to main
+  - Jobs: Doctor → Fast → Regression
+  - Artifacts: Evidence + Gate 결과
 
-**Runbook 항목:**
 1. 429 Rate Limit 대응: throttling 자동 활성화, manual pause
 2. WS Disconnect: reconnect logic, fallback to REST
 3. DB Timeout: connection pool resize, query timeout adjust
@@ -6029,6 +5886,29 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 | **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
 | **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
 | **Reporting** | D205 | ⏳ PLANNED | PnL + Dashboard |
+| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
+| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
+
+---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
+| **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
+| **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
+| **Reporting** | D205 | ⏳ PLANNED | PnL + Dashboard |
+| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
+| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
+
+---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 | **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
 | **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
 

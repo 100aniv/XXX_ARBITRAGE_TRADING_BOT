@@ -1468,114 +1468,87 @@ logs/evidence/d204_2_chain_YYYYMMDD_HHMM/
 
 **목적:** RunWatcher, heartbeat, wallclock 등 운영 체크를 코어로 중앙화하여 스크립트 의존성 제거
 
-### 1. Wallclock Duration Tracking (orchestrator.py)
+**Constitutional Principles (헌법 원칙):**
 
-**원칙:** 모든 duration_seconds는 wall-clock 기준 (실제 경과 시간)
+### 1. Operational Protocol Governance
 
-**구현:**
-- `orchestrator.py`: `wallclock_start` 추적
-- `metrics.py`: `wallclock_start` 필드 + `to_dict()`에서 wall-clock 기준 계산
-- `runtime_factory.py`: metrics.wallclock_start 설정
+> **"운영 프로토콜은 [`OPS_PROTOCOL.md`](OPS_PROTOCOL.md)를 따른다. 충돌 시 SSOT_RULES.md가 우선한다."**
 
-**검증:**
-```python
-# orchestrator.run() 시작 시
-wallclock_start = time.time()
-self.kpi.wallclock_start = wallclock_start
+**SSOT 우선순위 (불변):**
+1. **SSOT_RULES.md (본 문서)** - 헌법 (Constitutional principles)
+2. **D_ROADMAP.md** - 프로세스 SSOT (상태/목표/AC)
+3. **OPS_PROTOCOL.md** - 운영 절차 (런북/프로토콜)
+4. **V2_ARCHITECTURE.md** - 아키텍처 설계
 
-# metrics.to_dict()에서
-duration_seconds = time.time() - self.wallclock_start
-```
+**충돌 해결:**
+- SSOT_RULES ↔ OPS_PROTOCOL 충돌 시 → SSOT_RULES 우선
+- OPS_PROTOCOL ↔ V2_ARCHITECTURE 충돌 시 → OPS_PROTOCOL 우선
+- 모든 문서는 D_ROADMAP.md 참조 (Process SSOT)
 
-**결과:**
-- chain_summary.json의 duration_seconds = 실제 wall-clock 시간
-- 스크립트의 watchdog 타임스탬프와 일치
+- **OPS_PROTOCOL.md:** 실행 절차, 검증 기준, Evidence 관리, Healthcheck 연동 등 상세 런북
+- **SSOT_RULES.md (본 문서):** 헌법 원칙 및 불변 규칙
 
-### 2. Heartbeat Density Verification (run_watcher.py)
+### 2. Core Principles (불변 원칙)
 
-**원칙:** heartbeat.jsonl 생성 및 밀도 검증 자동화
+#### 2.1 Wallclock Duration Principle
+- **원칙:** 모든 duration_seconds는 wall-clock 기준 (실제 경과 시간)
+- **금지:** iteration 기반 추정, sleep 누적, start_time 기준 계산
+- **상세:** [`OPS_PROTOCOL.md#3-run-protocol`](OPS_PROTOCOL.md#3-run-protocol-실행-프로토콜)
 
-**구현:**
-- `run_watcher.py`: `verify_heartbeat_density()` 메서드
-- 반환값: `{"status": "PASS|WARN|FAIL", "line_count": int, "expected_min": int, "message": str}`
+#### 2.2 Heartbeat Density Principle
+- **원칙:** heartbeat.jsonl 필수 생성 + 밀도 검증 (60초 간격, 65초 초과 간격 FAIL)
+- **금지:** heartbeat 누락, RunWatcher 스킵
+- **상세:** [`OPS_PROTOCOL.md#2-operational-invariants`](OPS_PROTOCOL.md#2-operational-invariants-불변-조건)
 
-**검증:**
-```python
-# orchestrator.stop_watcher() 후
-heartbeat_check = self._watcher.verify_heartbeat_density()
-if heartbeat_check["status"] == "FAIL":
-    logger.error(f"Heartbeat verification failed: {heartbeat_check['message']}")
-    return 1
-```
+#### 2.3 Evidence Completeness Principle
+- **원칙:** Evidence Minimum Set 모든 파일 존재 (chain_summary/heartbeat/kpi/manifest)
+- **금지:** 파일 누락, 부분 저장
+- **상세:** [`OPS_PROTOCOL.md#5-evidence-minimum-set`](OPS_PROTOCOL.md#5-evidence-minimum-set-증거-최소셋)
 
-**기준:**
-- heartbeat_sec = 60초 기준
-- 60분 실행 → 최소 60줄
-- 20분 실행 → 최소 20줄
+#### 2.4 WARN = FAIL Principle
+- **원칙:** 모든 WARNING은 Exit Code 1 (가짜 PASS 차단)
+- **금지:** WARNING을 PASS로 간주
+- **상세:** [`OPS_PROTOCOL.md#32-exit-code-규약`](OPS_PROTOCOL.md#32-exit-code-규약)
 
-### 3. Duration Accuracy Validation (metrics.py)
+#### 2.5 Atomic Evidence Flush Principle
+- **원칙:** 정상/비정상/강제 종료 시 무조건 Evidence 저장 (finally 블록)
+- **금지:** Evidence 저장 스킵, 조건부 저장
+- **상세:** [`OPS_PROTOCOL.md#53-atomic-evidence-flush`](OPS_PROTOCOL.md#53-atomic-evidence-flush)
 
-**원칙:** duration_seconds 오기록 방지 (wall-clock 기준으로만 계산)
-
-**구현:**
-- `PaperMetrics.wallclock_start`: 실제 실행 시작 시간
-- `to_dict()`: `duration_seconds = time.time() - self.wallclock_start`
-
-**금지:**
-- ❌ `start_time` 기준 계산 (초기화 시간과 실행 시간 차이)
-- ❌ iteration 기반 duration 추정
-- ❌ sleep 시간 누적
-
-### 4. Evidence Completeness (monitor.py)
-
-**필수 파일:**
-1. `chain_summary.json` - duration_seconds (wall-clock 기준)
-2. `heartbeat.jsonl` - 60초 간격 heartbeat
-3. `stop_reason_snapshot.json` - FAIL 조건 트리거 시
-4. `daily_report_YYYY-MM-DD.json` - PnL/OPS 리포트
-
-**검증:**
-```python
-# Evidence 저장 후
-evidence_files = {
-    "chain_summary": Path(evidence_dir) / "chain_summary.json",
-    "heartbeat": Path(evidence_dir) / "heartbeat.jsonl",
-    "daily_report": Path(evidence_dir) / f"daily_report_{date}.json",
-}
-for name, path in evidence_files.items():
-    if not path.exists():
-        logger.error(f"Missing evidence: {name}")
-        return 1
-```
-
-### 5. 적용 범위 (D206 이전)
+### 3. Enforcement (강제 적용)
 
 **필수 적용:**
-- D205-18-4R: Operational Core Integration
-- D205-18-4 이후 모든 Paper mode 실행
-- Gate Regression에서 Paper 테스트
+- D205-18-4R 이후 모든 Paper/Live/Smoke/Baseline/Longrun 실행
+- Gate Regression 모든 Paper 테스트
+- Docker/compose 배포 환경
 
-**스크립트 제거:**
-- ❌ `run_paper_with_watchdog.ps1`의 duration 검증 → orchestrator로 이동
-- ❌ `paper_chain.py`의 duration 검증 → metrics로 이동
-- ✅ 스크립트는 CLI 래퍼만 담당
+**예외 없음:**
+- 개발 디버깅도 OPS_PROTOCOL 준수 (Mock 데이터 예외 없음)
 
-### 6. 운영 환경 고려사항
+### 4. Script Deprecation (스크립트 폐기 방향)
 
-**상용 배포 시:**
-1. **Wallclock Verification**: 모든 duration은 wall-clock 기준
-2. **Heartbeat Monitoring**: 60초 간격 heartbeat 필수 (모니터링 시스템 연동)
-3. **Evidence Archival**: 모든 실행 증거 자동 저장 (감사 추적)
-4. **Graceful Shutdown**: RunWatcher 신호 → orchestrator 중단 → Evidence 저장
+**원칙:**
+- ✅ arbitrage/v2/** 중심 구조 (엔진 중심)
+- ❌ scripts/run_*.py 로직 포함 금지 (CLI arg parsing만)
+- ✅ "thin wrapper" 규정: [`OPS_PROTOCOL.md`](OPS_PROTOCOL.md) 참조
 
-**예시 (Live mode):**
-```python
-# Live Runtime도 동일 구조
-orchestrator = build_live_runtime(config)
-orchestrator.start_watcher()  # RunWatcher 시작
-exit_code = orchestrator.run()  # Wall-clock 기준 실행
-heartbeat_check = orchestrator._watcher.verify_heartbeat_density()
-```
+**폐기 대상:**
+- `run_paper_with_watchdog.ps1` duration 검증 → orchestrator로 이동
+- `paper_chain.py` duration 검증 → metrics로 이동
+
+### 5. Container Parity (컨테이너 패리티)
+
+**원칙:**
+- 로컬 PC와 Docker/compose 환경 동일성 보장
+- heartbeat.jsonl 기반 healthcheck 필수
+- **상세:** [`OPS_PROTOCOL.md#6-docker-healthcheck-integration`](OPS_PROTOCOL.md#6-docker-healthcheck-integration)
+
+### 6. Failure Recovery (장애 복구)
+
+**원칙:**
+- SIGTERM 수신 후 10초 내 Evidence Flush 완료
+- 모든 Failure Mode에 대한 Recovery 절차 정의
+- **상세:** [`OPS_PROTOCOL.md#8-failure-modes--recovery`](OPS_PROTOCOL.md#8-failure-modes--recovery)
 
 ---
 
