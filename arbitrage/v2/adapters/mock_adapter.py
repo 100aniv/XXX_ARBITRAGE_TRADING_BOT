@@ -210,5 +210,6 @@ class MockAdapter(ExchangeAdapter):
             order_id=response["order_id"],
             filled_qty=response.get("filled_qty") if success else 0.0,
             filled_price=response.get("filled_price") if success else 0.0,
+            fee=0.0,
             raw_response=response
         )

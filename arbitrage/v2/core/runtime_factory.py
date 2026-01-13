@@ -101,6 +101,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         kpi=kpi,
         evidence_collector=evidence_collector,
         admin_control=admin_control,
+        run_id=config.run_id,
     )
     
     logger.info(f"[D205-18-2D] Paper Runtime built successfully")

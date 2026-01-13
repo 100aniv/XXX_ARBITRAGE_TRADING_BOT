@@ -150,6 +150,23 @@ collect_ignore = [
 ]
 
 
+@pytest.fixture
+def isolated_evidence_dir(tmp_path):
+    """
+    D205-18-4-FIX-3: Test Isolation - tmp_path 기반 evidence_dir
+    
+    목적:
+    - heartbeat.jsonl 잔여물로 인한 테스트 간 오염 방지
+    - 각 테스트가 독립적인 evidence_dir 사용
+    
+    Returns:
+        Path: 테스트 전용 임시 evidence 디렉토리
+    """
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    return evidence_dir
+
+
 def pytest_collection_modifyitems(config, items):
     """
     D205-9-4: live_api 마커 진짜 Deselect (collection에서 완전 제거)

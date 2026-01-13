@@ -21,6 +21,7 @@ class OrderResult:
         order_id: Exchange-specific order ID
         filled_qty: Filled quantity (base asset)
         filled_price: Average fill price
+        fee: Transaction fee (in quote currency)
         error_message: Error message if failed
         raw_response: Raw exchange response (for debugging)
     """
@@ -28,6 +29,7 @@ class OrderResult:
     order_id: Optional[str] = None
     filled_qty: Optional[float] = None
     filled_price: Optional[float] = None
+    fee: Optional[float] = None
     error_message: Optional[str] = None
     raw_response: Optional[Dict[str, Any]] = None
 

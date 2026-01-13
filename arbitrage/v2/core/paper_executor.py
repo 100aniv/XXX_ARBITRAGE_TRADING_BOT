@@ -21,7 +21,11 @@ class PaperExecutor:
     
     def execute(self, intent: OrderIntent, ref_price: Optional[float] = None):
         """주문 실행 (MockAdapter)"""
-        order_result = self.adapter.submit_order(intent)
+        payload = self.adapter.translate_intent(intent)
+        if ref_price:
+            payload["ref_price"] = ref_price
+        response = self.adapter.submit_order(payload)
+        order_result = self.adapter.parse_response(response)
         self._update_balance(intent, order_result)
         return order_result
     

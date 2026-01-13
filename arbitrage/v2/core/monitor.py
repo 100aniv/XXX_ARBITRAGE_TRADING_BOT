@@ -35,8 +35,8 @@ class EvidenceCollector:
     def __init__(self, output_dir: str, run_id: str = ""):
         """
         Args:
-            output_dir: Evidence 저장 경로
-            run_id: Run ID (optional)
+            output_dir: Evidence 저장 디렉토리
+            run_id: Run ID
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)

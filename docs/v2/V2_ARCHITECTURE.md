@@ -368,7 +368,119 @@ class ArbitrageEngine:
 
 ---
 
-## 🔄 V2 Flow Diagram
+## 🔄 V2 Architecture Diagrams (SSOT)
+
+### Diagram 1: Module Boundary (V1/V2 Separation)
+
+```mermaid
+graph TB
+    subgraph V2["V2 Runtime (arbitrage/v2/**)"]
+        Orchestrator[Orchestrator<br/>One True Loop]
+        Engine[ArbitrageEngine]
+        Adapters[ExchangeAdapter<br/>Mock/Upbit/Binance]
+        Executor[PaperExecutor]
+        Ledger[LedgerWriter]
+        Monitor[EvidenceCollector]
+        RunWatcher[RunWatcher<br/>Heartbeat]
+        
+        Orchestrator --> Engine
+        Orchestrator --> RunWatcher
+        Orchestrator --> Monitor
+        Orchestrator --> Ledger
+        Engine --> Adapters
+        Executor --> Adapters
+    end
+    
+    subgraph V2_Harness["V2 Harness (Thin Wrappers)"]
+        PaperRunner[PaperRunner<br/>CLI Only]
+        Scripts[scripts/run_*.py<br/>CLI Only]
+        
+        PaperRunner --> Orchestrator
+        Scripts --> Orchestrator
+    end
+    
+    subgraph V1_Legacy["V1 Legacy (Read-Only)"]
+        V1_Collector[Collector]
+        V1_Exchange[Exchange]
+        V1_Risk[risk_quant]
+    end
+    
+    V2 -.->|Reference Only| V1_Legacy
+    
+    style V2 fill:#e1f5e1
+    style V2_Harness fill:#fff4e1
+    style V1_Legacy fill:#ffe1e1
+```
+
+### Diagram 2: Run Protocol Flowchart (F1~F5 Invariants)
+
+```mermaid
+flowchart TD
+    Start([Start: orchestrator.run])
+    
+    Boot[Bootstrap<br/>- Signal Handler 등록<br/>- RunWatcher 시작<br/>- Evidence dir 생성]
+    
+    Loop{Main Loop<br/>SIGTERM?}
+    
+    Execute[Execute Cycle<br/>- Opportunity 탐지<br/>- OrderIntent 생성<br/>- Adapter 실행<br/>- Ledger 기록]
+    
+    Heartbeat[RunWatcher<br/>- 60초 heartbeat<br/>- KPI 수집]
+    
+    ValidateF1[F1: Wallclock Duration<br/>±5% 검증]
+    ValidateF2[F2: Heartbeat Density<br/>max_gap ≤ 65초]
+    ValidateF3[F3: DB Invariant<br/>closed_trades × 3 ≈ db_inserts]
+    ValidateF4[F4: Evidence Completeness<br/>4 files 존재]
+    
+    F1Pass{PASS?}
+    F2Pass{PASS?}
+    F3Pass{PASS?}
+    F4Pass{PASS?}
+    
+    F5SIGTERM[F5: SIGTERM Handler<br/>- Evidence Flush<br/>- Exit 1]
+    
+    AtomicFlush[Atomic Evidence Flush<br/>finally 블록]
+    
+    Exit0([Exit 0: Success])
+    Exit1([Exit 1: Failure])
+    
+    Start --> Boot
+    Boot --> Loop
+    Loop -->|No| Execute
+    Execute --> Heartbeat
+    Heartbeat --> Loop
+    
+    Loop -->|Yes| F5SIGTERM
+    F5SIGTERM --> AtomicFlush
+    AtomicFlush --> Exit1
+    
+    Loop -->|Duration End| ValidateF1
+    ValidateF1 --> F1Pass
+    F1Pass -->|Yes| ValidateF2
+    F1Pass -->|No| AtomicFlush
+    
+    ValidateF2 --> F2Pass
+    F2Pass -->|Yes| ValidateF3
+    F2Pass -->|No| AtomicFlush
+    
+    ValidateF3 --> F3Pass
+    F3Pass -->|Yes| ValidateF4
+    F3Pass -->|No| AtomicFlush
+    
+    ValidateF4 --> F4Pass
+    F4Pass -->|Yes| AtomicFlush
+    F4Pass -->|No| AtomicFlush
+    
+    AtomicFlush -->|All Pass| Exit0
+    AtomicFlush -->|Any Fail| Exit1
+    
+    style Start fill:#e1f5e1
+    style Exit0 fill:#e1f5e1
+    style Exit1 fill:#ffe1e1
+    style F5SIGTERM fill:#fff4e1
+    style AtomicFlush fill:#e1e1ff
+```
+
+### Legacy Flow Diagram (ASCII - Reference)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
