@@ -4,7 +4,7 @@ import logging
 
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
 from arbitrage.v2.domain.break_even import BreakEvenParams
-from arbitrage.v2.opportunity.price_normalizer import normalize_price_to_krw
+from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class RealOpportunitySource(OpportunitySource):
                 logger.info(f"[D205-18-2D] Real Upbit: {ticker_upbit.last:,.0f} KRW")
                 logger.info(f"[D205-18-2D] Real Binance: {ticker_binance.last:.2f} USDT")
             
-            fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+            fx_rate = self.fx_provider.get_rate("USDT", "KRW")
             
             if fx_rate < 1000 or fx_rate > 2000:
                 logger.error(f"[D205-18-2D] FX rate suspicious: {fx_rate} KRW/USDT")
@@ -142,7 +142,7 @@ class MockOpportunitySource(OpportunitySource):
         base_price_a_krw = 50_000_000.0
         base_price_b_usdt = 40_000.0
         
-        fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+        fx_rate = self.fx_provider.get_rate("USDT", "KRW")
         base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)
         
         spread_pct = 0.003 + (iteration % 10) * 0.0002

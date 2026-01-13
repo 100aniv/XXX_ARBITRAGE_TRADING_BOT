@@ -66,9 +66,12 @@ def test_paper_runner_no_while_loop():
         f"\n\n⚠️ PaperRunner는 Thin Wrapper여야 하며, while 루프는 Engine.run()에만 존재해야 함"
     )
     
-    # 추가 검증: Engine.run() 호출 존재 확인
-    assert 'engine.run(' in source_code, (
-        "❌ FAIL: PaperRunner.run()에 engine.run() 호출이 없음"
+    # 추가 검증: orchestrator.run() 또는 engine.run() 호출 존재 확인
+    # D205-18-4-FIX: Orchestrator → Engine 구조로 변경되어 orchestrator.run()도 허용
+    has_orchestrator_call = 'orchestrator.run()' in source_code
+    has_engine_call = 'engine.run(' in source_code
+    assert has_orchestrator_call or has_engine_call, (
+        "❌ FAIL: PaperRunner.run()에 orchestrator.run() 또는 engine.run() 호출이 없음"
     )
     
     print("✅ PASS: PaperRunner에 while 루프 없음 (Engine.run() 호출 확인)")

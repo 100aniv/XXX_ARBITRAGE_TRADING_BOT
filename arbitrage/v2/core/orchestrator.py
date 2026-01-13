@@ -83,11 +83,11 @@ class PaperOrchestrator:
             
             import time
             start_time = time.time()
-            wallclock_start = start_time  # D205-18-4R: Wallclock tracking
             
-            # D205-18-4R: metrics에 wallclock_start 설정 (정확한 wall-clock 기준)
+            # D205-18-4-FIX F1: Wallclock tracking - 루프 직전 시점 기록 (객체 초기화 시간 제외)
+            wallclock_start = time.time()
             self.kpi.wallclock_start = wallclock_start
-            logger.info(f"[D205-18-4R] Wallclock tracking started: {wallclock_start}")
+            logger.info(f"[D205-18-4-FIX F1] Wallclock tracking started (loop entry): {wallclock_start}")
             
             while time.time() - start_time < duration_sec:
                 iteration += 1
@@ -218,7 +218,8 @@ class PaperOrchestrator:
                 )
             
             # D205-18-4R2: Step 3 - DB Invariant 검증
-            expected_inserts = self.kpi.closed_trades * 2  # entry + exit per trade
+            # D205-18-4-FIX F3: order(1) + fill(1) + trade(1) = 3 per trade
+            expected_inserts = self.kpi.closed_trades * 3
             actual_inserts = self.kpi.db_inserts_ok
             if self.kpi.closed_trades > 0:  # 거래가 있을 때만 검증
                 if abs(actual_inserts - expected_inserts) > 2:  # ±2 허용 (경계 조건)
@@ -241,6 +242,32 @@ class PaperOrchestrator:
             # Evidence 저장
             db_counts = self.ledger_writer.get_counts()
             self.save_evidence(db_counts=db_counts)
+            
+            # D205-18-4-FIX F4: Evidence Completeness Invariant
+            from pathlib import Path
+            evidence_dir = Path("logs/evidence") / self.run_id
+            required_files = ["chain_summary.json", "heartbeat.jsonl", "kpi.json"]
+            
+            missing_files = []
+            empty_files = []
+            for filename in required_files:
+                filepath = evidence_dir / filename
+                if not filepath.exists():
+                    missing_files.append(filename)
+                elif filepath.stat().st_size == 0:
+                    empty_files.append(filename)
+            
+            if missing_files or empty_files:
+                logger.error(
+                    f"[D205-18-4-FIX F4] Evidence Completeness FAIL: "
+                    f"missing={missing_files}, empty={empty_files}"
+                )
+                return 1
+            
+            logger.info(
+                f"[D205-18-4-FIX F4] Evidence Completeness PASS: "
+                f"all required files exist and non-empty"
+            )
             
             # Exit Code 보장: watcher stop_reason='ERROR' 시 return 1
             if self._watcher and self._watcher.stop_reason == "ERROR":

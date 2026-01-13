@@ -292,14 +292,15 @@ class RunWatcher:
     
     def verify_heartbeat_density(self) -> dict:
         """
-        D205-18-4R: Heartbeat density 검증
+        D205-18-4-FIX F2: Heartbeat density 검증 (WARN=FAIL + max_gap)
         
         Returns:
             {
                 "heartbeat_file": str,
                 "line_count": int,
-                "expected_min": int (duration_minutes / heartbeat_sec * 60),
-                "status": "PASS" | "WARN" | "FAIL",
+                "expected_min": int,
+                "max_gap_seconds": float,
+                "status": "PASS" | "FAIL",
                 "message": str
             }
         """
@@ -313,27 +314,54 @@ class RunWatcher:
                     "message": "heartbeat.jsonl not found"
                 }
             
-            with open(self._heartbeat_file, "r", encoding="utf-8") as f:
-                line_count = sum(1 for _ in f)
+            # D205-18-4-FIX F2: heartbeat.jsonl 읽기 + timestamp 파싱
+            import json
+            from datetime import datetime
             
-            # heartbeat_sec 기준으로 예상 최소 라인 수 계산
-            # 예: 60분 실행, 60초 heartbeat → 최소 60줄
-            expected_min = max(1, int(self.config.heartbeat_sec / 60))  # 최소 1줄
+            timestamps = []
+            with open(self._heartbeat_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        ts_str = record.get("timestamp")
+                        if ts_str:
+                            ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                            timestamps.append(ts.timestamp())
+                    except (json.JSONDecodeError, ValueError, KeyError):
+                        continue
+            
+            line_count = len(timestamps)
+            
+            # D205-18-4-FIX F2: expected_min 수정 (duration_minutes 기반)
+            # 예: 20분 run, 60초 heartbeat → 최소 20줄
+            # RunWatcher는 duration_minutes를 모르므로, line_count 기반 검증으로 변경
+            # 최소 1줄은 있어야 함
+            expected_min = max(1, 1)  # 최소 1줄 (정확한 duration은 orchestrator에서 전달 필요)
+            
+            # D205-18-4-FIX F2: max_gap 검증 (OPS_PROTOCOL 65초 이하)
+            max_gap = 0.0
+            if len(timestamps) >= 2:
+                gaps = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps)-1)]
+                max_gap = max(gaps) if gaps else 0.0
             
             if line_count == 0:
                 status = "FAIL"
                 message = "No heartbeat records"
+            elif max_gap > 65.0:  # OPS_PROTOCOL Invariant 2.2
+                status = "FAIL"  # D205-18-4-FIX F2: WARN = FAIL
+                message = f"Heartbeat gap too large: {max_gap:.1f}s (max 65s)"
             elif line_count < expected_min:
-                status = "WARN"
-                message = f"Low heartbeat density: {line_count} lines (expected >= {expected_min})"
+                status = "FAIL"  # D205-18-4-FIX F2: WARN = FAIL
+                message = f"Low heartbeat density: {line_count} lines"
             else:
                 status = "PASS"
-                message = f"Heartbeat density OK: {line_count} lines"
+                message = f"Heartbeat density OK: {line_count} lines, max_gap={max_gap:.1f}s"
             
             return {
                 "heartbeat_file": self._heartbeat_file,
                 "line_count": line_count,
                 "expected_min": expected_min,
+                "max_gap_seconds": max_gap,
                 "status": status,
                 "message": message
             }
