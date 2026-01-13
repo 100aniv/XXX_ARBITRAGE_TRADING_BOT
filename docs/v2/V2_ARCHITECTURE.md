@@ -280,7 +280,38 @@ class UpbitAdapter(ExchangeAdapter):
 
 ---
 
-### 3. ArbitrageEngine (Orchestrator)
+### 3. One True Loop (단일 오케스트레이션 루프) - SSOT
+
+**D205-18-4-FIX-2 ADD-ON A 정의:**
+
+> One True Loop란 아래 기능을 **"단일 모듈/단일 진입점"**이 책임지는 것을 의미한다.
+> 다음 중 하나라도 2곳 이상에 분산되면 산재/덕지덕지 확정 → 즉시 FAIL
+
+**One True Loop 책임 (모두 `orchestrator.py`에서 수행):**
+1. 실행 루프 (while/for/tick scheduler)
+2. RunWatcher (heartbeat) 시작/중지/검증 연계
+3. Ops Validation (F1~F5) 최종 판정 및 Exit Code 결정
+4. SIGTERM 처리 (F5) 및 Evidence Atomic Flush
+5. Evidence 생성/검증 (필수 파일 존재/크기) 및 run_id 디렉토리 확정
+6. "실행 종료 조건 (stop_reason)"의 단일 판정
+
+**현재 구현:**
+- **One True Loop 위치:** `arbitrage/v2/core/orchestrator.py`
+- **Engine/Orchestrator 관계:** `PaperOrchestrator`가 유일한 루프 소유
+- **Runner (Thin Wrapper):** `arbitrage/v2/harness/paper_runner.py`
+  - while 루프 없음
+  - `orchestrator.run()` 호출만 수행
+  - Exit code 전파만 담당
+
+**금지 사항:**
+- ❌ Runner에 while 루프 추가
+- ❌ Runner에 판단 로직 추가
+- ❌ Runner에 Evidence 생성 로직 추가
+- ❌ engine.py와 orchestrator.py 동시에 루프 보유
+
+---
+
+### 4. ArbitrageEngine (Orchestrator)
 
 **Purpose:** 차익거래 로직 + OrderIntent 생성
 

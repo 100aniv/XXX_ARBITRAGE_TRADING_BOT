@@ -179,19 +179,40 @@ class EvidenceCollector:
                 json.dump(decision_trace, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Decision trace saved: {trace_path} ({len(decision_trace)} samples)")
             
-            # 4. Manifest
-            manifest = {
+            # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
+            chain_summary = {
+                "run_id": self.run_id,
                 "phase": phase,
+                "duration_seconds": kpi_dict.get("duration_seconds"),
+                "closed_trades": kpi_dict.get("closed_trades"),
+                "wins": kpi_dict.get("wins"),
+                "losses": kpi_dict.get("losses"),
+                "net_pnl": kpi_dict.get("net_pnl"),
+                "opportunities_generated": kpi_dict.get("opportunities_generated"),
+                "stop_reason": kpi_dict.get("stop_reason", "TIME_REACHED"),
+            }
+            chain_summary_path = self.output_dir / "chain_summary.json"
+            with open(chain_summary_path, "w", encoding="utf-8") as f:
+                json.dump(chain_summary, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Chain summary saved: {chain_summary_path}")
+            
+            # 5. Manifest (OPS_PROTOCOL 필수 파일 목록 포함)
+            manifest = {
+                "run_id": self.run_id,
+                "phase": phase,
+                "timestamp": kpi_dict.get("start_time"),
                 "duration_seconds": kpi_dict.get("duration_seconds"),
                 "closed_trades": kpi_dict.get("closed_trades"),
                 "winrate_pct": kpi_dict.get("winrate_pct"),
                 "net_pnl": kpi_dict.get("net_pnl"),
                 "marketdata_mode": kpi_dict.get("marketdata_mode"),
                 "files": [
+                    "chain_summary.json",
+                    "heartbeat.jsonl",
                     "kpi.json",
+                    "manifest.json",
                     "metrics_snapshot.json",
-                    "decision_trace.json",
-                    "manifest.json"
+                    "decision_trace.json"
                 ]
             }
             manifest_path = self.output_dir / "manifest.json"

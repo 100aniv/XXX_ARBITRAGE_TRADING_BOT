@@ -49,10 +49,11 @@
 - **검증:** `max_gap_seconds <= 65`
 
 ### 2.3 DB Invariant
-- **조건:** `closed_trades × 2 ≈ db_inserts_ok` (±2 허용)
+- **조건:** `closed_trades × 3 ≈ db_inserts_ok` (±2 허용)
 - **위반 시:** `orchestrator.run()` 즉시 Exit Code 1 반환
-- **근거:** 거래당 entry + exit 2번 DB insert 필수
-- **검증:** `abs(db_inserts_ok - closed_trades * 2) <= 2`
+- **근거:** 거래당 order(1) + fill(1) + trade(1) = 3번 DB insert
+- **검증:** `abs(db_inserts_ok - closed_trades * 3) <= 2`
+- **코드:** `arbitrage/v2/core/orchestrator.py:252-267`
 
 ### 2.4 Evidence Completeness Invariant
 - **조건:** Evidence Minimum Set 모든 파일 존재
@@ -60,11 +61,16 @@
 - **근거:** 감사 추적 및 재현성 확보
 - **검증:** 모든 파일 존재 확인 (파일 크기 > 0)
 
-### 2.5 Graceful Shutdown Invariant
+### 2.5 Graceful Shutdown Invariant (F5)
 - **조건:** SIGTERM 수신 후 10초 내 Evidence Flush 완료
 - **위반 시:** 강제 종료 전 마지막 Evidence 저장 시도
 - **근거:** 장애 시에도 증거 보존 필수
 - **검증:** `finally` 블록 실행 + 타임아웃 10초
+- **코드:** `arbitrage/v2/core/orchestrator.py:79-95` (signal handler)
+- **메커니즘:**
+  1. `signal.signal(SIGTERM, handler)` 등록
+  2. Handler가 `_sigterm_received = True` 설정
+  3. 메인 루프 break → Evidence Flush → Exit 1
 
 ---
 
@@ -119,7 +125,7 @@
 **Operational WARN → FAIL 예시:**
 - ❌ wallclock duration ±5% 초과
 - ❌ heartbeat.jsonl 65초 초과 간격
-- ❌ DB invariant 위반 (closed_trades × 2 ≠ db_inserts ±2)
+- ❌ DB invariant 위반 (closed_trades × 3 ≠ db_inserts ±2)
 - ❌ Evidence 파일 누락 (chain_summary/heartbeat/kpi/manifest)
 
 **KPI WARN → 로그만 (RunWatcher FAIL 조건으로 처리):**

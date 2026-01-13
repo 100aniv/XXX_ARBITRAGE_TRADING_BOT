@@ -14,6 +14,8 @@ Date: 2026-01-11
 """
 
 import logging
+import signal
+import sys
 from typing import Dict, Optional, Any
 from datetime import datetime
 import uuid
@@ -62,13 +64,35 @@ class PaperOrchestrator:
         self.run_id = run_id
         
         self._stop_requested = False
+        self._sigterm_received = False
         self._watcher = None
         self.trade_history = []
+        
+        # D205-18-4-FIX-2 F5: SIGTERM Handler 등록
+        self._register_signal_handlers()
     
     def request_stop(self):
         """RunWatcher 중단 요청"""
         logger.warning("[D205-18-2D] Stop requested by RunWatcher")
         self._stop_requested = True
+    
+    def _register_signal_handlers(self):
+        """
+        D205-18-4-FIX-2 F5: SIGTERM/SIGINT Handler 등록
+        
+        OPS_PROTOCOL Invariant 2.5:
+        - SIGTERM 수신 후 10초 내 Evidence Flush 완료
+        - Exit Code 1 반환 (비정상 종료)
+        """
+        def sigterm_handler(signum, frame):
+            signal_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
+            logger.warning(f"[D205-18-4-FIX-2 F5] {signal_name} received, initiating graceful shutdown")
+            self._sigterm_received = True
+            self._stop_requested = True
+        
+        signal.signal(signal.SIGTERM, sigterm_handler)
+        signal.signal(signal.SIGINT, sigterm_handler)
+        logger.info("[D205-18-4-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
     
     def run(self) -> int:
         """메인 실행 루프"""
@@ -93,7 +117,10 @@ class PaperOrchestrator:
                 iteration += 1
                 
                 if self._stop_requested:
-                    logger.warning("[D205-18-2D] Stop requested")
+                    if self._sigterm_received:
+                        logger.warning("[D205-18-4-FIX-2 F5] Graceful shutdown initiated (SIGTERM)")
+                    else:
+                        logger.warning("[D205-18-2D] Stop requested by RunWatcher")
                     break
                 
                 # 1. Opportunity 생성
@@ -177,6 +204,13 @@ class PaperOrchestrator:
             
             logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations")
             
+            # D205-18-4-FIX-2 F5: SIGTERM 시 즉시 Evidence Flush + Exit 1
+            if self._sigterm_received:
+                logger.warning("[D205-18-4-FIX-2 F5] SIGTERM detected, skipping validation, flushing evidence")
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                return 1  # SIGTERM = Exit 1
+            
             # D205-18-4R2: Wallclock duration 종료 시간 기록
             wallclock_end = time.time()
             actual_duration = wallclock_end - wallclock_start
@@ -243,10 +277,10 @@ class PaperOrchestrator:
             db_counts = self.ledger_writer.get_counts()
             self.save_evidence(db_counts=db_counts)
             
-            # D205-18-4-FIX F4: Evidence Completeness Invariant
+            # D205-18-4-FIX-2 F4: Evidence Completeness Invariant (manifest.json 포함)
             from pathlib import Path
             evidence_dir = Path("logs/evidence") / self.run_id
-            required_files = ["chain_summary.json", "heartbeat.jsonl", "kpi.json"]
+            required_files = ["chain_summary.json", "heartbeat.jsonl", "kpi.json", "manifest.json"]
             
             missing_files = []
             empty_files = []
