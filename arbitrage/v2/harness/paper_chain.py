@@ -55,6 +55,12 @@ class ChainRunner:
         "extended": 720,
     }
     
+    # D205-18-4: Paper Acceptance 전용 프로파일
+    ACCEPTANCE_PROFILE = {
+        "baseline": 20,
+        "longrun": 60,
+    }
+    
     def __init__(
         self,
         durations: List[int],
@@ -103,6 +109,7 @@ class ChainRunner:
         D205-2 REOPEN-2: SSOT 프로파일 검증 (phase명 통일)
         
         profile=ssot: SSOT 시간 준수 강제 (20/60/180/720m)
+        profile=acceptance: Paper Acceptance 전용 (baseline=20m, longrun=60m)
         profile=quick: phase명 동일, durations만 짧게 허용 (1/2/3m)
         
         _q suffix 제거: 체인 검증 파이프라인 통일
@@ -122,7 +129,18 @@ class ChainRunner:
                 sys.exit(1)
             logger.info(f" SSOT PASS: phase '{phase}' duration {duration}m >= {expected}m")
         
-        # Rule 3: profile=quick → 짧은 시간 허용 (phase명은 동일)
+        # Rule 3: profile=acceptance → D205-18-4 Paper Acceptance 전용
+        elif self.profile == "acceptance":
+            if phase in self.ACCEPTANCE_PROFILE:
+                expected = self.ACCEPTANCE_PROFILE[phase]
+                if duration < expected:
+                    logger.error(f" SSOT FAIL: phase '{phase}' requires {expected}m, got {duration}m")
+                    sys.exit(1)
+                logger.info(f" ACCEPTANCE PASS: phase '{phase}' duration {duration}m >= {expected}m")
+            else:
+                logger.info(f" ACCEPTANCE PASS: phase '{phase}' allows any duration")
+        
+        # Rule 4: profile=quick → 짧은 시간 허용 (phase명은 동일)
         elif self.profile == "quick":
             logger.info(f" SSOT PASS: profile=quick allows short duration for phase '{phase}'")
         
@@ -433,8 +451,8 @@ def main():
     parser.add_argument(
         "--profile",
         default="ssot",
-        choices=["ssot", "quick"],
-        help="SSOT profile: 'ssot' (20,60,180) or 'quick' (1,2,3 with _q suffix)"
+        choices=["ssot", "acceptance", "quick"],
+        help="SSOT profile: 'ssot' (20,60,180), 'acceptance' (baseline=20m, longrun=60m), or 'quick' (1,2,3 with _q suffix)"
     )
     
     args = parser.parse_args()

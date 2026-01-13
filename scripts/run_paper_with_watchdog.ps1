@@ -17,7 +17,7 @@ param(
     [string]$Phases,
     
     [Parameter(Mandatory=$false)]
-    [ValidateSet("ssot", "quick")]
+    [ValidateSet("ssot", "acceptance", "quick")]
     [string]$Profile = "ssot",
     
     [Parameter(Mandatory=$false)]

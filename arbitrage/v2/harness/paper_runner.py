@@ -97,8 +97,14 @@ class PaperRunner:
     """
     
     def __init__(self, config: PaperRunnerConfig, admin_control=None):
+        """
+        Args:
+            config: PaperRunnerConfig
+            admin_control: Optional AdminControl
+        """
         self.config = config
         self.admin_control = admin_control
+        self.kpi = None  # D205-18-4-FIX-3: 테스트 호환성
         logger.info(f"[D205-18-2D] PaperRunner initialized: {config.run_id}")
     
     def run(self) -> int:
@@ -121,9 +127,6 @@ class PaperRunner:
             
             # Orchestrator 실행 (모든 로직은 Core에서 처리)
             exit_code = orchestrator.run()
-            
-            # D205-18-4-FIX-3: 테스트 호환성 (kpi 노출)
-            self.kpi = orchestrator.kpi
             
             logger.info(f"[D205-18-2D] PaperRunner completed: exit_code={exit_code}")
             return exit_code
