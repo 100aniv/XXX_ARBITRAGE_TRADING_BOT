@@ -57,11 +57,11 @@ class StrategyConfig:
 
 
 @dataclass
-class ExecutionConfig:
-    """실행 설정"""
-    cycle_interval_seconds: float
-    max_concurrent_orders: int
-    dry_run: bool
+class ExecutionEnvironmentConfig:
+    """실행 환경 설정 (D206 Taxonomy)"""
+    environment: str  # backtest | paper | live
+    profile: str  # smoke | baseline | longrun | acceptance | extended
+    rigor: str  # quick | ssot
 
 
 @dataclass
@@ -134,11 +134,14 @@ class MetaConfig:
 @dataclass
 class V2Config:
     """V2 전체 설정"""
-    mode: str  # paper, live, replay (D205-13)
+    mode: str  # paper, live, replay (D205-13, Legacy - use execution_env.environment)
+    execution_env: ExecutionEnvironmentConfig  # D206 Taxonomy (environment/profile/rigor)
     exchanges: Dict[str, ExchangeConfig]
     universe: UniverseConfig
     strategy: StrategyConfig
-    execution: ExecutionConfig
+    cycle_interval_seconds: float  # Legacy (moved from execution block)
+    max_concurrent_orders: int  # Legacy
+    dry_run: bool  # Legacy
     safety: SafetyConfig
     reporting: ReportingConfig
     monitoring: MonitoringConfig
@@ -150,7 +153,24 @@ class V2Config:
     
     def validate(self):
         """설정 검증"""
-        # Mode 검증 (D205-13)
+        # D206 Taxonomy 검증
+        valid_environments = ["backtest", "paper", "live"]
+        if self.execution_env.environment not in valid_environments:
+            raise ValueError(f"execution.environment는 {valid_environments} 중 하나여야 함 (현재: {self.execution_env.environment})")
+        
+        valid_profiles = ["smoke", "baseline", "longrun", "acceptance", "extended"]
+        if self.execution_env.profile not in valid_profiles:
+            raise ValueError(f"execution.profile은 {valid_profiles} 중 하나여야 함 (현재: {self.execution_env.profile})")
+        
+        valid_rigors = ["quick", "ssot"]
+        if self.execution_env.rigor not in valid_rigors:
+            raise ValueError(f"execution.rigor는 {valid_rigors} 중 하나여야 함 (현재: {self.execution_env.rigor})")
+        
+        # LIVE 모드 설계 누락 검증 (D206 ADD-ON)
+        if self.execution_env.environment == "live":
+            logger.warning("[V2 Config] LIVE 환경 설정됨 - LIVE 모드는 D206 이후 구현 예정")
+        
+        # Mode 검증 (D205-13, Legacy)
         valid_modes = ["paper", "live", "replay"]
         if self.mode not in valid_modes:
             raise ValueError(f"mode는 {valid_modes} 중 하나여야 함 (현재: {self.mode})")
@@ -177,7 +197,7 @@ class V2Config:
         if self.safety.max_position_usd <= 0:
             raise ValueError("max_position_usd는 양수여야 함")
         
-        logger.info(f"[V2 Config] 검증 완료: {len(enabled_exchanges)}개 거래소 활성화")
+        logger.info(f"[V2 Config] 검증 완료: env={self.execution_env.environment}, profile={self.execution_env.profile}, rigor={self.execution_env.rigor}, {len(enabled_exchanges)}개 거래소")
     
     def get_break_even_spread_bps(self, exchange_a: str, exchange_b: str) -> float:
         """
@@ -234,7 +254,15 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     with open(path, 'r', encoding='utf-8') as f:
         raw_config = yaml.safe_load(f)
     
-    # Mode 파싱 (D205-13)
+    # D206 Taxonomy 파싱
+    exec_data = raw_config.get('execution', {})
+    execution_env = ExecutionEnvironmentConfig(
+        environment=exec_data.get('environment', 'paper'),
+        profile=exec_data.get('profile', 'smoke'),
+        rigor=exec_data.get('rigor', 'quick')
+    )
+    
+    # Mode 파싱 (D205-13, Legacy)
     mode = raw_config.get('mode', 'paper')  # 기본값: paper
     
     # Exchanges 파싱
@@ -342,13 +370,21 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         description=raw_config['meta']['description'],
     )
     
+    # Legacy 필드 추출
+    cycle_interval_seconds = raw_config.get('cycle_interval_seconds', 1.0)
+    max_concurrent_orders = raw_config.get('max_concurrent_orders', 1)
+    dry_run = raw_config.get('dry_run', True)
+    
     # V2Config 생성
     config = V2Config(
         mode=mode,
+        execution_env=execution_env,
         exchanges=exchanges,
         universe=universe,
         strategy=strategy,
-        execution=execution,
+        cycle_interval_seconds=cycle_interval_seconds,
+        max_concurrent_orders=max_concurrent_orders,
+        dry_run=dry_run,
         safety=safety,
         reporting=reporting,
         monitoring=monitoring,

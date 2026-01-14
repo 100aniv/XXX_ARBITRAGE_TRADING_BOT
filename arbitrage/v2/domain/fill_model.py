@@ -15,6 +15,36 @@ Date: 2026-01-10
 
 from typing import Literal
 from arbitrage.v2.opportunity import BreakEvenParams
+from dataclasses import dataclass
+from decimal import Decimal
+import random
+import time
+
+
+@dataclass
+class FillModelConfig:
+    """체결 모델 설정 (D206 Taxonomy)"""
+    enable_slippage: bool = True
+    slippage_bps_min: float = 20.0
+    slippage_bps_max: float = 50.0
+    enable_latency: bool = True
+    latency_ms_min: int = 10
+    latency_ms_max: int = 100
+    enable_partial_fill: bool = True
+    partial_fill_probability: float = 0.1  # 10% 부분 체결 확률
+    partial_fill_ratio_min: float = 0.5
+    partial_fill_ratio_max: float = 0.9
+
+
+@dataclass
+class FillResult:
+    """체결 결과"""
+    filled_qty: Decimal
+    avg_price: Decimal
+    is_fully_filled: bool
+    slippage_bps: Optional[float] = None  # 슬리피지 (bps)
+    latency_ms: Optional[int] = None  # 지연 시간 (ms)
+    is_partial: bool = False  # 부분 체결 여부
 
 
 def apply_execution_risk(

@@ -4,7 +4,27 @@
 # 규칙: Secrets(API Key)는 절대 여기 넣지 말고 .env.v2로만
 # 검증: arbitrage.v2.core.config.load_config()로 validation
 
-# 실행 모드 (SSOT - D205-13)
+# Execution Environment (SSOT - D206 Taxonomy)
+# BACKTEST: 과거 데이터 재생 (historical replay)
+# PAPER: 실시간 데이터 + 모의 체결 (live data, simulated fills)
+# LIVE: 실시간 데이터 + 실제 체결 (live data, real fills)
+execution:
+  environment: "paper"  # backtest | paper | live
+  
+  # Run Profile (실행 프로파일 - 시간/검증 강도)
+  # SMOKE: 5분 이내 (빠른 검증)
+  # BASELINE: 20분 (표준 검증)
+  # LONGRUN: 60분+ (장기 실증)
+  # ACCEPTANCE: 80분+ (Paper Acceptance)
+  # EXTENDED: 3시간+ (확장 검증)
+  profile: "smoke"  # smoke | baseline | longrun | acceptance | extended
+  
+  # Validation Rigor (검증 엄격도)
+  # QUICK: 빠른 검증 (슬리피지/latency 모델 옵션)
+  # SSOT: 운영급 검증 (WARN=FAIL, 슬리피지/latency 강제, DB strict)
+  rigor: "quick"  # quick | ssot
+
+# Legacy (Deprecated, use execution.environment)
 mode: "paper"  # paper, live, replay
 
 # FX 설정 (D205-15-4: Real-time FX Integration)
@@ -148,26 +168,24 @@ strategy:
       upbit_krw: 5000     # 업비트 고정 주문 금액
       binance_usdt: 10.0  # 바이낸스 고정 주문 금액
 
-# Execution (실행 설정)
-execution:
-  # Engine cycle 주기 (초)
-  cycle_interval_seconds: 1.0
+# Engine cycle 주기 (초)
+cycle_interval_seconds: 1.0
+
+# 동시 실행 가능 주문 수
+max_concurrent_orders: 1
+
+# Dry-run 모드 (실제 주문 없이 로그만)
+dry_run: true
+
+# MockAdapter 설정 (테스트 전용, D205-18-1)
+mock_adapter:
+  # 슬리피지 활성화 여부
+  enable_slippage: true
   
-  # 동시 실행 가능 주문 수
-  max_concurrent_orders: 1
-  
-  # Dry-run 모드 (실제 주문 없이 로그만)
-  dry_run: true
-  
-  # MockAdapter 설정 (테스트 전용, D205-18-1)
-  mock_adapter:
-    # 슬리피지 활성화 여부
-    enable_slippage: true
-    
-    # 슬리피지 범위 (bps)
-    # D205-17: Net edge 77bps 기준, 20-50bps (25-65% of edge)
-    slippage_bps_min: 20.0
-    slippage_bps_max: 50.0
+  # 슬리피지 범위 (bps)
+  # D205-17: Net edge 77bps 기준, 20-50bps (25-65% of edge)
+  slippage_bps_min: 20.0
+  slippage_bps_max: 50.0
 
 # Safety (안전 장치)
 safety:

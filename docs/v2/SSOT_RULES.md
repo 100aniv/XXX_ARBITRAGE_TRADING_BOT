@@ -1,12 +1,12 @@
 # V2 SSOT Rules (Single Source of Truth)
 
-**Version:** 1.0  
+**Version:** 2.1 (D206 Taxonomy Update)  
 **Effective Date:** 2025-12-29  
 **Status:** ENFORCED
 
 ---
 
-## 🎯 핵심 원칙
+## 핵심 원칙
 
 ### 1. SSOT는 D_ROADMAP.md 단 1개
 - ❌ **금지:** D_ROADMAP_V2.md, D_ROADMAP_V3.md 같은 SSOT 분기

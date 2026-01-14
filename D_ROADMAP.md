@@ -5873,15 +5873,78 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-1: Grafana (튜닝/운영 모니터링 용도만)
-**상태:** PLANNED
+#### D206-1: Taxonomy Standardization (용어 표준화)
+**상태:** ✅ COMPLETED (2026-01-15)
+**커밋:** [d206_1_taxonomy_fix]
+**테스트:** Doctor Gate PASS
+**문서:** `docs/v2/SSOT_RULES.md` Section M
+
+**목표:**
+- RunMode/RunProfile/Phase 혼용 제거
+- Execution Environment / Run Profile / Validation Rigor 단일 정의
+- PAPER/LIVE 차이를 설계에 명확히 반영
+
+**Acceptance Criteria:**
+- AC-1: ✅ config.yml에 execution.environment/profile/rigor 추가
+- AC-2: ✅ arbitrage/v2/core/config.py에 ExecutionEnvironmentConfig dataclass 추가
+- AC-3: ✅ FillModelConfig에 slippage/latency/partial_fill 설정 추가
+- AC-4: ✅ SSOT_RULES.md Section M 추가 (Taxonomy 정의)
+- AC-5: ✅ Doctor Gate PASS (compileall)
+- AC-6: ✅ D_ROADMAP.md D206-1 섹션 추가
+
+**Implementation:**
+1. **config.yml Taxonomy 블록**
+   ```yaml
+   execution:
+     environment: "paper"  # backtest | paper | live
+     profile: "smoke"      # smoke | baseline | longrun | acceptance | extended
+     rigor: "quick"        # quick | ssot
+   ```
+
+2. **ExecutionEnvironmentConfig (config.py)**
+   - environment: BACKTEST | PAPER | LIVE
+   - profile: SMOKE | BASELINE | LONGRUN | ACCEPTANCE | EXTENDED
+   - rigor: QUICK | SSOT
+
+3. **FillModelConfig (fill_model.py)**
+   - enable_slippage/latency/partial_fill 옵션 추가
+   - SSOT rigor에서 강제 활성화
+
+4. **SSOT_RULES.md Section M**
+   - M-1: 용어 표준화
+   - M-2: PAPER 상용급 정의 (slippage/latency/partial 강제)
+   - M-3: LIVE 모드 설계 (계획 단계)
+   - M-4: CLI 인자 표준화
+
+**Gate Results:**
+- ✅ Doctor: compileall PASS (Exit Code 0)
+
+**Evidence:**
+- `config/v2/config.yml` (execution taxonomy)
+- `arbitrage/v2/core/config.py` (ExecutionEnvironmentConfig)
+- `arbitrage/v2/domain/fill_model.py` (FillModelConfig)
+- `docs/v2/SSOT_RULES.md` (Section M)
+
+**의존성:**
+- Depends on: D205-18-4R2 (Run Protocol 강제화) ✅
+- Unblocks: D206-2 (Paper/Live Parity)
+
+**다음 단계:**
+- D206-2: Paper/Live Parity 강제 (slippage/latency 모델 활성화)
+- D206-3: Operational Protocol Integration (WARN=FAIL + Invariant)
+- D207+: Infrastructure (Grafana/Docker/CI) - 핵심 로직 완료 후
+
+---
+
+#### D207-1: Grafana (튜닝/운영 모니터링 용도만)
+**상태:** PLANNED (D206 완료 후)
 **커밋:** [pending]
 **테스트:** [pending]
-**문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
+**문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
 
 **목표:**
 - D205-4~9 지표를 패널로 시각화 (읽기 전용)
-- 제어 기능은 D206-4에서 담당 (UI/API/텔레그램)
+- 제어 기능은 D207-4에서 담당 (UI/API/텔레그램)
 
 **금지:**
 - ❌ 핵심 로직 검증 전 Grafana 먼저 → 절대 금지
