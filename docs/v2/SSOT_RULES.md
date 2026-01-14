@@ -1552,6 +1552,164 @@ logs/evidence/d204_2_chain_YYYYMMDD_HHMM/
 
 ---
 
+## Section M: Taxonomy 정의 (D206 Ops Protocol + Mode/Profile 표준화)
+
+**Version:** 2.0 (D206 REPLAN 기반)  
+**Effective Date:** 2026-01-15  
+**Status:** ENFORCED
+
+### M-1: 용어 표준화 (강제)
+
+**원칙:** RunMode/RunProfile/Phase 혼용 금지, 단일 정의 강제
+
+**M-1.1: RunMode (실행 환경)**
+- **정의:** 엔진이 실행되는 환경
+- **허용 값:** BACKTEST | PAPER | LIVE
+- **금지:** "모드"와 "프로파일"을 섞어 쓰기, "phase"를 "mode"로 혼용
+- **예시:**
+  - ✅ 허용: `execution.environment = "paper"`
+  - ❌ 금지: `mode = "smoke"` (smoke는 profile)
+  - ❌ 금지: `phase = "live"` (live는 environment)
+
+**M-1.2: RunProfile (실행 프로파일)**
+- **정의:** 실행 시간, 데이터 양, 검증 강도 등의 설정 세트
+- **허용 값:** SMOKE | BASELINE | LONGRUN | ACCEPTANCE | EXTENDED
+- **예시:**
+  - SMOKE: 5분 실행 + 최소 evidence (빠른 검증)
+  - BASELINE: 20분 실행 + 표준 evidence (일반 검증)
+  - LONGRUN: 60분+ 실행 + 추가 계측 (장기 안정성 검증)
+  - ACCEPTANCE: 상용급 검증 (BASELINE + LONGRUN 조합)
+  - EXTENDED: 확장 검증 (특수 시나리오)
+
+**M-1.3: Phase (단계)**
+- **정의:** 체인 실행의 구간 (예: baseline 20m, longrun 60m)
+- **특징:** Profile이 Phase 구성을 결정
+- **예시:** ACCEPTANCE 프로파일 = baseline 20m + longrun 60m 2개 Phase
+
+**M-1.4: ValidationRigor (검증 강도)**
+- **정의:** 테스트/검증의 엄격도
+- **허용 값:** QUICK | SSOT
+- **예시:**
+  - QUICK: 빠른 검증 (슬리피지/latency 모델 OFF)
+  - SSOT: 상용급 검증 (슬리피지/latency/partial 강제 ON)
+
+---
+
+### M-2: PAPER 상용급 정의 (강제)
+
+**원칙:** PAPER는 "실시간 시장 데이터 + 모의 체결"이며, 현실 마찰 모델 필수
+
+**M-2.1: PAPER 모드 정의**
+- **실시간 데이터:** 시장 데이터, 계좌/포지션/호가 조회는 LIVE와 동일
+- **차이점:** order_submit만 모의 체결 (실제 거래소에 주문 전송 안 함)
+- **금지:** Mock 데이터 사용 (use_real_data=false는 unit test만)
+
+**M-2.2: 현실 마찰 모델 주입 (필수)**
+- **슬리피지 모델:** 주문 가격과 체결 가격의 차이 시뮬레이션
+- **지연 모델:** 주문 전송 ~ 체결 확인 시간 시뮬레이션
+- **부분 체결 모델:** 전량 체결 실패, 일부만 체결 시뮬레이션
+- **실패 모델:** 주문 거절, 타임아웃, 레이트리밋 429 시뮬레이션
+
+**M-2.3: 승률 경고 기준**
+- **WARNING:** winrate ≥ 95% → "현실 마찰 모델 미주입" 의심, edge_after_cost로 교차 검증 필수
+- **FAIL:** winrate = 100% → 계약 위반 (filled_qty 뻥튀기) 또는 Mock 데이터 사용
+- **정상 범위:** winrate 50~80% (현실적 범위)
+
+**M-2.4: SSOT Rigor 강제**
+- **조건:** `execution.rigor = "ssot"` 시
+- **강제 활성화:** FillModelConfig.enable_slippage/latency/partial_fill = true
+- **검증:** 승률이 비정상적으로 높으면 FAIL
+
+---
+
+### M-3: LIVE 모드 설계 (계획 단계, SSOT 반영 필수)
+
+**원칙:** LIVE 구현은 Gate로 지연 가능, 설계+SSOT 반영은 필수
+
+**M-3.1: LIVE 모드 정의**
+- **실시간 데이터:** 시장 데이터, 계좌/포지션/호가 조회 REAL
+- **실제 체결:** order_submit 시 실제 거래소에 주문 전송
+- **금지:** LIVE 모드 구현 없이 "설계 결함"으로 FAIL
+
+**M-3.2: LIVE 모드 Invariants (OPS_PROTOCOL 반영 필수)**
+- **Wallclock Invariant:** 무한루프 또는 스케줄러 루프일 수 있으므로 "윈도우 단위(예: 1h rolling)" 재정의
+- **Heartbeat Invariant:** 60초 주기 heartbeat 필수 (≤65초)
+- **DB Invariant:** closed_trades × 3 (order+fill+trade)
+- **Evidence Invariant:** 필수 파일 존재 + 크기 > 0
+- **SIGTERM Invariant:** 10초 graceful shutdown
+
+**M-3.3: LIVE 모드 StopReason**
+- **NORMAL:** 계획 시간 도달 또는 스케줄 완료
+- **ERROR_INVARIANT_VIOLATION:** Invariant 위반 (Wallclock/Heartbeat/DB/Evidence)
+- **MANUAL_HALT:** 운영자 수동 중단
+- **RISK_DRAWDOWN:** 리스크 임계치 초과 (손실 한도, 연속 손실 등)
+
+**M-3.4: LIVE 모드 현재 상태**
+- **설계:** SSOT 반영 완료 (OPS_PROTOCOL.md, V2_ARCHITECTURE.md, D_ROADMAP.md)
+- **구현:** Gate 대기 (D206-0~4 완료 후)
+- **검증:** LIVE 진입 시 Fail Fast (FX Integration, Risk Guard 등 필수)
+
+---
+
+### M-4: CLI 인자 표준화 (강제)
+
+**원칙:** 모든 runner 스크립트는 --environment, --profile, --rigor 인자 사용
+
+**M-4.1: 표준 인자**
+- `--environment <BACKTEST|PAPER|LIVE>`: 실행 환경
+- `--profile <SMOKE|BASELINE|LONGRUN|ACCEPTANCE|EXTENDED>`: 실행 프로파일
+- `--rigor <QUICK|SSOT>`: 검증 강도
+- `--duration <시간>`: 실행 시간 (선택, profile 기본값 override)
+
+**M-4.2: 금지 인자**
+- ❌ `--mode <값>`: mode와 profile 혼용 금지
+- ❌ `--phase <값>`: phase는 내부 구현 디테일
+- ❌ `--test <값>`: 모호한 표현
+
+**M-4.3: 예시**
+```bash
+# PAPER + SMOKE (5분 빠른 검증)
+python scripts/run.py --environment paper --profile smoke --rigor quick
+
+# PAPER + BASELINE (20분 표준 검증, SSOT 강제)
+python scripts/run.py --environment paper --profile baseline --rigor ssot
+
+# PAPER + LONGRUN (60분 장기 검증)
+python scripts/run.py --environment paper --profile longrun --rigor ssot
+
+# LIVE + BASELINE (실제 거래, 20분)
+python scripts/run.py --environment live --profile baseline --rigor ssot
+```
+
+---
+
+### M-5: 적용 범위 (강제)
+
+**M-5.1: SSOT 문서 동기화**
+- `docs/v2/SSOT_RULES.md`: Section M (본 문서)
+- `docs/v2/OPS_PROTOCOL.md`: 모드별 Invariant, StopReason, Evidence 규격
+- `docs/v2/V2_ARCHITECTURE.md`: Mode/Profile/Engine 다이어그램, LIVE 경로 포함
+- `D_ROADMAP.md`: D206-0~4 재정의, D207 인프라 연기
+
+**M-5.2: 코드 적용**
+- `config/v2/config.yml`: execution.environment/profile/rigor 블록
+- `arbitrage/v2/core/config.py`: ExecutionEnvironmentConfig dataclass
+- `arbitrage/v2/domain/fill_model.py`: FillModelConfig (slippage/latency/partial)
+
+**M-5.3: 검증 규칙**
+- ❌ **금지:** 코드/설정/문서에서 "mode"와 "profile" 혼용
+- ❌ **금지:** LIVE 모드 설계 누락 (SSOT에 LIVE 경로 명시 필수)
+- ✅ **허용:** LIVE 구현은 Gate로 지연 (설계는 필수)
+
+**M-5.4: Gate 검증**
+```bash
+# 금지 패턴 탐지
+rg "mode.*profile|profile.*mode" --type py --type md --type yaml
+rg "phase.*environment|environment.*phase" --type py --type md --type yaml
+```
+
+---
+
 ## 🔜 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.
