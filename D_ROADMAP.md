@@ -6053,34 +6053,3 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-| **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
-| **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
-| **Reporting** | D205 | ⏳ PLANNED | PnL + Dashboard |
-| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
-| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
-
----
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
-| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
-
----
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
-
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
