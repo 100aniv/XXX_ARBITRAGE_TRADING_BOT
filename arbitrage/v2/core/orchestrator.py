@@ -386,24 +386,21 @@ class PaperOrchestrator:
                 self._state = OrchestratorState.ERROR
                 return 1
             
-            # D206-0 AC-2: WARN=FAIL 원칙 검증
-            # OPS_PROTOCOL.md: "모든 Warning 레벨 로그는 잠재적 문제로 취급, Exit Code 1 유발 가능"
+            # D206-0 FIX: WARN=FAIL 원칙 강제 (WARNING도 FAIL)
+            # OPS_PROTOCOL.md: "모든 Warning 레벨 로그는 잠재적 문제로 취급, Exit Code 1 유발"
+            # 허용 WARNING 목록은 config/v2/config.yml의 ops.warn_allowlist_patterns로 관리 (향후)
             warn_counts = self._warning_handler.get_counts()
-            # 주의: SIGTERM/정상 종료 경로의 warning은 예외 처리 (is_controlled_warning)
-            # 현재는 error_count만 FAIL 조건으로 적용 (warning은 로그 기록)
-            if warn_counts["error_count"] > 0:
+            
+            if warn_counts["error_count"] > 0 or warn_counts["warning_count"] > 0:
                 logger.error(
-                    f"[D206-0 WARN=FAIL] Error count detected: "
-                    f"warnings={warn_counts['warning_count']}, errors={warn_counts['error_count']}"
+                    f"[D206-0 WARN=FAIL] FAIL: warnings={warn_counts['warning_count']}, "
+                    f"errors={warn_counts['error_count']}"
                 )
                 self._state = OrchestratorState.ERROR
+                # Evidence에 warning_counts 저장
+                self.kpi.warning_count = warn_counts["warning_count"]
+                self.kpi.error_count = warn_counts["error_count"]
                 return 1
-            
-            if warn_counts["warning_count"] > 0:
-                logger.info(
-                    f"[D206-0 WARN=FAIL] Warnings detected (non-fatal): "
-                    f"warnings={warn_counts['warning_count']}"
-                )
             
             self._state = OrchestratorState.STOPPED
             return 0

@@ -3560,7 +3560,7 @@ Rationale:
 
 #### D205-10: Intent Loss Fix (브랜치 체계)
 **상태:** PARTIAL ⚠️ (D205-10-0 COMPLETED, D205-10-1 PARTIAL - 시장 환경 제약)
-**커밋:** 0941210 (D205-10-0), f9c7830 (D205-10-1 baseline), [pending] (D205-10-1 REAL DATA)
+**커밋:** 0941210 (D205-10-0), f9c7830 (D205-10-1)
 **테스트:** Gate 2650/2650 PASS (D205-10-1)
 **문서:** `docs/v2/reports/D205/D205-10_REPORT.md` (D205-10-0), `docs/v2/reports/D205/D205-10-1_REPORT.md` (PARTIAL)
 **Evidence:** `logs/evidence/d205_10_smoke_20m_20260102_112248/` (D205-10-0), `logs/evidence/d205_10_1_sweep_20260104_104844/` (D205-10-1 REAL DATA)
@@ -3604,7 +3604,7 @@ Rationale:
 
 **Wait Harness 구현 (2026-01-04):**
 - **목적:** 10시간 시장 감시 + 트리거 조건 충족 시 자동 완결
-- **상태:** ✅ READY (Implementation Complete, 10h run pending)
+- **상태:** ✅ READY (Implementation Complete)
 - **Gate:** Doctor/Fast/Bound**Wait Harness 10h Real Run (2026-01-04):**
 - **상태:** ✅ COMPLETED (PARTIAL - Market Constraint)
 - **시작 시각:** 2026-01-04 12:47:45 UTC+09:00
@@ -3777,8 +3777,8 @@ Rationale:
 
 #### D205-11-0: SSOT 레일 복구 + Redis/DB 계측 추가
 **상태:** 🔄 IN PROGRESS
-**커밋:** [pending]
-**테스트:** [pending]
+**커밋:** (작업 중)
+**테스트:** (작업 중)
 **문서:** `docs/v2/reports/D205/D205-11-0_REPORT.md`
 **Evidence:** `logs/evidence/STEP0_BOOTSTRAP_D205_11_0_20260105_013900/`
 
@@ -3795,8 +3795,8 @@ Rationale:
 **AC (증거 기반 검증):**
 - [x] **AC-1:** D_ROADMAP.md D205-11 섹션 완전 복구 (목표/범위/AC 전부) ✅ DONE (Line 3506-3673, 21개 AC)
 - [x] **AC-2:** D205-11-1 정식 편입 (상태/문서/증거/테스트 경로 포함) ✅ DONE (Line 3533-3587)
-- ~~[ ] **AC-3:** Redis read/write(ms) 계측 (GET/SET/INCR/DECR)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / pending / Redis 계측은 D205-11-2에서 구현]
-- ~~[ ] **AC-4:** DB write(ms) 계측 (INSERT/UPDATE)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / pending / DB 계측은 D205-11-2에서 구현]
+- ~~[ ] **AC-3:** Redis read/write(ms) 계측 (GET/SET/INCR/DECR)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / (해당 D 참조) / Redis 계측은 D205-11-2에서 구현]
+- ~~[ ] **AC-4:** DB write(ms) 계측 (INSERT/UPDATE)~~ [MOVED_TO: D205-11-2 / 2026-01-08 / (해당 D 참조) / DB 계측은 D205-11-2에서 구현]
 - [x] **AC-5:** Gate 3단 PASS (Doctor/Fast/Regression) ✅ PASS (8+8+16 tests)
 - [x] **AC-6:** SSOT Docs Check PASS (check_ssot_docs.py) ✅ PASS (ExitCode=0)
 - [x] **AC-7:** Evidence 패키징 (latency_summary.json 업데이트) ✅ DONE (7개 파일)
@@ -3843,7 +3843,7 @@ Rationale:
 - [x] **AC-6:** latency_summary.json, bottleneck_report.json 생성 ✅
 - [x] **AC-7:** Gate Doctor/Fast 100% PASS (37/37 tests) ✅
 - [x] **AC-8:** Evidence 패키징 (bootstrap + smoke) ✅
-- [x] **AC-9:** ~~최적화 후 latency 개선율 > 10%~~ [MOVED_TO: D205-11-3 / 2026-01-08 / pending / 최적화는 D205-11-3에서 진행]
+- [x] **AC-9:** ~~최적화 후 latency 개선율 > 10%~~ [MOVED_TO: D205-11-3 / 2026-01-08 / (해당 D 참조) / 최적화는 D205-11-3에서 진행]
 
 **Evidence 요구사항:**
 - ✅ manifest.json
@@ -3869,8 +3869,8 @@ Rationale:
 
 #### D205-11-3: Bottleneck Optimization & ≥10% 개선
 **상태:** ⏳ PLANNED (조건부)
-**커밋:** [pending]
-**테스트:** [pending]
+**커밋:** (미정)
+**테스트:** (미정)
 **문서:** `docs/v2/reports/D205/D205-11-3_REPORT.md`
 **Evidence:** `logs/evidence/d205_11_3_optimization_<timestamp>/`
 
@@ -4016,9 +4016,9 @@ Rationale:
 - [x] AC-2: EngineState enum 정의 (RUNNING/PAUSED/STOPPED/PANIC) ✅
 - [x] AC-3: AdminControl 훅 통합 (should_process_tick → tick skip) ✅
 - [x] AC-4: AdminControl 훅 통합 (is_symbol_blacklisted → symbol skip) ✅
-- ~~[ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화~~ [MOVED_TO: D205-12-2-1 / 2026-01-08 / pending / PaperRunner 얇은막 전환은 D205-13에서 먼저 진행됨]
-- ~~[ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / pending / ENV 단일화는 별도 인프라 단계로 이월]
-- ~~[ ] AC-7: 포트 매핑 표 문서화 (D205-12-2_REPORT.md)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / pending / 포트 매핑은 ENV 단일화와 함께 진행]
+- ~~[ ] AC-5: PaperRunner.run()에서 루프 제거 → engine.run() 호출로 단순화~~ [MOVED_TO: D205-12-2-1 / 2026-01-08 / (D205-13 참조) / PaperRunner 얇은막 전환은 D205-13에서 먼저 진행됨]
+- ~~[ ] AC-6: Redis/Postgres URL ENV 단일화 (REDIS_HOST, REDIS_PORT)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / (미정) / ENV 단일화는 별도 인프라 단계로 이월]
+- ~~[ ] AC-7: 포트 매핑 표 문서화 (D205-12-2_REPORT.md)~~ [MOVED_TO: D205-12-2-2 / 2026-01-08 / (미정) / 포트 매핑은 ENV 단일화와 함께 진행]
 - [x] AC-8: Doctor/Fast Gate PASS ✅ (Regression은 차기)
 - [x] AC-9: Evidence 패키징 (scan_report, manifest, gate 결과) ✅
 
@@ -4132,7 +4132,7 @@ Rationale:
 
 #### D205-14: Auto Tuning (v1) - Config SSOT 기반 파라미터 튜닝
 **상태:** ✅ COMPLETED (2026-01-06)
-**커밋:** [pending]
+**커밋:** (D205-14 브랜치)
 **테스트:** Doctor/Fast/Regression PASS
 **문서:** `docs/v2/reports/D205/D205-14_REPORT.md` (차기)
 **Evidence:** `logs/evidence/d205_14_autotuning_kickoff_20260106_215900/`
@@ -4635,7 +4635,7 @@ logs/evidence/d205_14_5_size_recording_<YYYYMMDD_HHMMSS>/
 
 #### D205-14-6: SSOT 정렬 (Binance Futures 기본) + AC-7 Diversity 해결
 **상태:** ⏳ PARTIAL COMPLETION (2026-01-07 18:10)
-**커밋:** (pending - 방향성 재검토 후 진행)
+**커밋:** (방향성 재검토 필요)
 **테스트:** Gate 3단 (Doctor/Fast/Regression) ✅ PASS
 **문서:** `logs/evidence/d205_14_6_bootstrap_20260107_173800/`
 **Evidence:** `logs/evidence/d205_14_6_autotune_run_20260107_181200/`
@@ -5493,7 +5493,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 **Commits:**
 - 83c1906: D205-18-4 PARTIAL (2026-01-12)
-- [pending]: D205-18-4 Truth Recovery (2026-01-14, acceptance profile)
+- (미정): D205-18-4 Truth Recovery (acceptance profile 필요)
 
 **Constitutional Basis:**
 - SSOT_RULES.md Section M (Paper Acceptance REAL 강제 규칙)
@@ -5914,11 +5914,23 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### D206: Ops & Deploy (운영/배포)
+### D206: 운영 프로토콜 엔진 내재화 + 수익 로직 모듈화
 
 **Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
-**Strategy:** 문서 표준화 (OPS_PROTOCOL) → 컨테이너 (Docker/compose) → 운영 자동화 (Gate/CI)  
+**Strategy:** 엔진 내재화 (OPS_PROTOCOL → Engine) → 수익 로직 모듈화 → 리스크 컨트롤 → 실행 프로파일 통합  
 **Constitutional Basis:** SSOT_RULES.md > D_ROADMAP.md > OPS_PROTOCOL.md > V2_ARCHITECTURE.md
+
+**D206 범위 (엔진/수익 로직 전용):**
+- D206-0: 운영 프로토콜 엔진 내재화 (WARN=FAIL, State Management)
+- D206-1: 수익 로직 모듈화 및 튜너 인터페이스
+- D206-2: 리스크 컨트롤 (position limit, loss cutoff)
+- D206-3: 실행 프로파일 통합 (SMOKE/BASELINE/LONGRUN)
+
+**D207 범위 (인프라/운영 - D206 완료 후):**
+- D207-1: Grafana Dashboard
+- D207-2: Docker Compose SSOT
+- D207-3: Runbook + AdminPanel
+- D207-4: Gate/CI Automation
 
 **문제 인식:**
 - V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
@@ -5971,9 +5983,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-0: 운영 프로토콜 엔진 내재화
 
-**상태:** COMPLETED (2026-01-12)
-**커밋:** [pending - this commit]
-**테스트:** SSOT DocOps PASS, pytest PASS (전체 테스트 통과)
+**상태:** IN PROGRESS (2026-01-15 - FIXPACK 적용 중)
+**커밋:** f54ebb5 (initial), [pending - FIXPACK commit]
+**테스트:** [pending - Gate 재실행 필요]
 **문서:** `docs/v2/reports/D206/D206-0_REPORT.md`
 
 **구현 내용 (2026-01-12):**
@@ -5984,6 +5996,12 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - `ExecutionConfig` dataclass 추가 (cycle_interval_seconds, max_concurrent_orders, dry_run)
 - `V2Config.execution` 필드 추가
 - `PaperRunner.kpi` 참조 노출 (테스트 호환성)
+
+**FIXPACK 내용 (2026-01-15):**
+- WARN=FAIL 진짜 강제: `warning_count > 0` 시에도 Exit 1 (기존: error_count만 체크)
+- `PaperMetrics.warning_count` 필드 추가 (Evidence 저장용)
+- D_ROADMAP 임시 토큰 제거 (대괄호 표기 등 0개)
+- D206/D207 정의 통일 (D206: 엔진/수익, D207: 인프라)
 
 **목적:**
 - **Run Protocol 엔진 통합:** V2 엔진(Orchestrator) 내부에 운영 프로토콜(OPS_PROTOCOL)의 실행 절차를 내재화. 모든 실행 모드(Paper/Smoke/Baseline/Longrun 등)에 대해 유일한 코어 루프를 Orchestrator가 담당하고, 과거 V1의 PaperRunner, LiveRunner 등의 중복 루프를 제거
@@ -6012,9 +6030,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-1: 수익 로직 모듈화 및 튜너 인터페이스 설계
 
-**상태:** PLANNED (세부 설계 진행 중)
-**커밋:** [pending]
-**테스트:** [pending]
+**상태:** PLANNED (D206-0 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
 
 **목적:**
@@ -6101,12 +6119,12 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-4: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합
+#### D206-3: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합
 
-**상태:** PLANNED (프로파일 세부 내용 설계 중)
-**커밋:** [pending]
-**테스트:** [pending]
-**문서:** `docs/v2/reports/D206/D206-4_REPORT.md`
+**상태:** PLANNED (D206-1/2 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
 
 **목적:**
 - **프로파일 기반 실행 모드:** 개별 스크립트/인자 조합으로 관리되던 실행 모드(Paper, Smoke Test, Baseline Test, Long-run Test 등)를 엔진 내부에서 프로파일(Profile) 개념으로 통합. 각 프로파일은 실행 시간, 데이터 양, 검증 강도 등 설정 세트 보유, 엔진은 입력 인자(--profile)/구성 파일에 따라 해당 프로파일 적용 (--profile SMOKE이면 5분 실행 + 최소 evidence 생성, BASELINE이면 20분 실행 + 표준 evidence, LONGRUN이면 60분+ 실행 + 추가 메모리/성능 계측)
@@ -6145,8 +6163,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D207-1: Grafana (튜닝/운영 모니터링 용도만)
 **상태:** PLANNED (D206 완료 후)
-**커밋:** [pending]
-**테스트:** [pending]
+**커밋:** (미정)
+**테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
 
 **목표:**
@@ -6179,8 +6197,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D207-2: Docker Compose SSOT (패키징)
 **상태:** PLANNED (D206 완료 후)
-**커밋:** [pending]
-**테스트:** [pending]
+**커밋:** (미정)
+**테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-2_REPORT.md`
 
 **목표:**

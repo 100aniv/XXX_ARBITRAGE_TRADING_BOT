@@ -45,6 +45,9 @@ class PaperMetrics:
     error_count: int = 0
     errors: List[str] = field(default_factory=list)
     db_last_error: str = ""
+    
+    # D206-0 FIX: WARN=FAIL 카운터 (Evidence 저장용)
+    warning_count: int = 0  # WarningCounterHandler에서 수집
     memory_mb: float = 0.0
     cpu_pct: float = 0.0
     
