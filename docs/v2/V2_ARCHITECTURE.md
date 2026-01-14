@@ -693,3 +693,155 @@ arbitrage/v2/
 ---
 
 **이 아키텍처는 V2 개발의 북극성(North Star)입니다.**
+
+---
+
+## 10. Mode/Profile/Engine 관계 (D206 Taxonomy)
+
+**Version:** 2.0 (D206 REPLAN 기반)  
+**Effective Date:** 2026-01-15
+
+### 10.1 Mode/Profile/Engine Boundary
+
+**원칙:** Execution Environment(Mode), Run Profile, Engine의 역할 명확히 구분
+
+```mermaid
+graph TB
+    subgraph "Execution Environment (Mode)"
+        BACKTEST[BACKTEST<br/>Historical Data]
+        PAPER[PAPER<br/>Real Data + Mock Order]
+        LIVE[LIVE<br/>Real Data + Real Order]
+    end
+    
+    subgraph "Run Profile"
+        SMOKE[SMOKE<br/>5분 빠른 검증]
+        BASELINE[BASELINE<br/>20분 표준 검증]
+        LONGRUN[LONGRUN<br/>60분+ 장기 검증]
+        ACCEPTANCE[ACCEPTANCE<br/>BASELINE+LONGRUN]
+    end
+    
+    subgraph "V2 Engine (Orchestrator)"
+        Orchestrator[Orchestrator<br/>One True Loop]
+        Engine[ArbitrageEngine<br/>Opportunity Detection]
+        Adapters[ExchangeAdapter<br/>Mock/Upbit/Binance]
+        FillModel[FillModel<br/>Slippage/Latency/Partial]
+        RiskGuard[RiskGuard<br/>Drawdown/Loss Control]
+    end
+    
+    PAPER --> Orchestrator
+    LIVE --> Orchestrator
+    BACKTEST --> Orchestrator
+    
+    SMOKE --> Orchestrator
+    BASELINE --> Orchestrator
+    LONGRUN --> Orchestrator
+    
+    Orchestrator --> Engine
+    Orchestrator --> RiskGuard
+    Engine --> Adapters
+    Engine --> FillModel
+    
+    style PAPER fill:#90EE90
+    style LIVE fill:#FFB6C1
+    style BACKTEST fill:#87CEEB
+    style Orchestrator fill:#FFD700
+```
+
+### 10.2 Run Protocol Flow (Mode별 경로)
+
+**원칙:** PAPER/LIVE는 동일 Orchestrator, 차이는 Order Submit만
+
+```mermaid
+sequenceDiagram
+    participant Runner as run.py<br/>(Thin Wrapper)
+    participant Orch as Orchestrator<br/>(One True Loop)
+    participant Engine as ArbitrageEngine
+    participant Adapter as ExchangeAdapter
+    participant Fill as FillModel
+    participant Risk as RiskGuard
+    
+    Runner->>Orch: run(mode, profile, rigor)
+    
+    alt PAPER Mode
+        Orch->>Engine: detect_opportunity()
+        Engine->>Adapter: submit_order(intent)
+        Adapter->>Fill: simulate_fill(intent)
+        Fill-->>Adapter: FillResult (simulated)
+        Adapter-->>Engine: OrderResult
+        Engine->>Risk: check_risk(result)
+        Risk-->>Orch: PASS/FAIL
+    else LIVE Mode
+        Orch->>Engine: detect_opportunity()
+        Engine->>Adapter: submit_order(intent)
+        Adapter->>Adapter: REST API call (REAL)
+        Adapter-->>Engine: OrderResult (REAL)
+        Engine->>Risk: check_risk(result)
+        Risk-->>Orch: PASS/FAIL/RISK_HALT
+    end
+    
+    Orch->>Orch: validate_invariants()
+    Orch->>Runner: ExitCode (0 or 1)
+```
+
+### 10.3 PAPER vs LIVE 차이점 (SSOT)
+
+| 항목 | PAPER | LIVE |
+|------|-------|------|
+| **MarketData** | Real (WebSocket/REST) | Real (WebSocket/REST) |
+| **Order Submit** | Mock (FillModel 시뮬레이션) | Real (거래소 API 호출) |
+| **Slippage** | FillModel 모델 적용 | 실제 시장 슬리피지 |
+| **Latency** | FillModel 시뮬레이션 | 실제 네트워크 지연 |
+| **Partial Fill** | FillModel 확률 모델 | 실제 시장 유동성 |
+| **Risk Guard** | 시뮬레이션 손실 추적 | 실제 손실 추적 + Kill-Switch |
+| **Wallclock Invariant** | 고정 duration ±5% | Rolling 1h window |
+| **FX Provider** | Fixed 허용 | Live 필수 (Fail Fast) |
+| **Stop Reason** | NORMAL / ERROR | NORMAL / ERROR / RISK_DRAWDOWN / MANUAL_HALT |
+
+### 10.4 Profile별 설정 차이
+
+| Profile | Duration | Evidence | Slippage Model | 용도 |
+|---------|----------|----------|----------------|------|
+| **SMOKE** | 5분 | 최소 (manifest, kpi) | OFF (rigor=quick) | 빠른 검증 |
+| **BASELINE** | 20분 | 표준 (+ decision_trace) | ON (rigor=ssot) | 일반 검증 |
+| **LONGRUN** | 60분+ | 전체 (+ latency_samples, memory_profile) | ON (rigor=ssot) | 장기 안정성 |
+| **ACCEPTANCE** | 80분+ | BASELINE + LONGRUN 조합 | ON (rigor=ssot) | 상용급 검증 |
+
+### 10.5 One True Loop 위치
+
+**강제 규칙:**
+- ✅ Orchestrator만 while 루프 보유 (`orchestrator.run()`)
+- ❌ Runner에 while 루프 금지 (Thin Wrapper만)
+- ❌ Engine에 while 루프 금지 (순수 로직만)
+- ❌ Adapter에 while 루프 금지 (변환만)
+
+**코드 위치:**
+- `arbitrage/v2/core/orchestrator.py` (유일한 루프)
+- `arbitrage/v2/harness/paper_runner.py` (Thin Wrapper, 루프 없음)
+- `arbitrage/v2/harness/live_runner.py` (계획 단계, 루프 없음)
+
+### 10.6 LIVE 모드 설계 (D206-0~4 구현 예정)
+
+**현재 상태:**
+- ✅ 설계 완료 (SSOT 문서 반영)
+- ✅ Invariant 정의 (OPS_PROTOCOL.md Section 2.6.2)
+- ✅ StopReason 체계 정의
+- ⏳ 구현 대기 (D206-0: Orchestrator 통합)
+- ⏳ RiskGuard 구현 대기 (D206-3)
+
+**LIVE 진입 조건 (Fail Fast):**
+1. FX Provider ≠ Fixed (D205-15-4)
+2. RiskGuard 활성화 (D206-3)
+3. Admin Control 구현 (D207-4)
+
+---
+
+## 📚 참고 문서
+
+- **SSOT_RULES.md:** 개발 규칙 (Section M: Taxonomy 정의)
+- **D_ROADMAP.md:** 로드맵 + 상세 History (D206-0~4 재정의)
+- **OPS_PROTOCOL.md:** 운영 프로토콜 (Section 2.6: 모드별 Invariant)
+- **EVIDENCE_FORMAT.md:** 증거 포맷
+
+---
+
+**이 문서는 V2 아키텍처의 설계 SSOT입니다.**
