@@ -74,6 +74,102 @@
 
 ---
 
+## 2.6 모드별 Invariant (Mode-Specific Invariants)
+
+**원칙:** 실행 환경(BACKTEST/PAPER/LIVE)에 따라 Invariant 적용 범위와 정의가 달라짐
+
+### 2.6.1 PAPER 모드 Invariant
+
+**적용 대상:** `execution.environment = "paper"`
+
+**공통 Invariant (2.1~2.5) 적용:**
+- ✅ Wallclock Duration Invariant (±5%)
+- ✅ Heartbeat Density Invariant (≤65초)
+- ✅ DB Invariant (closed_trades × 3)
+- ✅ Evidence Completeness Invariant
+- ✅ Graceful Shutdown Invariant
+
+**PAPER 전용 Invariant:**
+1. **Real MarketData 필수**
+   - 조건: `use_real_data = true` 강제
+   - 위반 시: Bootstrap 단계에서 즉시 Exit 1
+   - 근거: Mock 데이터는 unit test 전용, PAPER는 상용급 시뮬레이션
+   - 검증: Preflight Check에서 config.use_real_data 확인
+
+2. **Slippage/Latency/PartialFill 모델 주입**
+   - 조건: `execution.rigor = "ssot"` 시 FillModelConfig 모든 모델 활성화
+   - 위반 시: Bootstrap 단계에서 Warning 로그 (강제 Exit는 아님, D206-2에서 강제 예정)
+   - 근거: 현실 마찰 모델 없이는 승률 95%+ False Positive 발생
+   - 검증: config.execution.rigor == "ssot" → fill_model.enable_slippage/latency/partial_fill == true
+
+3. **승률 경고 기준 (D205-18-4 REAL 검증 기준)**
+   - 조건: winrate ≥ 95% → WARNING 로그, edge_after_cost 교차 검증 필수
+   - 위반 시: FAIL 아님, WARNING으로 기록 (Report에 분석 필수)
+   - 근거: Paper 모드 본질적 한계 (슬리피지 없음, 즉시 체결)
+   - 검증: KPI.winrate >= 0.95 → log warning + 플래그 기록
+
+### 2.6.2 LIVE 모드 Invariant (설계 단계, D206-0~4 구현 예정)
+
+**적용 대상:** `execution.environment = "live"`
+
+**공통 Invariant 변형 적용:**
+- ⚠️ Wallclock Duration Invariant: **윈도우 기반 재정의** (무한루프/스케줄러 대응)
+  - PAPER: 고정 duration (20m, 60m) → 실제 실행 시간 ±5%
+  - LIVE: rolling 1h window → 최근 1시간 이내 heartbeat/trade 존재 검증
+  - 조건: 최근 1시간 이내 최소 1개 heartbeat + 최소 1개 trade (또는 opportunity)
+  - 위반 시: 1시간 동안 아무 활동 없음 → Exit 1 (market 중단 또는 엔진 정지)
+  
+- ✅ Heartbeat Density Invariant (≤65초) - 동일
+- ✅ DB Invariant (closed_trades × 3) - 동일
+- ✅ Evidence Completeness Invariant - 동일
+- ✅ Graceful Shutdown Invariant - 동일
+
+**LIVE 전용 Invariant:**
+1. **Real-time FX Integration 필수**
+   - 조건: `fx_provider.type != "fixed"` 강제
+   - 위반 시: Bootstrap 단계에서 즉시 Exit 1 (Fail Fast)
+   - 근거: LIVE 모드에서 고정 FX는 실거래 리스크 (D205-15-4)
+   - 검증: config.fx_provider.type == "live" or "crypto_implied"
+
+2. **Risk Guard 활성화 필수**
+   - 조건: RiskGuard 모듈 활성화 (max_drawdown, max_consecutive_losses 설정)
+   - 위반 시: Bootstrap 단계에서 즉시 Exit 1
+   - 근거: 실거래 손실 방지 필수 (D206-3)
+   - 검증: config.risk_guard.enabled == true
+
+3. **Stop Reason 체계 (D206-3 설계)**
+   - NORMAL: 계획 시간 도달 또는 스케줄 완료
+   - ERROR_INVARIANT_VIOLATION: Invariant 위반 (Wallclock/Heartbeat/DB/Evidence)
+   - MANUAL_HALT: 운영자 수동 중단
+   - RISK_DRAWDOWN: 리스크 임계치 초과 (손실 한도, 연속 손실 등)
+   - 각 Stop Reason별 Alerting 모듈 Hook 필요
+
+### 2.6.3 BACKTEST 모드 Invariant (계획 단계)
+
+**적용 대상:** `execution.environment = "backtest"`
+
+**공통 Invariant 완화:**
+- ⚠️ Wallclock Duration Invariant: **적용 안 함** (시뮬레이션 속도는 가변적)
+- ❌ Heartbeat Density Invariant: **적용 안 함** (백테스트는 batch 실행)
+- ✅ DB Invariant (closed_trades × 3) - 동일
+- ✅ Evidence Completeness Invariant - 동일
+- ❌ Graceful Shutdown Invariant: **적용 안 함** (배치 완료 후 종료)
+
+**BACKTEST 전용 Invariant:**
+1. **Historical Data 완전성**
+   - 조건: 백테스트 기간 내 데이터 결측 ≤ 1% (설정 가능)
+   - 위반 시: 경고 로그 (Exit는 아님)
+   - 근거: 데이터 결측이 많으면 백테스트 신뢰도 저하
+   - 검증: missing_data_ratio < 0.01
+
+2. **재현성 검증**
+   - 조건: 동일 입력 데이터 → 동일 결과 (deterministic)
+   - 위반 시: 재현성 테스트 FAIL
+   - 근거: 백테스트 결과는 재현 가능해야 검증 가능
+   - 검증: 2회 실행 결과 diff == 0
+
+---
+
 ## 3. Run Protocol (실행 프로토콜)
 
 ### 3.1 실행 단계 (Sequential)
