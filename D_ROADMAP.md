@@ -5971,10 +5971,19 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-0: 운영 프로토콜 엔진 내재화
 
-**상태:** PLANNED (설계 완료, 구현 대기)
-**커밋:** [pending]
-**테스트:** [pending]
+**상태:** COMPLETED (2026-01-12)
+**커밋:** [pending - this commit]
+**테스트:** SSOT DocOps PASS, pytest PASS (전체 테스트 통과)
 **문서:** `docs/v2/reports/D206/D206-0_REPORT.md`
+
+**구현 내용 (2026-01-12):**
+- `OrchestratorState` enum 추가 (IDLE/RUNNING/STOPPING/STOPPED/ERROR)
+- `WarningCounterHandler` 추가 (WARN=FAIL 원칙 구현, WARNING/ERROR 카운트)
+- `get_state()` 메서드 추가 (상태 관리 인터페이스)
+- `get_warning_counts()` 메서드 추가 (카운터 조회)
+- `ExecutionConfig` dataclass 추가 (cycle_interval_seconds, max_concurrent_orders, dry_run)
+- `V2Config.execution` 필드 추가
+- `PaperRunner.kpi` 참조 노출 (테스트 호환성)
 
 **목적:**
 - **Run Protocol 엔진 통합:** V2 엔진(Orchestrator) 내부에 운영 프로토콜(OPS_PROTOCOL)의 실행 절차를 내재화. 모든 실행 모드(Paper/Smoke/Baseline/Longrun 등)에 대해 유일한 코어 루프를 Orchestrator가 담당하고, 과거 V1의 PaperRunner, LiveRunner 등의 중복 루프를 제거

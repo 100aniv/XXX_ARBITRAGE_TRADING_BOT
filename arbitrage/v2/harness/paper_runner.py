@@ -128,6 +128,9 @@ class PaperRunner:
             # Orchestrator 실행 (모든 로직은 Core에서 처리)
             exit_code = orchestrator.run()
             
+            # D206-0: KPI 참조 노출 (테스트 호환성)
+            self.kpi = orchestrator.kpi
+            
             logger.info(f"[D205-18-2D] PaperRunner completed: exit_code={exit_code}")
             return exit_code
             

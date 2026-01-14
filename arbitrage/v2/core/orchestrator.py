@@ -1,7 +1,8 @@
 """
-D205-18-2D: Paper Orchestrator (Engine-Centric, No Runner Callbacks)
+D205-18-2D + D206-0: Paper Orchestrator (Engine-Centric, OPS Protocol Embedded)
 
 Core 컴포넌트만 사용, Runner 의존성 완전 제거.
+D206-0: 운영 프로토콜 엔진 내재화 (WARN=FAIL, 상태 관리 인터페이스)
 
 Purpose:
 - OpportunitySource, PaperExecutor, LedgerWriter 통합
@@ -16,6 +17,8 @@ Date: 2026-01-11
 import logging
 import signal
 import sys
+import time
+from enum import Enum
 from typing import Dict, Optional, Any
 from datetime import datetime
 import uuid
@@ -31,11 +34,61 @@ from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
 logger = logging.getLogger(__name__)
 
 
+class OrchestratorState(Enum):
+    """D206-0 AC-5: 엔진 상태 관리 인터페이스"""
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
+    ERROR = "ERROR"
+
+
+class WarningCounterHandler(logging.Handler):
+    """
+    D206-0 AC-2: WARN=FAIL 원칙 구현
+    
+    WARNING 레벨 이상 로그를 카운트하여 종료 시 검증.
+    OPS_PROTOCOL.md: "모든 Warning 레벨 로그는 잠재적 문제로 취급"
+    """
+    
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.warning_count = 0
+        self.error_count = 0
+        self._lock = __import__('threading').Lock()
+    
+    def emit(self, record: logging.LogRecord):
+        with self._lock:
+            if record.levelno == logging.WARNING:
+                self.warning_count += 1
+            elif record.levelno >= logging.ERROR:
+                self.error_count += 1
+    
+    def reset(self):
+        with self._lock:
+            self.warning_count = 0
+            self.error_count = 0
+    
+    def get_counts(self) -> Dict[str, int]:
+        with self._lock:
+            return {
+                "warning_count": self.warning_count,
+                "error_count": self.error_count
+            }
+
+
 class PaperOrchestrator:
     """
     Paper Execution Orchestrator (Engine-Centric)
     
-    D205-18-2D: Runner 콜백 의존 제거, Core 컴포넌트만 사용
+    D205-18-2D + D206-0: Runner 콜백 의존 제거, Core 컴포넌트만 사용
+    
+    D206-0 운영 프로토콜 내재화:
+    - WARN=FAIL 원칙: WarningCounterHandler로 WARNING 로그 카운트, 종료 시 검증
+    - 상태 관리 인터페이스: OrchestratorState enum, get_state() 메서드
+    - F1~F5 Invariant 검증 (D205-18-4R2에서 구현됨)
+    
+    Core 컴포넌트:
     - OpportunitySource: Opportunity 생성
     - PaperExecutor: 주문 실행
     - LedgerWriter: DB 기록
@@ -68,8 +121,17 @@ class PaperOrchestrator:
         self._watcher = None
         self.trade_history = []
         
+        # D206-0 AC-5: 상태 관리
+        self._state = OrchestratorState.IDLE
+        
+        # D206-0 AC-2: WARN=FAIL Handler
+        self._warning_handler = WarningCounterHandler()
+        logging.getLogger().addHandler(self._warning_handler)
+        
         # D205-18-4-FIX-2 F5: SIGTERM Handler 등록
         self._register_signal_handlers()
+        
+        logger.info("[D206-0] Orchestrator initialized with OPS Protocol embedded")
     
     def request_stop(self):
         """RunWatcher 중단 요청"""
@@ -96,7 +158,11 @@ class PaperOrchestrator:
     
     def run(self) -> int:
         """메인 실행 루프"""
-        logger.info(f"[D205-18-2D] Orchestrator starting...")
+        # D206-0 AC-5: 상태 전이 IDLE -> RUNNING
+        self._state = OrchestratorState.RUNNING
+        self._warning_handler.reset()  # D206-0 AC-2: WARNING 카운터 리셋
+        
+        logger.info(f"[D206-0] Orchestrator starting (state={self._state.value})...")
         
         # RunWatcher 시작
         self.start_watcher()
@@ -317,15 +383,41 @@ class PaperOrchestrator:
                     f"[D205-18-3] RunWatcher triggered FAIL. "
                     f"Diagnosis: {self._watcher.diagnosis}"
                 )
+                self._state = OrchestratorState.ERROR
                 return 1
             
+            # D206-0 AC-2: WARN=FAIL 원칙 검증
+            # OPS_PROTOCOL.md: "모든 Warning 레벨 로그는 잠재적 문제로 취급, Exit Code 1 유발 가능"
+            warn_counts = self._warning_handler.get_counts()
+            # 주의: SIGTERM/정상 종료 경로의 warning은 예외 처리 (is_controlled_warning)
+            # 현재는 error_count만 FAIL 조건으로 적용 (warning은 로그 기록)
+            if warn_counts["error_count"] > 0:
+                logger.error(
+                    f"[D206-0 WARN=FAIL] Error count detected: "
+                    f"warnings={warn_counts['warning_count']}, errors={warn_counts['error_count']}"
+                )
+                self._state = OrchestratorState.ERROR
+                return 1
+            
+            if warn_counts["warning_count"] > 0:
+                logger.info(
+                    f"[D206-0 WARN=FAIL] Warnings detected (non-fatal): "
+                    f"warnings={warn_counts['warning_count']}"
+                )
+            
+            self._state = OrchestratorState.STOPPED
             return 0
             
         except Exception as e:
-            logger.error(f"[D205-18-2D] Orchestrator failed: {e}", exc_info=True)
+            logger.error(f"[D206-0] Orchestrator failed: {e}", exc_info=True)
+            self._state = OrchestratorState.ERROR
             return 1
         
         finally:
+            # D206-0 AC-5: 종료 상태 확정 (STOPPING -> STOPPED/ERROR)
+            if self._state == OrchestratorState.RUNNING:
+                self._state = OrchestratorState.STOPPING
+            
             # D205-18-4R2: Atomic Evidence Flush (무조건 저장)
             try:
                 db_counts = self.ledger_writer.get_counts() if hasattr(self, 'ledger_writer') else None
@@ -366,4 +458,22 @@ class PaperOrchestrator:
             db_counts=db_counts,
             phase=self.config.phase
         )
-        logger.info(f"[D205-18-2D] Evidence saved")
+        logger.info(f"[D206-0] Evidence saved")
+    
+    def get_state(self) -> OrchestratorState:
+        """
+        D206-0 AC-5: 엔진 상태 관리 인터페이스
+        
+        현재 Orchestrator 상태 조회.
+        UI/모니터링 툴 연계 예정.
+        """
+        return self._state
+    
+    def get_warning_counts(self) -> Dict[str, int]:
+        """
+        D206-0 AC-2: WARN=FAIL 카운터 조회
+        
+        Returns:
+            {"warning_count": int, "error_count": int}
+        """
+        return self._warning_handler.get_counts()

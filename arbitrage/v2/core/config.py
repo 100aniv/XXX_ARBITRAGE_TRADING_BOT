@@ -57,6 +57,14 @@ class StrategyConfig:
 
 
 @dataclass
+class ExecutionConfig:
+    """실행 설정"""
+    cycle_interval_seconds: float
+    max_concurrent_orders: int
+    dry_run: bool
+
+
+@dataclass
 class ExecutionEnvironmentConfig:
     """실행 환경 설정 (D206 Taxonomy)"""
     environment: str  # backtest | paper | live
@@ -136,6 +144,7 @@ class V2Config:
     """V2 전체 설정"""
     mode: str  # paper, live, replay (D205-13, Legacy - use execution_env.environment)
     execution_env: ExecutionEnvironmentConfig  # D206 Taxonomy (environment/profile/rigor)
+    execution: ExecutionConfig  # D206-0: Execution settings (cycle_interval, concurrent_orders, dry_run)
     exchanges: Dict[str, ExchangeConfig]
     universe: UniverseConfig
     strategy: StrategyConfig
@@ -303,11 +312,12 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         order_size_policy=order_size_policy,
     )
     
-    # Execution 파싱
+    # Execution 파싱 (선택적 필드, 기본값 사용)
+    exec_raw = raw_config.get('execution', {})
     execution = ExecutionConfig(
-        cycle_interval_seconds=raw_config['execution']['cycle_interval_seconds'],
-        max_concurrent_orders=raw_config['execution']['max_concurrent_orders'],
-        dry_run=raw_config['execution']['dry_run'],
+        cycle_interval_seconds=exec_raw.get('cycle_interval_seconds', 1.0),
+        max_concurrent_orders=exec_raw.get('max_concurrent_orders', 5),
+        dry_run=exec_raw.get('dry_run', True),
     )
     
     # Safety 파싱
@@ -379,6 +389,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     config = V2Config(
         mode=mode,
         execution_env=execution_env,
+        execution=execution,  # D206-0: ExecutionConfig 추가
         exchanges=exchanges,
         universe=universe,
         strategy=strategy,
