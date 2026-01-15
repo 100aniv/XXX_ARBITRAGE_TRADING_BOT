@@ -4054,7 +4054,7 @@ Rationale:
 
 #### D205-13: Engine SSOT Unification - PaperRunner Thin Wrapper
 **상태:** ✅ COMPLETED (2026-01-06)
-**커밋:** [pending]
+**커밋:** (D205-13 브랜치)
 **테스트:** Doctor/Fast/D205-13 Proof PASS, Regression PASS (D205-13-1에서 복구)
 **문서:** `docs/v2/reports/D205/D205-13_REPORT.md` (차기)
 **Evidence:** `logs/evidence/d205_13_engine_ssot_20260106_210000/`
@@ -4260,14 +4260,14 @@ Rationale:
 
 **목표:**
 - 입력 데이터 10줄 → 200줄 확대 (의미 있는 튜닝 검증)
-- D_ROADMAP [pending] 제거 (DocOps 완료)
+- D_ROADMAP 임시 토큰 제거 (DocOps 완료)
 - leaderboard 형식 검증 테스트 추가
 
 **범위 (Do/Don't):**
 - ✅ Do: 입력 데이터 200줄 생성 (market_extended.ndjson)
 - ✅ Do: AutoTuner 재실행 (200 ticks)
 - ✅ Do: 테스트 추가 (test_d205_14_2_autotune.py)
-- ✅ Do: D_ROADMAP [pending] 제거
+- ✅ Do: D_ROADMAP 임시 토큰 제거
 - ❌ Don't: sweep.py 로직 수정 (코드 정상 확인)
 - ❌ Don't: 신규 시장 데이터 수집 (D205-14-3로 이관)
 
@@ -4276,7 +4276,7 @@ Rationale:
 - [x] AC-2: AutoTuner 실행 완료 (144 조합, 200 ticks) ✅
 - [x] AC-3: leaderboard.json 형식 검증 테스트 추가 ✅
 - [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅
-- [x] AC-5: D_ROADMAP [pending] 제거 ✅
+- [x] AC-5: D_ROADMAP 임시 토큰 제거 ✅
 - [x] AC-6: Evidence 패키징 (kpi.json, README.md) ✅
 
 **Gate 결과:**
@@ -4294,7 +4294,7 @@ Rationale:
 **구현 내용:**
 - `market_extended.ndjson` - 입력 데이터 200줄 생성 (10줄 × 20 반복)
 - `tests/test_d205_14_2_autotune.py` - leaderboard 형식 검증 테스트 (3 tests)
-- `D_ROADMAP.md` - D205-14-1 [pending] 제거 (ee876f1)
+- `D_ROADMAP.md` - D205-14-1 임시 토큰 제거 (ee876f1)
 
 **재사용 모듈:**
 - ✅ `arbitrage/v2/execution_quality/sweep.py` - ParameterSweep (PRIMARY)
@@ -4340,7 +4340,7 @@ Rationale:
 - [~] AC-3: Leaderboard metrics diversity (2종 이상) ⚠️ PARTIAL (코드 정상, 데이터 한계)
 - [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅
 - [x] AC-5: Evidence 패키징 (README + kpi/stats) ✅
-- [x] AC-6: D_ROADMAP [pending] 제거 + D205-14-3 추가 ✅
+- [x] AC-6: D_ROADMAP 임시 토큰 제거 + D205-14-3 추가 ✅
 - [x] AC-7: Git commit + push ✅
 
 **Gate 결과:**
@@ -5983,9 +5983,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-0: 운영 프로토콜 엔진 내재화
 
-**상태:** IN PROGRESS (2026-01-15 - FIXPACK 적용 중)
-**커밋:** f54ebb5 (initial), [pending - FIXPACK commit]
-**테스트:** [pending - Gate 재실행 필요]
+**상태:** ✅ COMPLETED (2026-01-15)
+**커밋:** f54ebb5 (initial), 31cd2fa (FIXPACK)
+**테스트:** PASS (check_ssot_docs=0, pytest=0)
 **문서:** `docs/v2/reports/D206/D206-0_REPORT.md`
 
 **구현 내용 (2026-01-12):**
@@ -6030,9 +6030,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-1: 수익 로직 모듈화 및 튜너 인터페이스 설계
 
-**상태:** PLANNED (D206-0 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
+**상태:** IN PROGRESS (2026-01-15)
 **문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
 
 **목적:**
@@ -6061,9 +6059,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-2: 자동 파라미터 튜너 내재화 및 성능 검증
 
-**상태:** PLANNED (구현 예정, 리서치 내용 반영 준비)
-**커밋:** [pending]
-**테스트:** [pending]
+**상태:** PLANNED (D206-1 완료 후)
 **문서:** `docs/v2/reports/D206/D206-2_REPORT.md`
 
 **목적:**
@@ -6091,9 +6087,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-3: 리스크 컨트롤 & 종료/예외 처리 일원화
 
-**상태:** PLANNED (구현 설계 완료, 리팩토링 대기)
-**커밋:** [pending]
-**테스트:** [pending]
+**상태:** PLANNED (D206-1/2 완료 후)
 **문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
 
 **목적:**
@@ -6223,8 +6217,6 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D207-3: Runbook + Gate/CI Automation (운영 자동화)
 **상태:** PLANNED (D206 완료 후)
-**커밋:** [pending]
-**테스트:** [pending]
 **문서:** `docs/v2/reports/D207/D207-3_REPORT.md`
 
 **목표:**
@@ -6265,8 +6257,6 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D207-4: Admin Control Panel (최소 제어)
 **상태:** PLANNED (D206 완료 후)
-**커밋:** [pending]
-**테스트:** [pending]
 **문서:** `docs/v2/reports/D207/D207-4_REPORT.md`
 
 **목표:**

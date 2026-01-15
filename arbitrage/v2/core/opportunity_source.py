@@ -138,9 +138,20 @@ class MockOpportunitySource(OpportunitySource):
         self.kpi = kpi
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
-        """Mock Opportunity 생성"""
-        base_price_a_krw = 50_000_000.0
-        base_price_b_usdt = 40_000.0
+        """
+        Mock Opportunity 생성
+        
+        D206-1 AC-1: 하드코딩 제거
+        - 50_000_000.0 → profit_core.get_default_price("upbit", "BTC/KRW")
+        - 40_000.0 → profit_core.get_default_price("binance", "BTC/USDT")
+        """
+        # Fallback 가격 (profit_core 없을 때)
+        if hasattr(self, 'profit_core') and self.profit_core:
+            base_price_a_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
+            base_price_b_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
+        else:
+            base_price_a_krw = 80_000_000.0
+            base_price_b_usdt = 60_000.0
         
         fx_rate = self.fx_provider.get_rate("USDT", "KRW")
         base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)

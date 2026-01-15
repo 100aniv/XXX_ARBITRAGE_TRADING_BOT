@@ -30,18 +30,34 @@ class PaperExecutor:
         return order_result
     
     def _update_balance(self, intent: OrderIntent, order_result):
-        """Balance 업데이트"""
+        """
+        Balance 업데이트
+        
+        D206-1 AC-1: 하드코딩 제거
+        - 50_000_000.0 → profit_core.get_default_price("upbit", "BTC/KRW")
+        - 40_000.0 → profit_core.get_default_price("binance", "BTC/USDT")
+        """
+        # Fallback 가격 (profit_core 없을 때)
+        if self.profit_core:
+            default_price_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
+            default_price_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
+        else:
+            # 기본값 (하드코딩 제거 후 경고)
+            default_price_krw = 80_000_000.0
+            default_price_usdt = 60_000.0
+            logger.warning("[D206-1] PaperExecutor: profit_core not set, using default prices")
+        
         if intent.side == OrderSide.BUY:
             if intent.exchange == "upbit":
-                self.balance["KRW"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or 50_000_000.0)
+                self.balance["KRW"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_krw)
                 self.balance["BTC"] += (order_result.filled_qty or 0.01)
             else:
-                self.balance["USDT"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or 40_000.0)
+                self.balance["USDT"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_usdt)
                 self.balance["BTC"] += (order_result.filled_qty or 0.01)
         else:
             if intent.exchange == "upbit":
                 self.balance["BTC"] -= (intent.base_qty or 0.01)
-                self.balance["KRW"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or 50_000_000.0)
+                self.balance["KRW"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_krw)
             else:
                 self.balance["BTC"] -= (intent.base_qty or 0.01)
-                self.balance["USDT"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or 40_000.0)
+                self.balance["USDT"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_usdt)

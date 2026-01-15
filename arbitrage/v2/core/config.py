@@ -6,7 +6,7 @@ config/v2/config.yml을 로드하고 dataclass로 검증합니다.
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import yaml
 import logging
 
@@ -158,6 +158,8 @@ class V2Config:
     database: DatabaseConfig
     cache: CacheConfig
     tuning: TuningConfig  # D205-14
+    profit_core: ProfitCoreConfig  # D206-1: Profit Core (하드코딩 제거)
+    tuner: TunerConfig  # D206-1: Tuner Interface
     meta: MetaConfig
     
     def validate(self):
