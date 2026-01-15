@@ -1710,6 +1710,91 @@ rg "phase.*environment|environment.*phase" --type py --type md --type yaml
 
 ---
 
+## 🛡️ Section N: Artifact-First Gate & No Partial (D206-1 HARDENED)
+
+**출처:** Constitutional Protocol v2.4 (2026-01-16)
+**목적:** Runner 비대화 원천 차단, 부분 완료 금지, Gate 무결성 보장
+
+### N-1: Artifact-First Gate (강제)
+
+**원칙:** Gate는 Runner가 아닌 Core 산출물을 검증한다.
+
+**강제 규칙:**
+1. **검사 대상**
+   - ✅ **허용:** Evidence manifest (kpi_summary.json, manifest.json)
+   - ✅ **허용:** Report schema (EVIDENCE_FORMAT.md)
+   - ❌ **금지:** Runner 속성/필드/프로퍼티 직접 검사
+   
+2. **Gate 설계**
+   - Registry/Preflight는 Runner property 검사 금지
+   - Core가 생성하는 Report/Manifest/Schema 검사로 고정
+   - Runner 비대화를 유발하는 Gate는 설계 결함(FAIL)
+
+3. **Runner 책임 범위 (Thin Wrapper)**
+   - ✅ config 로드
+   - ✅ engine/runtime 생성 호출
+   - ✅ engine 실행 호출
+   - ✅ exit code 전파
+   - ✅ evidence flush 트리거
+   - ❌ **금지:** Gate 통과용 상태필드 추가 (wins/losses/marketdata_mode/db_mode 등)
+
+### N-2: No Partial Completion (강제)
+
+**원칙:** Gate ExitCode=0이 아니면 COMPLETED/DONE 금지
+
+**강제 규칙:**
+1. **금지 표현**
+   - ❌ "PARTIAL", "부분 완료", "범위 밖", "시간 제약", "기술 부채"
+   - ❌ "일단 진행", "나중에", "pending", "later"
+   - ❌ ExitCode≠0 상태에서 COMPLETED 선언
+
+2. **DONE 조건 (전부 만족 필수)**
+   - DocOps Gate: ExitCode=0
+   - Registry Gate: ExitCode=0 AND WARNING=0
+   - Preflight Gate: ExitCode=0 AND WARNING=0
+   - pytest: ExitCode=0 AND SKIP=0
+   - D_ROADMAP: 상태/AC/증거/커밋 정확히 일치
+
+3. **위반 시 조치**
+   - 즉시 FAIL + 작업 Revert
+   - PARTIAL 문구 발견 → 제거 또는 재작업
+
+### N-3: WARN=FAIL / SKIP=FAIL (강제)
+
+**원칙:** 모든 WARNING과 SKIP은 FAIL로 처리
+
+**강제 규칙:**
+1. **WARN=FAIL**
+   - Registry/Preflight에서 warning > 0 → sys.exit(1)
+   - "WARNING은 나중에" 같은 서술로 덮기 금지
+
+2. **SKIP=FAIL**
+   - pytest에서 SKIP > 0 → FAIL
+   - "테스트는 나중에" 같은 태만 금지
+   - 예외: config 기반 allowlist + 문서 + Evidence 동시 반영
+
+3. **No-Escape 루틴**
+   - AI가 '나중에 고치겠다'는 서술로 Gate 우회 시 즉시 FAIL
+   - 모든 Gate 스크립트는 WARNING/SKIP > 0이면 sys.exit(1)
+
+### N-4: 검증 (Gate 명령)
+
+```bash
+# DocOps Gate
+python scripts/check_ssot_docs.py  # ExitCode=0
+
+# Registry Gate
+python scripts/check_component_registry.py  # ExitCode=0, WARNING=0
+
+# Preflight Gate
+python scripts/v2_preflight.py  # ExitCode=0
+
+# Test Gate
+pytest -q  # ExitCode=0, SKIP=0
+```
+
+---
+
 ## 🔜 다음 단계
 
 이 문서는 **SSOT**입니다. 규칙 변경 시 반드시 이 문서를 업데이트하세요.

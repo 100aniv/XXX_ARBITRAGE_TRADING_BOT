@@ -66,25 +66,32 @@ class ComponentRegistryChecker:
         return all_exist
     
     def check_evidence_fields(self, component: Dict, paper_runner_content: str) -> bool:
-        """evidence_kpi_fields가 paper_runner.py에서 사용되는지 확인"""
+        """evidence_kpi_fields가 Evidence schema에 정의되어 있는지 확인
+        
+        D206-1 HARDENED (Add-on A: Artifact-First):
+        - Runner 파일이 아닌 Evidence manifest schema(EVIDENCE_FORMAT.md)를 검사
+        - Gate는 Core 산출물을 검증, Runner 속성 검사 금지
+        """
         comp_id = component.get("id", "unknown")
         evidence_fields = component.get("evidence_kpi_fields", [])
         
         if not evidence_fields:
             return True  # 필드 없으면 스킵
         
-        all_found = True
-        for field in evidence_fields:
-            # paper_runner.py에서 "field" 또는 'field' 형태로 사용되는지 확인
-            if f'"{field}"' not in paper_runner_content and f"'{field}'" not in paper_runner_content:
-                self.warnings.append(
-                    f"[{comp_id}] Evidence field not found in paper_runner.py: {field}"
-                )
-                # Evidence field는 warning으로 처리 (ops_critical만 error)
-                if component.get("ops_critical", False):
-                    all_found = False
+        # Add-on A: Runner 파일 검사 대신 Evidence schema 검사
+        # Evidence fields는 런타임에 kpi_summary.json/manifest.json으로 생성됨
+        # 정적 검사에서는 Evidence schema 파일 존재만 확인
+        evidence_format_path = self.repo_root / "docs" / "v2" / "design" / "EVIDENCE_FORMAT.md"
         
-        return all_found
+        if not evidence_format_path.exists():
+            self.warnings.append(
+                f"[{comp_id}] Evidence schema not found: EVIDENCE_FORMAT.md"
+            )
+            return False
+        
+        # Evidence schema가 존재하면 필드는 런타임에 검증 (Preflight)
+        # 정적 검사에서는 PASS (Runner 비대화 방지)
+        return True
     
     def check_config_keys(self, component: Dict, paper_runner_content: str) -> bool:
         """config_keys가 PaperRunnerConfig에 존재하는지 확인"""

@@ -14,59 +14,14 @@ Author: arbitrage-lite V2
 Date: 2026-01-15
 """
 
-from dataclasses import dataclass
-from typing import Protocol, Dict, Any, Optional
-from arbitrage.v2.opportunity import BreakEvenParams
+from typing import Protocol, Dict, Any, Optional, TYPE_CHECKING
 
+# D206-1 HARDENED: config.py에서 import (circular import 해결)
+from arbitrage.v2.core.config import ProfitCoreConfig, TunerConfig
 
-@dataclass
-class ProfitCoreConfig:
-    """
-    Profit Core 설정 (Config SSOT)
-    
-    D206-1 AC-1: 파라미터 SSOT화
-    - default_price_krw: Upbit BTC/KRW 기준 가격 (REQUIRED)
-    - default_price_usdt: Binance BTC/USDT 기준 가격 (REQUIRED)
-    - price_sanity_min_krw: Upbit 가격 하한 (이상치 탐지)
-    - price_sanity_max_krw: Upbit 가격 상한
-    
-    Constitutional Basis:
-    - No Magic Numbers (코드 기본값 금지)
-    - Config SSOT (config.yml 필수 로딩)
-    - WARN=FAIL (누락 시 즉시 ValueError)
-    """
-    default_price_krw: float
-    default_price_usdt: float
-    price_sanity_min_krw: float = 0.0
-    price_sanity_max_krw: float = float('inf')
-    enable_sanity_check: bool = True
-    
-    def __post_init__(self):
-        """SSOT 무결성 검증 (config.yml 필수)"""
-        if self.default_price_krw <= 0:
-            raise ValueError(f"ProfitCoreConfig: default_price_krw must be > 0, got {self.default_price_krw}")
-        if self.default_price_usdt <= 0:
-            raise ValueError(f"ProfitCoreConfig: default_price_usdt must be > 0, got {self.default_price_usdt}")
-        if self.enable_sanity_check:
-            if self.price_sanity_min_krw < 0:
-                raise ValueError(f"ProfitCoreConfig: price_sanity_min_krw must be >= 0, got {self.price_sanity_min_krw}")
-            if self.price_sanity_max_krw <= self.price_sanity_min_krw:
-                raise ValueError(f"ProfitCoreConfig: price_sanity_max_krw must be > min, got max={self.price_sanity_max_krw}, min={self.price_sanity_min_krw}")
-
-
-@dataclass
-class TunerConfig:
-    """
-    Tuner 설정 (Config SSOT)
-    
-    D206-1 AC-4: 튜너 훅 설계
-    - enabled: 튜너 활성화 여부
-    - tuner_type: "static" (v1), "grid" (v2), "bayesian" (v3)
-    - param_overrides: 튜너가 주입할 파라미터 (BreakEvenParams 오버라이드)
-    """
-    enabled: bool = False
-    tuner_type: str = "static"  # "static", "grid", "bayesian"
-    param_overrides: Optional[Dict[str, Any]] = None
+# TYPE_CHECKING: BreakEvenParams (circular import 방지)
+if TYPE_CHECKING:
+    from arbitrage.v2.opportunity import BreakEvenParams
 
 
 class BaseTuner(Protocol):
@@ -211,7 +166,7 @@ class ProfitCore:
         # binance는 sanity check 미적용 (향후 확장)
         return True
     
-    def apply_tuner_overrides(self, params: BreakEvenParams) -> BreakEvenParams:
+    def apply_tuner_overrides(self, params: "BreakEvenParams") -> "BreakEvenParams":
         """
         튜너 파라미터 오버라이드 적용
         

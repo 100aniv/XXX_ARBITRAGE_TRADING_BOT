@@ -139,7 +139,7 @@ class MockOpportunitySource(OpportunitySource):
         fx_provider,
         break_even_params: BreakEvenParams,
         kpi,
-        profit_core: ProfitCore,
+        profit_core: "ProfitCore",
     ):
         """Args:
             profit_core: ProfitCore (REQUIRED - 기본 가격)

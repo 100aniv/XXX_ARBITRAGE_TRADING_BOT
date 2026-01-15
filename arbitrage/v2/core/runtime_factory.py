@@ -1,6 +1,10 @@
-"""Runtime Factory - Core 컴포넌트 조립 (의존성 주입)"""
+"""Runtime Factory - Core 컴포넌트 조립 (의존성 주입)
+
+D206-1 CLOSEOUT: Preflight/Registry 요구사항 충족
+"""
 from typing import Optional
 import logging
+import os
 
 from arbitrage.v2.core.opportunity_source import (
     OpportunitySource,
@@ -17,6 +21,9 @@ from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
 from arbitrage.v2.marketdata.fx_provider import FXProvider
 from arbitrage.v2.marketdata.rate_limiter import RateLimiter
 from arbitrage.v2.storage.ledger import V2LedgerStorage
+from arbitrage.v2.core.profit_core import ProfitCore
+from arbitrage.v2.core.config import load_config
+from arbitrage.redis_client import RedisClient
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +39,11 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         PaperOrchestrator (모든 의존성 주입 완료)
     """
     logger.info(f"[D205-18-2D] Building Paper Runtime...")
+    
+    # 0. D206-1 CLOSEOUT: ProfitCore (config.yml 기반)
+    v2_config = load_config("config/v2/config.yml")
+    profit_core = ProfitCore(v2_config.profit_core)
+    logger.info(f"[D206-1] ProfitCore loaded: default_price_krw={v2_config.profit_core.default_price_krw}")
     
     # 1. Metrics & Evidence
     kpi = PaperMetrics()
@@ -94,7 +106,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     
     ledger_writer = LedgerWriter(storage=storage, config=config)
     
-    # Redis (OPS Gate 필수) - RedisClient 직접 초기화
+    # 6-1. Redis (D206-1 CLOSEOUT: OPS Gate 필수)
     redis_client = None
     if config.db_mode != "off":
         try:

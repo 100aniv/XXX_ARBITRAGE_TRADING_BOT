@@ -131,6 +131,43 @@ class TuningConfig:
 
 
 @dataclass
+class ProfitCoreConfig:
+    """
+    Profit Core 설정 (Config SSOT)
+    
+    D206-1 AC-1: 파라미터 SSOT화
+    - default_price_krw: Upbit BTC/KRW 기준 가격 (REQUIRED)
+    - default_price_usdt: Binance BTC/USDT 기준 가격 (REQUIRED)
+    - price_sanity_min_krw: Upbit 가격 하한 (이상치 탐지)
+    - price_sanity_max_krw: Upbit 가격 상한
+    """
+    default_price_krw: float
+    default_price_usdt: float
+    price_sanity_min_krw: float = 0.0
+    price_sanity_max_krw: float = float('inf')
+    enable_sanity_check: bool = True
+    
+    def __post_init__(self):
+        """SSOT 무결성 검증 (config.yml 필수)"""
+        if self.default_price_krw <= 0:
+            raise ValueError(f"ProfitCoreConfig: default_price_krw must be > 0, got {self.default_price_krw}")
+        if self.default_price_usdt <= 0:
+            raise ValueError(f"ProfitCoreConfig: default_price_usdt must be > 0, got {self.default_price_usdt}")
+
+
+@dataclass
+class TunerConfig:
+    """
+    Tuner 설정 (Config SSOT)
+    
+    D206-1 AC-4: 튜너 훅 설계
+    """
+    enabled: bool = False
+    tuner_type: str = "static"
+    param_overrides: Optional[Dict[str, Any]] = None
+
+
+@dataclass
 class MetaConfig:
     """메타 정보"""
     version: str
