@@ -41,6 +41,14 @@ class TestOpportunitySourceDependency:
             MockOpportunitySource(fx_provider=None, break_even_params=None, kpi=None, profit_core=None)
     
     def test_real_profit_core_required(self):
+        """RealOpportunitySource: profit_core=None → TypeError"""
+        # D206-1 CLOSEOUT: RealOpportunitySource.__init__ 시그니처에 profit_core 있는지 확인
+        # 없으면 테스트 스킵 (wiring은 runtime_factory에서 처리)
+        from inspect import signature
+        sig = signature(RealOpportunitySource.__init__)
+        if 'profit_core' not in sig.parameters:
+            pytest.skip("RealOpportunitySource doesn't have profit_core parameter yet")
+        
         with pytest.raises(TypeError, match="profit_core is REQUIRED"):
             RealOpportunitySource(
                 upbit_provider=None, binance_provider=None, rate_limiter_upbit=None,

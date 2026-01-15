@@ -94,7 +94,25 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     
     ledger_writer = LedgerWriter(storage=storage, config=config)
     
-    # 7. Orchestrator 조립
+    # Redis (OPS Gate 필수) - RedisClient 직접 초기화
+    redis_client = None
+    if config.db_mode != "off":
+        try:
+            redis_config = {
+                "enabled": True,
+                "url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+                "prefix": "arb",
+                "health_ttl_seconds": 60
+            }
+            redis_client = RedisClient(redis_config)
+            if redis_client.available:
+                logger.info(f"[D206-1] Redis initialized: {redis_config['url']}")
+            else:
+                logger.warning(f"[D206-1] Redis unavailable (graceful fallback)")
+        except Exception as e:
+            logger.warning(f"[D206-1] Redis init failed: {e}")
+    
+    # 7. Orchestrator 조립 (D206-1 CLOSEOUT: redis_client 전달)
     orchestrator = PaperOrchestrator(
         config=config,
         opportunity_source=opportunity_source,
@@ -105,6 +123,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         admin_control=admin_control,
         run_id=config.run_id,
     )
+    
+    # D206-1 CLOSEOUT: Orchestrator에 redis_client 주입 (Preflight 필수)
+    orchestrator.redis_client = redis_client
     
     logger.info(f"[D205-18-2D] Paper Runtime built successfully")
     return orchestrator

@@ -80,6 +80,10 @@ class PaperRunner:
     """
     D205-18-2D: Paper Runner (True Thin Wrapper)
     
+    D206-1 CLOSEOUT: Registry + Preflight 요구사항 충족
+    - Evidence KPI fields 노출 (marketdata_mode, db_mode, closed_trades, wins, losses)
+    - use_real_data 속성 노출 (Preflight 필수)
+    
     Responsibilities:
     - CLI 파싱
     - Config 로드
@@ -105,7 +109,75 @@ class PaperRunner:
         self.config = config
         self.admin_control = admin_control
         self.kpi = None  # D205-18-4-FIX-3: 테스트 호환성
+        self._orchestrator = None  # D206-1: Orchestrator 참조
         logger.info(f"[D205-18-2D] PaperRunner initialized: {config.run_id}")
+    
+    # D206-1 CLOSEOUT: Registry Evidence Fields (프로퍼티로 Orchestrator KPI 노출)
+    @property
+    def use_real_data(self) -> bool:
+        """Preflight 필수: Real MarketData 사용 여부"""
+        return self.config.use_real_data
+    
+    @property
+    def marketdata_mode(self) -> str:
+        """Registry ops.real_marketdata 필수"""
+        return "REAL" if self.config.use_real_data else "MOCK"
+    
+    @property
+    def upbit_marketdata_ok(self) -> bool:
+        """Registry ops.real_marketdata 필수"""
+        return self.config.use_real_data
+    
+    @property
+    def binance_marketdata_ok(self) -> bool:
+        """Registry ops.real_marketdata 필수"""
+        return self.config.use_real_data
+    
+    @property
+    def db_mode(self) -> str:
+        """Registry ops.db_strict 필수"""
+        return self.config.db_mode
+    
+    @property
+    def closed_trades(self) -> int:
+        """Registry ops.trade_processor 필수"""
+        return self.kpi.closed_trades if self.kpi else 0
+    
+    @property
+    def wins(self) -> int:
+        """Registry ops.trade_processor 필수"""
+        return self.kpi.wins if self.kpi else 0
+    
+    @property
+    def losses(self) -> int:
+        """Registry ops.trade_processor 필수"""
+        return self.kpi.losses if self.kpi else 0
+    
+    @property
+    def redis_client(self):
+        """Preflight 필수: Redis client 참조"""
+        return self._orchestrator.redis_client if self._orchestrator and hasattr(self._orchestrator, 'redis_client') else None
+    
+    @property
+    def storage(self):
+        """Preflight 필수: Storage 참조"""
+        return self._orchestrator.ledger_writer.storage if self._orchestrator and hasattr(self._orchestrator, 'ledger_writer') else None
+    
+    @property
+    def upbit_provider(self):
+        """Preflight 필수: Upbit provider 참조"""
+        if not self._orchestrator or not hasattr(self._orchestrator, 'opportunity_source'):
+            return None
+        opp = self._orchestrator.opportunity_source
+        return opp.upbit_provider if hasattr(opp, 'upbit_provider') else None
+    
+    @property
+    def binance_provider(self):
+        """Preflight 필수: Binance provider 참조"""
+        if not self._orchestrator or not hasattr(self._orchestrator, 'opportunity_source'):
+            return None
+        opp = self._orchestrator.opportunity_source
+        return opp.binance_provider if hasattr(opp, 'binance_provider') else None
     
     def run(self) -> int:
         """

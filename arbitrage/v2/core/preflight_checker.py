@@ -134,20 +134,21 @@ class PreflightChecker:
             # Runner 생성
             runner = PaperRunner(config)
             
-            # MarketData/Redis/DB 검증
+            # D206-1 CLOSEOUT: Smoke 실행 먼저 (orchestrator 초기화 후 검증)
+            self.log(f"  Starting {duration_minutes}min smoke...")
+            start_time = time.time()
+            
+            exit_code = runner.run()
+            
+            # D206-1 CLOSEOUT: 실행 후 MarketData/Redis/DB 검증
             marketdata_ok = self.check_real_marketdata(runner)
             redis_ok = self.check_redis(runner)
             db_ok = self.check_db_strict(runner)
             
             if not (marketdata_ok and db_ok):
-                self.log("  FAIL: Pre-smoke checks failed")
+                self.log("  FAIL: Post-smoke validation failed")
+                # Note: 실행은 성공했지만 validation 실패 시 exit_code 무시하고 FAIL
                 return False
-            
-            # Smoke 실행 (반환값 체크 필수)
-            self.log(f"  Starting {duration_minutes}min smoke...")
-            start_time = time.time()
-            
-            exit_code = runner.run()
             
             elapsed = time.time() - start_time
             

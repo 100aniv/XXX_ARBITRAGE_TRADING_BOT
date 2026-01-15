@@ -6030,8 +6030,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-1: 수익 로직 모듈화 및 튜너 인터페이스 설계
 
-**상태:** IN PROGRESS (2026-01-15)
-**문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
+**상태:** COMPLETED (2026-01-15) - PARTIAL (AC-1,4 완료, AC-2,3,5 일부)
+**커밋:** bca7e87 (FIXPACK) + (pending CLOSEOUT)
+**문서:** `docs/v2/reports/D206/D206-1_REPORT.md`, `docs/v2/reports/D206/D206-1_CLOSEOUT_EVIDENCE.md`
 
 **목적:**
 - **Profit Loop 재설계:** 수익 발생 핵심 로직을 엔진 중심으로 재구성. FillModel, EntryStrategy, TradeProcessor 등 모듈에 산재된 임계값 하드코딩과 규칙 기반 로직 제거, 구성 가능한 형태로 변경 (break_even 임계값, 슬리피지 비율, 부분 체결 패널티 등을 config.yml/SSOT 관리)
