@@ -374,6 +374,26 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         objective=tuning_data.get('objective'),
     )
     
+    # ProfitCore 파싱 (D206-1)
+    from arbitrage.v2.core.profit_core import ProfitCoreConfig, TunerConfig
+    
+    profit_core_data = raw_config.get('profit_core', {})
+    profit_core = ProfitCoreConfig(
+        default_price_krw=profit_core_data.get('default_price_krw'),
+        default_price_usdt=profit_core_data.get('default_price_usdt'),
+        price_sanity_min_krw=profit_core_data.get('price_sanity_min_krw', 0.0),
+        price_sanity_max_krw=profit_core_data.get('price_sanity_max_krw', float('inf')),
+        enable_sanity_check=profit_core_data.get('enable_sanity_check', True),
+    )
+    
+    # Tuner 파싱 (D206-1)
+    tuner_data = raw_config.get('tuner', {})
+    tuner = TunerConfig(
+        enabled=tuner_data.get('enabled', False),
+        tuner_type=tuner_data.get('tuner_type', 'static'),
+        param_overrides=tuner_data.get('param_overrides'),
+    )
+    
     # Meta 파싱
     meta = MetaConfig(
         version=raw_config['meta']['version'],
@@ -386,31 +406,33 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     cycle_interval_seconds = raw_config.get('cycle_interval_seconds', 1.0)
     max_concurrent_orders = raw_config.get('max_concurrent_orders', 1)
     dry_run = raw_config.get('dry_run', True)
-    
-    # V2Config 생성
+
+    # V2Config 인스턴스 생성
     config = V2Config(
         mode=mode,
         execution_env=execution_env,
-        execution=execution,  # D206-0: ExecutionConfig 추가
+        execution=execution,
         exchanges=exchanges,
         universe=universe,
         strategy=strategy,
-        cycle_interval_seconds=cycle_interval_seconds,
-        max_concurrent_orders=max_concurrent_orders,
-        dry_run=dry_run,
+        cycle_interval_seconds=exec_data.get('cycle_interval_seconds', 10.0),
+        max_concurrent_orders=exec_data.get('max_concurrent_orders', 5),
+        dry_run=exec_data.get('dry_run', True),
         safety=safety,
         reporting=reporting,
         monitoring=monitoring,
         logging=logging_cfg,
         database=database,
         cache=cache,
-        tuning=tuning,  # D205-14
+        tuning=tuning,
+        profit_core=profit_core,  # D206-1
+        tuner=tuner,  # D206-1
         meta=meta,
     )
-    
+
     # 검증
     config.validate()
-    
+
     logger.info(f"[V2 Config] 로드 완료: {config_path}")
     logger.info(f"[V2 Config] Version: {meta.version}, Name: {meta.config_name}")
     

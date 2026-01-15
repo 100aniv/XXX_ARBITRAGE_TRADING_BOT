@@ -75,7 +75,8 @@ class RealOpportunitySource(OpportunitySource):
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
-            if ticker_upbit.last < 50_000_000 or ticker_upbit.last > 200_000_000:
+            # D206-1 FIXPACK: profit_core 필수 (검증됨)
+            if not self.profit_core.check_price_sanity("upbit", ticker_upbit.last):
                 logger.error(f"[D205-18-2D] Upbit price suspicious: {ticker_upbit.last:.0f} KRW")
                 self.kpi.real_ticks_fail_count += 1
                 return None
@@ -125,33 +126,46 @@ class RealOpportunitySource(OpportunitySource):
 
 
 class MockOpportunitySource(OpportunitySource):
-    """Mock Opportunity 생성 (가상 가격)"""
+    """Mock Opportunity 생성 (가상 가격)
+    
+    D206-1 FIXPACK:
+    - profit_core 필수 의존성
+    - WARN=FAIL (fallback 제거)
+    - No Magic Numbers
+    """
     
     def __init__(
         self,
-        fx_provider,  # FixedFxProvider or LiveFxProvider
+        fx_provider,
         break_even_params: BreakEvenParams,
         kpi,
+        profit_core: ProfitCore,
     ):
+        """Args:
+            profit_core: ProfitCore (REQUIRED - 기본 가격)
+        
+        Raises:
+            TypeError: profit_core가 None일 경우
+        """
+        if profit_core is None:
+            raise TypeError("MockOpportunitySource: profit_core is REQUIRED (WARN=FAIL principle)")
+        
         self.fx_provider = fx_provider
         self.break_even_params = break_even_params
         self.kpi = kpi
+        self.profit_core = profit_core
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
         """
         Mock Opportunity 생성
         
-        D206-1 AC-1: 하드코딩 제거
-        - 50_000_000.0 → profit_core.get_default_price("upbit", "BTC/KRW")
-        - 40_000.0 → profit_core.get_default_price("binance", "BTC/USDT")
+        D206-1 FIXPACK:
+        - 하드코딩 0건 (profit_core 필수)
+        - config.yml 기반 가격만 사용
         """
-        # Fallback 가격 (profit_core 없을 때)
-        if hasattr(self, 'profit_core') and self.profit_core:
-            base_price_a_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
-            base_price_b_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
-        else:
-            base_price_a_krw = 80_000_000.0
-            base_price_b_usdt = 60_000.0
+        # profit_core는 __init__에서 필수 검증됨
+        base_price_a_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
+        base_price_b_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
         
         fx_rate = self.fx_provider.get_rate("USDT", "KRW")
         base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)

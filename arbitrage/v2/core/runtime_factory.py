@@ -60,7 +60,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     # 3. FX Provider
     fx_provider = FXProvider(default_krw_per_usdt=config.fx_krw_per_usdt)
     
-    # 4. OpportunitySource (Real/Mock 전략)
+    # 4. OpportunitySource (Real/Mock 전략) - D206-1 FIXPACK: profit_core 주입
     if config.use_real_data:
         opportunity_source = RealOpportunitySource(
             upbit_provider=upbit_provider,
@@ -70,16 +70,18 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             fx_provider=fx_provider,
             break_even_params=config.break_even_params,
             kpi=kpi,
+            profit_core=profit_core,  # D206-1 FIXPACK
         )
     else:
         opportunity_source = MockOpportunitySource(
             fx_provider=fx_provider,
             break_even_params=config.break_even_params,
             kpi=kpi,
+            profit_core=profit_core,  # D206-1 FIXPACK
         )
     
-    # 5. PaperExecutor (주문 실행 + Balance)
-    executor = PaperExecutor()
+    # 5. PaperExecutor (주문 실행 + Balance) - D206-1 FIXPACK: profit_core 주입
+    executor = PaperExecutor(profit_core)  # D206-1 FIXPACK
     
     # 6. LedgerWriter (DB 기록)
     storage = None

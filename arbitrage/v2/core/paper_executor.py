@@ -3,14 +3,37 @@ import logging
 
 from arbitrage.v2.core import OrderIntent, OrderSide
 from arbitrage.v2.adapters import MockAdapter
+from arbitrage.v2.core.profit_core import ProfitCore
 
 logger = logging.getLogger(__name__)
 
 
 class PaperExecutor:
-    """Paper 주문 실행 + Balance 관리"""
+    """Paper 주문 실행 + Balance 관리
     
-    def __init__(self, initial_balance: Optional[Dict[str, float]] = None):
+    D206-1 FIXPACK:
+    - profit_core 필수 의존성 (None 금지)
+    - WARN=FAIL (fallback 제거)
+    - No Magic Numbers (하드코딩 0건)
+    """
+    
+    def __init__(
+        self,
+        profit_core: ProfitCore,
+        initial_balance: Optional[Dict[str, float]] = None
+    ):
+        """
+        Args:
+            profit_core: ProfitCore (REQUIRED - config.yml 기반)
+            initial_balance: 초기 잔고
+        
+        Raises:
+            TypeError: profit_core가 None일 경우
+        """
+        if profit_core is None:
+            raise TypeError("PaperExecutor: profit_core is REQUIRED (WARN=FAIL principle)")
+        
+        self.profit_core = profit_core
         self.adapter = MockAdapter(enable_slippage=False)
         self.balance = initial_balance or {
             "KRW": 10_000_000.0,
@@ -33,19 +56,14 @@ class PaperExecutor:
         """
         Balance 업데이트
         
-        D206-1 AC-1: 하드코딩 제거
-        - 50_000_000.0 → profit_core.get_default_price("upbit", "BTC/KRW")
-        - 40_000.0 → profit_core.get_default_price("binance", "BTC/USDT")
+        D206-1 FIXPACK:
+        - 하드코딩 0건 (profit_core 필수)
+        - fallback 제거 (WARN=FAIL)
+        - config.yml 기반 가격만 사용
         """
-        # Fallback 가격 (profit_core 없을 때)
-        if self.profit_core:
-            default_price_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
-            default_price_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
-        else:
-            # 기본값 (하드코딩 제거 후 경고)
-            default_price_krw = 80_000_000.0
-            default_price_usdt = 60_000.0
-            logger.warning("[D206-1] PaperExecutor: profit_core not set, using default prices")
+        # profit_core는 __init__에서 필수 검증됨
+        default_price_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
+        default_price_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
         
         if intent.side == OrderSide.BUY:
             if intent.exchange == "upbit":
