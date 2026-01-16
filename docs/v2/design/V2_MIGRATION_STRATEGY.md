@@ -351,7 +351,7 @@
 
 ## 📅 마이그레이션 타임라인
 
-### Phase 1: Foundation (D200~D201)
+### Phase 1: Foundation (D200~D205)
 - **D200-1 (현재):**
   - ✅ SSOT 확정
   - ✅ Config SSOT 생성
@@ -371,7 +371,6 @@
   - ⏳ UpbitAdapter / BinanceAdapter 완성
   - ⏳ Payload 검증 100% PASS
 
-### Phase 2: Data & Strategy (D202~D203)
 - **D202-1:**
   - ⏳ REST MarketData Provider
   - ⏳ Redis cache 통합
@@ -387,7 +386,6 @@
 - **D203-2:**
   - ⏳ Backtest/Paper gate 기준
 
-### Phase 3: Profit Loop & Reporting (D204~D205)
 - **D204-1/D204-2:**
   - ⏳ Executor 구현
   - ⏳ Risk Guard 통합
@@ -399,17 +397,21 @@
   - ⏳ Admin Control (제어 인터페이스)
   - ⏳ 현실적 KPI 검증 (winrate 50~80%, edge > 0)
 
-### Phase 4: Core Path (D206~D209)
+### Phase 2: Engine Intelligence (D206~D213)
 - **D206:** 엔진 내재화 (V1 도메인 모델 통합, 수익 로직 이식)
 - **D207:** 리스크 제어 (RiskGuard, Position Manager)
 - **D208:** Safe Launch (Preflight, 운영 프로토콜)
 - **D209:** LIVE 설계 (Adapter, 제어 인터페이스, Runbook)
+- **D210:** V1 인프라 재사용
+- **D211:** V1 전략 로직 완전 이식
+- **D212:** Safe Launch 검증
+- **D213:** LIVE 설계 검증
 
 **의사결정 포인트 (D209 완료 후):**
-- **Fast Track:** D209 완료 → D220+ LIVE (Phase 5 스킵)
+- **Fast Track:** D209 완료 → D220+ LIVE (Phase 3 스킵)
 - **Commercial Track:** D209 완료 → D214~D219 (상용급 강화) → D220+ LIVE
 
-### Phase 5: Commercial Track (D214~D219, 선택적)
+### Phase 3: HFT & Commercial Readiness (D214~D219)
 - **D214:** HFT 알파 모델 (OBI, Avellaneda-Stoikov)
 - **D215:** Backtesting/Replay 엔진
 - **D216:** Multi-Symbol 동시 실행
@@ -417,9 +419,9 @@
 - **D218:** Admin UI/UX Dashboard
 - **D219:** ML-based Parameter Optimization
 
-### Phase 6: LIVE Deployment (D220+)
+### Phase 4: LIVE Deployment (D220+)
 - D209 (LIVE 설계) 완료 후 즉시 진행 가능
-- Phase 5 (D214~D219) 완료 여부 무관
+- Phase 3 (D214~D219) 완료 여부 무관
 
 ---
 
@@ -430,27 +432,26 @@
 - [ ] .env.v2.example 생성 + gitignore 확인
 - [ ] Adapter payload 검증 100% PASS
 - [ ] Gate (doctor/fast/regression) 100% PASS
-
-### ✅ Phase 2 완료 조건
 - [ ] MarketData REST/WS 통합
-- [ ] Redis cache 동작 확인
 - [ ] Opportunity detection 수식 검증
-
-### ✅ Phase 3 완료 조건
 - [ ] 20m smoke test PASS
 - [ ] 1h paper test PASS
 - [ ] Profit Loop (측정/튜닝/검증) 완료
 - [ ] Admin Control (제어 인터페이스) 완료
 - [ ] 현실적 KPI 검증 (winrate 50~80%, edge > 0)
 
-### ✅ Phase 4 완료 조건
+### ✅ Phase 2 완료 조건
 - [ ] V1 도메인 모델 통합 (D206)
 - [ ] 리스크 제어 구현 (D207)
 - [ ] Safe Launch 완료 (D208)
 - [ ] LIVE 설계 완료 (D209)
+- [ ] V1 인프라 재사용 (D210)
+- [ ] V1 전략 로직 완전 이식 (D211)
+- [ ] Safe Launch 검증 (D212)
+- [ ] LIVE 설계 검증 (D213)
 - [ ] Gate (doctor/fast/regression) 100% PASS
 
-### ✅ Phase 5 완료 조건 (선택적)
+### ✅ Phase 3 완료 조건 (선택적)
 - [ ] HFT 알파 모델 (D214)
 - [ ] Backtesting 엔진 (D215)
 - [ ] Multi-Symbol 실행 (D216)
@@ -458,7 +459,7 @@
 - [ ] Admin UI (D218)
 - [ ] ML Optimization (D219)
 
-### ✅ Phase 6 완료 조건
+### ✅ Phase 4 완료 조건
 - [ ] LIVE Adapter 구현 (D220)
 - [ ] LIVE Gate Unlock (D221)
 - [ ] LIVE Pilot (D222)
