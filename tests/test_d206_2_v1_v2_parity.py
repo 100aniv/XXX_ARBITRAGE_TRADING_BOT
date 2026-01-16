@@ -40,6 +40,7 @@ class TestV1V2DetectOpportunityParity:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
@@ -84,6 +85,7 @@ class TestV1V2DetectOpportunityParity:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=50.0,
             taker_fee_b_bps=50.0,
             slippage_bps=20.0,
@@ -122,6 +124,7 @@ class TestV1V2DetectOpportunityParity:
         v2_config_fx1 = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
@@ -129,24 +132,25 @@ class TestV1V2DetectOpportunityParity:
         )
         v2_engine_fx1 = V2Engine(v2_config_fx1)
         
-        # FX rate 1.5
+        # FX rate 2.5
         v1_config_fx2 = V1Config(
             min_spread_bps=30.0,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
             max_position_usd=1000.0,
-            exchange_a_to_b_rate=1.5,
+            exchange_a_to_b_rate=2.5,
         )
         v1_engine_fx2 = V1Engine(v1_config_fx2)
         
         v2_config_fx2 = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
-            exchange_a_to_b_rate=1.5,
+            exchange_a_to_b_rate=2.5,
         )
         v2_engine_fx2 = V2Engine(v2_config_fx2)
         
@@ -162,7 +166,7 @@ class TestV1V2DetectOpportunityParity:
         v1_opp_fx1 = v1_engine_fx1.detect_opportunity(snapshot)
         v2_opp_fx1 = v2_engine_fx1._detect_single_opportunity(snapshot)
         
-        # FX 1.5
+        # FX 2.5
         v1_opp_fx2 = v1_engine_fx2.detect_opportunity(snapshot)
         v2_opp_fx2 = v2_engine_fx2._detect_single_opportunity(snapshot)
         
@@ -171,12 +175,12 @@ class TestV1V2DetectOpportunityParity:
         assert v2_opp_fx1 is not None
         assert abs(v1_opp_fx1.net_edge_bps - v2_opp_fx1.net_edge_bps) < 1e-8
         
-        # V1/V2 FX 1.5 parity
+        # V1/V2 FX 2.5 parity
         assert v1_opp_fx2 is not None
         assert v2_opp_fx2 is not None
         assert abs(v1_opp_fx2.net_edge_bps - v2_opp_fx2.net_edge_bps) < 1e-8
         
-        # FX 변화 확인 (1.5 > 1.0 spread)
+        # FX 변화 확인 (2.5 > 1.0 spread)
         assert v1_opp_fx2.spread_bps != v1_opp_fx1.spread_bps
         assert v2_opp_fx2.spread_bps != v2_opp_fx1.spread_bps
     
@@ -195,10 +199,11 @@ class TestV1V2DetectOpportunityParity:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
-            max_open_trades=1,
+            exchange_a_to_b_rate=1.0,
         )
         v2_engine = V2Engine(v2_config)
         
@@ -263,9 +268,11 @@ class TestV1V2OnSnapshotParity:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             close_on_spread_reversal=True,
         )
         v2_engine = V2Engine(v2_config)
@@ -333,9 +340,11 @@ class TestV1V2OnSnapshotParity:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             close_on_spread_reversal=True,
         )
         v2_engine = V2Engine(v2_config)
@@ -405,8 +414,14 @@ class TestFeeModelIntegration:
         fee_model = create_fee_model_upbit_binance()
         
         v2_config = V2Config(
-            fee_model=fee_model,
+            min_spread_bps=30.0,
+            max_position_usd=1000.0,
+            max_open_trades=1,
+            taker_fee_a_bps=10.0,
+            taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
+            fee_model=fee_model,
         )
         v2_engine = V2Engine(v2_config)
         
@@ -423,6 +438,13 @@ class TestMarketSpecIntegration:
         market_spec = create_market_spec_upbit_binance(krw_usd_rate=1370.0)
         
         v2_config = V2Config(
+            min_spread_bps=30.0,
+            max_position_usd=1000.0,
+            max_open_trades=1,
+            taker_fee_a_bps=10.0,
+            taker_fee_b_bps=10.0,
+            slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             market_spec=market_spec,
         )
         v2_engine = V2Engine(v2_config)

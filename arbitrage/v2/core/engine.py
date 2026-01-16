@@ -5,9 +5,12 @@ Engine-centric arbitrage logic.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
 import logging
+import yaml
+from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 import time
 
 from .adapter import ExchangeAdapter, OrderResult
@@ -39,35 +42,87 @@ class EngineConfig:
     - market_spec: V1 MarketSpec (환율, tick/lot size)
     - arb_route: V1 ArbRoute (route scoring, health)
     """
-    min_spread_bps: float = 30.0
-    max_position_usd: float = 1000.0
-    enable_execution: bool = False
-    adapters: Dict[str, ExchangeAdapter] = field(default_factory=dict)
+    # D206-3: Zero-Fallback - All required keys must be provided (no defaults)
+    # REQUIRED fields (no defaults) - MUST come first in dataclass
+    min_spread_bps: float
+    max_position_usd: float
+    max_open_trades: int
+    taker_fee_a_bps: float
+    taker_fee_b_bps: float
+    slippage_bps: float
+    exchange_a_to_b_rate: float
     
-    # D206-2: V1 FeeModel/MarketSpec/ArbRoute 통합
-    fee_model: Optional[FeeModel] = None
-    market_spec: Optional[MarketSpec] = None
-    use_arb_route: bool = False  # ArbRoute scoring 사용 여부
-    
-    # D206-1: V1 ArbitrageConfig fields (Backward compatible, deprecated)
-    taker_fee_a_bps: float = 10.0  # fee_model 없을 때 fallback
-    taker_fee_b_bps: float = 10.0  # fee_model 없을 때 fallback
-    slippage_bps: float = 5.0
-    max_open_trades: int = 1
+    # OPTIONAL fields (with defaults) - MUST come after REQUIRED fields
+    # Exit Rules (D206-2-1)
+    take_profit_bps: Optional[float] = None
+    stop_loss_bps: Optional[float] = None
+    min_hold_sec: float = 0.0
     close_on_spread_reversal: bool = True
-    exchange_a_to_b_rate: float = 1.0  # market_spec 없을 때 fallback
+    enable_alpha_exit: bool = False
     
-    # D206-2-1: Exit Rules (V2 native)
-    take_profit_bps: Optional[float] = None  # 목표 수익 (bps), None이면 비활성화
-    stop_loss_bps: Optional[float] = None  # 손절 한계 (bps), None이면 비활성화
-    min_hold_sec: float = 0.0  # 최소 보유 시간 (초), 0이면 즉시 종료 허용
-    
-    # D206-2-1: HFT Alpha Hook Ready (OBI 시그널 조기 탈출)
-    enable_alpha_exit: bool = False  # OBI 기반 조기 탈출 활성화 (D214 예비)
-    
-    # D205-12-2: Engine Loop 설정
+    # Other
+    enable_execution: bool = False
     tick_interval_sec: float = 1.0
     kpi_log_interval: int = 10
+    
+    # D206-2: V1 FeeModel/MarketSpec/ArbRoute 통합 (dynamic, not from config.yml)
+    adapters: Dict[str, ExchangeAdapter] = field(default_factory=dict)
+    fee_model: Optional[FeeModel] = None
+    market_spec: Optional[MarketSpec] = None
+    use_arb_route: bool = False
+    
+    @classmethod
+    def from_config_file(cls, config_path: str, **kwargs):
+        """
+        D206-3: Load EngineConfig from config.yml (SSOT).
+        
+        Zero-Fallback: All required keys must be present in config.yml.
+        No defaults in code - missing keys will raise RuntimeError.
+        
+        Args:
+            config_path: Path to config.yml
+            **kwargs: Additional fields (adapters, fee_model, market_spec, etc.)
+        
+        Returns:
+            EngineConfig instance
+        
+        Raises:
+            RuntimeError: If required keys are missing
+        """
+        path = Path(config_path)
+        if not path.exists():
+            raise RuntimeError(
+                f"[D206-3 Zero-Fallback] config.yml not found: {config_path}\n"
+                f"SSOT violation: config.yml must exist (no hardcoded defaults)"
+            )
+        
+        with open(path, 'r', encoding='utf-8') as f:
+            config_data = yaml.safe_load(f)
+        
+        # D206-3: Zero-Fallback - Validate required keys
+        required_keys = [
+            'min_spread_bps', 'max_position_usd', 'max_open_trades',
+            'taker_fee_a_bps', 'taker_fee_b_bps', 'slippage_bps',
+            'exchange_a_to_b_rate'
+        ]
+        
+        missing = [k for k in required_keys if k not in config_data]
+        if missing:
+            raise RuntimeError(
+                f"[D206-3 Zero-Fallback] Missing required config keys: {missing}\n"
+                f"Config path: {config_path}\n"
+                f"SSOT violation: All {len(required_keys)} required keys must be present\n"
+                f"See config.yml example for complete schema"
+            )
+        
+        # D206-3: Decimal precision enforcement (float → Decimal conversion)
+        # Store as float in dataclass, but convert to Decimal in engine usage
+        # (Conversion happens in ArbitrageEngine.__init__)
+        
+        # Merge config_data with kwargs (kwargs override config_data)
+        merged = {**config_data, **kwargs}
+        
+        return cls(**merged)
 
 
 class ArbitrageEngine:

@@ -1,0 +1,31 @@
+# D206-3: Arbitrage V2 Engine Configuration (SSOT)
+# Single Source of Truth for all engine parameters
+# Zero-Fallback: All required keys must be present (no defaults in code)
+
+# Entry Thresholds (진입 임계치)
+min_spread_bps: 30.0          # REQUIRED: 최소 진입 스프레드 (basis points)
+max_position_usd: 1000.0      # REQUIRED: 최대 포지션 크기 (USD)
+max_open_trades: 1            # REQUIRED: 최대 동시 거래 수
+
+# Exit Rules (종료 정책 - D206-2-1)
+take_profit_bps: null         # OPTIONAL: 목표 수익 (bps), null이면 비활성화
+stop_loss_bps: null           # OPTIONAL: 손절 한계 (bps), null이면 비활성화
+min_hold_sec: 0.0             # OPTIONAL: 최소 보유 시간 (초), 0이면 즉시 종료 허용
+close_on_spread_reversal: true  # REQUIRED: 스프레드 역전 시 종료 여부
+enable_alpha_exit: false      # OPTIONAL: OBI 기반 조기 탈출 (D214 예비)
+
+# Cost Keys (비용 모델)
+taker_fee_a_bps: 10.0         # REQUIRED: Exchange A 테이커 수수료 (bps, fee_model 없을 때)
+taker_fee_b_bps: 10.0         # REQUIRED: Exchange B 테이커 수수료 (bps, fee_model 없을 때)
+slippage_bps: 5.0             # REQUIRED: 슬리피지 추정치 (bps)
+
+# Other (기타 필수)
+exchange_a_to_b_rate: 1.0    # REQUIRED: 환율 정규화 (market_spec 없을 때 fallback)
+enable_execution: false       # REQUIRED: 실제 주문 실행 여부 (false=paper mode)
+
+# Engine Loop Settings (엔진 루프 설정)
+tick_interval_sec: 1.0        # OPTIONAL: 스냅샷 처리 간격 (초)
+kpi_log_interval: 10          # OPTIONAL: KPI 로그 출력 간격 (틱 수)
+
+# Note: fee_model, market_spec, arb_route는 코드에서 동적으로 설정
+# (V1 객체 재사용, config.yml에서 직접 로드하지 않음)

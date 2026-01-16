@@ -6104,7 +6104,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### 신 D206-2: V1 전략 로직 완전 이식
 
-**상태:** PARTIAL (AC-2 미충족 - D206-2-1로 완료 예정)  
+**상태:** ✅ COMPLETED (2026-01-16)  
+**커밋:** 38f07bc (D206-2), 2758de2 (D206-2-1 완성)  
 **목적:** V1 ArbitrageEngine detect_opportunity 로직 100% V2 이식 + FeeModel/MarketSpec/ArbRoute 통합
 
 **현재 문제:**
@@ -6116,14 +6117,14 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 **목표:**
 - ✅ V1 detect_opportunity() 로직 100% 이식 (환율 정규화, spread 계산, gross/net edge)
-- ⚠️ V1 on_snapshot() 로직 이식 - spread_reversal 기본 구현 완료, TP/SL은 D206-2-1 필요
+- ✅ V1 on_snapshot() 로직 이식 - spread_reversal + TP/SL (D206-2-1에서 완성)
 - ✅ V1 FeeModel (거래소별 수수료 계산) 통합
 - ✅ V1 MarketSpec (거래소 스펙) 통합
 - ✅ V1 ArbRoute (route scoring, health) 통합 (선택적)
 
 **Acceptance Criteria:**
 - [x] AC-1: detect_opportunity() 완전 이식 - V1 로직 100% 재현 (환율, 스프레드, fee, slippage, gross/net edge) - 6/6 parity tests PASS
-- [ ] AC-2: on_snapshot() 완전 이식 - spread_reversal 기본 완료, TP/SL + PnL precision은 D206-2-1 필요
+- [x] AC-2: on_snapshot() 완전 이식 - spread_reversal + TP/SL + PnL precision (D206-2-1에서 완성)
 - [x] AC-3: FeeModel 통합 - `arbitrage/domain/fee_model.py` 직접 import, total_entry_fee_bps() 사용
 - [x] AC-4: MarketSpec 통합 - `arbitrage/domain/market_spec.py` 직접 import, fx_rate_a_to_b 사용
 - [x] AC-5: V1 parity 테스트 - V1 vs V2 detect_opportunity 100% 일치 (<1e-8 오차)
@@ -6135,7 +6136,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 **Evidence 경로:**
 - 이식 보고: `docs/v2/reports/D206/D206-2_REPORT.md`
-- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (6/8 PASS, 2개 D206-2-1로 이관)
+- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (8/8 PASS, D206-2-1에서 완성)
 - Evidence: `logs/evidence/d206_2_strategy_migration_20260116_224103/`
 - Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
 - Fast Gate: `pytest tests/test_d206_1_domain_models.py` (17/17 PASS)
@@ -6143,19 +6144,21 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 **의존성:**
 - Depends on: 신 D206-1 (V1 도메인 모델 통합) ✅
-- Unblocks: 신 D206-2-1 (Exit Rules + PnL Precision 완성)
+- Unblocks: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅ → 신 D206-3 (Config SSOT)
 
 ---
 
 #### 신 D206-2-1: Exit Rules + PnL Precision 완성
 
-**상태:** IN_PROGRESS (ONE-TURN HARD CLOSE 목표)  
+**상태:** ✅ COMPLETED (2026-01-16)  
+**커밋:** 2758de2  
+**Compare:** https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/38f07bc..2758de2  
 **목적:** V2 native Exit Rules (TP/SL) 구현 + PnL Precision 검증 + Parity 테스트 완전 통과
 
 **현재 문제:**
-- D206-2에서 AC-2 미충족 (on_snapshot TP/SL 미구현)
-- pnl_precision 테스트 SKIP (회피 금지 원칙 위반)
-- spread_reversal 테스트 SKIP (V1 버그 핑계 회피)
+- ~~D206-2에서 AC-2 미충족 (on_snapshot TP/SL 미구현)~~ ✅ 해결
+- ~~pnl_precision 테스트 SKIP (회피 금지 원칙 위반)~~ ✅ 해결 (Decimal 기반)
+- ~~spread_reversal 테스트 SKIP (V1 버그 핑계 회피)~~ ✅ 해결 (V1 behavior + V2 policy 분리)
 
 **목표:**
 - ✅ take_profit/stop_loss Exit Rules 구현 (V2 native)
@@ -6164,18 +6167,19 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - ✅ HFT 알파 시그널 슬롯 예비 (OBI early exit hook)
 
 **Acceptance Criteria:**
-- [ ] AC-1: take_profit_bps/stop_loss_bps Exit Rules 구현 - 단위(bps) 명시, min_hold_sec 옵션
-- [ ] AC-2: PnL Precision 검증 - Decimal (18자리) 기반, 0.01% 오차 이내, Rounding 정책 시뮬레이션
-- [ ] AC-3: spread_reversal 케이스 회피 없이 재현 - V1 behavior recording, V2 policy expectation 분리
-- [ ] AC-4: HFT Alpha Hook Ready - OBI 시그널 기반 조기 탈출 인터페이스 확장 가능
-- [ ] AC-5: Parity 테스트 100% PASS - SKIP/xfail 0개, `-k` 회피 금지
-- [ ] AC-6: Doctor/Fast/Regression 100% PASS - WARN=FAIL 원칙
+- [x] AC-1: take_profit_bps/stop_loss_bps Exit Rules 구현 - 단위(bps) 명시, min_hold_sec 옵션 ✅
+- [x] AC-2: PnL Precision 검증 - Decimal (18자리) 기반, 0.01% 오차 이내, ROUND_HALF_UP ✅
+- [x] AC-3: spread_reversal 케이스 회피 없이 재현 - V1 behavior recording, V2 policy expectation 분리 ✅
+- [x] AC-4: HFT Alpha Hook Ready - enable_alpha_exit 예비 슬롯 구현 ✅
+- [x] AC-5: Parity 테스트 100% PASS - 8/8 PASS, SKIP/xfail 0개 ✅
+- [x] AC-6: Doctor/Fast/Regression 100% PASS - 28/28 tests PASS ✅
 
 **Evidence 경로:**
 - 설계 보고: `docs/v2/reports/D206/D206-2-1_REPORT.md`
-- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (8/8 PASS 목표)
-- Evidence: `logs/evidence/d206_2_1_exit_rules_<timestamp>/`
-- Gate 로그: gate_doctor.txt, gate_fast.txt, parity_results.txt
+- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (8/8 PASS)
+- Exit Rules 테스트: `tests/test_d206_2_1_exit_rules.py` (3/3 PASS)
+- Evidence: `logs/evidence/d206_2_1_exit_rules_20260116_230500/`
+- Gate 로그: gate_doctor.txt (PASS), gate_fast.txt (28/28 PASS), parity_results.txt
 
 **SSOT 강제 규칙:**
 - ❌ AC 축소/스코프 외 선언 금지 (로드맵 요구사항 = 구현 필수)
@@ -6184,38 +6188,82 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - ✅ ONE-TURN HARD CLOSE (Step 0~9 전부 이번 턴 완료)
 
 **의존성:**
-- Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
-**상태:** PLANNED (신 D206-2-1 완료 후)  
-**목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화
+- Depends on: 신 D206-2 (V1 전략 로직 완전 이식) ✅
+- Unblocks: 신 D206-3 (Config SSOT 복원)
+
+---
+
+#### 신 D206-3: Config SSOT 복원 + Entry/Exit Thresholds 정식화
+
+**상태:** IN_PROGRESS (D206-2-1 완료 후)  
+**목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화, Entry/Exit Thresholds 정식화
 
 **현재 문제:**
-- EngineConfig에 하드코딩 기본값 (taker_fee_a_bps=10.0, slippage_bps=5.0 등)
-- config.yml과 불일치 → SSOT 파손
-- V1 ArbitrageConfig 재사용 안 함
-- **Exit policy config keys 미정의** (D206-2-1에서 사전예약)
+- ❌ **config.yml 미존재** (설정 단일 원천 없음)
+- ❌ EngineConfig에 하드코딩 기본값 (min_spread_bps=30.0, taker_fee_a_bps=10.0 등)
+- ❌ **Exit Rules 4개 키 config 미정의** (take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit)
+- ❌ **Entry Thresholds 키 fallback 존재** (Zero-Fallback 위반)
+- ❌ Legacy configs/ 불일치 (V2 EngineConfig와 1:1 매핑 안 됨)
 
 **목표:**
-- EngineConfig 하드코딩 제거 → config.yml에서만 로드
-- V1 ArbitrageConfig 재사용 (break_even_params, fee, slippage 등)
-- **Exit Policy Keys 정식화** (take_profit_bps, stop_loss_bps, min_hold_sec 등)
-- SSOT 단일화: config.yml이 유일한 설정 소스
+- ✅ **config.yml 생성** (유일한 설정 원천, SSOT 단일화)
+- ✅ **Exit Rules 4키 정식화** (take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit)
+- ✅ **Entry Thresholds 3키 필수화** (min_spread_bps, max_position_usd, max_open_trades)
+- ✅ **Zero-Fallback Enforcement** (설정 누락 시 즉시 RuntimeError, 기본값 금지)
+- ✅ **Decimal 정밀도 강제** (config float → engine Decimal 변환, 18자리)
+- ✅ **Artifact Configuration Audit** (engine_report.json에 config_fingerprint 기록)
 
 **Acceptance Criteria:**
-- [ ] AC-1: 하드코딩 제거 - EngineConfig 모든 기본값 제거, config.yml 필수 로드
-- [ ] AC-2: V1 Config 재사용 - V1 ArbitrageConfig 파라미터 V2 EngineConfig에 통합
-- [ ] AC-3: SSOT 검증 - config.yml 변경 시 Engine 동작 즉시 반영, 하드코딩 0개 증명
-- [ ] AC-4: Config 스키마 검증 - config.yml 누락/오타 시 Engine 시작 실패, 명확한 에러 메시지
-- [ ] AC-5: 문서 동기화 - `docs/v2/design/CONFIG_SCHEMA.md` 갱신 (모든 필드 설명)
-- [ ] AC-6: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS
+- [ ] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
+- [ ] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
+- [ ] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
+- [ ] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
+- [ ] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환, 비교 연산 1LSB 오차 금지
+- [ ] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (사후 감사)
+- [ ] AC-7: **Config 스키마 검증** - 누락/오타 시 명확한 에러 메시지 + 예제 config 제공
+- [ ] AC-8: **회귀 테스트** - Gate Doctor/Fast/Regression 100% PASS, config 누락 시 FAIL 검증
 
 **Evidence 경로:**
+- Reality Scan: `logs/evidence/d206_3_config_ssot_restore_<timestamp>/scan_summary.md`
 - Config 복원 보고: `docs/v2/reports/D206/D206-3_CONFIG_SSOT_REPORT.md`
+- config.yml: `config.yml` (SSOT 단일 원천)
 - 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md`
-- 테스트 결과: `tests/test_d206_3_config_ssot.py`
+- 테스트: `tests/test_d206_3_config_ssot.py` (Zero-Fallback 검증)
+- Gate 로그: gate_doctor.txt, gate_fast.txt, config_validation.txt
 
 **의존성:**
-- Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ⏳
+- Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
 - Unblocks: 신 D206-4 (_trade_to_result() 완성)
+
+**SSOT 강제 규칙:**
+- ❌ **기본값 금지** (Zero-Fallback): 설정 누락 시 기본값 대신 즉시 FAIL
+- ❌ **Float 오차 금지** (Decimal Sync): config float → Decimal(18자리) 변환 강제
+- ❌ **Artifact 누락 금지** (Config Audit): engine_report.json에 config_fingerprint 필수
+- ✅ **Entry/Exit Thresholds 명시**: 14개 필수 키 (Entry 3 + Exit 5 + Cost 3 + Other 3)
+
+**14개 필수 Config 키:**
+```yaml
+# Entry Thresholds (진입 임계치)
+min_spread_bps: 30.0          # REQUIRED
+max_position_usd: 1000.0      # REQUIRED
+max_open_trades: 1            # REQUIRED
+
+# Exit Rules (종료 정책)
+take_profit_bps: null         # OPTIONAL (null이면 비활성화)
+stop_loss_bps: null           # OPTIONAL
+min_hold_sec: 0.0             # OPTIONAL
+close_on_spread_reversal: true  # REQUIRED
+enable_alpha_exit: false      # OPTIONAL
+
+# Cost Keys (비용 모델)
+taker_fee_a_bps: 10.0         # REQUIRED (fee_model 없을 때)
+taker_fee_b_bps: 10.0         # REQUIRED
+slippage_bps: 5.0             # REQUIRED
+
+# Other
+exchange_a_to_b_rate: 1.0    # REQUIRED (market_spec 없을 때)
+enable_execution: false       # REQUIRED
+```
 
 ---
 

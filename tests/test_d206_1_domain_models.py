@@ -277,9 +277,11 @@ class TestEngineIntegration:
         config = EngineConfig(
             min_spread_bps=10.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
         )
         engine = ArbitrageEngine(config)
         
@@ -306,9 +308,11 @@ class TestEngineIntegration:
         config = EngineConfig(
             min_spread_bps=10.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
         )
         engine = ArbitrageEngine(config)
         

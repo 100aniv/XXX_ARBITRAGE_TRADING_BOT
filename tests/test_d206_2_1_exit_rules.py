@@ -19,9 +19,11 @@ class TestTakeProfitExitRule:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             take_profit_bps=50.0,  # 50 bps 목표 수익
             close_on_spread_reversal=False,  # TP만 테스트
         )
@@ -68,9 +70,11 @@ class TestStopLossExitRule:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             stop_loss_bps=50.0,  # 50 bps 손절 한계
             close_on_spread_reversal=False,  # SL만 테스트
         )
@@ -116,9 +120,11 @@ class TestExitRulePriority:
         v2_config = V2Config(
             min_spread_bps=30.0,
             max_position_usd=1000.0,
+            max_open_trades=1,
             taker_fee_a_bps=10.0,
             taker_fee_b_bps=10.0,
             slippage_bps=5.0,
+            exchange_a_to_b_rate=1.0,
             take_profit_bps=50.0,
             close_on_spread_reversal=True,
         )
