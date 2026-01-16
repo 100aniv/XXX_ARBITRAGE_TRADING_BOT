@@ -16,10 +16,12 @@ from arbitrage.v2.core.engine import ArbitrageEngine, EngineConfig
 def test_d206_1_detect_opportunity_basic():
     """AC-1: detect_opportunity가 양수 edge를 감지하는지 검증"""
     config = EngineConfig(
+        min_spread_bps=30.0,
+        max_position_usd=1000.0,
+        max_open_trades=3,
         taker_fee_a_bps=10.0,
         taker_fee_b_bps=10.0,
         slippage_bps=5.0,
-        max_open_trades=1,
         exchange_a_to_b_rate=1.0,
     )
     engine = ArbitrageEngine(config)
@@ -36,18 +38,20 @@ def test_d206_1_detect_opportunity_basic():
     opp = engine._detect_single_opportunity(snapshot)
     
     assert opp is not None, "Should detect opportunity with 1000 bps spread"
-    assert opp['side'] == 'LONG_A_SHORT_B', "Should favor LONG_A_SHORT_B"
-    assert opp['spread_bps'] == pytest.approx(1000.0, abs=1.0), "Spread should be ~1000 bps"
-    assert opp['net_edge_bps'] == pytest.approx(975.0, abs=1.0), "Net edge = 1000 - 25 (fees+slip)"
+    assert opp.side == 'LONG_A_SHORT_B', "Should favor LONG_A_SHORT_B"
+    assert opp.spread_bps == pytest.approx(1000.0, abs=1.0), "Spread should be ~1000 bps"
+    assert opp.net_edge_bps == pytest.approx(975.0, abs=1.0), "Net edge = 1000 - 25 (fees+slip)"
 
 
 def test_d206_1_detect_opportunity_no_edge():
     """AC-1: net_edge < 0이면 기회를 감지하지 않아야 함"""
     config = EngineConfig(
+        min_spread_bps=30.0,
+        max_position_usd=1000.0,
+        max_open_trades=3,
         taker_fee_a_bps=10.0,
         taker_fee_b_bps=10.0,
         slippage_bps=5.0,
-        max_open_trades=1,
         exchange_a_to_b_rate=1.0,
     )
     engine = ArbitrageEngine(config)
@@ -69,10 +73,12 @@ def test_d206_1_detect_opportunity_no_edge():
 def test_d206_1_on_snapshot_open_trade():
     """AC-2: on_snapshot이 거래를 개설하는지 검증"""
     config = EngineConfig(
+        min_spread_bps=30.0,
+        max_position_usd=1000.0,
+        max_open_trades=3,
         taker_fee_a_bps=10.0,
         taker_fee_b_bps=10.0,
         slippage_bps=5.0,
-        max_open_trades=1,
         exchange_a_to_b_rate=1.0,
     )
     engine = ArbitrageEngine(config)
@@ -88,18 +94,20 @@ def test_d206_1_on_snapshot_open_trade():
     trades_changed = engine._process_snapshot(snapshot)
     
     assert len(trades_changed) == 1, "Should open 1 trade"
-    assert trades_changed[0]['is_open'] is True
-    assert trades_changed[0]['side'] == 'LONG_A_SHORT_B'
+    assert trades_changed[0].is_open is True
+    assert trades_changed[0].side == 'LONG_A_SHORT_B'
     assert len(engine._open_trades) == 1, "Engine should track 1 open trade"
 
 
 def test_d206_1_on_snapshot_close_on_reversal():
     """AC-2: on_snapshot이 스프레드 역전 시 거래를 종료하는지 검증"""
     config = EngineConfig(
+        min_spread_bps=30.0,
+        max_position_usd=1000.0,
+        max_open_trades=3,
         taker_fee_a_bps=10.0,
         taker_fee_b_bps=10.0,
         slippage_bps=5.0,
-        max_open_trades=1,
         close_on_spread_reversal=True,
         exchange_a_to_b_rate=1.0,
     )
@@ -130,18 +138,20 @@ def test_d206_1_on_snapshot_close_on_reversal():
     trades_changed = engine._process_snapshot(snapshot_close)
     
     assert len(trades_changed) == 1, "Should close 1 trade (no new trade)"
-    assert trades_changed[0]['is_open'] is False
-    assert trades_changed[0]['exit_reason'] == 'spread_reversal'
+    assert trades_changed[0].is_open is False
+    assert trades_changed[0].exit_reason == 'spread_reversal'
     assert len(engine._open_trades) == 0, "Engine should have 0 open trades"
 
 
 def test_d206_1_total_cost_bps():
     """AC-3: 수수료 + 슬리피지가 total_cost_bps로 정확히 계산되는지 검증"""
     config = EngineConfig(
+        min_spread_bps=30.0,
+        max_position_usd=1000.0,
+        max_open_trades=3,
         taker_fee_a_bps=10.0,
         taker_fee_b_bps=15.0,
         slippage_bps=8.0,
-        max_open_trades=1,
         exchange_a_to_b_rate=1.0,
     )
     engine = ArbitrageEngine(config)
@@ -160,4 +170,4 @@ def test_d206_1_total_cost_bps():
     
     opp = engine._detect_single_opportunity(snapshot)
     assert opp is not None
-    assert opp['net_edge_bps'] == pytest.approx(17.0, abs=1.0), "Net edge = 50 - 33"
+    assert opp.net_edge_bps == pytest.approx(17.0, abs=1.0), "Net edge = 50 - 33"
