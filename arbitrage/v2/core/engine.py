@@ -12,6 +12,7 @@ import time
 
 from .adapter import ExchangeAdapter, OrderResult
 from .order_intent import OrderIntent
+from arbitrage.v2.domain import OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade
 
 
 logger = logging.getLogger(__name__)
@@ -88,9 +89,9 @@ class ArbitrageEngine:
         self.admin_control = admin_control
         self.state = EngineState.STOPPED
         
-        # D206-1: V1 ArbitrageEngine state (ProfitCore Bootstrap)
-        self._open_trades: List[Dict] = []  # Simplified trade tracking
-        self._last_snapshot: Optional[Dict] = None
+        # D206-1: V1 ArbitrageEngine state (Domain Model Integration)
+        self._open_trades: List[ArbitrageTrade] = []  # Type-safe trade tracking
+        self._last_snapshot: Optional[OrderBookSnapshot] = None
         
         # D206-1: Pre-calculated values (V1 optimization)
         self._total_cost_bps = (
@@ -134,28 +135,39 @@ class ArbitrageEngine:
         logger.debug(f"[V2 Engine] Cycle completed: {len(trades_changed)} trades changed")
         return results
     
-    def _process_snapshot(self, snapshot: Dict) -> List[Dict]:
+    def _process_snapshot(self, snapshot) -> List[ArbitrageTrade]:
         """
         D206-1: V1 on_snapshot logic (core trade management).
         
         Args:
-            snapshot: OrderBookSnapshot
+            snapshot: OrderBookSnapshot or dict (backward compatible) or None
         
         Returns:
-            List of trades that were opened/closed
+            List of ArbitrageTrade that were opened/closed
         """
-        if snapshot.get('stub'):
+        if snapshot is None:
+            return []
+        if isinstance(snapshot, dict) and snapshot.get('stub'):
             return []
         
         self._last_snapshot = snapshot
         trades_changed = []
         
-        # Extract prices
-        bid_a = snapshot.get('best_bid_a', 0)
-        ask_a = snapshot.get('best_ask_a', 0)
-        bid_b = snapshot.get('best_bid_b', 0)
-        ask_b = snapshot.get('best_ask_b', 0)
-        timestamp = snapshot.get('timestamp', '')
+        # Extract prices (backward compatible)
+        if isinstance(snapshot, OrderBookSnapshot):
+            bid_a = snapshot.best_bid_a
+            ask_a = snapshot.best_ask_a
+            bid_b = snapshot.best_bid_b
+            ask_b = snapshot.best_ask_b
+            timestamp = snapshot.timestamp
+        elif isinstance(snapshot, dict):
+            bid_a = snapshot.get('best_bid_a', 0)
+            ask_a = snapshot.get('best_ask_a', 0)
+            bid_b = snapshot.get('best_bid_b', 0)
+            ask_b = snapshot.get('best_ask_b', 0)
+            timestamp = snapshot.get('timestamp', '')
+        else:
+            return []
         
         if bid_a <= 0 or ask_a <= 0 or bid_b <= 0 or ask_b <= 0:
             return []
@@ -168,7 +180,7 @@ class ArbitrageEngine:
         if self.config.close_on_spread_reversal:
             trades_to_close = []
             for trade in self._open_trades:
-                side = trade.get('side', '')
+                side = trade.side
                 
                 # Calculate current spread
                 if side == "LONG_A_SHORT_B":
@@ -178,52 +190,56 @@ class ArbitrageEngine:
                 
                 # Close if spread becomes negative
                 if current_spread < 0:
-                    trade['is_open'] = False
-                    trade['close_timestamp'] = timestamp
-                    trade['exit_spread_bps'] = 0.0
-                    trade['exit_reason'] = 'spread_reversal'
+                    trade.close(
+                        close_timestamp=timestamp,
+                        exit_spread_bps=0.0,
+                        taker_fee_a_bps=self.config.taker_fee_a_bps,
+                        taker_fee_b_bps=self.config.taker_fee_b_bps,
+                        slippage_bps=self.config.slippage_bps,
+                        exit_reason='spread_reversal'
+                    )
                     trades_to_close.append(trade)
             
             for trade in trades_to_close:
                 self._open_trades.remove(trade)
                 trades_changed.append(trade)
-                logger.info(f"[D206-1] Closed trade: {trade['side']} (spread_reversal)")
+                logger.info(f"[D206-1] Closed trade: {trade.side} (spread_reversal)")
         
         # Detect new opportunities and open trades
         opportunity = self._detect_single_opportunity(snapshot)
         if opportunity:
-            new_trade = {
-                'open_timestamp': timestamp,
-                'side': opportunity['side'],
-                'entry_spread_bps': opportunity['spread_bps'],
-                'notional_usd': opportunity['notional_usd'],
-                'is_open': True,
-                'net_edge_bps': opportunity['net_edge_bps'],
-            }
+            new_trade = ArbitrageTrade(
+                open_timestamp=timestamp,
+                side=opportunity.side,
+                entry_spread_bps=opportunity.spread_bps,
+                notional_usd=opportunity.notional_usd,
+                is_open=True,
+                meta={'net_edge_bps': str(opportunity.net_edge_bps)}
+            )
             self._open_trades.append(new_trade)
             trades_changed.append(new_trade)
-            logger.info(f"[D206-1] Opened trade: {opportunity['side']} at {opportunity['spread_bps']:.2f} bps (edge={opportunity['net_edge_bps']:.2f})")
+            logger.info(f"[D206-1] Opened trade: {opportunity.side} at {opportunity.spread_bps:.2f} bps (edge={opportunity.net_edge_bps:.2f})")
         
         return trades_changed
     
-    def _trade_to_result(self, trade: Dict) -> OrderResult:
+    def _trade_to_result(self, trade: ArbitrageTrade) -> OrderResult:
         """
-        Convert trade dict to OrderResult (stub).
+        Convert ArbitrageTrade to OrderResult (stub).
         
-        D206-1: Minimal conversion for compatibility.
+        D206-1: Type-safe conversion.
         """
         return OrderResult(
             exchange="stub",
             symbol="stub",
-            side="buy" if "LONG" in trade.get('side', '') else "sell",
-            filled_qty=trade.get('notional_usd', 0) / 100,  # Stub conversion
+            side="buy" if "LONG" in trade.side else "sell",
+            filled_qty=trade.notional_usd / 100,  # Stub conversion
             filled_price=100.0,  # Stub
             fee_paid=0.0,
-            timestamp=trade.get('open_timestamp', ''),
-            metadata={'trade': trade}
+            timestamp=trade.open_timestamp,
+            metadata={'trade': trade.to_dict()}
         )
     
-    def _fetch_market_data(self) -> Dict:
+    def _fetch_market_data(self) -> Optional[OrderBookSnapshot]:
         """
         Fetch market data (stub).
         
@@ -233,22 +249,22 @@ class ArbitrageEngine:
         - Calculate spreads
         
         Returns:
-            Market data dictionary
+            OrderBookSnapshot or None (stub returns None)
         """
         logger.debug("[V2 Engine] Fetching market data (stub)")
-        return {"stub": True}
+        return None  # Stub: no real data
     
-    def _detect_opportunities(self, market_data: Dict) -> List[Dict]:
+    def _detect_opportunities(self, market_data) -> List[ArbitrageOpportunity]:
         """
         Detect arbitrage opportunities.
         
         D206-1: V1 detect_opportunity logic ported to V2.
         
         Args:
-            market_data: OrderBookSnapshot (best_bid_a, best_ask_a, best_bid_b, best_ask_b, timestamp)
+            market_data: OrderBookSnapshot or dict or list (backward compatible)
             
         Returns:
-            List of opportunity dictionaries
+            List of ArbitrageOpportunity
         """
         # D205-13-1: Backward compatibility
         if market_data is None:
@@ -265,22 +281,31 @@ class ArbitrageEngine:
                 opportunities.append(opp)
         return opportunities
     
-    def _detect_single_opportunity(self, snapshot: Dict) -> Optional[Dict]:
+    def _detect_single_opportunity(self, snapshot) -> Optional[ArbitrageOpportunity]:
         """
         D206-1: V1 detect_opportunity logic (core profit logic).
         
         Args:
-            snapshot: {best_bid_a, best_ask_a, best_bid_b, best_ask_b, timestamp}
+            snapshot: OrderBookSnapshot or dict (backward compatible)
         
         Returns:
-            Opportunity dict or None
+            ArbitrageOpportunity or None
         """
-        # Validate snapshot
-        bid_a = snapshot.get('best_bid_a', 0)
-        ask_a = snapshot.get('best_ask_a', 0)
-        bid_b = snapshot.get('best_bid_b', 0)
-        ask_b = snapshot.get('best_ask_b', 0)
-        timestamp = snapshot.get('timestamp', '')
+        # Backward compatibility: accept dict or OrderBookSnapshot
+        if isinstance(snapshot, OrderBookSnapshot):
+            bid_a = snapshot.best_bid_a
+            ask_a = snapshot.best_ask_a
+            bid_b = snapshot.best_bid_b
+            ask_b = snapshot.best_ask_b
+            timestamp = snapshot.timestamp
+        elif isinstance(snapshot, dict):
+            bid_a = snapshot.get('best_bid_a', 0)
+            ask_a = snapshot.get('best_ask_a', 0)
+            bid_b = snapshot.get('best_bid_b', 0)
+            ask_b = snapshot.get('best_ask_b', 0)
+            timestamp = snapshot.get('timestamp', '')
+        else:
+            return None
         
         if bid_a <= 0 or ask_a <= 0 or bid_b <= 0 or ask_b <= 0:
             return None
@@ -314,16 +339,16 @@ class ArbitrageEngine:
             side = "LONG_B_SHORT_A"
             gross_edge = spread_b_to_a
         
-        return {
-            'timestamp': timestamp,
-            'side': side,
-            'spread_bps': best_spread,
-            'gross_edge_bps': gross_edge,
-            'net_edge_bps': net_edge,
-            'notional_usd': self.config.max_position_usd,
-        }
+        return ArbitrageOpportunity(
+            timestamp=timestamp,
+            side=side,
+            spread_bps=best_spread,
+            gross_edge_bps=gross_edge,
+            net_edge_bps=net_edge,
+            notional_usd=self.config.max_position_usd,
+        )
     
-    def _create_intents(self, opportunities: List[Dict]) -> List[OrderIntent]:
+    def _create_intents(self, opportunities: List[ArbitrageOpportunity]) -> List[OrderIntent]:
         """
         Create OrderIntents from opportunities (stub).
         

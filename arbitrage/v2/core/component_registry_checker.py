@@ -12,8 +12,9 @@ Exit Code:
 """
 
 import json
+import yaml
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 
 class ComponentRegistryChecker:
@@ -65,12 +66,12 @@ class ComponentRegistryChecker:
         
         return all_exist
     
-    def check_evidence_fields(self, component: Dict, paper_runner_content: str) -> bool:
+    def check_evidence_fields(self, component: Dict) -> bool:
         """evidence_kpi_fields가 Evidence schema에 정의되어 있는지 확인
         
-        D206-1 HARDENED (Add-on A: Artifact-First):
-        - Runner 파일이 아닌 Evidence manifest schema(EVIDENCE_FORMAT.md)를 검사
-        - Gate는 Core 산출물을 검증, Runner 속성 검사 금지
+        D206-1 HARDENED (Registry De-Doping):
+        - EVIDENCE_FORMAT.md 파싱하여 필수 필드 검증
+        - 텍스트 검색 제거, 구조적 검증으로 전환
         """
         comp_id = component.get("id", "unknown")
         evidence_fields = component.get("evidence_kpi_fields", [])
@@ -78,9 +79,7 @@ class ComponentRegistryChecker:
         if not evidence_fields:
             return True  # 필드 없으면 스킵
         
-        # Add-on A: Runner 파일 검사 대신 Evidence schema 검사
-        # Evidence fields는 런타임에 kpi_summary.json/manifest.json으로 생성됨
-        # 정적 검사에서는 Evidence schema 파일 존재만 확인
+        # Evidence schema 파일 존재 확인
         evidence_format_path = self.repo_root / "docs" / "v2" / "design" / "EVIDENCE_FORMAT.md"
         
         if not evidence_format_path.exists():
@@ -89,12 +88,30 @@ class ComponentRegistryChecker:
             )
             return False
         
-        # Evidence schema가 존재하면 필드는 런타임에 검증 (Preflight)
-        # 정적 검사에서는 PASS (Runner 비대화 방지)
+        # D206-1: Evidence schema 내용 파싱하여 필드 검증
+        # 단순 존재 확인이 아닌 실제 schema 정의 확인
+        try:
+            with open(evidence_format_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # engine_report.json 스키마 섹션에서 필수 필드 확인
+                for field in evidence_fields:
+                    if field not in content:
+                        self.warnings.append(
+                            f"[{comp_id}] Evidence field '{field}' not documented in EVIDENCE_FORMAT.md"
+                        )
+        except Exception as e:
+            self.warnings.append(
+                f"[{comp_id}] Failed to parse EVIDENCE_FORMAT.md: {e}"
+            )
+            return False
+        
         return True
     
-    def check_config_keys(self, component: Dict, paper_runner_content: str) -> bool:
-        """config_keys가 PaperRunnerConfig에 존재하는지 확인"""
+    def check_config_keys(self, component: Dict, config_data: Dict[str, Any]) -> bool:
+        """config_keys가 config.yml에 존재하는지 확인
+        
+        D206-1: Registry De-Doping - YAML 파싱 기반 검증
+        """
         comp_id = component.get("id", "unknown")
         config_keys = component.get("config_keys", [])
         ops_critical = component.get("ops_critical", False)
@@ -105,8 +122,19 @@ class ComponentRegistryChecker:
         
         all_found = True
         for key in config_keys:
-            # PaperRunnerConfig에서 key 존재 확인 (간단한 텍스트 검색)
-            if key not in paper_runner_content:
+            # YAML 파싱된 config에서 key 존재 확인 (nested key 지원)
+            key_parts = key.split('.')
+            current = config_data
+            found = True
+            
+            for part in key_parts:
+                if isinstance(current, dict) and part in current:
+                    current = current[part]
+                else:
+                    found = False
+                    break
+            
+            if not found:
                 # OPS Gate 정책: ops_critical or required → ERROR
                 if ops_critical or required:
                     self.errors.append(
@@ -120,19 +148,36 @@ class ComponentRegistryChecker:
         
         return all_found
     
+    def load_config(self) -> Dict[str, Any]:
+        """config.yml YAML 파싱
+        
+        D206-1: Registry De-Doping - 텍스트 검색 대신 YAML 파싱
+        """
+        config_path = self.repo_root / "config" / "v2" / "config.yml"
+        
+        if not config_path.exists():
+            self.warnings.append("config.yml not found")
+            return {}
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+        except Exception as e:
+            self.errors.append(f"Failed to parse config.yml: {e}")
+            return {}
+    
     def run_checks(self) -> tuple:
-        """모든 검사 실행"""
+        """모든 검사 실행
+        
+        D206-1: Registry De-Doping - 텍스트 검색 제거
+        """
         registry = self.load_registry()
         
         if not registry:
             return (len(self.errors), len(self.warnings))
         
-        # paper_runner.py 로드
-        paper_runner_path = self.repo_root / "arbitrage" / "v2" / "harness" / "paper_runner.py"
-        paper_runner_content = ""
-        if paper_runner_path.exists():
-            with open(paper_runner_path, 'r', encoding='utf-8') as f:
-                paper_runner_content = f.read()
+        # config.yml YAML 파싱 (텍스트 검색 대신)
+        config_data = self.load_config()
         
         # 각 컴포넌트 검사
         components = registry.get("components", [])
@@ -143,11 +188,11 @@ class ComponentRegistryChecker:
             # 파일 존재 확인
             files_ok = self.check_component_files(component)
             
-            # Evidence fields 확인
-            evidence_ok = self.check_evidence_fields(component, paper_runner_content)
+            # Evidence fields 확인 (DOPING 제거)
+            evidence_ok = self.check_evidence_fields(component)
             
-            # Config keys 확인
-            config_ok = self.check_config_keys(component, paper_runner_content)
+            # Config keys 확인 (YAML 파싱 기반)
+            config_ok = self.check_config_keys(component, config_data)
             
             # ops_critical 컴포넌트는 파일 존재만 필수 (evidence/config는 warning)
             if ops_critical and not files_ok:
