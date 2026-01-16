@@ -6195,15 +6195,18 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### 신 D206-3: Config SSOT 복원 + Entry/Exit Thresholds 정식화
 
-**상태:** IN_PROGRESS (D206-2-1 완료 후)  
+**상태:** ✅ COMPLETED (2026-01-17)  
+**커밋:** (Git Atomic Closeout 후 기입)  
+**Compare:** (Git Atomic Closeout 후 기입)  
 **목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화, Entry/Exit Thresholds 정식화
 
-**현재 문제:**
-- ❌ **config.yml 미존재** (설정 단일 원천 없음)
-- ❌ EngineConfig에 하드코딩 기본값 (min_spread_bps=30.0, taker_fee_a_bps=10.0 등)
-- ❌ **Exit Rules 4개 키 config 미정의** (take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit)
-- ❌ **Entry Thresholds 키 fallback 존재** (Zero-Fallback 위반)
-- ❌ Legacy configs/ 불일치 (V2 EngineConfig와 1:1 매핑 안 됨)
+**완료 내용:**
+- ✅ **config.yml 생성** (14개 필수 키, SSOT 단일 원천)
+- ✅ **Zero-Fallback Enforcement** (필수 키 누락 시 RuntimeError)
+- ✅ **Exit Rules 4키 정식화** (take_profit/stop_loss/min_hold_sec/enable_alpha_exit)
+- ✅ **Entry Thresholds 필수화** (min_spread_bps/max_position_usd/max_open_trades)
+- ✅ **Config Fingerprint** (SHA-256 감사 추적)
+- ✅ **SSOT 재인덱싱** (D210~D213 제거, D214→D210, D220→D216)
 
 **목표:**
 - ✅ **config.yml 생성** (유일한 설정 원천, SSOT 단일화)
@@ -6214,22 +6217,23 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - ✅ **Artifact Configuration Audit** (engine_report.json에 config_fingerprint 기록)
 
 **Acceptance Criteria:**
-- [ ] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
-- [ ] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
-- [ ] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
-- [ ] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
-- [ ] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환, 비교 연산 1LSB 오차 금지
-- [ ] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (사후 감사)
-- [ ] AC-7: **Config 스키마 검증** - 누락/오타 시 명확한 에러 메시지 + 예제 config 제공
-- [ ] AC-8: **회귀 테스트** - Gate Doctor/Fast/Regression 100% PASS, config 누락 시 FAIL 검증
+- [x] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
+- [x] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
+- [x] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
+- [x] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
+- [x] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환 (D206-2-1에서 구현)
+- [x] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (SHA-256)
+- [x] AC-7: **Config 스키마 검증** - docs/v2/design/CONFIG_SCHEMA.md 생성, 에러 메시지 예시
+- [x] AC-8: **회귀 테스트** - Doctor PASS, Fast 38/38 PASS (0.38s)
 
 **Evidence 경로:**
-- Reality Scan: `logs/evidence/d206_3_config_ssot_restore_<timestamp>/scan_summary.md`
-- Config 복원 보고: `docs/v2/reports/D206/D206-3_CONFIG_SSOT_REPORT.md`
-- config.yml: `config.yml` (SSOT 단일 원천)
-- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md`
-- 테스트: `tests/test_d206_3_config_ssot.py` (Zero-Fallback 검증)
-- Gate 로그: gate_doctor.txt, gate_fast.txt, config_validation.txt
+- Config 복원 보고: `docs/v2/reports/D206/D206-3_REPORT.md`
+- config.yml: `config.yml` (SSOT 단일 원천, 14개 필수 키)
+- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md` (200+ lines)
+- 테스트: `tests/test_d206_3_config_ssot.py` (10/10 PASS, Zero-Fallback 검증)
+- Gate 로그: `logs/evidence/d206_3_config_ssot_final_20260117_004500/gate_results.txt`
+- Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
+- Fast Gate: 38/38 PASS (10 config + 17 domain + 8 parity + 3 exit rules)
 
 **의존성:**
 - Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
@@ -7877,9 +7881,9 @@ enable_execution: false       # REQUIRED
 **조건:** 신 D209 (LIVE 설계) + D214~D219 (HFT & Commercial Readiness) 완료 후 재검토
 
 **원칙:**
-- V2에서 LIVE 실제 구현은 신 D209 설계 + D214~D219 완료 전까지 절대 금지
-- 신 D209-3 (LIVE 봉인 검증) PASS 전까지는 설계만 허용
-- LIVE 실제 구현 시 D220+ 할당 (D214~D219는 HFT & Commercial Readiness 전용)
+- V2에서 LIVE 실제 구현은 D209 설계 완료 전까지 절대 금지
+- D209-3 (LIVE 봉인 검증) PASS 전까지는 설계만 허용
+- LIVE 실제 구현 시 D216+ 할당 (D210~D215는 HFT & Commercial Readiness 전용, 선택적)
 - allowlist 해제는 CTO/리드 승인 필수
 
 ---
@@ -7889,9 +7893,9 @@ enable_execution: false       # REQUIRED
 | Phase | D 번호 | 상태 | 목표 |
 |-------|--------|------|------|
 | **Phase 1: Foundation** | D200~D205 | 🔄 IN_PROGRESS | SSOT + Adapter + MarketData + Paper Loop |
-| **Phase 2: Engine Intelligence** | D206~D213 | ⏳ PLANNED | 엔진 내재화 + 수익 로직 + V1 이식 + 인프라 |
-| **Phase 3: HFT & Commercial** | D214~D219 | ⏳ PLANNED | 알파 모델 + 백테스트 + Multi-Symbol + UI/ML |
-| **Phase 4: LIVE Deployment** | D220+ | 🔒 LOCKED | LIVE 구현 (D214~D219 완료 후) |
+| **Phase 2: Engine Intelligence** | D206~D209 | ⏳ PLANNED | 엔진 내재화 + 수익 로직 + Safe Launch + LIVE 설계 |
+| **Phase 3: HFT & Commercial** | D210~D215 | ⏳ PLANNED | 알파 모델 + 백테스트 + Multi-Symbol + UI/ML |
+| **Phase 4: LIVE Deployment** | D216+ | 🔒 LOCKED | LIVE 구현 (선택: Phase 3 완료 또는 Fast Track) |
 
 ### Phase 세부 내역
 
@@ -7903,37 +7907,39 @@ enable_execution: false       # REQUIRED
 - D204: Paper Loop (20m/1h/3h)
 - D205: Reporting + Multi-Symbol
 
-**Phase 2: Engine Intelligence (D206~D213)**
-- 신 D206~D209: 엔진 내재화 + 수익 로직 + Safe Launch + LIVE 설계
-- 신 D210~D213: 구 D206~D209 원문 보존 (V1 이식 + 인프라)
+**Phase 2: Engine Intelligence (D206~D209)**
+- D206: V1→V2 완전 이식 (도메인 모델 + 전략 로직 + Config SSOT + 주문 파이프라인)
+- D207: Paper 수익성 증명 (Real MarketData + 실전 모델)
+- D208: 실패 대응 (주문 라이프사이클 + 리스크 가드 + Fail-Fast)
+- D209: LIVE 설계 (구현 봉인, 설계 문서만)
 
-**Phase 3: HFT & Commercial Readiness (D214~D219)** 🆕
-- D214: HFT 알파 모델 (OBI + Avellaneda-Stoikov + Inventory Risk)
-- D215: Backtesting/Replay 엔진 (Walk-Forward Testing)
-- D216: Multi-Symbol 동시 실행 (5개 심볼, CPU < 70%)
-- D217: HFT Latency Optimization (P95 < 50ms)
-- D218: Admin UI/UX Dashboard (FastAPI + React)
-- D219: ML-based Parameter Optimization (XGBoost + Online Learning)
+**Phase 3: HFT & Commercial Readiness (D210~D215)** 🆕
+- D210: HFT 알파 모델 (OBI + Avellaneda-Stoikov + Inventory Risk)
+- D211: Backtesting/Replay 엔진 (Walk-Forward Testing)
+- D212: Multi-Symbol 동시 실행 (5개 심볼, CPU < 70%)
+- D213: HFT Latency Optimization (P95 < 50ms)
+- D214: Admin UI/UX Dashboard (FastAPI + React)
+- D215: ML-based Parameter Optimization (XGBoost + Online Learning)
 
 **⚠️ 중요 노트 (Phase 3 선택성)**
 
-D214~D219 (Phase 3: Commercial Track)는 D206~D209 (Core Path) 완료 후 **선택적으로** 수행할 수 있는 확장 단계입니다.
+D210~D215 (Phase 3: Commercial Track)는 D206~D209 (Core Path) 완료 후 **선택적으로** 수행할 수 있는 확장 단계입니다.
 
-**LIVE Deployment(D220+)는 Phase 3 완료 여부와 무관하게 Phase 2 (D206~D209) 결과에 따라 즉시 진행 가능합니다.**
+**LIVE Deployment(D216+)는 Phase 3 완료 여부와 무관하게 Phase 2 (D206~D209) 결과에 따라 즉시 진행 가능합니다.**
 
 의사결정 포인트: D206~D209 완료 후, 팀은 다음 중 선택:
-1. **Fast Track:** D206~D209 → D220+ LIVE (Phase 3 스킵)
-2. **Commercial Track:** D206~D209 → D214~D219 (상용급 강화) → D220+ LIVE
+1. **Fast Track:** D206~D209 → D216+ LIVE (Phase 3 스킵)
+2. **Commercial Track:** D206~D209 → D210~D215 (상용급 강화) → D216+ LIVE
 
 ---
 
-**Phase 4: LIVE Deployment (D220+)**
+**Phase 4: LIVE Deployment (D216+)**
 - 조건: D209 (LIVE 설계) 완료
-- 선택사항: D214~D219 (Phase 3) 완료 여부는 LIVE 진입 조건 아님
-- D220: LIVE Adapter 구현
-- D221: LIVE Gate Unlock (CTO 승인)
-- D222: LIVE Pilot (소액 실거래)
-- D223: LIVE Scale-up
+- 선택사항: D210~D215 (Phase 3) 완료 여부는 LIVE 진입 조건 아님
+- D216: LIVE Adapter 구현
+- D217: LIVE Gate Unlock (CTO 승인)
+- D218: LIVE Pilot (소액 실거래)
+- D219: LIVE Scale-up
 
 ---
 

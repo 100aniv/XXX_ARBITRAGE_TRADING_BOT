@@ -408,20 +408,20 @@
 - **D213:** LIVE 설계 검증
 
 **의사결정 포인트 (D209 완료 후):**
-- **Fast Track:** D209 완료 → D220+ LIVE (Phase 3 스킵)
-- **Commercial Track:** D209 완료 → D214~D219 (상용급 강화) → D220+ LIVE
+- **Fast Track:** D209 완료 → D216+ LIVE (Phase 3 스킵)
+- **Commercial Track:** D209 완료 → D210~D215 (상용급 강화) → D216+ LIVE
 
-### Phase 3: HFT & Commercial Readiness (D214~D219)
-- **D214:** HFT 알파 모델 (OBI, Avellaneda-Stoikov)
-- **D215:** Backtesting/Replay 엔진
-- **D216:** Multi-Symbol 동시 실행
-- **D217:** HFT Latency Optimization
-- **D218:** Admin UI/UX Dashboard
-- **D219:** ML-based Parameter Optimization
+### Phase 3: HFT & Commercial Readiness (D210~D215)
+- **D210:** HFT 알파 모델 (OBI, Avellaneda-Stoikov)
+- **D211:** Backtesting/Replay 엔진
+- **D212:** Multi-Symbol 동시 실행
+- **D213:** HFT Latency Optimization
+- **D214:** Admin UI/UX Dashboard
+- **D215:** ML-based Parameter Optimization
 
-### Phase 4: LIVE Deployment (D220+)
+### Phase 4: LIVE Deployment (D216+)
 - D209 (LIVE 설계) 완료 후 즉시 진행 가능
-- Phase 3 (D214~D219) 완료 여부 무관
+- Phase 3 (D210~D215) 완료 여부 무관
 
 ---
 
@@ -452,15 +452,15 @@
 - [ ] Gate (doctor/fast/regression) 100% PASS
 
 ### ✅ Phase 3 완료 조건 (선택적)
-- [ ] HFT 알파 모델 (D214)
-- [ ] Backtesting 엔진 (D215)
-- [ ] Multi-Symbol 실행 (D216)
-- [ ] Latency Optimization (D217)
-- [ ] Admin UI (D218)
-- [ ] ML Optimization (D219)
+- [ ] HFT 알파 모델 (D210)
+- [ ] Backtesting 엔진 (D211)
+- [ ] Multi-Symbol 실행 (D212)
+- [ ] Latency Optimization (D213)
+- [ ] Admin UI (D214)
+- [ ] ML Optimization (D215)
 
 ### ✅ Phase 4 완료 조건
-- [ ] LIVE Adapter 구현 (D220)
+- [ ] LIVE Adapter 구현 (D216)
 - [ ] LIVE Gate Unlock (D221)
 - [ ] LIVE Pilot (D222)
 - [ ] LIVE Scale-up (D223)
@@ -482,7 +482,7 @@
 - **대응:** infra/를 SSOT로 확정 + docker/ 보관 또는 삭제
 
 ### 리스크 4: Phase 3을 필수 게이트로 오독
-- **증상:** D209 완료 후에도 D214~D219를 반드시 수행해야 한다고 오인
+- **증상:** D209 완료 후에도 D210~D215를 반드시 수행해야 한다고 오인
 - **대응:** D_ROADMAP.md에 "의사결정 포인트" 명시 + SSOT_RULES.md에 Fast/Commercial Track 분리
 
 ### 리스크 4: V1 코드 직접 import

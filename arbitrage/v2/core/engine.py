@@ -12,6 +12,8 @@ import yaml
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import time
+import hashlib
+import json
 
 from .adapter import ExchangeAdapter, OrderResult
 from .order_intent import OrderIntent
@@ -71,8 +73,17 @@ class EngineConfig:
     market_spec: Optional[MarketSpec] = None
     use_arb_route: bool = False
     
+    @staticmethod
+    def _compute_config_fingerprint(config_dict: dict) -> str:
+        """Compute SHA-256 fingerprint of config dict for audit trail.
+        
+        Canonical form: sorted JSON string (no whitespace).
+        """
+        canonical = json.dumps(config_dict, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+    
     @classmethod
-    def from_config_file(cls, config_path: str, **kwargs):
+    def from_config_file(cls, config_path: str = "config.yml", **kwargs) -> "EngineConfig":
         """
         D206-3: Load EngineConfig from config.yml (SSOT).
         
@@ -122,7 +133,13 @@ class EngineConfig:
         # Merge config_data with kwargs (kwargs override config_data)
         merged = {**config_data, **kwargs}
         
-        return cls(**merged)
+        instance = cls(**merged)
+        
+        # D206-3 AC-6: Store raw config dict for fingerprint audit
+        # (engine_report.py will use this to compute canonical fingerprint)
+        instance._config_raw_dict = config_data  # type: ignore
+        
+        return instance
 
 
 class ArbitrageEngine:

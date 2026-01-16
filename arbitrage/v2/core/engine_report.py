@@ -39,8 +39,21 @@ def get_git_sha() -> str:
 
 
 def compute_config_fingerprint(config: Any) -> str:
-    """Compute config fingerprint (SHA256)"""
+    """
+    Compute config fingerprint (SHA256)
+    
+    D206-3 AC-6: Use EngineConfig._compute_config_fingerprint() for canonical fingerprint.
+    If config has _config_raw_dict (set by from_config_file), use that.
+    Otherwise, fallback to config.__dict__ (legacy).
+    """
     try:
+        # D206-3: Prefer raw config dict (canonical, from config.yml)
+        if hasattr(config, '_config_raw_dict'):
+            from arbitrage.v2.core.engine import EngineConfig
+            fingerprint = EngineConfig._compute_config_fingerprint(config._config_raw_dict)
+            return f"sha256:{fingerprint[:16]}"
+        
+        # Legacy fallback
         config_str = str(config.__dict__)
         return f"sha256:{hashlib.sha256(config_str.encode()).hexdigest()[:16]}"
     except Exception as e:
