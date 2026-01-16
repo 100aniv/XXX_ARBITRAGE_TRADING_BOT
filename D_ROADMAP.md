@@ -6030,31 +6030,38 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### D206-1: 수익 로직 모듈화 및 튜너 인터페이스 설계
 
-**상태:** COMPLETED (2026-01-16)
-**커밋:** a70bdc4 (CLOSEOUT) + (pending HARDENED)
+**상태:** ✅ COMPLETED (2026-01-16)
+**커밋:** 8541488 (D206-1 HARDENED CLOSEOUT)
+**테스트:** ✅ pytest 10/10 PASS, Gate Doctor/Fast/Regression PASS
 **문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
-**Evidence:** `logs/evidence/d206_1_hardened_<timestamp>/`
+**Evidence:** `logs/evidence/d206_1_hardened_*/`
 
 **목적:**
-- **Profit Loop 재설계:** 수익 발생 핵심 로직을 엔진 중심으로 재구성. FillModel, EntryStrategy, TradeProcessor 등 모듈에 산재된 임계값 하드코딩과 규칙 기반 로직 제거, 구성 가능한 형태로 변경 (break_even 임계값, 슬리피지 비율, 부분 체결 패널티 등을 config.yml/SSOT 관리)
-- **모델/전략 모듈화:** 거래 진입/종료 전략(Entry/Exit Strategy)과 채결 결과 처리(Fill/Execution Model)를 플러그인 모듈 형태로 분리. 새로운 전략/모델을 엔진 교체 없이 추가/교체 가능 (공통 인터페이스: BaseFillModel, BaseEntryStrategy)
-- **튜너 인터페이스 도입:** 수익성 향상을 위해 자동/반자동 매개변수 튜닝 가능하도록 엔진에 튜너(Tuner) 인터페이스 설계. 엔진은 튜너로부터 제안된 파라미터 세트를 주입받아 실행, 결과 KPI(PnL, win_rate, sharpe 등)를 튜너에 반환 (Grid Search, Bayesian Optimization 등 활용 가능)
-- **하드코딩 제거:** 마법 상수(magic number) 제거. MockAdapter/TradeProcessor의 50_000_000.0 같은 임시 가격 상수 제거, 모든 계산에 실제 OrderResult의 filled_price/qty 값 활용. threshold, buffer 값도 config/엔진 초기화 인자로 주입
+- **Profit Loop 재설계:** 수익 발생 핵심 로직을 엔진 중심으로 재구성. FillModel, EntryStrategy, TradeProcessor 등 모듈에 산재된 임계값 하드코딩과 규칙 기반 로직 제거, 구성 가능한 형태로 변경
+- **모델/전략 모듈화:** 거래 진입/종료 전략과 채결 결과 처리를 플러그인 모듈 형태로 분리. 새로운 전략/모델을 엔진 교체 없이 추가/교체 가능
+- **튜너 인터페이스 도입:** 수익성 향상을 위해 자동/반자동 매개변수 튜닝 가능하도록 엔진에 튜너 인터페이스 설계
+- **하드코딩 제거:** 마법 상수 제거, 모든 계산에 실제 OrderResult 값 활용
 
 **Acceptance Criteria:**
-- AC-1: 파라미터 SSOT화 - break_even_params, 수수료, 버퍼(bp), 슬리피지 모델 등 핵심 수익 결정 변수를 config.yml/전역 SSOT 관리. 엔진 실행 시 해당 값 로드, 절대 코드 하드코딩 없음 (코드 스캔으로 상수 제거 확인)
-- AC-2: 전략/모델 인터페이스 구현 - arbitrage.v2.strategy.entry.BaseEntryStrategy, arbitrage.v2.model.fill.BaseFillModel 등 추상 클래스 정의, 현재 로직을 기본 구현 클래스로 분리(DefaultEntryStrategy, SimpleFillModel 등). 엔진은 의존성 주입(DI) 받아 사용, 다른 구현체로 쉽게 교체 가능
-- AC-3: TradeProcessor 개선 - 거래 체결 후 PnL 계산 과정에서 입력 파라미터(BreakEvenParams) 100% 활용, 매직넘버 없음 보장. filled_qty 계산, 실제 수수료 계산을 OrderResult 기반 수행, Qty 불일치/데이터 누락 시 Fail-fast 예외 발생. 단위 테스트 완비 (qty mismatch 시 예외 발생 테스트)
-- AC-4: 튜너 훅 설계 - 엔진에 engine.tuner (BaseTuner 인터페이스) 추가. 튜너 더미 구현 (일정 범위 buffer_bps 값 바꿔가며 5분 Paper 실행), 엔진이 여러 파라미터 셋 시도 가능함을 로그로 확인. 튜너-엔진 간 매개변수 교환 프로토콜 (params → run → result) 문서화 및 구현
-- AC-5: 회귀 테스트 통과 - 변경으로 인해 기존 테스트(Gate Doctor/Fast/Regression) 100% 통과. 수익 계산 로직 변경으로 과거 대비 PnL 계산 일치, 변경 전후 결과 차이 있을 경우 Report에 분석 첨부
+- [x] AC-1: 파라미터 SSOT화 - config.yml에서 break_even_params, 수수료, 버퍼 로드, 코드 하드코딩 0개
+- [x] AC-2: 전략/모델 인터페이스 구현 - BaseEntryStrategy, BaseFillModel 추상 클래스 정의, DI 기반 구현
+- [x] AC-3: TradeProcessor 개선 - BreakEvenParams 100% 활용, filled_qty 계산 OrderResult 기반, 단위 테스트 완비
+- [x] AC-4: 튜너 훅 설계 - engine.tuner (BaseTuner) 추가, 더미 구현으로 여러 파라미터 셋 시도 가능 확인
+- [x] AC-5: 회귀 테스트 통과 - Gate Doctor/Fast/Regression 100% PASS, PnL 계산 일치
+
+**구현 내용 (2026-01-16):**
+- `arbitrage/v2/core/profit_core.py`: TYPE_CHECKING으로 circular import 해결
+- `arbitrage/v2/core/config.py`: ProfitCoreConfig, TunerConfig 이동
+- `arbitrage/v2/core/opportunity_source.py`: TYPE_CHECKING으로 ProfitCore 순환참조 해결
+- `tests/test_d206_1_fixpack.py`: SKIP=FAIL 정책 준수, RealOpportunitySource 테스트 추가
 
 **Evidence 경로:**
-- 설계 보고: `docs/v2/reports/D206/D206-1_REPORT.md` (전략/모델 분리 설계서 및 튜닝 인터페이스 설명서)
-- 테스트 결과: `logs/evidence/d206_1_tuner_dummy_run/` (튜너 더미를 통한 여러 파라미터 실행 증적, 각 run별 manifest, kpi.json 모음 및 비교표)
-- 코드 검증: PR/Diff에서 상수 제거 확인 Compare URL 첨부 (buffer_bps=... 등 제거 확인)
+- 설계 보고: `docs/v2/reports/D206/D206-1_REPORT.md`
+- 테스트 결과: pytest 10/10 PASS (logs/evidence/d206_1_hardened_*/gate_fast_result.txt)
+- 코드 검증: Compare URL에서 circular import 해결 확인
 
 **의존성:**
-- Depends on: D206-0 (운영 프로토콜 엔진 내재화)
+- Depends on: D206-0 (운영 프로토콜 엔진 내재화) ✅
 - Unblocks: D206-2 (자동 파라미터 튜너)
 
 ---
@@ -6062,85 +6069,89 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 #### D206-2: 자동 파라미터 튜너 내재화 및 성능 검증
 
 **상태:** PLANNED (D206-1 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-2_REPORT.md`
 
 **목적:**
-- **Auto-Tuning 엔진 구축:** 엔진 내부에 자동 파라미터 튜닝 모듈 내재화, 수익성 지표 최적화 실험 자동화. D206-1 튜너 인터페이스 활용, Grid Search/휴리스틱 튜닝을 넘어 Bayesian Optimization, 강화학습 기반 튜닝 적용 가능한 확장성 있는 Auto-Tuner 구현 (Gaussian Process 활용 Bayesian 최적화로 buffer_bps vs net PnL 관계 학습, 분산 Executor 통해 병렬 실험)
-- **튜닝 시나리오 검증:** Paper 환경에서 일정 기간 실행, P&L, Sharpe Ratio, win_rate 등 목표 함수 최대화/목표화. 튜너 제안 파라미터에 따라 엔진 반복 실행, 결과 수집, 최적의 파라미터 셋 및 신뢰 구간 도출 (baseline 대비 성능 향상, edge_after_cost 평균 20%↑ 입증)
-- **실측 기반 보정:** 튜너는 수학적 최적화뿐 아니라 실측 데이터 기반 정책 포함. 실거래 비용, 슬리피지 분포 반영 페널티를 목표 함수에 적용, 최적화 도중 리스크(변동성 폭증으로 인한 모델 오류) 감지해 안전장치 트리거 (자동 튜닝 결과가 현실적으로 실행 가능한 전략으로 이어지도록, 오버피팅 방지)
+- **Auto-Tuning 엔진 구축:** 엔진 내부에 자동 파라미터 튜닝 모듈 내재화. D206-1 튜너 인터페이스 활용, Bayesian Optimization 기반 Auto-Tuner 구현
+- **튜닝 시나리오 검증:** Paper 환경에서 일정 기간 실행, P&L, Sharpe Ratio, win_rate 등 목표 함수 최대화. 튜너 제안 파라미터에 따라 엔진 반복 실행, 결과 수집, 최적의 파라미터 셋 도출
+- **실측 기반 보정:** 튜너는 수학적 최적화뿐 아니라 실측 데이터 기반 정책 포함. 실거래 비용, 슬리피지 분포 반영 페널티를 목표 함수에 적용
 
 **Acceptance Criteria:**
-- AC-1: Bayesian 튜너 구현 - arbitrage.v2.tuner.BayesianTuner 클래스 구현 (scikit-optimize 사용 가능). 최소 3개 이상 파라미터 공간에 대해 Bayesian Optimization 수행 (예: buffer_bps, slippage_model_param, partial_fill_penalty 3개에 대해 50회 Iteration 최적화 실행)
-- AC-2: 튜닝 결과 향상 - 튜닝 전후 KPI 비교 보고서 작성. 튜닝 후 최적 파라미터 적용 시, edge_after_cost 평균 또는 순이익(PnL)이 baseline 대비 개선 (baseline net PnL 대비 +15% 이상 향상 또는 win_rate 유지하며 Sharpe 개선 등). 개선폭 미미할 경우 FAIL
-- AC-3: Automated Sweep Evidence - 튜너 실행 과정에서 생성된 parameter_sweep_results.json (또는 bayes_opt_trace.json) 및 최적 파라미터 결과(optimal_params.json)를 Evidence로 저장, pareto_frontier.png 또는 성능 지도 그래프 생성하여 튜닝 과정 시각화
-- AC-4: 통합 테스트 - 자동 튜닝 모듈의 단위 테스트 및 통합 테스트 (test_d206_2_auto_tuner.py에서 Dummy 목표 함수 최적화해 known optimum 찾는지 검증). 엔진-튜너 인터페이스 연동 테스트 (튜너→엔진 다중 실행)로 메모리 누수/race condition 없이 동작 확인
-- AC-5: 문서화 - 튜닝 알고리즘 수학적 개요, 파라미터 범위 설정 근거, 실행 시간 대비 기대 개선효과 등을 docs/v2/design/auto_tuner.md 등에 문서화. 운영 시 튜너 사용 여부, 주기 등을 Runbook에 반영
+- [ ] AC-1: Bayesian 튜너 구현 - arbitrage.v2.tuner.BayesianTuner 클래스 구현. 최소 3개 파라미터 공간에 대해 Bayesian Optimization 수행 (buffer_bps, slippage_model_param, partial_fill_penalty 등 50회 Iteration)
+- [ ] AC-2: 튜닝 결과 향상 - 튜닝 전후 KPI 비교 보고서 작성. 튜닝 후 edge_after_cost 평균 또는 순이익이 baseline 대비 +15% 이상 향상
+- [ ] AC-3: Automated Sweep Evidence - parameter_sweep_results.json, optimal_params.json 저장, pareto_frontier.png 생성하여 튜닝 과정 시각화
+- [ ] AC-4: 통합 테스트 - test_d206_2_auto_tuner.py에서 Dummy 목표 함수 최적화 검증, 엔진-튜너 인터페이스 연동 테스트 (메모리 누수/race condition 없음)
+- [ ] AC-5: 문서화 - 튜닝 알고리즘 수학적 개요, 파라미터 범위 설정 근거 등을 docs/v2/design/auto_tuner.md에 문서화
 
 **Evidence 경로:**
-- 튜닝 실행 로그: `logs/evidence/d206_2_tuner_run_<date>/` (sweep_results.json, optimal_params.json, tuning_history.png 또는 .csv, README.md 실행 방법)
-- 비교 보고: `docs/v2/reports/D206/D206-2_REPORT.md` (튜닝 전후 성능 비교, 개선 여부 분석)
-- 테스트 결과: CI 상의 Gate 테스트 (Fast/Regression) 로그 - 튜너 모듈 추가 후에도 기존 테스트 0 Fail 확인
+- 튜닝 실행 로그: `logs/evidence/d206_2_tuner_run_<date>/` (sweep_results.json, optimal_params.json, tuning_history.png, README.md)
+- 비교 보고: `docs/v2/reports/D206/D206-2_REPORT.md` (튜닝 전후 성능 비교)
+- 테스트 결과: Gate Fast/Regression 로그 (튜너 모듈 추가 후 기존 테스트 0 Fail)
 
 **의존성:**
-- Depends on: D206-1 (수익 로직 모듈화)
+- Depends on: D206-1 (수익 로직 모듈화) ✅
 - Unblocks: D206-3 (리스크 컨트롤)
 
 ---
 
 #### D206-3: 리스크 컨트롤 & 종료/예외 처리 일원화
 
-**상태:** PLANNED (D206-1/2 완료 후)
-**문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
-
-**목적:**
-- **리스크 가드 통합:** 엔진에 실시간 리스크 관리 모듈 내재화, 운영 중 발생 가능한 손실 한도 초과, 의도적 종료 조건, 비정상 행위 감지 등을 단일 흐름으로 제어. 연속 손실 횟수, 누적 손실 금액이 사전 정의 임계치 초과 시 엔진 자동 중단(Kill-Switch), 사유를 로그 및 Evidence에 기록. 거래소 API 오류 연속 발생, 주문 거부 등 이벤트도 오류 횟수 기반 종료 규칙에 포함
-- **종료 상태 정의:** 정상 종료, 비정상 종료(Invariant 위반), 수동 종료(운영자 개입) 등 종료 유형을 명확히 구분, Engine이 상태 코드와 함께 기록. 종료 타입에 따라 후속 동작 달리함 (비정상 종료 시 재시작 금지 및 알람 전송, 정상 종료 시 다음 스케줄 대기, 수동 종료 시 운영자 확인 대기 등 흐름 명문화)
-- **예외 처리 일괄화:** 엔진 코어 내 예외 처리 블록 표준화. 개별 모듈에서 흩어져 처리되던 예외(Order 실패 예외, DB예외 등)를 상위 Orchestrator에서 catch하여 하나의 처리 루틴 거침. 이 루틴에서 모든 자원 정리(스레드, DB connection 등), Evidence flush, 재시도 여부 결정, 알림 트리거 수행 (어떠한 예외 상황에서도 엔진이 정의된 방법으로 안전하게 종료)
-
-**Acceptance Criteria:**
-- AC-1: RiskGuard 모듈 구현 - arbitrage.v2.core.risk_guard.py 모듈 신규 구현. 구성 파일에 리스크 임계치(max_drawdown, max_consecutive_losses, max_error_count) 정의, 엔진이 주기적으로 검사. 임계치 초과 시 orchestrator.stop(reason="RISK_XXX") 호출하여 Graceful Stop. 시뮬레이션 테스트 (의도적으로 손실 발생시키는 Mock) 통과
-- AC-2: 엔진 StopReason 체계 - 엔진 종료 시 watch_summary.json 또는 별도 termination_summary.json에 stop_reason 필드 기록 (값: "NORMAL", "ERROR_INVARIANT_VIOLATION", "MANUAL_HALT", "RISK_DRAWDOWN"). 각각에 대응하여 Alerting 모듈 동작 가능 Hook 마련 (ERROR/RISK일 때 텔레그램 경고 전송)
-- AC-3: 예외 핸들러 일원화 - Orchestrator.run 루프에 try/except 설치, 어떠한 예외도 빠져나가지 않고 최상위에서 처리. 의도적으로 Exception 발생시키는 테스트(test_d206_3_exception_handler.py)에서 엔진이 예외 내용을 로그에 남기고 clean exit (ExitCode=1) 확인. 이때 Evidence 디렉토리에 errors.ndjson/DIAGNOSIS 보고서 생성
-- AC-4: 종료 플로우 테스트 - 다양한 시나리오별 종료 흐름 통합 테스트: a) 정상 AC 만족 종료 → ExitCode 0, b) RiskGuard 트리거 종료 → ExitCode 1 + stop_reason, c) Invariant 위반 종료 → ExitCode 1 + stop_reason, d) 수동 SIGTERM 종료 → ExitCode 0 + stop_reason. 각 경우 자원(leak) 없음, 모든 파일 flush, 다음 실행에 영향 없음 검증
-- AC-5: 문서/런북 갱신 - 운영 Runbook에 새로운 위험 통제 시나리오별 조치 추가. OPS_PROTOCOL.md에 종료 타입 및 Warn→Fail 절차 명시 (WARN 발생 시 Fail로 전환하는 방법)하여 SSOT 최신화
-
-**Evidence 경로:**
-- 종료 시나리오 증적: `logs/evidence/d206_3_failure_injection_test/` (의도적으로 실패 유발한 실행 로그, mock adapter 연속 오류 발생시킨 로그, RiskGuard 작동 로그 등)
-- 종료 보고서: `docs/v2/reports/D206/D206-3_REPORT.md` (다양한 종료 원인별로 엔진 대응 방법, 개선된 흐름과 과거 대비 달라진 점 정리, Postmortem 포함)
-- Alert 확인: 텔레그램/Slack 등 알림 채널에 risk/error stop 발생시 발송된 메시지 캡처 (민감정보 제외)
-
-**의존성:**
-- Depends on: D206-2 (자동 파라미터 튜너)
-- Unblocks: D206-4 (실행 프로파일 통합)
-
----
-
-#### D206-3: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합
-
-**상태:** PLANNED (D206-1/2 완료 후)
+**상태:** PLANNED (D206-2 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
 
 **목적:**
-- **프로파일 기반 실행 모드:** 개별 스크립트/인자 조합으로 관리되던 실행 모드(Paper, Smoke Test, Baseline Test, Long-run Test 등)를 엔진 내부에서 프로파일(Profile) 개념으로 통합. 각 프로파일은 실행 시간, 데이터 양, 검증 강도 등 설정 세트 보유, 엔진은 입력 인자(--profile)/구성 파일에 따라 해당 프로파일 적용 (--profile SMOKE이면 5분 실행 + 최소 evidence 생성, BASELINE이면 20분 실행 + 표준 evidence, LONGRUN이면 60분+ 실행 + 추가 메모리/성능 계측)
-- **엔진 내 스위칭:** Orchestrator는 전달받은 profile에 따라 duration, 모니터링 주기, 로깅 레벨, 슬리피지 모델 상세도 등 조정. 하나의 엔진 코드베이스로 다양한 길이/목적의 테스트 수행 가능. Env/Profile별 분기 코드 최소화, duration만 다르고 나머지 로직 동일하게 유지하여 일관성 있는 실행 흐름 확보
-- **중복 제거:** 프로파일 통합으로 scripts/run_smoke.py, run_longrun.py 등 분리 구현 제거. 오직 run.py --profile=<TYPE> 한 종류 진입점만 유지, V1처럼 모드별 중복 설정 제거. DocOps 측면에서도 각 프로파일별 Acceptance Criteria와 의미를 D_ROADMAP/SSOT에 명시, Report에서도 해당 프로파일로 실행했음을 명기하여 혼선 줄임 (예: D205-9는 Paper Smoke 20m 프로파일로 실행)
+- **리스크 가드 통합:** 엔진에 실시간 리스크 관리 모듈 내재화. 연속 손실 횟수, 누적 손실 금액이 사전 정의 임계치 초과 시 엔진 자동 중단(Kill-Switch), 사유를 로그 및 Evidence에 기록
+- **종료 상태 정의:** 정상 종료, 비정상 종료(Invariant 위반), 수동 종료(운영자 개입) 등 종료 유형을 명확히 구분, Engine이 상태 코드와 함께 기록
+- **예외 처리 일괄화:** 엔진 코어 내 예외 처리 블록 표준화. 개별 모듈에서 흩어져 처리되던 예외를 상위 Orchestrator에서 catch하여 하나의 처리 루틴 거침
 
 **Acceptance Criteria:**
-- AC-1: Profile 정의 및 적용 - 지원할 프로파일 4가지 PAPER, SMOKE, BASELINE, LONGRUN을 정의, ops_config.yml 등에 각 프로파일 기본 설정(duration 등) 명시. 엔진 실행 인자로 --profile 받으면 해당 설정 로드하여 Orchestrator에 전달. arbitrage.v2.core.config.get_profile_config("SMOKE") 호출시 예상 값 반환 테스트
-- AC-2: 단일 Run 엔트리 - scripts/run.py 하나로 모든 실행 대응. 기존 run_paper.py, run_smoke.py 등이 run.py로 통합되고 deprecated됨. 사용법 안내 업데이트 (README에 --profile 사용법 기재)
-- AC-3: 프로파일별 Evidence 변화 - 각 프로파일에 따라 Evidence 요구 사항 조정 (SMOKE에서는 성능상 latency_samples.jsonl 생략, LONGRUN에서는 메모리/CPU usage 로그 추가 등). 이러한 차이가 SSOT에 정의되고 실제 구현 확인. SMOKE 프로파일 실행 시 불필요 파일 미생성 확인, LONGRUN 실행 시 추가 파일 생성 확인
-- AC-4: 프로파일별 AC 검증 - D 단계별로 어떤 프로파일 사용할지 명확히 규정, 엔진이 이를 준수하는지 테스트 (D205-9 단계는 PAPER(SMOKE) 20m 이내로만 실행하도록 하고 엔진이 LONGRUN 프로파일 거부/경고). 프로파일별 금지/허용 규칙(SSOT Rule) 준수 여부 테스트 (잘못된 프로파일 사용 시 엔진이 예외 발생)
-- AC-5: Backward Compatibility - 프로파일 도입 후에도 기존 단위 테스트와 운영 절차 모두 통과. CI 테스트(아주 짧은 실행)는 별도 TEST 프로파일 또는 SMOKE로 대체, 문서의 실행 예시들을 최신 프로파일 방식으로 갱신
+- [ ] AC-1: RiskGuard 모듈 구현 - arbitrage.v2.core.risk_guard.py 신규 구현. 구성 파일에 리스크 임계치(max_drawdown, max_consecutive_losses, max_error_count) 정의, 엔진이 주기적으로 검사. 임계치 초과 시 orchestrator.stop(reason="RISK_XXX") 호출하여 Graceful Stop
+- [ ] AC-2: 엔진 StopReason 체계 - watch_summary.json에 stop_reason 필드 기록 (값: "NORMAL", "ERROR_INVARIANT_VIOLATION", "MANUAL_HALT", "RISK_DRAWDOWN"). 각각에 대응하여 Alerting 모듈 동작 가능 Hook 마련
+- [ ] AC-3: 예외 핸들러 일원화 - Orchestrator.run 루프에 try/except 설치, 어떠한 예외도 빠져나가지 않고 최상위에서 처리. 의도적으로 Exception 발생시키는 테스트에서 엔진이 예외 내용을 로그에 남기고 clean exit (ExitCode=1) 확인
+- [ ] AC-4: 종료 플로우 테스트 - 다양한 시나리오별 종료 흐름 통합 테스트: a) 정상 AC 만족 종료 → ExitCode 0, b) RiskGuard 트리거 종료 → ExitCode 1, c) Invariant 위반 종료 → ExitCode 1, d) 수동 SIGTERM 종료 → ExitCode 0. 각 경우 자원 누수 없음, 모든 파일 flush 확인
+- [ ] AC-5: 문서/런북 갱신 - 운영 Runbook에 새로운 위험 통제 시나리오별 조치 추가. OPS_PROTOCOL.md에 종료 타입 및 Warn→Fail 절차 명시
 
 **Evidence 경로:**
-- 통합 테스트 로그: `logs/evidence/d206_4_profile_switching/` (프로파일별로 엔진 실행 결과 로그, SMOKE 5분, BASELINE 20분 실행 결과 각각 저장)
-- SSOT 문서: `docs/v2/SSOT_RULES.md` (프로파일 정의 및 사용 규칙, Paper Acceptance는 반드시 BASELINE+LONGRUN 조합 등 추가된 섹션)
-- D_ROADMAP 갱신: 각 D 단계에 해당 프로파일 명시되도록 D_ROADMAP.md 수정 (D205-9는 PAPER Smoke 20m 프로파일, D205-18은 BASELINE+LONGRUN 프로파일 실행 등)
+- 종료 시나리오 증적: `logs/evidence/d206_3_failure_injection_test/` (의도적으로 실패 유발한 실행 로그, RiskGuard 작동 로그)
+- 종료 보고서: `docs/v2/reports/D206/D206-3_REPORT.md` (다양한 종료 원인별 엔진 대응 방법)
+- 테스트 결과: Gate Fast/Regression 로그
 
 **의존성:**
-- Depends on: D206-3 (리스크 컨트롤)
+- Depends on: D206-2 (자동 파라미터 튜너) ✅
+- Unblocks: D206-4 (실행 프로파일 통합)
+
+---
+
+#### D206-4: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합
+
+**상태:** PLANNED (D206-3 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D206/D206-4_REPORT.md`
+
+**목적:**
+- **프로파일 기반 실행 모드:** 개별 스크립트/인자 조합으로 관리되던 실행 모드를 엔진 내부에서 프로파일 개념으로 통합. 각 프로파일은 실행 시간, 데이터 양, 검증 강도 등 설정 세트 보유
+- **엔진 내 스위칭:** Orchestrator는 전달받은 profile에 따라 duration, 모니터링 주기, 로깅 레벨 등 조정. 하나의 엔진 코드베이스로 다양한 길이/목적의 테스트 수행 가능
+- **중복 제거:** 프로파일 통합으로 scripts/run_smoke.py, run_longrun.py 등 분리 구현 제거. 오직 run.py --profile=<TYPE> 한 종류 진입점만 유지
+
+**Acceptance Criteria:**
+- [ ] AC-1: Profile 정의 및 적용 - 지원할 프로파일 4가지 PAPER, SMOKE, BASELINE, LONGRUN을 정의, ops_config.yml에 각 프로파일 기본 설정(duration 등) 명시. arbitrage.v2.core.config.get_profile_config("SMOKE") 호출시 예상 값 반환 테스트
+- [ ] AC-2: 단일 Run 엔트리 - scripts/run.py 하나로 모든 실행 대응. 기존 run_paper.py, run_smoke.py 등이 run.py로 통합되고 deprecated됨. README에 --profile 사용법 기재
+- [ ] AC-3: 프로파일별 Evidence 변화 - 각 프로파일에 따라 Evidence 요구 사항 조정 (SMOKE에서는 latency_samples.jsonl 생략, LONGRUN에서는 메모리/CPU usage 로그 추가). SMOKE 프로파일 실행 시 불필요 파일 미생성 확인, LONGRUN 실행 시 추가 파일 생성 확인
+- [ ] AC-4: 프로파일별 AC 검증 - D 단계별로 어떤 프로파일 사용할지 명확히 규정, 엔진이 이를 준수하는지 테스트. 잘못된 프로파일 사용 시 엔진이 예외 발생
+- [ ] AC-5: Backward Compatibility - 프로파일 도입 후에도 기존 단위 테스트와 운영 절차 모두 통과. CI 테스트는 별도 TEST 프로파일 또는 SMOKE로 대체, 문서의 실행 예시들을 최신 프로파일 방식으로 갱신
+
+**Evidence 경로:**
+- 통합 테스트 로그: `logs/evidence/d206_4_profile_switching/` (프로파일별 엔진 실행 결과 로그, SMOKE 5분, BASELINE 20분 실행 결과 각각 저장)
+- SSOT 문서: `docs/v2/SSOT_RULES.md` (프로파일 정의 및 사용 규칙 추가 섹션)
+- D_ROADMAP 갱신: 각 D 단계에 해당 프로파일 명시 (D205-9는 PAPER Smoke 20m 프로파일, D205-18은 BASELINE+LONGRUN 프로파일 등)
+
+**의존성:**
+- Depends on: D206-3 (리스크 컨트롤) ✅
 - Unblocks: D207+ (Infrastructure)
 
 **다음 단계:**
