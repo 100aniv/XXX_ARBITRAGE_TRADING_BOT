@@ -655,13 +655,29 @@ arbitrage/v2/
 - Execution quality 지표화
 - 현실적 KPI 기준 검증
 
-### D206: 운영/배포 (조건부 진입)
-- Grafana dashboard (D205-4~9 지표 시각화)
-- Docker Compose 패키징
-- Admin Control Panel
-- Failure Injection/Runbook
+### D206~D209: Core Path (엔진 내재화 + 수익 로직 + LIVE 설계)
+- D206: 엔진 내재화 (V1 도메인 모델 통합, 수익 로직 이식)
+- D207: 리스크 제어 (RiskGuard, Position Manager)
+- D208: Safe Launch (Preflight, 운영 프로토콜)
+- D209: LIVE 설계 (Adapter, 제어 인터페이스, Runbook)
 
-### D207+: V1 Deprecation
+**의사결정 포인트 (D209 완료 후):**
+- **Fast Track:** D209 완료 → D220+ LIVE (Phase 3 스킵)
+- **Commercial Track:** D209 완료 → D214~D219 (상용급 강화) → D220+ LIVE
+
+### D214~D219: Commercial Track (선택적 확장)
+- D214: HFT 알파 모델 (OBI, Avellaneda-Stoikov)
+- D215: Backtesting/Replay 엔진
+- D216: Multi-Symbol 동시 실행
+- D217: HFT Latency Optimization
+- D218: Admin UI/UX Dashboard
+- D219: ML-based Parameter Optimization
+
+### D220+: LIVE Deployment
+- D209 (LIVE 설계) 완료 후 즉시 진행 가능
+- Phase 3 (D214~D219) 완료 여부 무관
+
+### V1 Deprecation (D220 이후)
 - V2 안정화 후 V1 코드 deprecated 마킹
 - 3개월 유예 후 V1 제거
 

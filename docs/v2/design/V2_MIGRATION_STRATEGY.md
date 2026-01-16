@@ -387,28 +387,39 @@
 - **D203-2:**
   - ⏳ Backtest/Paper gate 기준
 
-### Phase 3: Execution & Reporting (D204~D205)
+### Phase 3: Profit Loop & Reporting (D204~D205)
 - **D204-1/D204-2:**
   - ⏳ Executor 구현
   - ⏳ Risk Guard 통합
   - ⏳ 20m/1h smoke tests
 
-- **D205-1:**
+- **D205-1~12:**
   - ⏳ PnL SSOT schema
-  - ⏳ Daily/Weekly/Monthly 리포트
+  - ⏳ Profit Loop (측정/튜닝/검증)
+  - ⏳ Admin Control (제어 인터페이스)
+  - ⏳ 현실적 KPI 검증 (winrate 50~80%, edge > 0)
 
-- **D205-2:**
-  - ⏳ Grafana 대시보드
-  - ⏳ API read-only
+### Phase 4: Core Path (D206~D209)
+- **D206:** 엔진 내재화 (V1 도메인 모델 통합, 수익 로직 이식)
+- **D207:** 리스크 제어 (RiskGuard, Position Manager)
+- **D208:** Safe Launch (Preflight, 운영 프로토콜)
+- **D209:** LIVE 설계 (Adapter, 제어 인터페이스, Runbook)
 
-### Phase 4: Ops & Deploy (D206+)
-- **D206-1:**
-  - ⏳ 인프라 재사용 확정
-  - ⏳ Exporter 활성화
+**의사결정 포인트 (D209 완료 후):**
+- **Fast Track:** D209 완료 → D220+ LIVE (Phase 5 스킵)
+- **Commercial Track:** D209 완료 → D214~D219 (상용급 강화) → D220+ LIVE
 
-- **D206-2:**
-  - ⏳ 배포 패키징
-  - ⏳ 런북 작성
+### Phase 5: Commercial Track (D214~D219, 선택적)
+- **D214:** HFT 알파 모델 (OBI, Avellaneda-Stoikov)
+- **D215:** Backtesting/Replay 엔진
+- **D216:** Multi-Symbol 동시 실행
+- **D217:** HFT Latency Optimization
+- **D218:** Admin UI/UX Dashboard
+- **D219:** ML-based Parameter Optimization
+
+### Phase 6: LIVE Deployment (D220+)
+- D209 (LIVE 설계) 완료 후 즉시 진행 가능
+- Phase 5 (D214~D219) 완료 여부 무관
 
 ---
 
@@ -428,12 +439,30 @@
 ### ✅ Phase 3 완료 조건
 - [ ] 20m smoke test PASS
 - [ ] 1h paper test PASS
-- [ ] PnL 리포트 생성
+- [ ] Profit Loop (측정/튜닝/검증) 완료
+- [ ] Admin Control (제어 인터페이스) 완료
+- [ ] 현실적 KPI 검증 (winrate 50~80%, edge > 0)
 
 ### ✅ Phase 4 완료 조건
-- [ ] Docker compose로 전체 스택 실행
-- [ ] Grafana 대시보드 동작
-- [ ] 배포 런북 작성
+- [ ] V1 도메인 모델 통합 (D206)
+- [ ] 리스크 제어 구현 (D207)
+- [ ] Safe Launch 완료 (D208)
+- [ ] LIVE 설계 완료 (D209)
+- [ ] Gate (doctor/fast/regression) 100% PASS
+
+### ✅ Phase 5 완료 조건 (선택적)
+- [ ] HFT 알파 모델 (D214)
+- [ ] Backtesting 엔진 (D215)
+- [ ] Multi-Symbol 실행 (D216)
+- [ ] Latency Optimization (D217)
+- [ ] Admin UI (D218)
+- [ ] ML Optimization (D219)
+
+### ✅ Phase 6 완료 조건
+- [ ] LIVE Adapter 구현 (D220)
+- [ ] LIVE Gate Unlock (D221)
+- [ ] LIVE Pilot (D222)
+- [ ] LIVE Scale-up (D223)
 
 ---
 
@@ -450,6 +479,10 @@
 ### 리스크 3: 인프라 중복
 - **증상:** docker/와 infra/에 docker-compose.yml 중복
 - **대응:** infra/를 SSOT로 확정 + docker/ 보관 또는 삭제
+
+### 리스크 4: Phase 3을 필수 게이트로 오독
+- **증상:** D209 완료 후에도 D214~D219를 반드시 수행해야 한다고 오인
+- **대응:** D_ROADMAP.md에 "의사결정 포인트" 명시 + SSOT_RULES.md에 Fast/Commercial Track 분리
 
 ### 리스크 4: V1 코드 직접 import
 - **증상:** V2 코드에서 `from arbitrage.live_runner import ...` 등
