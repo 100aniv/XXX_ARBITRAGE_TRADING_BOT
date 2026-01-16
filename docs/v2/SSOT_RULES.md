@@ -157,7 +157,7 @@
 1. **D205-4~9:** Profit Loop (측정/튜닝/검증) 필수
 2. **D205-10~12:** 돈버는 알고리즘 최적화 (수익성/레이턴시/제어) 필수
 3. **Phase 2 (D206~D209):** Core Path (엔진 내재화 + 수익 로직 + LIVE 설계) 필수
-4. **Phase 3 (D210~D215):** Commercial Track (HFT/백테스트/UI/ML) 선택적
+4. **Phase 3 (D210~D211):** Commercial Track (HFT/백테스트/UI/ML) 선택적
 5. **LIVE 진입:** D209 (LIVE 설계) 완료 후 즉시 가능 (Phase 3 완료 여부 무관)
 
 위반 시 결과:
@@ -172,8 +172,8 @@
 ### 1. "측정 → 튜닝 → Core Path → 의사결정" 순서 강제
 
 원칙: Profit Loop (D205-4~12) → Core Path (D206~D209) 완료 후, 팀은 다음 중 선택:
-- **Fast Track:** D209 완료 → D216+ LIVE (Phase 3 스킵)
-- **Commercial Track:** D209 완료 → D210~D215 (상용급 강화) → D216+ LIVE
+- **Fast Track:** D209 완료 → D212+ LIVE (Phase 3 스킵)
+- **Commercial Track:** D209 완료 → D210~D211 (상용급 강화) → D212+ LIVE
 
 강제 규칙:
 1. **D206 진입 조건:** D205-12 PASS 필수 (Admin Control 완료)

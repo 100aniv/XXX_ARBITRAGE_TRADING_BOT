@@ -662,22 +662,22 @@ arbitrage/v2/
 - D209: LIVE 설계 (Adapter, 제어 인터페이스, Runbook)
 
 **의사결정 포인트 (D209 완료 후):**
-- **Fast Track:** D209 완료 → D216+ LIVE (Phase 3 스킵)
-- **Commercial Track:** D209 완료 → D210~D215 (상용급 강화) → D216+ LIVE
+- **Fast Track:** D209 완료 → D212+ LIVE (Phase 3 스킵)
+- **Commercial Track:** D209 완료 → D210~D211 (상용급 강화) → D212+ LIVE
 
-### D210~D215: Commercial Track (선택적 확장)
+### D210~D211: Commercial Track (선택적 확장)
 - D210: HFT 알파 모델 (OBI, Avellaneda-Stoikov)
 - D211: Backtesting/Replay 엔진
 - D212: Multi-Symbol 동시 실행
 - D213: HFT Latency Optimization
-- D214: Admin UI/UX Dashboard
-- D215: ML-based Parameter Optimization
+- D210: Admin UI/UX Dashboard
+- D211: ML-based Parameter Optimization
 
-### D216+: LIVE Deployment
+### D212+: LIVE Deployment
 - D209 (LIVE 설계) 완료 후 즉시 진행 가능
-- Phase 3 (D210~D215) 완료 여부 무관
+- Phase 3 (D210~D211) 완료 여부 무관
 
-### V1 Deprecation (D216 이후)
+### V1 Deprecation (D212 이후)
 - V2 안정화 후 V1 코드 deprecated 마킹
 - 3개월 유예 후 V1 제거
 

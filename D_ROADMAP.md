@@ -6195,18 +6195,15 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### 신 D206-3: Config SSOT 복원 + Entry/Exit Thresholds 정식화
 
-**상태:** ✅ COMPLETED (2026-01-17)  
-**커밋:** (Git Atomic Closeout 후 기입)  
-**Compare:** (Git Atomic Closeout 후 기입)  
+**상태:** IN_PROGRESS (D206-2-1 완료 후)  
 **목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화, Entry/Exit Thresholds 정식화
 
-**완료 내용:**
-- ✅ **config.yml 생성** (14개 필수 키, SSOT 단일 원천)
-- ✅ **Zero-Fallback Enforcement** (필수 키 누락 시 RuntimeError)
-- ✅ **Exit Rules 4키 정식화** (take_profit/stop_loss/min_hold_sec/enable_alpha_exit)
-- ✅ **Entry Thresholds 필수화** (min_spread_bps/max_position_usd/max_open_trades)
-- ✅ **Config Fingerprint** (SHA-256 감사 추적)
-- ✅ **SSOT 재인덱싱** (D210~D213 제거, D214→D210, D220→D216)
+**현재 문제:**
+- ❌ **config.yml 미존재** (설정 단일 원천 없음)
+- ❌ EngineConfig에 하드코딩 기본값 (min_spread_bps=30.0, taker_fee_a_bps=10.0 등)
+- ❌ **Exit Rules 4개 키 config 미정의** (take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit)
+- ❌ **Entry Thresholds 키 fallback 존재** (Zero-Fallback 위반)
+- ❌ Legacy configs/ 불일치 (V2 EngineConfig와 1:1 매핑 안 됨)
 
 **목표:**
 - ✅ **config.yml 생성** (유일한 설정 원천, SSOT 단일화)
@@ -6217,23 +6214,22 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - ✅ **Artifact Configuration Audit** (engine_report.json에 config_fingerprint 기록)
 
 **Acceptance Criteria:**
-- [x] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
-- [x] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
-- [x] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
-- [x] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
-- [x] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환 (D206-2-1에서 구현)
-- [x] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (SHA-256)
-- [x] AC-7: **Config 스키마 검증** - docs/v2/design/CONFIG_SCHEMA.md 생성, 에러 메시지 예시
-- [x] AC-8: **회귀 테스트** - Doctor PASS, Fast 38/38 PASS (0.38s)
+- [ ] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
+- [ ] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
+- [ ] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
+- [ ] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
+- [ ] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환, 비교 연산 1LSB 오차 금지
+- [ ] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (사후 감사)
+- [ ] AC-7: **Config 스키마 검증** - 누락/오타 시 명확한 에러 메시지 + 예제 config 제공
+- [ ] AC-8: **회귀 테스트** - Gate Doctor/Fast/Regression 100% PASS, config 누락 시 FAIL 검증
 
 **Evidence 경로:**
-- Config 복원 보고: `docs/v2/reports/D206/D206-3_REPORT.md`
-- config.yml: `config.yml` (SSOT 단일 원천, 14개 필수 키)
-- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md` (200+ lines)
-- 테스트: `tests/test_d206_3_config_ssot.py` (10/10 PASS, Zero-Fallback 검증)
-- Gate 로그: `logs/evidence/d206_3_config_ssot_final_20260117_004500/gate_results.txt`
-- Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
-- Fast Gate: 38/38 PASS (10 config + 17 domain + 8 parity + 3 exit rules)
+- Reality Scan: `logs/evidence/d206_3_config_ssot_restore_<timestamp>/scan_summary.md`
+- Config 복원 보고: `docs/v2/reports/D206/D206-3_CONFIG_SSOT_REPORT.md`
+- config.yml: `config.yml` (SSOT 단일 원천)
+- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md`
+- 테스트: `tests/test_d206_3_config_ssot.py` (Zero-Fallback 검증)
+- Gate 로그: gate_doctor.txt, gate_fast.txt, config_validation.txt
 
 **의존성:**
 - Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
@@ -6563,608 +6559,18 @@ enable_execution: false       # REQUIRED
 
 ---
 
-## 신 D210~D213: 구 D206~D209 원문 이관 (정보 누락 0%)
+## ARCHIVED: 구 D206~D209 원문 보존
 
-**이관 사유:** 2026-01-16 Roadmap Rebase - "돈 버는 로직 우선" 헌법 원칙 강제  
-**매핑:** REBASELOG 매핑 테이블 참조 (구 D206~D209 → 신 D210~D213)  
-**커밋/증거:** 모든 커밋 및 증거 경로 유지 (구 D206-1 커밋 8541488 → 신 D210-1)
-
----
-
-### 신 D210: 운영 프로토콜 엔진 내재화 + 수익 로직 모듈화 [구 D206 원문]
-
-**Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
-**Strategy:** 엔진 내재화 (OPS_PROTOCOL → Engine) → 수익 로직 모듈화 → 리스크 컨트롤 → 실행 프로파일 통합  
-**Constitutional Basis:** SSOT_RULES.md > D_ROADMAP.md > OPS_PROTOCOL.md > V2_ARCHITECTURE.md
-
-**D206 범위 (엔진/수익 로직 전용):**
-- D206-0: 운영 프로토콜 엔진 내재화 (WARN=FAIL, State Management)
-- D206-1: 수익 로직 모듈화 및 튜너 인터페이스
-- D206-2: 리스크 컨트롤 (position limit, loss cutoff)
-- D206-3: 실행 프로파일 통합 (SMOKE/BASELINE/LONGRUN)
-
-**D207 범위 (인프라/운영 - D206 완료 후):**
-- D207-1: Grafana Dashboard
-- D207-2: Docker Compose SSOT
-- D207-3: Runbook + AdminPanel
-- D207-4: Gate/CI Automation
-
-**문제 인식:**
-- V1: 65+ run_*.py 스크립트 난립, Runner가 자체 루프 보유
-- V2 현재: Engine은 stub, PaperRunner가 사실상 엔진 역할
-- 해결: Engine에 유일한 루프, Runner는 얇은막 (OPS_PROTOCOL.md 참조)
+**Archive Location:** `docs/v2/design/LEGACY_D206_D209_ARCHIVE.md`  
+**Archive Date:** 2026-01-17  
+**Reason:** D210~D213은 "보존용 플레이스홀더"로 D 번호 낭비. 아카이브 파일로 이동 완료.  
+**Mapping:** 구 D206~D209 원문은 아카이브 파일 참조
 
 ---
 
-⛔ **[BLOCKER] Prerequisites for D206 Entry (3중 안전장치):**
+## D210~D215: HFT & Commercial Readiness (Phase 3)
 
-**⚠️ 주의: D206-1~4는 아래 조건 충족 전 진입 금지**
-
-**0. Futures Premium 수익성 검증 (D205-15-3 DONE) ✅**
-- ✅ Futures Premium (~1060 bps)과 실제 수익성 분리 완료 (D205-15-3)
-- ✅ Funding Rate API 통합 완료 (Binance `/fapi/v1/premiumIndex`)
-- ✅ `funding_adjusted_edge_bps` KPI 정의 및 계산 완료
-- ⏳ 1~2시간 Paper Run으로 펀딩비 변화 관찰 (사용자 실행 필요)
-- **Implementation:** `arbitrage/v2/funding/provider.py` (D205-15-3)
-- **Validation:** Paper Run 1~2h → Net Edge가 펀딩비 차감 후에도 양수인지 검증
-
-**1. Real-time FX Integration Check (D205-15-4 DONE) ✅**
-- ✅ LiveFxProvider 구현 완료 (crypto-implied 방식)
-- ✅ Live config에서 FX API가 연결되지 않으면 부팅이 차단됨
-- ✅ FxProvider 인터페이스 구현 완료 (FixedFxProvider vs LiveFxProvider)
-- ✅ validate_fx_provider_for_mode LIVE 차단 테스트 PASS
-- **Implementation:** `arbitrage/v2/core/fx_provider.py` (D205-15-4)
-- **Validation:** `validate_fx_provider_for_mode(provider, "live")` → Crash if Fixed FX
-
-**2. Monitoring + Alerting (D205-10+)**
-- [ ] Grafana Dashboard
-- [ ] PnL/Ops KPI 실시간 모니터링
-- [ ] DLQ/Error alerting
-
-**Gate 조건:**
-- Prerequisites 0~3 전부 충족 전 D206 진입 금지
-- **특히 Prerequisite #0 (Futures Premium)은 D206-1 첫 AC로 강제 검증**
-- **특히 Prerequisite #1 (FX Integration)은 LIVE 진입 시 필수 (Fail Fast)**
-
----
-
-**진입 조건 (강제):**
-- ✅ D205-9 PASS 필수 (Realistic Paper Validation 완료)
-- ✅ "측정 → 튜닝 → 운영" 순서 위반 시 진입 금지
-- ✅ 가짜 낙관 제거 완료 (winrate 50~80%, edge_after_cost > 0)
-- ⛔ **Real-time FX Integration (Prerequisite #1) 필수**
-
-**조건 미충족 시:** D206 작업 시작 절대 금지
-
----
-
-#### 신 D210-0: 운영 프로토콜 엔진 내재화 [구 D206-0]
-
-**상태:** ✅ COMPLETED (2026-01-15)
-**커밋:** f54ebb5 (initial), 31cd2fa (FIXPACK)
-**테스트:** PASS (check_ssot_docs=0, pytest=0)
-**문서:** `docs/v2/reports/D206/D206-0_REPORT.md`
-
-**구현 내용 (2026-01-12):**
-- `OrchestratorState` enum 추가 (IDLE/RUNNING/STOPPING/STOPPED/ERROR)
-- `WarningCounterHandler` 추가 (WARN=FAIL 원칙 구현, WARNING/ERROR 카운트)
-- `get_state()` 메서드 추가 (상태 관리 인터페이스)
-- `get_warning_counts()` 메서드 추가 (카운터 조회)
-- `ExecutionConfig` dataclass 추가 (cycle_interval_seconds, max_concurrent_orders, dry_run)
-- `V2Config.execution` 필드 추가
-- `PaperRunner.kpi` 참조 노출 (테스트 호환성)
-
-**FIXPACK 내용 (2026-01-15):**
-- WARN=FAIL 진짜 강제: `warning_count > 0` 시에도 Exit 1 (기존: error_count만 체크)
-- `PaperMetrics.warning_count` 필드 추가 (Evidence 저장용)
-- D_ROADMAP 임시 토큰 제거 (대괄호 표기 등 0개)
-- D206/D207 정의 통일 (D206: 엔진/수익, D207: 인프라)
-
-**목적:**
-- **Run Protocol 엔진 통합:** V2 엔진(Orchestrator) 내부에 운영 프로토콜(OPS_PROTOCOL)의 실행 절차를 내재화. 모든 실행 모드(Paper/Smoke/Baseline/Longrun 등)에 대해 유일한 코어 루프를 Orchestrator가 담당하고, 과거 V1의 PaperRunner, LiveRunner 등의 중복 루프를 제거
-- **헌법 규칙 적용:** "WARN = FAIL" 원칙을 엔진 레벨에서 강제. 운영 Invariant 위반 시 즉시 종료 (실행 시간 편차 ±5% 초과, 하트비트 누락 >65초, DB 입력 불일치 등 → Orchestrator 즉시 Exit(코드 1))
-- **Evidence 원자화 & Flush:** 엔진 종료 시 Evidence(manifest, KPI, decision_trace 등) 필수 파일들을 원자적으로 Flush하여 저장 완료 보장, 부분 파일/유실 방지
-- **헬스체크 & 장애 대응:** Docker/쿠버네티스 환경 Healthcheck 연계, RunWatcher/Heartbeat 기반 헬스 시그널 주기 발생, SIGTERM Graceful Shutdown 시그널 수신 시 정상 종료 루틴
-- **엔진 단일화 및 얇은 러너:** Runner(run_paper.py, run_live.py)는 얇은 진입점(thin wrapper)만, 모든 실행 흐름 제어는 Engine 내부로 일원화 (V1 스크립트 난립 해결, Engine-Centric 아키텍처 완성)
-
-**Acceptance Criteria:**
-- AC-1: Orchestrator 단일 루프 구현 - orchestrator.run()이 모든 모드에 대한 시작-실행-종료 시퀀스 책임, 다른 Runner에서 loop 로직 제거 (PaperRunner 주요 로직 Orchestrator 이동)
-- AC-2: 운영 Invariant 강제 - OPS_PROTOCOL.md 불변 조건(Wallclock ±5%, Heartbeat ≤65s, DB inserts 매칭)을 Orchestrator 내에서 검사, 위반 시 ExitCode=1 종료 (로그에 원인 명시). 경고 수준 임계치(승률 95% 초과)는 예외 처리 또는 별도 플래그(is_optimistic_warning) 기록
-- AC-3: Graceful Termination - SIGTERM 수신 또는 AC 조건 만족 시, 모든 Evidence 데이터 flush, watch_summary.json 등 요약 최종 기록, 종료 사유(stop_reason) 명시, ExitCode=0 종료
-- AC-4: Heartbeat 통합 - heartbeat.jsonl을 60초 주기로 append 작성하는 RunWatcher를 엔진에 통합. 테스트로 5분 이상 장기 실행 시 heartbeat 로그 간격 최대값 ≤65초 확인
-- AC-5: 엔진 상태 관리 인터페이스 - 엔진 내부에 Admin Control 훅 추가, 실행 중 현재 상태(Running, Stopped, Error 등) 조회/제어 가능 (이후 UI/모니터링 툴 연계 예정)
-
-**Evidence 경로:**
-- 통합 테스트: `tests/test_d206_0_ops_protocol.py` (워치독/하트비트 및 종료 invariant 검증용, 인위적 시간초과로 ExitCode 확인)
-- 실행 증거: `logs/evidence/d206_0_ops_protocol_integration_<날짜>/` (실제 Smoke 실행 10분)
-  - manifest.json, heartbeat.jsonl, watch_summary.json, errors.ndjson (에러 발생 시), README.md 등
-
-**의존성:**
-- Depends on: D205-18-4R2 (Run Protocol 강제화) ✅
-- Unblocks: D206-1 (수익 로직 모듈화)
-
----
-
-#### 신 D210-1: 수익 로직 모듈화 및 튜너 인터페이스 설계 [구 D206-1]
-
-**상태:** ✅ COMPLETED (2026-01-16)
-**커밋:** 8541488 (D206-1 HARDENED CLOSEOUT)
-**테스트:** ✅ pytest 10/10 PASS, Gate Doctor/Fast/Regression PASS
-**문서:** `docs/v2/reports/D206/D206-1_REPORT.md`
-**Evidence:** `logs/evidence/d206_1_hardened_*/`
-
-**목적:**
-- **Profit Loop 재설계:** 수익 발생 핵심 로직을 엔진 중심으로 재구성. FillModel, EntryStrategy, TradeProcessor 등 모듈에 산재된 임계값 하드코딩과 규칙 기반 로직 제거, 구성 가능한 형태로 변경
-- **모델/전략 모듈화:** 거래 진입/종료 전략과 채결 결과 처리를 플러그인 모듈 형태로 분리. 새로운 전략/모델을 엔진 교체 없이 추가/교체 가능
-- **튜너 인터페이스 도입:** 수익성 향상을 위해 자동/반자동 매개변수 튜닝 가능하도록 엔진에 튜너 인터페이스 설계
-- **하드코딩 제거:** 마법 상수 제거, 모든 계산에 실제 OrderResult 값 활용
-
-**Acceptance Criteria:**
-- [x] AC-1: 파라미터 SSOT화 - config.yml에서 break_even_params, 수수료, 버퍼 로드, 코드 하드코딩 0개
-- [x] AC-2: 전략/모델 인터페이스 구현 - BaseEntryStrategy, BaseFillModel 추상 클래스 정의, DI 기반 구현
-- [x] AC-3: TradeProcessor 개선 - BreakEvenParams 100% 활용, filled_qty 계산 OrderResult 기반, 단위 테스트 완비
-- [x] AC-4: 튜너 훅 설계 - engine.tuner (BaseTuner) 추가, 더미 구현으로 여러 파라미터 셋 시도 가능 확인
-- [x] AC-5: 회귀 테스트 통과 - Gate Doctor/Fast/Regression 100% PASS, PnL 계산 일치
-
-**구현 내용 (2026-01-16):**
-- `arbitrage/v2/core/profit_core.py`: TYPE_CHECKING으로 circular import 해결
-- `arbitrage/v2/core/config.py`: ProfitCoreConfig, TunerConfig 이동
-- `arbitrage/v2/core/opportunity_source.py`: TYPE_CHECKING으로 ProfitCore 순환참조 해결
-- `tests/test_d206_1_fixpack.py`: SKIP=FAIL 정책 준수, RealOpportunitySource 테스트 추가
-
-**Evidence 경로:**
-- 설계 보고: `docs/v2/reports/D206/D206-1_REPORT.md`
-- 테스트 결과: pytest 10/10 PASS (logs/evidence/d206_1_hardened_*/gate_fast_result.txt)
-- 코드 검증: Compare URL에서 circular import 해결 확인
-
-**의존성:**
-- Depends on: D206-0 (운영 프로토콜 엔진 내재화) ✅
-- Unblocks: D206-2 (자동 파라미터 튜너)
-
----
-
-#### 신 D210-2: 자동 파라미터 튜너 내재화 및 성능 검증 [구 D206-2]
-
-**상태:** PLANNED (신 D210-1 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D206/D206-2_REPORT.md`
-
-**목적:**
-- **Auto-Tuning 엔진 구축:** 엔진 내부에 자동 파라미터 튜닝 모듈 내재화. D206-1 튜너 인터페이스 활용, Bayesian Optimization 기반 Auto-Tuner 구현
-- **튜닝 시나리오 검증:** Paper 환경에서 일정 기간 실행, P&L, Sharpe Ratio, win_rate 등 목표 함수 최대화. 튜너 제안 파라미터에 따라 엔진 반복 실행, 결과 수집, 최적의 파라미터 셋 도출
-- **실측 기반 보정:** 튜너는 수학적 최적화뿐 아니라 실측 데이터 기반 정책 포함. 실거래 비용, 슬리피지 분포 반영 페널티를 목표 함수에 적용
-
-**Acceptance Criteria:**
-- [ ] AC-1: Bayesian 튜너 구현 - arbitrage.v2.tuner.BayesianTuner 클래스 구현. 최소 3개 파라미터 공간에 대해 Bayesian Optimization 수행 (buffer_bps, slippage_model_param, partial_fill_penalty 등 50회 Iteration)
-- [ ] AC-2: 튜닝 결과 향상 - 튜닝 전후 KPI 비교 보고서 작성. 튜닝 후 edge_after_cost 평균 또는 순이익이 baseline 대비 +15% 이상 향상
-- [ ] AC-3: Automated Sweep Evidence - parameter_sweep_results.json, optimal_params.json 저장, pareto_frontier.png 생성하여 튜닝 과정 시각화
-- [ ] AC-4: 통합 테스트 - test_d206_2_auto_tuner.py에서 Dummy 목표 함수 최적화 검증, 엔진-튜너 인터페이스 연동 테스트 (메모리 누수/race condition 없음)
-- [ ] AC-5: 모니터링 & Alert 연동 - 튜닝 진행 상황을 실시간 로그/메트릭으로 기록, 튜닝 실패 시 Alert 발생 (Slack/Email/Telegram), 튜닝 결과 자동 저장 및 이전 결과와 비교
-- [ ] AC-6: 문서화 - 튜닝 알고리즘 수학적 개요, 파라미터 범위 설정 근거 등을 docs/v2/design/auto_tuner.md에 문서화
-
-**Evidence 경로:**
-- 튜닝 실행 로그: `logs/evidence/d206_2_tuner_run_<date>/` (sweep_results.json, optimal_params.json, tuning_history.png, README.md)
-- 비교 보고: `docs/v2/reports/D206/D206-2_REPORT.md` (튜닝 전후 성능 비교)
-- 테스트 결과: Gate Fast/Regression 로그 (튜너 모듈 추가 후 기존 테스트 0 Fail)
-
-**의존성:**
-- Depends on: D206-1 (수익 로직 모듈화) ✅
-- Unblocks: D206-3 (리스크 컨트롤)
-
----
-
-#### 신 D210-3: 리스크 컨트롤 & 종료/예외 처리 일원화 [구 D206-3]
-
-**상태:** PLANNED (신 D210-2 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
-
-**목적:**
-- **리스크 가드 통합:** 엔진에 실시간 리스크 관리 모듈 내재화. 연속 손실 횟수, 누적 손실 금액이 사전 정의 임계치 초과 시 엔진 자동 중단(Kill-Switch), 사유를 로그 및 Evidence에 기록
-- **종료 상태 정의:** 정상 종료, 비정상 종료(Invariant 위반), 수동 종료(운영자 개입) 등 종료 유형을 명확히 구분, Engine이 상태 코드와 함께 기록
-- **예외 처리 일괄화:** 엔진 코어 내 예외 처리 블록 표준화. 개별 모듈에서 흩어져 처리되던 예외를 상위 Orchestrator에서 catch하여 하나의 처리 루틴 거침
-
-**Acceptance Criteria:**
-- [ ] AC-1: RiskGuard 모듈 구현 - arbitrage.v2.core.risk_guard.py 신규 구현. 구성 파일에 리스크 임계치(max_drawdown, max_consecutive_losses, max_error_count) 정의, 엔진이 주기적으로 검사. 임계치 초과 시 orchestrator.stop(reason="RISK_XXX") 호출하여 Graceful Stop
-- [ ] AC-2: 엔진 StopReason 체계 - watch_summary.json에 stop_reason 필드 기록 (값: "NORMAL", "ERROR_INVARIANT_VIOLATION", "MANUAL_HALT", "RISK_DRAWDOWN"). 각각에 대응하여 Alerting 모듈 동작 가능 Hook 마련
-- [ ] AC-3: 예외 핸들러 일원화 - Orchestrator.run 루프에 try/except 설치, 어떠한 예외도 빠져나가지 않고 최상위에서 처리. 의도적으로 Exception 발생시키는 테스트에서 엔진이 예외 내용을 로그에 남기고 clean exit (ExitCode=1) 확인
-- [ ] AC-4: 종료 플로우 테스트 - 다양한 시나리오별 종료 흐름 통합 테스트: a) 정상 AC 만족 종료 → ExitCode 0, b) RiskGuard 트리거 종료 → ExitCode 1, c) Invariant 위반 종료 → ExitCode 1, d) 수동 SIGTERM 종료 → ExitCode 0. 각 경우 자원 누수 없음, 모든 파일 flush 확인
-- [ ] AC-5: Alert 시스템 연동 - RiskGuard/Exception 발생 시 Slack/Email/Telegram Alert 발송. Alert 메시지에 stop_reason, 손실액, 연속 실패 횟수 등 포함. Alert 발송 실패 시에도 엔진 정상 종료 보장 (Alert은 Best-Effort)
-- [ ] AC-6: 문서/런북 갱신 - 운영 Runbook에 새로운 위험 통제 시나리오별 조치 추가. OPS_PROTOCOL.md에 종료 타입 및 Warn→Fail 절차 명시
-
-**Evidence 경로:**
-- 종료 시나리오 증적: `logs/evidence/d206_3_failure_injection_test/` (의도적으로 실패 유발한 실행 로그, RiskGuard 작동 로그)
-- 종료 보고서: `docs/v2/reports/D206/D206-3_REPORT.md` (다양한 종료 원인별 엔진 대응 방법)
-- 테스트 결과: Gate Fast/Regression 로그
-
-**의존성:**
-- Depends on: D206-2 (자동 파라미터 튜너) ✅
-- Unblocks: D206-4 (실행 프로파일 통합)
-
----
-
-#### 신 D210-4: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합 [구 D206-4]
-
-**상태:** PLANNED (신 D210-3 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D206/D206-4_REPORT.md`
-
-**목적:**
-- **프로파일 기반 실행 모드:** 개별 스크립트/인자 조합으로 관리되던 실행 모드를 엔진 내부에서 프로파일 개념으로 통합. 각 프로파일은 실행 시간, 데이터 양, 검증 강도 등 설정 세트 보유
-- **엔진 내 스위칭:** Orchestrator는 전달받은 profile에 따라 duration, 모니터링 주기, 로깅 레벨 등 조정. 하나의 엔진 코드베이스로 다양한 길이/목적의 테스트 수행 가능
-- **중복 제거:** 프로파일 통합으로 scripts/run_smoke.py, run_longrun.py 등 분리 구현 제거. 오직 run.py --profile=<TYPE> 한 종류 진입점만 유지
-
-**Acceptance Criteria:**
-- [ ] AC-1: Profile 정의 및 적용 - 지원할 프로파일 4가지 PAPER, SMOKE, BASELINE, LONGRUN을 정의, ops_config.yml에 각 프로파일 기본 설정(duration 등) 명시. arbitrage.v2.core.config.get_profile_config("SMOKE") 호출시 예상 값 반환 테스트
-- [ ] AC-2: 단일 Run 엔트리 - scripts/run.py 하나로 모든 실행 대응. 기존 run_paper.py, run_smoke.py 등이 run.py로 통합되고 deprecated됨. README에 --profile 사용법 기재
-- [ ] AC-3: 프로파일별 Evidence 변화 - 각 프로파일에 따라 Evidence 요구 사항 조정 (SMOKE에서는 latency_samples.jsonl 생략, LONGRUN에서는 메모리/CPU usage 로그 추가). SMOKE 프로파일 실행 시 불필요 파일 미생성 확인, LONGRUN 실행 시 추가 파일 생성 확인
-- [ ] AC-4: 프로파일별 AC 검증 - D 단계별로 어떤 프로파일 사용할지 명확히 규정, 엔진이 이를 준수하는지 테스트. 잘못된 프로파일 사용 시 엔진이 예외 발생
-- [ ] AC-5: 모니터링 & Alert - 프로파일별 실행 시작/종료 시 Alert 발송 (프로파일명, 예상 duration, 실제 경과시간 포함). 프로파일 실행 중 비정상 종료 시 Alert 발생
-- [ ] AC-6: Backward Compatibility - 프로파일 도입 후에도 기존 단위 테스트와 운영 절차 모두 통과. CI 테스트는 별도 TEST 프로파일 또는 SMOKE로 대체, 문서의 실행 예시들을 최신 프로파일 방식으로 갱신
-
-**Evidence 경로:**
-- 통합 테스트 로그: `logs/evidence/d206_4_profile_switching/` (프로파일별 엔진 실행 결과 로그, SMOKE 5분, BASELINE 20분 실행 결과 각각 저장)
-- SSOT 문서: `docs/v2/SSOT_RULES.md` (프로파일 정의 및 사용 규칙 추가 섹션)
-- D_ROADMAP 갱신: 각 D 단계에 해당 프로파일 명시 (D205-9는 PAPER Smoke 20m 프로파일, D205-18은 BASELINE+LONGRUN 프로파일 등)
-
-**의존성:**
-- Depends on: D206-3 (리스크 컨트롤) ✅
-- Unblocks: D207+ (Infrastructure)
-
----
-
-### 신 D211: V1 거래 로직 → V2 마이그레이션 [구 D207 원문]
-
-**전략:** 신 D210-1 완료 후, V1의 수익 생성 로직을 V2 엔진에 이식. "돈 버는 알고리즘 우선" 원칙 적용  
-**Constitutional Basis:** Scan-First → Reuse-First (V1 유산 강제 재사용)
-
----
-
-#### 신 D211-1: V1 거래 로직 분석 및 마이그레이션 계획 수립 [구 D207-1]
-
-**상태:** PLANNED (신 D210-1 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
-
-**목적:**
-- **V1 코드 스캔:** arbitrage/exchanges/, arbitrage/models/, arbitrage/strategies/ 분석. 수익 생성 핵심 로직 파악 (Entry/Exit 규칙, Fee 계산, Slippage 모델, Risk 관리)
-- **V2 구조 매핑:** V1 로직을 V2 모듈(arbitrage/v2/core/, arbitrage/v2/opportunity/, arbitrage/v2/domain/)에 어떻게 이식할지 설계
-- **중복 제거 계획:** V1과 V2 간 중복 코드 식별, 공통 인터페이스 정의, 마이그레이션 순서 결정
-
-**Acceptance Criteria:**
-- [ ] AC-1: V1 코드 분석 - arbitrage/exchanges/, arbitrage/models/, arbitrage/strategies/ 주요 파일 목록 작성 (20~30개 파일), 각 파일의 목적 및 수익 관련 로직 요약
-- [ ] AC-2: 핵심 로직 추출 - Entry/Exit 규칙, Fee 계산, Slippage 모델, Risk 관리 로직을 별도 문서(MIGRATION_ANALYSIS.md)에 정리. 각 로직별 V1 구현 코드 라인 번호 명시
-- [ ] AC-3: V2 매핑 설계 - V1 로직 → V2 모듈 매핑 테이블 작성 (V1 파일/함수 → V2 클래스/메서드). 중복 제거 전략 포함 (공통 인터페이스, 추상화 계획)
-- [ ] AC-4: 마이그레이션 순서 결정 - 우선순위 기반 마이그레이션 순서 결정 (돈 버는 부분 우선: Entry/Exit → Fee → Slippage → Risk)
-- [ ] AC-5: 리스크 평가 - 마이그레이션 과정에서 발생 가능한 리스크 식별 (성능 저하, 로직 오류, 호환성 문제 등), 완화 방안 제시
-- [ ] AC-6: 문서화 - 마이그레이션 계획서(MIGRATION_PLAN.md) 작성, D208~D210 단계별 작업 명시
-
-**Evidence 경로:**
-- 분석 보고: `docs/v2/reports/D207/D207-1_REPORT.md` (V1 코드 분석 요약)
-- 마이그레이션 계획: `docs/v2/design/MIGRATION_ANALYSIS.md`, `docs/v2/design/MIGRATION_PLAN.md`
-- 코드 매핑: `docs/v2/design/V1_V2_MAPPING.md` (V1 파일/함수 → V2 매핑 테이블)
-
-**의존성:**
-- Depends on: D206-1 (수익 로직 모듈화) ✅
-- Unblocks: D207-2 (V1 Entry/Exit 로직 이식)
-
----
-
-#### 신 D211-2: V1 Entry/Exit 규칙 → V2 이식 [구 D207-2]
-
-**상태:** PLANNED (신 D211-1 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-2_REPORT.md`
-
-**목적:**
-- **Entry 규칙 이식:** V1의 거래 진입 조건(spread threshold, volume check, timing 등)을 V2 EntryStrategy 인터페이스로 구현
-- **Exit 규칙 이식:** V1의 거래 종료 조건(profit target, stop loss, timeout 등)을 V2 ExitStrategy로 구현
-- **테스트 동등성:** V1과 V2의 Entry/Exit 결과가 동일한 데이터에 대해 일치하는지 검증 (Regression Test)
-
-**Acceptance Criteria:**
-- [ ] AC-1: V1 Entry 규칙 분석 - arbitrage/models/entry_strategy.py (또는 유사) 분석, 진입 조건 코드 추출
-- [ ] AC-2: V2 EntryStrategy 구현 - arbitrage/v2/strategy/entry.py에 V1 로직 기반 구현, 기존 DefaultEntryStrategy와 호환성 유지
-- [ ] AC-3: V1 Exit 규칙 분석 - arbitrage/models/exit_strategy.py 분석, 종료 조건 코드 추출
-- [ ] AC-4: V2 ExitStrategy 구현 - arbitrage/v2/strategy/exit.py에 V1 로직 기반 구현
-- [ ] AC-5: 회귀 테스트 - test_d207_2_entry_exit_parity.py: V1 로직과 V2 로직을 동일 데이터에 대해 실행, 결과 비교 (Entry/Exit 신호 일치 확인)
-- [ ] AC-6: 성능 비교 - V1 vs V2 Entry/Exit 실행 시간 비교, 성능 저하 없음 확인
-
-**Evidence 경로:**
-- 이식 보고: `docs/v2/reports/D207/D207-2_REPORT.md` (V1 로직 분석, V2 구현 설명)
-- 테스트 결과: `logs/evidence/d207_2_entry_exit_parity/` (회귀 테스트 결과, 신호 일치 확인)
-- 성능 비교: 실행 시간 로그
-
-**의존성:**
-- Depends on: D207-1 (마이그레이션 계획) ✅
-- Unblocks: D207-3 (Fee/Slippage 이식)
-
----
-
-#### 신 D211-3: V1 Fee/Slippage 모델 → V2 이식 [구 D207-3]
-
-**상태:** PLANNED (신 D211-2 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-3_REPORT.md`
-
-**목적:**
-- **Fee 계산 이식:** V1의 거래소별 수수료 계산 로직을 V2 FeeModel로 구현
-- **Slippage 모델 이식:** V1의 슬리피지 추정 모델을 V2 SlippageModel로 구현
-- **실측 데이터 기반 보정:** V1 모델의 정확도를 실제 거래 데이터로 검증, 필요시 파라미터 조정
-
-**Acceptance Criteria:**
-- [ ] AC-1: V1 Fee 로직 분석 - arbitrage/models/fee_calculator.py 분석, 거래소별 수수료 계산 코드 추출
-- [ ] AC-2: V2 FeeModel 구현 - arbitrage/v2/domain/fee.py에 V1 로직 기반 구현, 각 거래소별 수수료 정확도 검증
-- [ ] AC-3: V1 Slippage 모델 분석 - arbitrage/models/slippage_model.py 분석, 슬리피지 추정 로직 추출
-- [ ] AC-4: V2 SlippageModel 구현 - arbitrage/v2/domain/slippage.py에 V1 로직 기반 구현
-- [ ] AC-5: 실측 데이터 검증 - 실제 거래 데이터(또는 Mock)에 대해 V1 vs V2 Fee/Slippage 계산 결과 비교, 오차율 < 1% 확인
-- [ ] AC-6: 문서화 - Fee/Slippage 모델 설명서 작성 (docs/v2/design/fee_slippage_model.md)
-
-**Evidence 경로:**
-- 이식 보고: `docs/v2/reports/D207/D207-3_REPORT.md`
-- 검증 결과: `logs/evidence/d207_3_fee_slippage_parity/` (V1 vs V2 비교 결과)
-- 모델 설명: `docs/v2/design/fee_slippage_model.md`
-
-**의존성:**
-- Depends on: D207-2 (Entry/Exit 이식) ✅
-- Unblocks: D207-4 (Risk 관리 이식)
-
----
-
-#### 신 D211-4: V1 Risk 관리 → V2 이식 [구 D207-4]
-
-**상태:** PLANNED (신 D211-3 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-4_REPORT.md`
-
-**목적:**
-- **Position Risk 이식:** V1의 포지션 크기 제한, 동시 포지션 관리 로직을 V2 RiskGuard로 구현
-- **Drawdown 관리 이식:** V1의 누적 손실 추적, Drawdown 임계치 로직을 V2로 구현
-- **통합 Risk 대시보드:** V1의 Risk 메트릭을 V2 Evidence에 포함, 실시간 모니터링 가능하도록 구성
-
-**Acceptance Criteria:**
-- [ ] AC-1: V1 Position Risk 로직 분석 - arbitrage/models/risk_manager.py 분석, 포지션 크기 제한, 동시 포지션 관리 코드 추출
-- [ ] AC-2: V2 PositionRisk 구현 - arbitrage/v2/core/risk_guard.py에 V1 로직 기반 구현
-- [ ] AC-3: V1 Drawdown 관리 분석 - V1의 누적 손실 추적 로직 분석
-- [ ] AC-4: V2 DrawdownManager 구현 - arbitrage/v2/core/risk_guard.py에 Drawdown 관리 로직 추가
-- [ ] AC-5: Risk 메트릭 통합 - V2 Evidence에 position_risk, drawdown, max_loss 등 메트릭 포함, 실시간 업데이트
-- [ ] AC-6: 회귀 테스트 - V1 vs V2 Risk 계산 결과 비교, 일치 확인
-
-**Evidence 경로:**
-- 이식 보고: `docs/v2/reports/D207/D207-4_REPORT.md`
-- 테스트 결과: `logs/evidence/d207_4_risk_parity/` (V1 vs V2 Risk 메트릭 비교)
-- Risk 대시보드: Evidence 파일에 risk_metrics.json 포함
-
-**의존성:**
-- Depends on: D207-3 (Fee/Slippage 이식) ✅
-- Unblocks: D208 (Paper 수익성 검증)
-
----
-
-### 신 D212: Paper 모드 수익성 검증 [구 D208 원문]
-
-**전략:** 신 D211 마이그레이션 완료 후, V2 엔진이 실제로 수익을 생성하는지 Paper 모드에서 검증  
-**Constitutional Basis:** "돈 버는 알고리즘 우선" - 수익 증명 없이 다음 단계 진행 금지
-
----
-
-#### 신 D212-1: Paper 모드 수익성 검증 (Real MarketData + Slippage/Latency 모델 강제) [구 D208-1]
-
-**상태:** PLANNED (신 D211-4 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D208/D208-1_REPORT.md`
-
-**목적:**
-- **실제 시장 데이터 사용:** Real MarketData (Binance/Upbit 실시간 또는 히스토리) 기반 Paper 실행
-- **Slippage/Latency 모델 강제:** 실제 거래 환경을 최대한 시뮬레이션 (Slippage, Latency, Partial Fill 등 반영)
-- **순이익 증명:** 20분 이상 실행 후 net_pnl > 0 증명 (또는 실패 원인 분석)
-
-**Acceptance Criteria:**
-- [ ] AC-1: Real MarketData 소스 - Binance/Upbit 실시간 또는 히스토리 데이터 사용, 최소 20분 데이터 수집
-- [ ] AC-2: Slippage 모델 강제 - 거래소별 실제 Slippage 분포 적용 (Mock이 아닌 실측 기반), 각 주문마다 Slippage 반영
-- [ ] AC-3: Latency 모델 강제 - 네트워크 지연, 주문 처리 지연 등을 시뮬레이션, 평균 Latency 100ms 이상 반영
-- [ ] AC-4: 20분 이상 Paper 실행 - BASELINE 프로파일로 20분 이상 실행, watch_summary.json에 completeness_ratio ≥ 0.95 기록
-- [ ] AC-5: 순이익 증명 - net_pnl > 0 확인. 실패 시 DIAGNOSIS.md에 실패 원인 분석 (시장 기회 부족 vs 로직 오류)
-- [ ] AC-6: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터에 대해 V1 실행 결과와 비교, 성능 저하 없음 확인)
-
-**Evidence 경로:**
-- Paper 실행 로그: `logs/evidence/d208_1_paper_profitability_<date>/`
-  - manifest.json (실행 메타데이터)
-  - kpi_summary.json (수익성 지표: net_pnl, win_rate, sharpe, max_drawdown 등)
-  - metrics_snapshot.json (Slippage, Latency 분포)
-  - watch_summary.json (completeness_ratio, stop_reason)
-  - DIAGNOSIS.md (실패 시 원인 분석)
-- 비교 보고: `docs/v2/reports/D208/D208-1_REPORT.md` (V1 vs V2 수익성 비교)
-
-**의존성:**
-- Depends on: D207-4 (Risk 관리 이식) ✅
-- Unblocks: D209+ (LIVE Ramp 준비)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ net_pnl > 0 증명 (또는 실패 원인 명확히 분석)
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-- ✅ V1 vs V2 수익성 비교 완료
-- ✅ Compare Patch URL 포함된 Closeout Summary
-
----
-
-### 신 D213: Infrastructure & Operations [구 D209 원문]
-
-**전략:** 신 D210 엔진 내재화 완료 후, 모니터링/배포/운영 자동화 진행  
-**Constitutional Basis:** "돈 버는 알고리즘 우선" 원칙 - 인프라는 핵심 로직 검증 후에만
-
----
-
-#### 신 D213-1: Grafana (튜닝/운영 모니터링 용도만) [구 D209-1]
-**상태:** PLANNED (신 D212 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D209/D209-1_REPORT.md`
-
-**목표:**
-- D205-4~9 지표를 패널로 시각화 (읽기 전용)
-- 제어 기능은 D209-4에서 담당 (UI/API/텔레그램)
-
-**금지:**
-- ❌ 핵심 로직 검증 전 Grafana 먼저 → 절대 금지
-- ❌ Grafana 버튼으로 제어 시도 (D209-4에서 별도 구현)
-
-**AC:**
-- [ ] Grafana dashboard: `monitoring/grafana/dashboards/v2_overview.json`
-- [ ] Panels: edge_after_cost, latency_p95, slippage_bps, PnL trend
-- [ ] Parameter sweep 결과 시각화 패널
-- [ ] Prometheus metrics: v2_edge_after_cost, v2_latency_p95_ms, v2_slippage_bps
-
-**Dashboard Panels:**
-1. **edge_after_cost p50/p95** (Gauge)
-2. **latency_p95_ms** (Gauge)
-3. **slippage_bps p50/p95** (Gauge)
-4. **PnL Trend** (Time series)
-5. **Parameter Sweep 결과** (Table)
-6. **Engine State** (Status: RUNNING/PAUSED/STOPPED/PANIC) - 읽기 전용
-
-**의존성:**
-- Depends on: D208-1 (Paper 수익성 검증) ✅
-- Blocks: D209-2 (Docker Compose)
-
----
-
-#### 신 D213-2: Docker Compose SSOT (패키징) [구 D209-2]
-**상태:** PLANNED (신 D212 완료 후)
-**커밋:** (미정)
-**테스트:** (미정)
-**문서:** `docs/v2/reports/D209/D209-2_REPORT.md`
-
-**목표:**
-- 운영 포장(컨테이너)은 "돈 버는 로직" 검증 후에만
-- V2 전용 docker-compose.v2.yml 생성
-
-**AC:**
-- [ ] V2 전용 docker-compose.v2.yml 생성
-- [ ] V2 서비스: v2-engine, v2-paper, v2-grafana
-- [ ] Health check (DB/Redis/Engine) 정의
-- [ ] 1-command deploy: docker-compose -f docker-compose.v2.yml up -d
-- [ ] 모든 서비스 healthy 확인 (< 30초)
-
-**KEEP 항목 (V1 재사용):**
-- PostgreSQL, Redis, Prometheus, Grafana (V1 infra 재사용)
-
-**의존성:**
-- Depends on: D209-1 (Grafana)
-- Blocks: D209-3 (Runbook + Gate/CI)
-
----
-
-#### 신 D213-3: Runbook + Gate/CI Automation (운영 자동화) [구 D209-3]
-**상태:** PLANNED (신 D212 완료 후)
-**문서:** `docs/v2/reports/D209/D209-3_REPORT.md`
-
-**목표:**
-- 장애 시뮬레이션 + Runbook (운영자 매뉴얼) + Gate/CI 자동화
-
-**AC (강화):**
-- [ ] AC-1: Failure Injection: DB 다운, Redis 다운, API 타임아웃 등
-- [ ] AC-2: Runbook: 장애 감지 → 원인 분석 → 복구 절차 (OPS_PROTOCOL.md #8 참조)
-- [ ] AC-3: **Failure Modes & Recovery 정의** (OPS_PROTOCOL.md #8 참조)
-  - F1: Wallclock Drift (시스템 과부하) → Exit 1 + 재실행
-  - F2: Heartbeat Loss (RunWatcher 중단) → Exit 1 + 재실행
-  - F3: DB Insert Fail (연결 끊김) → Exit 1 + DB 복구
-  - F4: Evidence Missing (디스크 Full) → Exit 1 + 디스크 정리
-  - F5: SIGTERM Timeout (Evidence Flush 10초 초과) → 수동 복구
-- [ ] AC-4: 자동 복구 vs 수동 개입 기준 정의
-- [ ] AC-5: 알람 시스템 (Slack/Email) 연동
-- [ ] AC-6: **Gate 실행 표준 프로시저** (OPS_PROTOCOL.md #9 참조)
-  - Doctor Gate: `python -m compileall` (< 10초)
-  - Fast Gate: `pytest -k "not slow and not integration"` (< 1분)
-  - Regression Gate: `pytest` (< 10분)
-- [ ] AC-7: **Gate 100% PASS 기준 명확화** (FAIL 1건도 허용 안 함)
-- [ ] AC-8: **CI/CD 파이프라인 설계** (GitHub Actions, 실제 구현은 별도)
-  - Trigger: push to rescue/*, PR to main
-  - Jobs: Doctor → Fast → Regression
-  - Artifacts: Evidence + Gate 결과
-
-**장애 대응 시나리오:**
-1. 429 Rate Limit 대응: throttling 자동 활성화, manual pause
-2. WS Disconnect: reconnect logic, fallback to REST
-3. DB Timeout: connection pool resize, query timeout adjust
-4. Redis Flush: cache rebuild, graceful degradation
-
-**의존성:**
-- Depends on: D209-2 (Docker Compose)
-- Blocks: D209-4 (Admin Control Panel)
-
----
-
-#### 신 D213-4: Admin Control Panel (최소 제어) [구 D209-4]
-**상태:** PLANNED (신 D212 완료 후)
-**문서:** `docs/v2/reports/D209/D209-4_REPORT.md`
-
-**목표:**
-- 웹 UI든 텔레그램이든 최소 제어 기능 구현
-- Grafana 패널 또는 별도 FastAPI endpoint
-
-**필수 기능:**
-- Start/Stop/Pause (즉시 반영)
-- Symbol blacklist (즉시 거래 중단)
-- Emergency flatten (paper: 포지션 초기화)
-- Risk limit override (노출/동시포지션 조정)
-
-**AC:**
-- [ ] Stop 명령 → 5초 내 전체 중단
-- [ ] Blacklist 추가 → 즉시 해당 심볼 거래 중단
-- [ ] Emergency flatten → 10초 내 모든 포지션 청산(paper: 초기화)
-- [ ] Risk limit override → 실시간 반영 (재시작 불필요)
-- [ ] Admin 명령 audit log (누가/언제/무엇을)
-
-**구현 옵션:**
-- Option 1: Grafana button panel + webhook
-- Option 2: FastAPI admin endpoint + simple UI
-- Option 3: Telegram bot (선택)
-
-**의존성:**
-- Depends on: D209-3 (Runbook + Gate/CI)
-
----
-
-## 📌 D206 vs D207 vs D208 vs D209 구분 요약
-
-**D206 (엔진 중심, 돈 버는 알고리즘 우선):**
-- D206-0: 운영 프로토콜 엔진 내재화 (Orchestrator 단일 루프)
-- D206-1: 수익 로직 모듈화 + 튜너 인터페이스
-- D206-2: 자동 파라미터 튜너 (Bayesian Optimization)
-- D206-3: 리스크 컨트롤 & 예외 처리 일원화
-- D206-4: 실행 프로파일 엔진 통합 (SMOKE/BASELINE/LONGRUN)
-
-**D207 (V1 거래 로직 → V2 마이그레이션):**
-- D207-1: V1 코드 분석 및 마이그레이션 계획
-- D207-2: V1 Entry/Exit 규칙 이식
-- D207-3: V1 Fee/Slippage 모델 이식
-- D207-4: V1 Risk 관리 이식
-
-**D208 (Paper 모드 수익성 검증):**
-- D208-1: Real MarketData + Slippage/Latency 모델 강제, net_pnl > 0 증명
-
-**D209 (인프라/운영, D208 완료 후):**
-- D209-1: Grafana (모니터링 시각화)
-- D209-2: Docker Compose (패키징)
-- D209-3: Runbook + Gate/CI Automation
-- D209-4: Admin Control Panel
-
-**핵심 원칙:** 돈 버는 알고리즘 우선 (D206~D208), 인프라는 검증 후 (D209+)
-
----
-
-## D214~D219: HFT & Commercial Readiness (Phase 3)
-
-**전략:** 신 D212 (Paper 수익성 검증) 완료 후, HFT 논문 기반 알파 모델 + 상용 시스템 수준 기능 통합  
+**전략:** 신 D209 (LIVE 설계) 완료 후, HFT 논문 기반 알파 모델 + 상용 시스템 수준 기능 통합  
 **Constitutional Basis:** "Profit-Logic First" + HFT Research (Aldridge, Avellaneda-Stoikov) + Commercial Architecture (Hummingbot, Freqtrade)
 
 **핵심 인사이트 출처:**
@@ -7172,25 +6578,25 @@ enable_execution: false       # REQUIRED
 - **상용 시스템:** Hummingbot Controller-Executor 패턴, Freqtrade Hyperopt 자동화, Backtesting/Walk-Forward Testing
 
 **Phase 3 범위:**
-- D214: HFT 알파 모델 (OBI + Avellaneda-Stoikov + Inventory Risk)
-- D215: Backtesting/Replay 엔진 (과거 데이터 검증 + Walk-Forward)
-- D216: Multi-Symbol 동시 실행 검증 (Scale 강화)
-- D217: HFT Latency Optimization (P95 < 50ms)
-- D218: Admin UI/UX Dashboard (실시간 제어 강화)
-- D219: ML-based Parameter Optimization (기계학습 기반)
+- D210: HFT 알파 모델 (OBI + Avellaneda-Stoikov + Inventory Risk)
+- D211: Backtesting/Replay 엔진 (과거 데이터 검증 + Walk-Forward)
+- D212: Multi-Symbol 동시 실행 검증 (Scale 강화)
+- D213: HFT Latency Optimization (P95 < 50ms)
+- D214: Admin UI/UX Dashboard (실시간 제어 강화)
+- D215: ML-based Parameter Optimization (기계학습 기반)
 
 ---
 
-### D214: HFT 알파 모델 통합 (Intelligence 강화)
+### D210: HFT 알파 모델 통합 (Intelligence 강화)
 
 **전략:** Order Book Imbalance + Avellaneda-Stoikov 기반 알파 생성, Inventory Risk 관리 통합  
 **Constitutional Basis:** Aldridge "High-Frequency Trading" (2013) + Avellaneda & Stoikov "High-frequency market making" (2008)
 
 ---
 
-#### D214-1: Order Book Imbalance (OBI) 알파 모델
+#### D210-1: Order Book Imbalance (OBI) 알파 모델
 
-**상태:** ⏳ PLANNED (신 D212 완료 후)  
+**상태:** ⏳ PLANNED (신 D209 완료 후)  
 **목적:** OBI, VAMP, Weighted-Depth 기반 Entry Signal 생성, Spread 단독 대비 수익성 향상
 
 **Acceptance Criteria:**
@@ -7203,734 +6609,284 @@ enable_execution: false       # REQUIRED
 
 **Evidence 경로:**
 - OBI Calculator: `arbitrage/v2/alpha/obi_calculator.py`
-- 테스트: `tests/test_d214_1_obi_alpha.py`
-- Paper 비교 로그: `logs/evidence/d214_1_obi_paper_comparison/`
-- Backtesting 결과: `logs/evidence/d214_1_obi_backtest_20h/`
+- 테스트: `tests/test_d210_1_obi_alpha.py`
+- Paper 비교 로그: `logs/evidence/d210_1_obi_paper_comparison/`
+- Backtesting 결과: `logs/evidence/d210_1_obi_backtest_20h/`
 - 설계 문서: `docs/v2/design/OBI_ALPHA_MODEL.md`
-- Report: `docs/v2/reports/D214/D214-1_REPORT.md`
+- Report: `docs/v2/reports/D210/D210-1_REPORT.md`
 
 **의존성:**
-- Depends on: 신 D212-1 (Paper 수익성 검증) ✅
-- Unblocks: D214-2 (Avellaneda-Stoikov)
+- Depends on: 신 D209 (LIVE 설계) ✅
+- Unblocks: D210-2 (Avellaneda-Stoikov)
 
 ---
 
-#### D214-2: Avellaneda-Stoikov Market Making 모델
+#### D210-2: Avellaneda-Stoikov Market Making 모델
 
-**상태:** ⏳ PLANNED (D214-1 완료 후)  
-**목적:** Reservation Price + Optimal Spread 계산, Inventory 기반 동적 가격 조정
+**상태:** ⏳ PLANNED (D210-1 완료 후)  
+
 
 **Acceptance Criteria:**
-- [ ] AC-1: Reservation Price 계산 - `r = s - q × γ × σ² × (T - t)` 구현, Inventory deviation (q) 기반 가격 조정
-- [ ] AC-2: Optimal Spread 계산 - `δ = γ × σ² × (T - t) + 2/γ × ln(1 + γ/κ)` 구현, Volatility + Liquidity 반영
-- [ ] AC-3: Inventory Tracker 구현 - `arbitrage/v2/core/inventory_tracker.py` 신규, 현재 포지션 실시간 추적 (Base Asset + Quote Asset)
-- [ ] AC-4: Volatility Estimator 구현 - Rolling Window (60분) 기반 σ 계산, 표준편차 실시간 업데이트
-- [ ] AC-5: Paper 실행 검증 - A-S 모델 활성화 Paper 20분 실행, Inventory Risk 제어 확인 (q 변화 추적)
-- [ ] AC-6: 문서화 - `docs/v2/design/AVELLANEDA_STOIKOV_MODEL.md` 작성, 파라미터 설명 (γ, σ, κ, T-t)
+- [ ] AC-1: Reservation Price 계산 - 
+ = s - q  γ  σ  (T - t) 구현, Inventory deviation (q) 기반 가격 조정
+- [ ] AC-2: Optimal Spread 계산 - δ = γ  σ  (T - t) + 2/γ  ln(1 + γ/κ) 구현, Volatility + Liquidity 반영
+- [ ] AC-3: Inventory Tracker 구현 - rbitrage/v2/core/inventory_tracker.py 신규, 현재 포지션 실시간 추적
+- [ ] AC-4: Volatility Estimator 구현 - Rolling Window (60분) 기반 σ 계산
+- [ ] AC-5: Paper 실행 검증 - A-S 모델 활성화 Paper 20분 실행, Inventory Risk 제어 확인
+- [ ] AC-6: 문서화 - docs/v2/design/AVELLANEDA_STOIKOV_MODEL.md 작성
 
 **Evidence 경로:**
-- A-S Strategy: `arbitrage/v2/strategy/avellaneda_stoikov.py`
-- Inventory Tracker: `arbitrage/v2/core/inventory_tracker.py`
-- Volatility Estimator: `arbitrage/v2/core/volatility_estimator.py`
-- 테스트: `tests/test_d214_2_avellaneda_stoikov.py`
-- Paper 로그: `logs/evidence/d214_2_as_paper_20m/`
-- 설계 문서: `docs/v2/design/AVELLANEDA_STOIKOV_MODEL.md`
-- Report: `docs/v2/reports/D214/D214-2_REPORT.md`
+- A-S Strategy: rbitrage/v2/strategy/avellaneda_stoikov.py
+- 테스트: 	ests/test_d210_2_avellaneda_stoikov.py
+- Paper 로그: logs/evidence/d210_2_as_paper_20m/
+- Report: docs/v2/reports/D210/D210-2_REPORT.md
 
 **의존성:**
-- Depends on: D214-1 (OBI) ✅
-- Unblocks: D214-3 (Inventory Risk)
+- Depends on: D210-1 (OBI) 
+- Unblocks: D210-3 (Inventory Risk)
 
 ---
 
-#### D214-3: Inventory Risk 관리 통합
+#### D210-3: Inventory Risk 관리 통합
 
-**상태:** ⏳ PLANNED (D214-2 완료 후)  
+**상태:**  PLANNED (D210-2 완료 후)  
 **목적:** Position Imbalance 모니터링, Risk-adjusted Spread 적용, Max Inventory 임계치
 
 **Acceptance Criteria:**
-- [ ] AC-1: Position Imbalance 모니터링 - q (Inventory deviation) 실시간 계산 및 로깅, target_inventory_ratio 대비 편차
-- [ ] AC-2: Risk-adjusted Spread 적용 - Reservation Price 기반 주문 생성, Bid/Ask 비대칭 배치
-- [ ] AC-3: Max Inventory 임계치 - max_inventory_usd 초과 시 신규 주문 차단, RiskGuard와 통합
-- [ ] AC-4: Inventory Decay 시뮬레이션 - 포지션 청산 시나리오 시뮬레이션 (강제 청산 vs 자연 청산), 손실 최소화 전략
-- [ ] AC-5: Paper 실행 검증 - Max Inventory 임계치 테스트 (의도적으로 임계치 초과 유도), 주문 차단 확인
-- [ ] AC-6: 문서화 - `docs/v2/design/INVENTORY_RISK_MANAGEMENT.md` 작성, 리스크 시나리오 + 대응 방안
+- [ ] AC-1: Position Imbalance 모니터링 - q (Inventory deviation) 실시간 계산
+- [ ] AC-2: Risk-adjusted Spread 적용 - Reservation Price 기반 주문 생성
+- [ ] AC-3: Max Inventory 임계치 - max_inventory_usd 초과 시 신규 주문 차단
+- [ ] AC-4: Inventory Decay 시뮬레이션 - 포지션 청산 시나리오
+- [ ] AC-5: Paper 실행 검증 - Max Inventory 임계치 테스트
+- [ ] AC-6: 문서화 - docs/v2/design/INVENTORY_RISK_MANAGEMENT.md
 
 **Evidence 경로:**
-- Inventory Risk 모듈: `arbitrage/v2/core/inventory_risk.py`
-- 테스트: `tests/test_d214_3_inventory_risk.py`
-- Paper 로그: `logs/evidence/d214_3_inventory_threshold_test/`
-- 설계 문서: `docs/v2/design/INVENTORY_RISK_MANAGEMENT.md`
-- Report: `docs/v2/reports/D214/D214-3_REPORT.md`
+- Inventory Risk 모듈: rbitrage/v2/core/inventory_risk.py
+- 테스트: 	ests/test_d210_3_inventory_risk.py
+- Paper 로그: logs/evidence/d210_3_inventory_threshold_test/
+- Report: docs/v2/reports/D210/D210-3_REPORT.md
 
 **의존성:**
-- Depends on: D214-2 (A-S Model) ✅
-- Unblocks: D214-4 (Performance Benchmark)
+- Depends on: D210-2 (A-S Model) 
+- Unblocks: D210-4 (Performance Benchmark)
 
 ---
 
-#### D214-4: 알파 모델 Performance Benchmark
+#### D210-4: 알파 모델 Performance Benchmark
 
-**상태:** ⏳ PLANNED (D214-3 완료 후)  
-**목적:** Baseline (Spread only) vs OBI vs A-S 수익성 비교, 최적 알파 모델 조합 결정
+**상태:**  PLANNED (D210-3 완료 후)  
+**목적:** Baseline vs OBI vs A-S 수익성 비교, 최적 알파 모델 조합 결정
 
 **Acceptance Criteria:**
-- [ ] AC-1: Baseline vs OBI vs A-S 수익성 비교 - 동일 데이터 (20시간 백테스트)에 대해 3종 모델 실행, net_pnl / Sharpe Ratio / Win Rate 비교
-- [ ] AC-2: Sharpe Ratio, Max Drawdown 비교 - 리스크 조정 수익률 (Sharpe) 계산, 최대 손실 (Max Drawdown) 비교
-- [ ] AC-3: Market Condition별 성능 분석 - Trending (추세) vs Ranging (횡보) 시장 구분, 각 조건에서 모델 성능 분석
-- [ ] AC-4: 최적 알파 모델 조합 결정 - Hybrid 모델 (Spread + OBI + A-S) vs 단일 모델, 최종 추천 조합 결정
-- [ ] AC-5: 장기 Paper 실행 - 최적 조합으로 1시간 Paper 실행, watch_summary.json completeness_ratio ≥ 0.95
-- [ ] AC-6: 문서화 - `docs/v2/reports/D214/D214-4_BENCHMARK_REPORT.md` 작성, 모델별 장단점 + 최종 권장 사항
+- [ ] AC-1: Baseline vs OBI vs A-S 수익성 비교
+- [ ] AC-2: Sharpe Ratio, Max Drawdown 비교
+- [ ] AC-3: Market Condition별 성능 분석
+- [ ] AC-4: 최적 알파 모델 조합 결정
+- [ ] AC-5: 장기 Paper 실행 (1시간)
+- [ ] AC-6: 문서화 - Benchmark Report
 
 **Evidence 경로:**
-- Benchmark 스크립트: `scripts/run_d214_4_alpha_benchmark.py`
-- Backtesting 결과: `logs/evidence/d214_4_alpha_benchmark/` (baseline.json, obi.json, as.json, hybrid.json)
-- 비교 차트: Sharpe Ratio, Win Rate, Max Drawdown 시각화 (PNG)
-- Paper 1h 로그: `logs/evidence/d214_4_paper_1h_hybrid/`
-- Benchmark Report: `docs/v2/reports/D214/D214-4_BENCHMARK_REPORT.md`
+- Benchmark 스크립트: scripts/run_d210_4_alpha_benchmark.py
+- Backtesting 결과: logs/evidence/d210_4_alpha_benchmark/
+- Report: docs/v2/reports/D210/D210-4_BENCHMARK_REPORT.md
 
 **의존성:**
-- Depends on: D214-3 (Inventory Risk) ✅
-- Unblocks: D215 (Backtesting/Replay)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ 최적 알파 모델 조합 결정 (Hybrid or Single)
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-- ✅ Benchmark Report 작성 완료
+- Depends on: D210-3 (Inventory Risk) 
+- Unblocks: D211 (Backtesting/Replay)
 
 ---
 
-### D215: Backtesting/Replay 엔진 (Truth 강화)
+### D211: Backtesting/Replay 엔진 (Truth 강화)
 
 **전략:** 과거 데이터 기반 전략 검증 + Walk-Forward Testing, Overfitting 방지  
 **Constitutional Basis:** Freqtrade Backtesting Framework + Walk-Forward Validation
 
 ---
 
-#### D215-1: 히스토리 데이터 수집 인프라
 
-**상태:** ⏳ PLANNED (D214-4 완료 후)  
+
+---
+
+#### D211-1: 히스토리 데이터 수집 인프라
+
+**상태:**  PLANNED (D210-4 완료 후)  
 **목적:** Binance/Upbit 과거 데이터 수집, 정규화, 저장
 
 **Acceptance Criteria:**
-- [ ] AC-1: 과거 데이터 수집 스크립트 - Binance/Upbit REST API로 최소 1개월 (720시간) 히스토리 데이터 수집 (Ticker, OrderBook, Trade)
-- [ ] AC-2: 데이터 정규화 - 통일 스키마 (timestamp, symbol, bid, ask, volume 등), Parquet 또는 PostgreSQL 저장
-- [ ] AC-3: 데이터 품질 검증 - 누락 timestamp 확인 (< 1%), 중복 제거, 이상치 탐지 (Spread > 1000 bps 제거)
-- [ ] AC-4: 데이터 저장소 구현 - `arbitrage/v2/data/historical_storage.py`, 쿼리 인터페이스 (by_symbol, by_timerange)
-- [ ] AC-5: 데이터 메타데이터 - 수집 기간, 심볼 목록, 샘플 수, 파일 크기 등을 manifest.json에 기록
-- [ ] AC-6: 문서화 - `docs/v2/design/HISTORICAL_DATA_SPEC.md` 작성, 스키마 정의 + 수집 절차
+- [ ] AC-1: 과거 데이터 수집 스크립트 - 최소 1개월 (720시간) 히스토리 데이터 수집
+- [ ] AC-2: 데이터 정규화 - 통일 스키마, Parquet 또는 PostgreSQL 저장
+- [ ] AC-3: 데이터 품질 검증 - 누락 < 1%, 중복 제거, 이상치 탐지
+- [ ] AC-4: 데이터 저장소 구현 - rbitrage/v2/data/historical_storage.py
+- [ ] AC-5: 데이터 메타데이터 - manifest.json 기록
+- [ ] AC-6: 문서화 - docs/v2/design/HISTORICAL_DATA_SPEC.md
 
 **Evidence 경로:**
-- 수집 스크립트: `scripts/collect_historical_data.py`
-- 저장소 모듈: `arbitrage/v2/data/historical_storage.py`
-- 데이터 샘플: `data/historical/BTCUSDT_20250101_20250131.parquet` (최소 1개 심볼)
-- 품질 검증 로그: `logs/evidence/d215_1_data_quality_check/`
-- 설계 문서: `docs/v2/design/HISTORICAL_DATA_SPEC.md`
-- Report: `docs/v2/reports/D215/D215-1_REPORT.md`
+- 수집 스크립트: scripts/collect_historical_data.py
+- 저장소 모듈: rbitrage/v2/data/historical_storage.py
+- Report: docs/v2/reports/D211/D211-1_REPORT.md
 
 **의존성:**
-- Depends on: D214-4 (알파 모델 Benchmark) ✅
-- Unblocks: D215-2 (Backtesting 엔진)
+- Depends on: D210-4 (알파 모델 Benchmark) 
+- Unblocks: D211-2 (Backtesting 엔진)
 
 ---
 
-#### D215-2: Backtesting 엔진 구현
+#### D211-2: Backtesting 엔진 구현
 
-**상태:** ⏳ PLANNED (D215-1 완료 후)  
-**목적:** Replay MarketDataProvider 구현, Simulated Execution, Orchestrator Replay 모드
+**상태:**  PLANNED (D211-1 완료 후)  
+**목적:** Replay MarketDataProvider 구현, Simulated Execution
 
 **Acceptance Criteria:**
-- [ ] AC-1: Replay MarketDataProvider - `arbitrage/v2/marketdata/replay/replay_provider.py`, 히스토리 데이터 순차 재생
-- [ ] AC-2: Simulated Execution - Slippage Model (실측 기반), Latency Model (평균 100ms), Partial Fill Model (확률 기반) 적용
-- [ ] AC-3: Orchestrator Replay 모드 - `arbitrage/v2/core/orchestrator.py`에 mode="replay" 추가, Paper와 동일 플로우 (실시간 대신 재생)
-- [ ] AC-4: Backtesting 결과 저장 - manifest.json, kpi_summary.json, trades.jsonl (전체 거래 기록)
-- [ ] AC-5: Backtesting 검증 - 20시간 데이터 백테스트 실행, net_pnl / Win Rate / Sharpe 계산
-- [ ] AC-6: 문서화 - `docs/v2/design/BACKTESTING_ENGINE.md` 작성, Replay 모드 사용법 + Simulated Execution 상세
+- [ ] AC-1: Replay MarketDataProvider - 히스토리 데이터 순차 재생
+- [ ] AC-2: Simulated Execution - Slippage/Latency/Partial Fill 모델 적용
+- [ ] AC-3: Orchestrator Replay 모드 - mode='replay' 추가
+- [ ] AC-4: Backtesting 결과 저장 - manifest.json, kpi_summary.json, trades.jsonl
+- [ ] AC-5: Backtesting 검증 - 20시간 데이터 백테스트 실행
+- [ ] AC-6: 문서화 - docs/v2/design/BACKTESTING_ENGINE.md
 
 **Evidence 경로:**
-- Replay Provider: `arbitrage/v2/marketdata/replay/replay_provider.py`
-- Backtesting CLI: `scripts/run_backtest.py`
-- 테스트: `tests/test_d215_2_backtesting.py`
-- Backtesting 결과: `logs/evidence/d215_2_backtest_20h/`
-- 설계 문서: `docs/v2/design/BACKTESTING_ENGINE.md`
-- Report: `docs/v2/reports/D215/D215-2_REPORT.md`
+- Replay Provider: rbitrage/v2/marketdata/replay/replay_provider.py
+- Backtesting CLI: scripts/run_backtest.py
+- Report: docs/v2/reports/D211/D211-2_REPORT.md
 
 **의존성:**
-- Depends on: D215-1 (히스토리 데이터) ✅
-- Unblocks: D215-3 (Parameter Sweep)
+- Depends on: D211-1 (히스토리 데이터) 
+- Unblocks: D211-3 (Parameter Sweep)
 
 ---
 
-#### D215-3: Parameter Sweep for Backtesting
+#### D211-3: Parameter Sweep for Backtesting
 
-**상태:** ⏳ PLANNED (D215-2 완료 후)  
-**목적:** Bayesian Optimizer → Backtesting 통합, Pareto Frontier 시각화
+**상태:**  PLANNED (D211-2 완료 후)  
+**목적:** Bayesian Optimizer  Backtesting 통합, Pareto Frontier 시각화
 
 **Acceptance Criteria:**
-- [ ] AC-1: Bayesian Optimizer 통합 - D210-2 Auto-Tuner를 Backtesting에 연동, 50~100회 Iteration (buffer_bps, slippage_param, threshold_bps 탐색)
-- [ ] AC-2: Objective Function 정의 - Sharpe Ratio 최대화 (또는 PnL / Max Drawdown 비율)
-- [ ] AC-3: Pareto Frontier 시각화 - Return vs Risk 2D 플롯, 최적 파라미터 집합 식별
-- [ ] AC-4: 최적 파라미터 자동 추출 - Sharpe 최대화 파라미터를 optimal_params.json에 저장
-- [ ] AC-5: Parameter Sweep 검증 - 최적 파라미터로 Out-of-Sample 백테스트 (Train과 다른 기간), 성능 유지 확인
-- [ ] AC-6: 문서화 - `docs/v2/reports/D215/D215-3_SWEEP_REPORT.md` 작성, Pareto Frontier + 최적 파라미터
+- [ ] AC-1: Bayesian Optimizer 통합 - 50~100회 Iteration
+- [ ] AC-2: Objective Function 정의 - Sharpe Ratio 최대화
+- [ ] AC-3: Pareto Frontier 시각화
+- [ ] AC-4: 최적 파라미터 자동 추출 - optimal_params.json
+- [ ] AC-5: Parameter Sweep 검증 - Out-of-Sample 백테스트
+- [ ] AC-6: 문서화 - Sweep Report
 
 **Evidence 경로:**
-- Parameter Sweep 스크립트: `scripts/run_d215_3_parameter_sweep.py`
-- Sweep 결과: `logs/evidence/d215_3_parameter_sweep/` (sweep_results.json, optimal_params.json, pareto_frontier.png)
-- Out-of-Sample 검증: `logs/evidence/d215_3_oos_validation/`
-- Sweep Report: `docs/v2/reports/D215/D215-3_SWEEP_REPORT.md`
+- Parameter Sweep 스크립트: scripts/run_d211_3_parameter_sweep.py
+- Sweep 결과: logs/evidence/d211_3_parameter_sweep/
+- Report: docs/v2/reports/D211/D211-3_SWEEP_REPORT.md
 
 **의존성:**
-- Depends on: D215-2 (Backtesting 엔진) ✅
-- Unblocks: D215-4 (Walk-Forward Testing)
+- Depends on: D211-2 (Backtesting 엔진) 
+- Unblocks: D211-4 (Walk-Forward Testing)
 
 ---
 
-#### D215-4: Walk-Forward Testing
+#### D211-4: Walk-Forward Testing
 
-**상태:** ⏳ PLANNED (D215-3 완료 후)  
-**목적:** Train/Test Period 분할, Overfitting 감지, Out-of-Sample 검증
+**상태:**  PLANNED (D211-3 완료 후)  
+**목적:** Train/Test Period 분할, Overfitting 감지
 
 **Acceptance Criteria:**
-- [ ] AC-1: Train/Test Period 분할 - 전체 데이터 (720시간)를 Train (60%, 432시간) + Test (40%, 288시간)로 분할
-- [ ] AC-2: Train Period 최적화 - Train Period에서 Parameter Sweep 실행, 최적 파라미터 탐색
-- [ ] AC-3: Test Period Out-of-Sample 검증 - Train에서 찾은 최적 파라미터를 Test Period에 적용, 성능 측정
-- [ ] AC-4: Overfitting 감지 - Train vs Test 성능 차이 계산, 차이 < 10% 확인 (Sharpe Ratio 기준)
-- [ ] AC-5: Walk-Forward 실행 - Rolling Window (60% Train, 40% Test)로 여러 기간 반복 검증
-- [ ] AC-6: 문서화 - `docs/v2/reports/D215/D215-4_WALK_FORWARD_REPORT.md` 작성, Overfitting 분석 + 최종 파라미터
+- [ ] AC-1: Train/Test Period 분할 - 60%/40% 분할
+- [ ] AC-2: Train Period 최적화
+- [ ] AC-3: Test Period Out-of-Sample 검증
+- [ ] AC-4: Overfitting 감지 - 차이 < 10% 확인
+- [ ] AC-5: Walk-Forward 실행 - Rolling Window
+- [ ] AC-6: 문서화 - Walk-Forward Report
 
 **Evidence 경로:**
-- Walk-Forward 스크립트: `scripts/run_d215_4_walk_forward.py`
-- Train/Test 분할 로그: `logs/evidence/d215_4_walk_forward/train_test_split.json`
-- Overfitting 분석: `logs/evidence/d215_4_walk_forward/overfitting_analysis.json` (Train Sharpe vs Test Sharpe)
-- Walk-Forward Report: `docs/v2/reports/D215/D215-4_WALK_FORWARD_REPORT.md`
+- Walk-Forward 스크립트: scripts/run_d211_4_walk_forward.py
+- Report: docs/v2/reports/D211/D211-4_WALK_FORWARD_REPORT.md
 
 **의존성:**
-- Depends on: D215-3 (Parameter Sweep) ✅
-- Unblocks: D216 (Multi-Symbol Scale)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ Overfitting 감지 (Train vs Test 차이 < 10%)
-- ✅ Walk-Forward Report 작성 완료
-- ✅ Gate Doctor/Fast/Regression 100% PASS
+- Depends on: D211-3 (Parameter Sweep) 
+- Unblocks: D212 (Multi-Symbol Scale)
 
 ---
 
-### D216: Multi-Symbol 동시 실행 검증 (Scale 강화)
+### D212: Multi-Symbol 동시 실행 검증 (Scale 강화)
 
 **전략:** 3~5개 심볼 동시 거래, CPU/Memory 효율성, Race Condition 제거  
 **Constitutional Basis:** Hummingbot Multi-Strategy Framework + Concurrent Execution Best Practices
 
 ---
 
-#### D216-1: Multi-Symbol Engine 확장
+#### D212-1: Multi-Symbol Engine 확장
 
-**상태:** ⏳ PLANNED (D215-4 완료 후)  
+**상태:**  PLANNED (D211-4 완료 후)  
 **목적:** Symbol별 독립 OpportunitySource, Global Risk Aggregation
 
 **Acceptance Criteria:**
-- [ ] AC-1: Symbol별 독립 OpportunitySource - BTCUSDT, ETHUSDT, SOLUSDT 각각 독립 OpportunitySource 생성, Symbol 충돌 방지
-- [ ] AC-2: Symbol별 독립 Executor - 주문 생성/실행 시 Symbol 구분, 동시 주문 충돌 방지 (Redis Lock 또는 Queue)
-- [ ] AC-3: Global Risk Aggregation - 전체 포지션 합산 (모든 Symbol), max_total_position_usd 임계치 적용
-- [ ] AC-4: Symbol별 KPI 분리 저장 - kpi_summary_BTCUSDT.json, kpi_summary_ETHUSDT.json 각각 생성
-- [ ] AC-5: Multi-Symbol Paper 실행 - 3개 심볼 동시 20분 Paper 실행, 0 Crash/0 Race Condition 확인
-- [ ] AC-6: 문서화 - `docs/v2/design/MULTI_SYMBOL_ARCHITECTURE.md` 작성, Symbol 격리 전략 + Global Risk
+- [ ] AC-1: Symbol별 독립 OpportunitySource
+- [ ] AC-2: Symbol별 독립 Executor
+- [ ] AC-3: Global Risk Aggregation
+- [ ] AC-4: Symbol별 KPI 분리 저장
+- [ ] AC-5: Multi-Symbol Paper 실행 (3개 심볼 20분)
+- [ ] AC-6: 문서화 - Multi-Symbol Architecture
 
 **Evidence 경로:**
-- Multi-Symbol Engine: `arbitrage/v2/core/multi_symbol_orchestrator.py`
-- 테스트: `tests/test_d216_1_multi_symbol.py`
-- Paper 로그: `logs/evidence/d216_1_multi_symbol_paper_20m/`
-- 설계 문서: `docs/v2/design/MULTI_SYMBOL_ARCHITECTURE.md`
-- Report: `docs/v2/reports/D216/D216-1_REPORT.md`
+- Multi-Symbol Engine: rbitrage/v2/core/multi_symbol_orchestrator.py
+- Report: docs/v2/reports/D212/D212-1_REPORT.md
 
 **의존성:**
-- Depends on: D215-4 (Walk-Forward) ✅
-- Unblocks: D216-2 (Concurrent Execution Test)
+- Depends on: D211-4 (Walk-Forward) 
+- Unblocks: D212-2 (Concurrent Execution Test)
 
 ---
 
-#### D216-2: Concurrent Execution Test
-
-**상태:** ⏳ PLANNED (D216-1 완료 후)  
-**목적:** CPU/Memory 사용량 모니터링, Latency p95 < 200ms 유지
-
-**Acceptance Criteria:**
-- [ ] AC-1: 3개 심볼 동시 Paper 실행 - BTCUSDT, ETHUSDT, SOLUSDT 동시 20분 Paper, 0 Crash
-- [ ] AC-2: CPU/Memory 사용량 모니터링 - psutil로 실시간 모니터링, CPU < 50%, Memory < 2GB 유지
-- [ ] AC-3: Latency 분포 측정 - End-to-End Latency p95 < 200ms 유지 (Multi-Symbol 동시 실행 중)
-- [ ] AC-4: 0 Race Condition 검증 - Redis Key 충돌 검증 (Symbol별 Namespace), 동시 쓰기 충돌 0건
-- [ ] AC-5: Resource Efficiency 계산 - PnL per CPU Core (CPU 사용률 대비 수익성)
-- [ ] AC-6: 문서화 - `docs/v2/reports/D216/D216-2_CONCURRENT_TEST_REPORT.md` 작성, 리소스 사용량 + Latency 분포
-
-**Evidence 경로:**
-- Concurrent Test 스크립트: `scripts/run_d216_2_concurrent_test.py`
-- Resource 모니터링 로그: `logs/evidence/d216_2_concurrent_test/resource_usage.json` (CPU, Memory, Latency)
-- Concurrent Test Report: `docs/v2/reports/D216/D216-2_CONCURRENT_TEST_REPORT.md`
-
-**의존성:**
-- Depends on: D216-1 (Multi-Symbol Engine) ✅
-- Unblocks: D216-3 (Performance Benchmark)
-
----
-
-#### D216-3: Performance Benchmark
-
-**상태:** ⏳ PLANNED (D216-2 완료 후)  
-**목적:** Single vs Multi-Symbol 처리량 비교, Scalability Test (5개 심볼)
-
-**Acceptance Criteria:**
-- [ ] AC-1: Single Symbol vs Multi-Symbol 처리량 비교 - Opportunities Processed per Second (OPS) 측정, Multi-Symbol에서 3배 이상 처리량
-- [ ] AC-2: Throughput 측정 - 초당 처리 기회 수 (OPS), Multi-Symbol에서 선형 증가 확인 (3 Symbols → 3x OPS)
-- [ ] AC-3: Resource Efficiency - PnL per CPU Core 계산, Multi-Symbol에서 효율성 유지 (Single 대비 -10% 이내)
-- [ ] AC-4: Scalability Test - 5개 심볼까지 확장 (BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, ADAUSDT), CPU < 70% 유지
-- [ ] AC-5: Bottleneck 식별 - 병목 지점 식별 (Redis, DB, Network 등), 최적화 우선순위 결정
-- [ ] AC-6: 문서화 - `docs/v2/reports/D216/D216-3_BENCHMARK_REPORT.md` 작성, 처리량 + 리소스 효율성 + Bottleneck
-
-**Evidence 경로:**
-- Benchmark 스크립트: `scripts/run_d216_3_benchmark.py`
-- Benchmark 결과: `logs/evidence/d216_3_benchmark/` (single.json, multi_3.json, multi_5.json)
-- Benchmark Report: `docs/v2/reports/D216/D216-3_BENCHMARK_REPORT.md`
-
-**의존성:**
-- Depends on: D216-2 (Concurrent Test) ✅
-- Unblocks: D216-4 (Symbol Selection Strategy)
-
----
-
-#### D216-4: Symbol Selection Strategy
-
-**상태:** ⏳ PLANNED (D216-3 완료 후)  
-**목적:** Volatility/Liquidity/Correlation 기반 심볼 선택, Dynamic Symbol Pool
-
-**Acceptance Criteria:**
-- [ ] AC-1: Volatility 기반 심볼 선택 - σ (60분 Rolling Window) > 임계치 (예: 1.5% 시간당 변동률), 고변동성 심볼 선호
-- [ ] AC-2: Liquidity 기반 필터 - 24h Volume > 임계치 (예: $100M), 저유동성 심볼 제외
-- [ ] AC-3: Correlation 분석 - 심볼 간 상관계수 계산 (60분 Price Return), 상관계수 < 0.7 심볼 선호 (분산 투자)
-- [ ] AC-4: Dynamic Symbol Pool - 실시간 심볼 추가/제거 (조건 충족 시 자동 추가, 미충족 시 제거)
-- [ ] AC-5: Symbol Pool 검증 - Dynamic Pool로 1시간 Paper 실행, 심볼 추가/제거 이벤트 로깅
-- [ ] AC-6: 문서화 - `docs/v2/design/SYMBOL_SELECTION_STRATEGY.md` 작성, 선택 기준 + Dynamic Pool 알고리즘
-
-**Evidence 경로:**
-- Symbol Selection 모듈: `arbitrage/v2/strategy/symbol_selector.py`
-- Correlation 분석: `logs/evidence/d216_4_correlation_analysis/correlation_matrix.png`
-- Dynamic Pool 로그: `logs/evidence/d216_4_dynamic_pool_1h/symbol_pool_events.jsonl`
-- 설계 문서: `docs/v2/design/SYMBOL_SELECTION_STRATEGY.md`
-- Report: `docs/v2/reports/D216/D216-4_REPORT.md`
-
-**의존성:**
-- Depends on: D216-3 (Performance Benchmark) ✅
-- Unblocks: D217 (HFT Latency Optimization)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ Multi-Symbol 5개 동시 실행 성공 (CPU < 70%)
-- ✅ Dynamic Symbol Pool 검증 완료
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-
----
-
-### D217: HFT Latency Optimization (Body 강화)
+### D213: HFT Latency Optimization (Body 강화)
 
 **전략:** 마이크로초 단위 최적화, P95 Latency < 50ms, Code/Network/System Level 최적화  
-**Constitutional Basis:** HFT Best Practices (Low-Latency Trading Systems) + Profiling-Driven Optimization
+**Constitutional Basis:** HFT Best Practices + Profiling-Driven Optimization
 
 ---
 
-#### D217-1: Profiling & Bottleneck Analysis
-
-**상태:** ⏳ PLANNED (D216-4 완료 후)  
-**목적:** cProfile 기반 Hot Path 식별, I/O vs CPU 병목 구분
-
-**Acceptance Criteria:**
-- [ ] AC-1: cProfile 전체 플로우 프로파일링 - Engine.run_cycle() 전체 프로파일링 (1000회 Iteration), 함수별 실행 시간 측정
-- [ ] AC-2: Hot Path 식별 - 전체 실행 시간 80% 차지하는 함수 Top 10 식별 (예: JSON Parsing, Redis I/O, OrderIntent 생성)
-- [ ] AC-3: I/O vs CPU 병목 구분 - I/O Wait Time vs CPU Time 비율 계산, 최적화 전략 구분 (I/O → Async, CPU → Algorithm)
-- [ ] AC-4: 최적화 우선순위 결정 - ROI 기준 (실행 시간 비중 × 최적화 난이도), Top 5 최적화 대상 선정
-- [ ] AC-5: Profiling 리포트 생성 - Flame Graph, Call Graph 시각화, Bottleneck 상세 설명
-- [ ] AC-6: 문서화 - `docs/v2/reports/D217/D217-1_PROFILING_REPORT.md` 작성, Hot Path + 최적화 우선순위
-
-**Evidence 경로:**
-- Profiling 스크립트: `scripts/run_d217_1_profiling.py`
-- Profiling 결과: `logs/evidence/d217_1_profiling/` (profile.stats, flamegraph.svg, call_graph.png)
-- Profiling Report: `docs/v2/reports/D217/D217-1_PROFILING_REPORT.md`
-
-**의존성:**
-- Depends on: D216-4 (Symbol Selection) ✅
-- Unblocks: D217-2 (Code-Level Optimization)
-
----
-
-#### D217-2: Code-Level Optimization
-
-**상태:** ⏳ PLANNED (D217-1 완료 후)  
-**목적:** JSON Parsing, Dataclass, Logging 최적화, Latency 30% 개선
-
-**Acceptance Criteria:**
-- [ ] AC-1: JSON Parsing 최적화 - json → orjson/ujson 교체, Parsing 속도 2~3배 개선
-- [ ] AC-2: Dataclass 최적화 - @dataclass → NamedTuple/Slots 교체 (메모리 효율 + 생성 속도), Hot Path 객체만 적용
-- [ ] AC-3: Logging Lazy Evaluation - Debug 로그를 조건부 생성 (`if logger.isEnabledFor(logging.DEBUG):`), 불필요한 문자열 포맷팅 제거
-- [ ] AC-4: Type Hints 검증 - mypy 정적 검증 (런타임 오버헤드 제거), Type Error 0건
-- [ ] AC-5: Before vs After Latency 비교 - P50/P95/P99 Latency 측정, 최소 30% 개선 확인
-- [ ] AC-6: 문서화 - `docs/v2/reports/D217/D217-2_CODE_OPT_REPORT.md` 작성, 최적화 전후 비교 + 코드 변경 요약
-
-**Evidence 경로:**
-- 최적화 코드: `arbitrage/v2/core/` (engine.py, orchestrator.py 등)
-- 테스트: `tests/test_d217_2_code_optimization.py`
-- Latency 비교: `logs/evidence/d217_2_code_opt/latency_before_after.json` (P50/P95/P99)
-- Code Opt Report: `docs/v2/reports/D217/D217-2_CODE_OPT_REPORT.md`
-
-**의존성:**
-- Depends on: D217-1 (Profiling) ✅
-- Unblocks: D217-3 (Network Optimization)
-
----
-
-#### D217-3: Network Optimization
-
-**상태:** ⏳ PLANNED (D217-2 완료 후)  
-**목적:** Connection Pooling, WebSocket Keep-Alive, DNS Caching, Network Latency 최소화
-
-**Acceptance Criteria:**
-- [ ] AC-1: Connection Pooling - Session 재사용 (requests.Session, httpx.Client), 연결 수립 오버헤드 제거
-- [ ] AC-2: WebSocket Keep-Alive - Ping/Pong 주기 설정 (30초), 재연결 최소화 (평균 재연결 간격 > 1시간)
-- [ ] AC-3: DNS Caching - 거래소 API 도메인 DNS 캐싱 (TTL 1시간), DNS 조회 오버헤드 제거
-- [ ] AC-4: Geographic Proximity 권장 - 거래소 서버 근처 배포 권장 (문서화), Ping Latency 측정 (Seoul → Binance/Upbit < 20ms)
-- [ ] AC-5: Network Latency 검증 - Ping, TCP Handshake, TLS Handshake 시간 측정, 최적화 전후 비교
-- [ ] AC-6: 문서화 - `docs/v2/design/NETWORK_OPTIMIZATION.md` 작성, 최적화 기법 + 배포 권장 사항
-
-**Evidence 경로:**
-- Network 모듈: `arbitrage/v2/marketdata/http_client.py` (Connection Pooling, DNS Cache)
-- Ping 측정: `logs/evidence/d217_3_network_opt/ping_latency.json`
-- Network Opt 설계: `docs/v2/design/NETWORK_OPTIMIZATION.md`
-- Report: `docs/v2/reports/D217/D217-3_REPORT.md`
-
-**의존성:**
-- Depends on: D217-2 (Code Optimization) ✅
-- Unblocks: D217-4 (Latency Verification)
-
----
-
-#### D217-4: Latency Verification
-
-**상태:** ⏳ PLANNED (D217-3 완료 후)  
-**목적:** P50/P95/P99 Latency 측정, Before vs After 최소 30% 개선, Regression 방지
-
-**Acceptance Criteria:**
-- [ ] AC-1: P50/P95/P99 Latency 측정 - End-to-End Latency (Market Data 수신 → OrderIntent 생성), 1000회 측정
-- [ ] AC-2: Before vs After 비교 - D217-1 Baseline vs D217-4 최적화 후, P95 Latency 최소 30% 개선 (예: 150ms → 100ms)
-- [ ] AC-3: Stress Test - 고빈도 주문 시나리오 (10 orders/sec), Latency 안정성 확인 (P99 < 150ms 유지)
-- [ ] AC-4: 회귀 방지 - Gate에 Latency 임계치 추가 (P95 < 120ms), 회귀 시 자동 FAIL
-- [ ] AC-5: Latency Breakdown - 구간별 Latency 측정 (MarketData → Opportunity → OrderIntent), 병목 지점 식별
-- [ ] AC-6: 문서화 - `docs/v2/reports/D217/D217-4_LATENCY_VERIFICATION_REPORT.md` 작성, 최종 Latency + 회귀 방지 규칙
-
-**Evidence 경로:**
-- Latency 측정 스크립트: `scripts/run_d217_4_latency_verification.py`
-- Latency 결과: `logs/evidence/d217_4_latency_verification/` (latency_before.json, latency_after.json, breakdown.json)
-- Latency Verification Report: `docs/v2/reports/D217/D217-4_LATENCY_VERIFICATION_REPORT.md`
-
-**의존성:**
-- Depends on: D217-3 (Network Optimization) ✅
-- Unblocks: D218 (Admin UI/UX)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ P95 Latency 30% 이상 개선 (Baseline 대비)
-- ✅ Stress Test PASS (P99 < 150ms)
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-
----
-
-### D218: Admin UI/UX Dashboard (Skin 강화)
+### D214: Admin UI/UX Dashboard (Skin 강화)
 
 **전략:** 실시간 제어 + 시각화, FastAPI + React 기반, 운영자 편의성 극대화  
 **Constitutional Basis:** Hummingbot Dashboard + Freqtrade UI Best Practices
 
 ---
 
-#### D218-1: Real-time Dashboard (FastAPI + React)
-
-**상태:** ⏳ PLANNED (D217-4 완료 후)  
-**목적:** Engine Status, Live KPI, Position View, Recent Trades 실시간 표시
-
-**Acceptance Criteria:**
-- [ ] AC-1: Engine Status Widget - RUNNING/PAUSED/STOPPED/ERROR 상태 표시, Color-coded (Green/Yellow/Red)
-- [ ] AC-2: Live KPI Widget - Edge, PnL, Win Rate, Latency 실시간 업데이트 (5초 간격), Sparkline 차트
-- [ ] AC-3: Position View Widget - Symbol별 현재 포지션 (Qty, Entry Price, Unrealized PnL), 전체 포지션 합산
-- [ ] AC-4: Recent Trades Widget - 최근 20개 거래 목록 (Time, Symbol, Side, Price, Qty, PnL), Auto-scroll
-- [ ] AC-5: WebSocket 실시간 연동 - FastAPI WebSocket으로 Engine → Frontend 실시간 Push
-- [ ] AC-6: 문서화 - `docs/v2/design/DASHBOARD_UI_SPEC.md` 작성, UI 레이아웃 + WebSocket Protocol
-
-**Evidence 경로:**
-- FastAPI Backend: `arbitrage/v2/api/dashboard_api.py`
-- React Frontend: `frontend/dashboard/` (src/components/*, src/App.tsx)
-- UI 스크린샷: `docs/v2/reports/D218/screenshots/` (dashboard_main.png, kpi_widget.png)
-- Dashboard UI Spec: `docs/v2/design/DASHBOARD_UI_SPEC.md`
-- Report: `docs/v2/reports/D218/D218-1_REPORT.md`
-
-**의존성:**
-- Depends on: D217-4 (Latency Verification) ✅
-- Unblocks: D218-2 (Control Panel)
-
----
-
-#### D218-2: Control Panel (실시간 제어)
-
-**상태:** ⏳ PLANNED (D218-1 완료 후)  
-**목적:** Start/Stop/Pause, Symbol Blacklist, Risk Limit Override, Emergency Flatten
-
-**Acceptance Criteria:**
-- [ ] AC-1: Start/Stop/Pause 버튼 - Engine 상태 제어, 즉시 반영 (< 1초), Confirmation 다이얼로그
-- [ ] AC-2: Symbol Blacklist - 특정 심볼 거래 중단 UI, Blacklist 추가/제거, 즉시 적용
-- [ ] AC-3: Risk Limit Override - 포지션 한도 조정 UI (max_position_usd), 실시간 반영
-- [ ] AC-4: Emergency Flatten - Paper: 포지션 초기화 버튼, Confirmation + Password 입력 필수
-- [ ] AC-5: Control 검증 - UI에서 제어 → Engine 반응 시간 측정 (< 2초), 100% 성공률
-- [ ] AC-6: 문서화 - `docs/v2/design/CONTROL_PANEL_SPEC.md` 작성, 제어 명령 + 안전장치
-
-**Evidence 경로:**
-- Control Panel UI: `frontend/dashboard/src/components/ControlPanel.tsx`
-- Backend API: `arbitrage/v2/api/control_api.py`
-- Control 검증 로그: `logs/evidence/d218_2_control_verification/control_response_time.json`
-- Control Panel Spec: `docs/v2/design/CONTROL_PANEL_SPEC.md`
-- Report: `docs/v2/reports/D218/D218-2_REPORT.md`
-
-**의존성:**
-- Depends on: D218-1 (Dashboard UI) ✅
-- Unblocks: D218-3 (Alert Management)
-
----
-
-#### D218-3: Alert Management
-
-**상태:** ⏳ PLANNED (D218-2 완료 후)  
-**목적:** Alert Rule 설정, Notification Channel 연동, Alert History
-
-**Acceptance Criteria:**
-- [ ] AC-1: Alert Rule 설정 UI - PnL < -X, Latency > Y, Position > Z 등 규칙 생성, Threshold 입력
-- [ ] AC-2: Notification Channel 연동 - Slack/Email/Telegram 중 최소 1개 연동, 테스트 Alert 발송
-- [ ] AC-3: Alert History - 발생 이력 조회 (최근 100개), Time, Rule, Severity, Message 표시
-- [ ] AC-4: Alert Mute/Unmute - 일시 비활성화 UI (1시간/3시간/무기한), 자동 재활성화
-- [ ] AC-5: Alert 검증 - 의도적으로 Alert 조건 유발 (PnL < threshold), Notification 수신 확인
-- [ ] AC-6: 문서화 - `docs/v2/design/ALERT_MANAGEMENT.md` 작성, Alert Rule + Channel 설정
-
-**Evidence 경로:**
-- Alert UI: `frontend/dashboard/src/components/AlertManagement.tsx`
-- Notification 모듈: `arbitrage/v2/notification/` (slack_notifier.py, email_notifier.py)
-- Alert 검증 로그: `logs/evidence/d218_3_alert_verification/alert_test.json`
-- Alert Management 설계: `docs/v2/design/ALERT_MANAGEMENT.md`
-- Report: `docs/v2/reports/D218/D218-3_REPORT.md`
-
-**의존성:**
-- Depends on: D218-2 (Control Panel) ✅
-- Unblocks: D218-4 (Audit Log & Compliance)
-
----
-
-#### D218-4: Audit Log & Compliance
-
-**상태:** ⏳ PLANNED (D218-3 완료 후)  
-**목적:** Admin 명령 감사 로그, Trade History Export, User Role 관리
-
-**Acceptance Criteria:**
-- [ ] AC-1: Admin 명령 감사 로그 - 누가/언제/무엇을 (User, Timestamp, Action, Result), 영구 저장 (DB)
-- [ ] AC-2: Trade History Export - CSV/JSON 다운로드 UI, 필터링 (Symbol, Date Range, Side)
-- [ ] AC-3: Compliance Report - 일별/주별 거래 요약 (Total Trades, PnL, Fee Paid), PDF 생성
-- [ ] AC-4: User Role 관리 - Admin/Viewer 구분, Viewer는 Read-only (제어 버튼 숨김)
-- [ ] AC-5: Audit Log 검증 - 제어 명령 실행 → Audit Log 기록 확인, 누락 0건
-- [ ] AC-6: 문서화 - `docs/v2/design/AUDIT_COMPLIANCE.md` 작성, 감사 로그 + Compliance 규칙
-
-**Evidence 경로:**
-- Audit Log 모듈: `arbitrage/v2/audit/audit_logger.py`
-- Export 기능: `frontend/dashboard/src/components/TradeHistoryExport.tsx`
-- Audit 검증: `logs/evidence/d218_4_audit_verification/audit_completeness.json`
-- Audit & Compliance 설계: `docs/v2/design/AUDIT_COMPLIANCE.md`
-- Report: `docs/v2/reports/D218/D218-4_REPORT.md`
-
-**의존성:**
-- Depends on: D218-3 (Alert Management) ✅
-- Unblocks: D219 (ML Optimization)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크
-- ✅ Dashboard UI 기능 테스트 100% PASS
-- ✅ Admin 명령 Audit Log 누락 0건
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-
----
-
-### D219: ML-based Parameter Optimization (Polish 강화)
+### D215: ML-based Parameter Optimization (Polish 강화)
 
 **전략:** 기계학습 기반 파라미터 최적화 고도화, Supervised Learning + Online Learning  
 **Constitutional Basis:** Freqtrade Machine Learning Strategy + Bayesian Optimization Best Practices
 
 ---
 
-#### D219-1: Feature Engineering
+### LIVE Ramp (D216+) - 잠금 섹션
 
-**상태:** ⏳ PLANNED (D218-4 완료 후)  
-**목적:** Market Regime, Microstructure, Time, Lag Features 생성
-
-**Acceptance Criteria:**
-- [ ] AC-1: Market Regime Features - Volatility (60분 Rolling σ), Trend (EMA 교차), Volume (24h Volume / 평균 비율)
-- [ ] AC-2: Microstructure Features - Spread (bps), Depth (Bid/Ask Level 5 합산), OBI (Order Book Imbalance)
-- [ ] AC-3: Time Features - Hour (0~23), Day of Week (0~6), Month (1~12), Holiday Flag
-- [ ] AC-4: Lag Features - 과거 N시간 수익률 (1h, 3h, 6h, 12h), Autocorrelation 계산
-- [ ] AC-5: Feature 검증 - Feature Importance 계산 (XGBoost 기반), Top 20 Features 식별
-- [ ] AC-6: 문서화 - `docs/v2/design/FEATURE_ENGINEERING.md` 작성, Feature 정의 + 계산 방법
-
-**Evidence 경로:**
-- Feature 모듈: `arbitrage/v2/ml/feature_engineering.py`
-- Feature 샘플: `logs/evidence/d219_1_feature_engineering/features_sample.csv` (1000 rows)
-- Feature Importance: `logs/evidence/d219_1_feature_engineering/feature_importance.png`
-- Feature Engineering 설계: `docs/v2/design/FEATURE_ENGINEERING.md`
-- Report: `docs/v2/reports/D219/D219-1_REPORT.md`
-
-**의존성:**
-- Depends on: D218-4 (Audit & Compliance) ✅
-- Unblocks: D219-2 (ML Model Training)
-
----
-
-#### D219-2: ML Model Training
-
-**상태:** ⏳ PLANNED (D219-1 완료 후)  
-**목적:** Supervised Learning (XGBoost/LightGBM), Target = Next 1h PnL, Hyperparameter Tuning
-
-**Acceptance Criteria:**
-- [ ] AC-1: Supervised Learning - XGBoost/LightGBM 모델 학습, Target Variable = Next 1h PnL
-- [ ] AC-2: Train/Validation/Test Split - 60/20/20 분할, Temporal Split (과거 → 미래)
-- [ ] AC-3: Hyperparameter Tuning - Optuna 기반 50~100회 Iteration, RMSE/MAE 최소화
-- [ ] AC-4: Model Evaluation - Test Set RMSE/MAE/R² 계산, Baseline (Mean) 대비 개선율
-- [ ] AC-5: Model 저장 - 최적 모델 저장 (pkl/joblib), 재현 가능성 보장
-- [ ] AC-6: 문서화 - `docs/v2/reports/D219/D219-2_MODEL_TRAINING_REPORT.md` 작성, 모델 성능 + Hyperparameter
-
-**Evidence 경로:**
-- ML 모델: `arbitrage/v2/ml/models/` (xgboost_v1.pkl, lightgbm_v1.pkl)
-- Training 로그: `logs/evidence/d219_2_ml_training/training_log.json` (Loss Curve, Validation RMSE)
-- Model Evaluation: `logs/evidence/d219_2_ml_training/evaluation_report.json` (Test RMSE/MAE/R²)
-- Model Training Report: `docs/v2/reports/D219/D219-2_MODEL_TRAINING_REPORT.md`
-
-**의존성:**
-- Depends on: D219-1 (Feature Engineering) ✅
-- Unblocks: D219-3 (Online Learning)
-
----
-
-#### D219-3: Online Learning Integration
-
-**상태:** ⏳ PLANNED (D219-2 완료 후)  
-**목적:** Incremental Model Update, A/B Testing, Model Monitoring
-
-**Acceptance Criteria:**
-- [ ] AC-1: Incremental Model Update - 일별 재학습 (최근 7일 데이터), Incremental Learning (Warm Start)
-- [ ] AC-2: A/B Testing - 기존 모델 vs 새 모델, 실시간 PnL 비교 (50:50 Split), 통계적 유의성 검증
-- [ ] AC-3: Model Monitoring - 예측 정확도 추적 (RMSE/MAE), 성능 저하 감지 (Threshold: RMSE +20%)
-- [ ] AC-4: Rollback 메커니즘 - 성능 저하 시 이전 모델 자동 복구, Rollback 이벤트 로깅
-- [ ] AC-5: Online Learning 검증 - 7일간 Incremental Update 실행, 예측 정확도 유지/개선 확인
-- [ ] AC-6: 문서화 - `docs/v2/design/ONLINE_LEARNING.md` 작성, Update 주기 + A/B Testing + Rollback
-
-**Evidence 경로:**
-- Online Learning 모듈: `arbitrage/v2/ml/online_learner.py`
-- A/B Testing 로그: `logs/evidence/d219_3_online_learning/ab_test_results.json` (Old vs New PnL)
-- Model Monitoring: `logs/evidence/d219_3_online_learning/model_monitoring.jsonl` (일별 RMSE/MAE)
-- Online Learning 설계: `docs/v2/design/ONLINE_LEARNING.md`
-- Report: `docs/v2/reports/D219/D219-3_REPORT.md`
-
-**의존성:**
-- Depends on: D219-2 (ML Model Training) ✅
-- Unblocks: D219-4 (Reinforcement Learning, 선택)
-
----
-
-#### D219-4: Reinforcement Learning (선택)
-
-**상태:** ⏳ PLANNED (D219-3 완료 후, 선택 사항)  
-**목적:** RL Environment 정의, PPO/SAC 알고리즘, Simulated Training
-
-**Acceptance Criteria:**
-- [ ] AC-1: RL Environment 정의 - State (Features), Action (Threshold Adjustment), Reward (PnL - Cost)
-- [ ] AC-2: PPO/SAC 알고리즘 구현 - Stable-Baselines3 기반, Simulated Training (백테스트 환경)
-- [ ] AC-3: Policy Transfer - Simulation → Paper → Live 단계적 전환, Domain Randomization
-- [ ] AC-4: RL 검증 - Simulated Training 100 Episodes, Cumulative Reward 증가 추세 확인
-- [ ] AC-5: Policy Evaluation - Paper 환경에서 RL Policy vs Baseline 비교, PnL 개선 확인
-- [ ] AC-6: 문서화 - `docs/v2/design/REINFORCEMENT_LEARNING.md` 작성, RL 환경 + 알고리즘 + 전환 전략
-
-**Evidence 경로:**
-- RL 모듈: `arbitrage/v2/ml/rl/` (env.py, ppo_trainer.py)
-- Training 로그: `logs/evidence/d219_4_rl_training/training_episodes.json` (Episode Reward Curve)
-- Policy Evaluation: `logs/evidence/d219_4_rl_evaluation/rl_vs_baseline.json`
-- RL 설계: `docs/v2/design/REINFORCEMENT_LEARNING.md`
-- Report: `docs/v2/reports/D219/D219-4_REPORT.md`
-
-**의존성:**
-- Depends on: D219-3 (Online Learning) ✅
-- Unblocks: D220+ (LIVE Ramp)
-
-**DONE 판정 기준:**
-- ✅ AC 6개 전부 체크 (D219-1~3 필수, D219-4 선택)
-- ✅ ML Model Test RMSE Baseline 대비 개선
-- ✅ Online Learning 7일 검증 완료
-- ✅ Gate Doctor/Fast/Regression 100% PASS
-
----
-
-### LIVE Ramp (D220+) - 잠금 섹션
-
-**현재 상태:** 🔒 LOCKED  
-**조건:** 신 D209 (LIVE 설계) + D214~D219 (HFT & Commercial Readiness) 완료 후 재검토
+**현재 상태:**  LOCKED  
+**조건:** 신 D209 (LIVE 설계) + D210~D215 (HFT & Commercial Readiness) 완료 후 재검토
 
 **원칙:**
-- V2에서 LIVE 실제 구현은 D209 설계 완료 전까지 절대 금지
-- D209-3 (LIVE 봉인 검증) PASS 전까지는 설계만 허용
-- LIVE 실제 구현 시 D216+ 할당 (D210~D215는 HFT & Commercial Readiness 전용, 선택적)
+- V2에서 LIVE 실제 구현은 신 D209 설계 + D210~D215 완료 전까지 절대 금지
+- LIVE 실제 구현 시 D216+ 할당
 - allowlist 해제는 CTO/리드 승인 필수
 
 ---
-
 ## V2 마일스톤 요약
 
 | Phase | D 번호 | 상태 | 목표 |
 |-------|--------|------|------|
-| **Phase 1: Foundation** | D200~D205 | 🔄 IN_PROGRESS | SSOT + Adapter + MarketData + Paper Loop |
-| **Phase 2: Engine Intelligence** | D206~D209 | ⏳ PLANNED | 엔진 내재화 + 수익 로직 + Safe Launch + LIVE 설계 |
-| **Phase 3: HFT & Commercial** | D210~D215 | ⏳ PLANNED | 알파 모델 + 백테스트 + Multi-Symbol + UI/ML |
-| **Phase 4: LIVE Deployment** | D216+ | 🔒 LOCKED | LIVE 구현 (선택: Phase 3 완료 또는 Fast Track) |
+| **Phase 1: Foundation** | D200~D205 |  IN_PROGRESS | SSOT + Adapter + MarketData + Paper Loop |
+| **Phase 2: Engine Intelligence** | D206~D209 |  PLANNED | 엔진 내재화 + 수익 로직 + LIVE 설계 |
+| **Phase 3: HFT & Commercial** | D210~D215 |  PLANNED | 알파 모델 + 백테스트 + Multi-Symbol + UI/ML |
+| **Phase 4: LIVE Deployment** | D216+ |  LOCKED | LIVE 구현 (D210~D215 완료 후) |
 
 ### Phase 세부 내역
 
-**Phase 1: Foundation (D200~D205)**
-- D200: SSOT 확정 + Config + Infra 재사용
-- D201: Upbit/Binance Adapter ✅ DONE
-- D202: REST/WS MarketData 통합
-- D203: Opportunity Detector + Fee Model
-- D204: Paper Loop (20m/1h/3h)
-- D205: Reporting + Multi-Symbol
-
 **Phase 2: Engine Intelligence (D206~D209)**
-- D206: V1→V2 완전 이식 (도메인 모델 + 전략 로직 + Config SSOT + 주문 파이프라인)
-- D207: Paper 수익성 증명 (Real MarketData + 실전 모델)
-- D208: 실패 대응 (주문 라이프사이클 + 리스크 가드 + Fail-Fast)
-- D209: LIVE 설계 (구현 봉인, 설계 문서만)
+- 신 D206~D209: 엔진 내재화 + 수익 로직 + Safe Launch + LIVE 설계
 
-**Phase 3: HFT & Commercial Readiness (D210~D215)** 🆕
+**Phase 3: HFT & Commercial Readiness (D210~D215)** 
 - D210: HFT 알파 모델 (OBI + Avellaneda-Stoikov + Inventory Risk)
 - D211: Backtesting/Replay 엔진 (Walk-Forward Testing)
 - D212: Multi-Symbol 동시 실행 (5개 심볼, CPU < 70%)
 - D213: HFT Latency Optimization (P95 < 50ms)
-- D214: Admin UI/UX Dashboard (FastAPI + React)
-- D215: ML-based Parameter Optimization (XGBoost + Online Learning)
+- D214: Admin UI/UX Dashboard (실시간 제어 강화)
+- D215: ML-based Parameter Optimization (기계학습 기반)
 
-**⚠️ 중요 노트 (Phase 3 선택성)**
-
-D210~D215 (Phase 3: Commercial Track)는 D206~D209 (Core Path) 완료 후 **선택적으로** 수행할 수 있는 확장 단계입니다.
-
-**LIVE Deployment(D216+)는 Phase 3 완료 여부와 무관하게 Phase 2 (D206~D209) 결과에 따라 즉시 진행 가능합니다.**
-
-의사결정 포인트: D206~D209 완료 후, 팀은 다음 중 선택:
-1. **Fast Track:** D206~D209 → D216+ LIVE (Phase 3 스킵)
-2. **Commercial Track:** D206~D209 → D210~D215 (상용급 강화) → D216+ LIVE
-
+**Phase 4: LIVE Deployment (D216+)**  LOCKED
 ---
 
 **Phase 4: LIVE Deployment (D216+)**
