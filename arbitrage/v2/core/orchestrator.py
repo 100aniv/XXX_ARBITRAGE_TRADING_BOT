@@ -415,14 +415,48 @@ class PaperOrchestrator:
             if self._state == OrchestratorState.RUNNING:
                 self._state = OrchestratorState.STOPPING
             
-            # D205-18-4R2: Atomic Evidence Flush (무조건 저장)
+            # D205-18-4R2 + D206-0: Atomic Evidence Flush + Engine Report
             try:
                 db_counts = self.ledger_writer.get_counts() if hasattr(self, 'ledger_writer') else None
+                
+                # Legacy evidence (기존 kpi_summary.json 등)
                 if hasattr(self, 'kpi') and hasattr(self, 'evidence_collector'):
                     self.save_evidence(db_counts=db_counts)
                     logger.info("[D205-18-4R2] Atomic Evidence Flush completed")
+                
+                # D206-0: Standard Engine Report (Artifact-First SSOT)
+                if hasattr(self, 'kpi') and hasattr(self, 'config'):
+                    from arbitrage.v2.core.engine_report import generate_engine_report, save_engine_report_atomic
+                    
+                    # Calculate wallclock duration
+                    wallclock_end = time.time()
+                    wallclock_duration = wallclock_end - wallclock_start if 'wallclock_start' in locals() else 0.0
+                    expected_duration = self.config.duration_minutes * 60
+                    
+                    # Get warning counts
+                    warn_counts = self._warning_handler.get_counts() if hasattr(self, '_warning_handler') else {"warning_count": 0, "error_count": 0}
+                    
+                    # Determine exit code
+                    final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
+                    
+                    # Generate report
+                    report = generate_engine_report(
+                        run_id=self.run_id,
+                        config=self.config,
+                        kpi=self.kpi,
+                        warning_counts=warn_counts,
+                        wallclock_duration=wallclock_duration,
+                        expected_duration=expected_duration,
+                        db_counts=db_counts,
+                        exit_code=final_exit_code
+                    )
+                    
+                    # Save with atomic flush
+                    save_engine_report_atomic(report, self.config.output_dir)
+                    logger.info("[D206-0] Standard Engine Report saved (Artifact-First)")
+                    
             except Exception as flush_error:
-                logger.error(f"[D205-18-4R2] Atomic Evidence Flush failed: {flush_error}")
+                logger.error(f"[D206-0] Atomic Evidence/Report Flush failed: {flush_error}")
             
             self.stop_watcher()
     

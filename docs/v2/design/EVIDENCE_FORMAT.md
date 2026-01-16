@@ -180,9 +180,89 @@ Command: git push origin rescue/d99_15_fullreg_zero_fail
 Status: PASS
 ```
 
-### 5. kpi_summary.json (Paper 실행 시)
+### 5. engine_report.json (D206-0: Gate Artifact SSOT)
 
-**목적:** Paper 실행 KPI 집계
+**목적:** Engine 실행 결과의 유일한 검증 소스 (Artifact-First 원칙)
+
+**생성 위치:** Orchestrator.run() 종료 시 (엔진 내부)
+
+**Gate 검증 규칙:**
+- Gate는 이 파일만 읽어서 PASS/FAIL 판정
+- Runner 객체 직접 참조 금지 (DOPING 제거)
+- 필수 필드 누락 시 즉시 FAIL
+
+**포맷:**
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "20260116_203000_d206_0_0410492",
+  "git_sha": "0410492d130c4d94568db21f55319bea153bccf7",
+  "started_at": "2026-01-16T20:30:00+09:00",
+  "ended_at": "2026-01-16T20:50:00+09:00",
+  "duration_sec": 1200.5,
+  "mode": "paper",
+  "exchanges": ["upbit", "binance"],
+  "symbols": ["BTC/KRW", "ETH/KRW"],
+  "config_fingerprint": "sha256:abc123...",
+  
+  "gate_validation": {
+    "warnings_count": 0,
+    "skips_count": 0,
+    "errors_count": 0,
+    "exit_code": 0
+  },
+  
+  "trades": {
+    "count": 12,
+    "winrate": 0.667,
+    "gross_pnl": 45.23,
+    "net_pnl": 42.10,
+    "fees": 3.13
+  },
+  
+  "cost_summary": {
+    "fee_total": 3.13,
+    "slippage_total": 0.0,
+    "exec_cost_total": 3.13
+  },
+  
+  "heartbeat_summary": {
+    "wallclock_duration_sec": 1200.5,
+    "expected_duration_sec": 1200.0,
+    "wallclock_drift_pct": 0.04,
+    "max_gap_sec": 62
+  },
+  
+  "db_integrity": {
+    "inserts_ok": 36,
+    "inserts_failed": 0,
+    "expected_inserts": 36,
+    "closed_trades": 12
+  },
+  
+  "status": "PASS"
+}
+```
+
+**필수 필드 (Gate 검증):**
+- `run_id`, `git_sha`, `started_at`, `ended_at`, `duration_sec`
+- `mode`, `exchanges`, `symbols`
+- `gate_validation.warnings_count` (0 강제)
+- `gate_validation.skips_count` (0 강제)
+- `gate_validation.errors_count`
+- `gate_validation.exit_code` (0=PASS, 1=FAIL)
+- `heartbeat_summary.wallclock_drift_pct` (±5% 이내)
+- `db_integrity.inserts_ok` (closed_trades × 3 ±2 허용)
+- `status` (PASS/FAIL)
+
+**Atomic Flush 보장:**
+- SIGTERM/RuntimeError 시에도 finally 블록에서 반드시 생성
+- 파일 write 후 f.flush() + os.fsync(f.fileno()) 강제
+- 가능하면 원자적 갱신 (temp file → fsync → os.replace)
+
+### 6. kpi_summary.json (Paper 실행 시, Deprecated in favor of engine_report.json)
+
+**목적:** Paper 실행 KPI 집계 (레거시, engine_report.json으로 대체 예정)
 
 **포맷:**
 ```json
