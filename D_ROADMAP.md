@@ -6089,6 +6089,12 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - Evidence: `logs/evidence/d206_1_domain_integration_evidence.md`
 - Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit Code: 0)
 - DocOps Gate: `python scripts/check_ssot_docs.py` (Exit Code: 0)
+- Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/37a399c..9c1bee1
+
+**Git:**
+- Baseline: 37a399c (D206-0 completed)
+- Final: 9c1bee1 (D206-1 completed)
+- Files: 9 changed, 1198 insertions(+), 242 deletions(-)
 
 **의존성:**
 - Depends on: 신 D206-0 (Gate Integrity Restore) ✅
