@@ -1,9 +1,9 @@
-# arbitrage-lite 로드맵
+# XXX_ARBITRAGE_TRADING_BOT V2 Roadmap (SSOT)
 
-**[REBUILT]** 이 로드맵은 Git 히스토리의 인코딩 문제로 인해 docs/ 디렉토리 기반으로 재생성되었습니다.
+**Project:** XXX_ARBITRAGE_TRADING_BOT V2 (Engine-Centric Architecture)
 
-**NOTE:** 이 로드맵은 **arbitrage-lite**(현물 차익 프로젝트)의 공식 로드맵입니다.
-본 프로젝트는 **D 단계(D1~Dx)** 기반 개발 프로세스를 따르며, **PHASEXX 단계**는 future_alarm_bot(선물/현물 통합 프로젝트)에 해당하는 로드맵으로 별도 관리됩니다.
+**NOTE:** 이 로드맵은 **XXX_ARBITRAGE_TRADING_BOT V2**의 유일한 SSOT입니다.
+본 프로젝트는 **D 단계(D200~Dx)** 기반 개발 프로세스를 따르며, V1 레거시(D15~D106)와 구분됩니다.
 
 ---
 
@@ -58,12 +58,13 @@
 ### 4. Conflict Resolution (충돌 해결 원칙)
 **원칙:** SSOT 문서 간 충돌 발생 시 우선순위 명확화
 
-**SSOT 우선순위 (상위가 우선):**
-1. **D_ROADMAP.md** (Process SSOT, 최상위)
+**SSOT 우선순위 (헌법 기반, 변경 금지):**
+1. **docs/v2/SSOT_RULES.md** (헌법, 최상위)
+   - 개발 규칙, DocOps Gate, 금지 사항, 프롬프트/테스트 템플릿
+   - 충돌 시 SSOT_RULES가 항상 우선
+2. **D_ROADMAP.md** (Process SSOT)
    - D 번호 의미, 상태, AC, 증거 경로 정의
-   - 충돌 시 D_ROADMAP이 항상 우선
-2. **docs/v2/SSOT_RULES.md** (Rules SSOT)
-   - 개발 규칙, DocOps Gate, 금지 사항
+   - 규칙을 따라 프로세스 관리
 3. **docs/v2/design/SSOT_MAP.md** (Map SSOT)
    - 도메인별 SSOT 위치 명시
 4. **docs/v2/V2_ARCHITECTURE.md** (Architecture SSOT)
@@ -74,11 +75,11 @@
 **충돌 해결 규칙:**
 - ✅ **허용:** 하위 문서는 상위 SSOT를 참조/동기화
 - ❌ **금지:** 하위 문서가 상위 SSOT와 다른 정의 사용
-- **예시:** D_ROADMAP에 "D205-11 = Latency Profiling"로 정의됐으면, Report/Rules/Map 모두 이 정의를 따라야 함
+- **예시:** SSOT_RULES에 "Gate 3단 강제"로 정의됐으면, ROADMAP/Report 모두 이 규칙을 따라야 함
 
 **충돌 발생 시 조치:**
-1. D_ROADMAP 확인 (최상위 SSOT)
-2. 하위 문서를 D_ROADMAP에 맞춤
+1. SSOT_RULES 확인 (헌법, 최상위)
+2. D_ROADMAP 및 하위 문서를 SSOT_RULES에 맞춤
 3. check_ssot_docs.py로 검증
 
 ---
