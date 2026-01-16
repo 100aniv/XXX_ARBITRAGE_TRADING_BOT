@@ -7802,8 +7802,21 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - D218: Admin UI/UX Dashboard (FastAPI + React)
 - D219: ML-based Parameter Optimization (XGBoost + Online Learning)
 
+**⚠️ 중요 노트 (Phase 3 선택성)**
+
+D214~D219 (Phase 3: Commercial Track)는 D206~D209 (Core Path) 완료 후 **선택적으로** 수행할 수 있는 확장 단계입니다.
+
+**LIVE Deployment(D220+)는 Phase 3 완료 여부와 무관하게 Phase 2 (D206~D209) 결과에 따라 즉시 진행 가능합니다.**
+
+의사결정 포인트: D206~D209 완료 후, 팀은 다음 중 선택:
+1. **Fast Track:** D206~D209 → D220+ LIVE (Phase 3 스킵)
+2. **Commercial Track:** D206~D209 → D214~D219 (상용급 강화) → D220+ LIVE
+
+---
+
 **Phase 4: LIVE Deployment (D220+)**
-- 조건: D209 (LIVE 설계) + D214~D219 완료
+- 조건: D209 (LIVE 설계) 완료
+- 선택사항: D214~D219 (Phase 3) 완료 여부는 LIVE 진입 조건 아님
 - D220: LIVE Adapter 구현
 - D221: LIVE Gate Unlock (CTO 승인)
 - D222: LIVE Pilot (소액 실거래)
