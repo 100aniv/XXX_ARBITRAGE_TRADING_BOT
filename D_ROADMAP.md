@@ -6083,7 +6083,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [ ] AC-2: 튜닝 결과 향상 - 튜닝 전후 KPI 비교 보고서 작성. 튜닝 후 edge_after_cost 평균 또는 순이익이 baseline 대비 +15% 이상 향상
 - [ ] AC-3: Automated Sweep Evidence - parameter_sweep_results.json, optimal_params.json 저장, pareto_frontier.png 생성하여 튜닝 과정 시각화
 - [ ] AC-4: 통합 테스트 - test_d206_2_auto_tuner.py에서 Dummy 목표 함수 최적화 검증, 엔진-튜너 인터페이스 연동 테스트 (메모리 누수/race condition 없음)
-- [ ] AC-5: 문서화 - 튜닝 알고리즘 수학적 개요, 파라미터 범위 설정 근거 등을 docs/v2/design/auto_tuner.md에 문서화
+- [ ] AC-5: 모니터링 & Alert 연동 - 튜닝 진행 상황을 실시간 로그/메트릭으로 기록, 튜닝 실패 시 Alert 발생 (Slack/Email/Telegram), 튜닝 결과 자동 저장 및 이전 결과와 비교
+- [ ] AC-6: 문서화 - 튜닝 알고리즘 수학적 개요, 파라미터 범위 설정 근거 등을 docs/v2/design/auto_tuner.md에 문서화
 
 **Evidence 경로:**
 - 튜닝 실행 로그: `logs/evidence/d206_2_tuner_run_<date>/` (sweep_results.json, optimal_params.json, tuning_history.png, README.md)
@@ -6113,7 +6114,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [ ] AC-2: 엔진 StopReason 체계 - watch_summary.json에 stop_reason 필드 기록 (값: "NORMAL", "ERROR_INVARIANT_VIOLATION", "MANUAL_HALT", "RISK_DRAWDOWN"). 각각에 대응하여 Alerting 모듈 동작 가능 Hook 마련
 - [ ] AC-3: 예외 핸들러 일원화 - Orchestrator.run 루프에 try/except 설치, 어떠한 예외도 빠져나가지 않고 최상위에서 처리. 의도적으로 Exception 발생시키는 테스트에서 엔진이 예외 내용을 로그에 남기고 clean exit (ExitCode=1) 확인
 - [ ] AC-4: 종료 플로우 테스트 - 다양한 시나리오별 종료 흐름 통합 테스트: a) 정상 AC 만족 종료 → ExitCode 0, b) RiskGuard 트리거 종료 → ExitCode 1, c) Invariant 위반 종료 → ExitCode 1, d) 수동 SIGTERM 종료 → ExitCode 0. 각 경우 자원 누수 없음, 모든 파일 flush 확인
-- [ ] AC-5: 문서/런북 갱신 - 운영 Runbook에 새로운 위험 통제 시나리오별 조치 추가. OPS_PROTOCOL.md에 종료 타입 및 Warn→Fail 절차 명시
+- [ ] AC-5: Alert 시스템 연동 - RiskGuard/Exception 발생 시 Slack/Email/Telegram Alert 발송. Alert 메시지에 stop_reason, 손실액, 연속 실패 횟수 등 포함. Alert 발송 실패 시에도 엔진 정상 종료 보장 (Alert은 Best-Effort)
+- [ ] AC-6: 문서/런북 갱신 - 운영 Runbook에 새로운 위험 통제 시나리오별 조치 추가. OPS_PROTOCOL.md에 종료 타입 및 Warn→Fail 절차 명시
 
 **Evidence 경로:**
 - 종료 시나리오 증적: `logs/evidence/d206_3_failure_injection_test/` (의도적으로 실패 유발한 실행 로그, RiskGuard 작동 로그)
@@ -6143,7 +6145,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [ ] AC-2: 단일 Run 엔트리 - scripts/run.py 하나로 모든 실행 대응. 기존 run_paper.py, run_smoke.py 등이 run.py로 통합되고 deprecated됨. README에 --profile 사용법 기재
 - [ ] AC-3: 프로파일별 Evidence 변화 - 각 프로파일에 따라 Evidence 요구 사항 조정 (SMOKE에서는 latency_samples.jsonl 생략, LONGRUN에서는 메모리/CPU usage 로그 추가). SMOKE 프로파일 실행 시 불필요 파일 미생성 확인, LONGRUN 실행 시 추가 파일 생성 확인
 - [ ] AC-4: 프로파일별 AC 검증 - D 단계별로 어떤 프로파일 사용할지 명확히 규정, 엔진이 이를 준수하는지 테스트. 잘못된 프로파일 사용 시 엔진이 예외 발생
-- [ ] AC-5: Backward Compatibility - 프로파일 도입 후에도 기존 단위 테스트와 운영 절차 모두 통과. CI 테스트는 별도 TEST 프로파일 또는 SMOKE로 대체, 문서의 실행 예시들을 최신 프로파일 방식으로 갱신
+- [ ] AC-5: 모니터링 & Alert - 프로파일별 실행 시작/종료 시 Alert 발송 (프로파일명, 예상 duration, 실제 경과시간 포함). 프로파일 실행 중 비정상 종료 시 Alert 발생
+- [ ] AC-6: Backward Compatibility - 프로파일 도입 후에도 기존 단위 테스트와 운영 절차 모두 통과. CI 테스트는 별도 TEST 프로파일 또는 SMOKE로 대체, 문서의 실행 예시들을 최신 프로파일 방식으로 갱신
 
 **Evidence 경로:**
 - 통합 테스트 로그: `logs/evidence/d206_4_profile_switching/` (프로파일별 엔진 실행 결과 로그, SMOKE 5분, BASELINE 20분 실행 결과 각각 저장)
@@ -6154,33 +6157,208 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - Depends on: D206-3 (리스크 컨트롤) ✅
 - Unblocks: D207+ (Infrastructure)
 
-**다음 단계:**
-- 상기 D206-0 ~ D206-4 재정의에 따라, 원래 계획되었던 Grafana, Docker 배포, Runbook 등 **운영 인프라 작업(기존 D206-1~5)**은 D207 이후로 연기
-- D206 단계에서는 엔진 내부의 운영 프로토콜과 수익 로직 강화에 집중, "돈 버는 알고리즘 우선" 원칙 구현
-- 이후 D207부터 모니터링 대시보드, Compose/배포, 운영 인터페이스 등 과제 순차 진행 예정
+---
+
+### D207: V1 거래 로직 → V2 마이그레이션 (돈 버는 부분 우선)
+
+**전략:** D206-1 완료 후, V1의 수익 생성 로직을 V2 엔진에 이식. "돈 버는 알고리즘 우선" 원칙 적용  
+**Constitutional Basis:** Scan-First → Reuse-First (V1 유산 강제 재사용)
 
 ---
 
-### D207: Infrastructure & Operations (인프라/운영 - D206 완료 후)
+#### D207-1: V1 거래 로직 분석 및 마이그레이션 계획 수립
+
+**상태:** PLANNED (D206-1 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
+
+**목적:**
+- **V1 코드 스캔:** arbitrage/exchanges/, arbitrage/models/, arbitrage/strategies/ 분석. 수익 생성 핵심 로직 파악 (Entry/Exit 규칙, Fee 계산, Slippage 모델, Risk 관리)
+- **V2 구조 매핑:** V1 로직을 V2 모듈(arbitrage/v2/core/, arbitrage/v2/opportunity/, arbitrage/v2/domain/)에 어떻게 이식할지 설계
+- **중복 제거 계획:** V1과 V2 간 중복 코드 식별, 공통 인터페이스 정의, 마이그레이션 순서 결정
+
+**Acceptance Criteria:**
+- [ ] AC-1: V1 코드 분석 - arbitrage/exchanges/, arbitrage/models/, arbitrage/strategies/ 주요 파일 목록 작성 (20~30개 파일), 각 파일의 목적 및 수익 관련 로직 요약
+- [ ] AC-2: 핵심 로직 추출 - Entry/Exit 규칙, Fee 계산, Slippage 모델, Risk 관리 로직을 별도 문서(MIGRATION_ANALYSIS.md)에 정리. 각 로직별 V1 구현 코드 라인 번호 명시
+- [ ] AC-3: V2 매핑 설계 - V1 로직 → V2 모듈 매핑 테이블 작성 (V1 파일/함수 → V2 클래스/메서드). 중복 제거 전략 포함 (공통 인터페이스, 추상화 계획)
+- [ ] AC-4: 마이그레이션 순서 결정 - 우선순위 기반 마이그레이션 순서 결정 (돈 버는 부분 우선: Entry/Exit → Fee → Slippage → Risk)
+- [ ] AC-5: 리스크 평가 - 마이그레이션 과정에서 발생 가능한 리스크 식별 (성능 저하, 로직 오류, 호환성 문제 등), 완화 방안 제시
+- [ ] AC-6: 문서화 - 마이그레이션 계획서(MIGRATION_PLAN.md) 작성, D208~D210 단계별 작업 명시
+
+**Evidence 경로:**
+- 분석 보고: `docs/v2/reports/D207/D207-1_REPORT.md` (V1 코드 분석 요약)
+- 마이그레이션 계획: `docs/v2/design/MIGRATION_ANALYSIS.md`, `docs/v2/design/MIGRATION_PLAN.md`
+- 코드 매핑: `docs/v2/design/V1_V2_MAPPING.md` (V1 파일/함수 → V2 매핑 테이블)
+
+**의존성:**
+- Depends on: D206-1 (수익 로직 모듈화) ✅
+- Unblocks: D207-2 (V1 Entry/Exit 로직 이식)
+
+---
+
+#### D207-2: V1 Entry/Exit 규칙 → V2 이식
+
+**상태:** PLANNED (D207-1 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D207/D207-2_REPORT.md`
+
+**목적:**
+- **Entry 규칙 이식:** V1의 거래 진입 조건(spread threshold, volume check, timing 등)을 V2 EntryStrategy 인터페이스로 구현
+- **Exit 규칙 이식:** V1의 거래 종료 조건(profit target, stop loss, timeout 등)을 V2 ExitStrategy로 구현
+- **테스트 동등성:** V1과 V2의 Entry/Exit 결과가 동일한 데이터에 대해 일치하는지 검증 (Regression Test)
+
+**Acceptance Criteria:**
+- [ ] AC-1: V1 Entry 규칙 분석 - arbitrage/models/entry_strategy.py (또는 유사) 분석, 진입 조건 코드 추출
+- [ ] AC-2: V2 EntryStrategy 구현 - arbitrage/v2/strategy/entry.py에 V1 로직 기반 구현, 기존 DefaultEntryStrategy와 호환성 유지
+- [ ] AC-3: V1 Exit 규칙 분석 - arbitrage/models/exit_strategy.py 분석, 종료 조건 코드 추출
+- [ ] AC-4: V2 ExitStrategy 구현 - arbitrage/v2/strategy/exit.py에 V1 로직 기반 구현
+- [ ] AC-5: 회귀 테스트 - test_d207_2_entry_exit_parity.py: V1 로직과 V2 로직을 동일 데이터에 대해 실행, 결과 비교 (Entry/Exit 신호 일치 확인)
+- [ ] AC-6: 성능 비교 - V1 vs V2 Entry/Exit 실행 시간 비교, 성능 저하 없음 확인
+
+**Evidence 경로:**
+- 이식 보고: `docs/v2/reports/D207/D207-2_REPORT.md` (V1 로직 분석, V2 구현 설명)
+- 테스트 결과: `logs/evidence/d207_2_entry_exit_parity/` (회귀 테스트 결과, 신호 일치 확인)
+- 성능 비교: 실행 시간 로그
+
+**의존성:**
+- Depends on: D207-1 (마이그레이션 계획) ✅
+- Unblocks: D207-3 (Fee/Slippage 이식)
+
+---
+
+#### D207-3: V1 Fee/Slippage 모델 → V2 이식
+
+**상태:** PLANNED (D207-2 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D207/D207-3_REPORT.md`
+
+**목적:**
+- **Fee 계산 이식:** V1의 거래소별 수수료 계산 로직을 V2 FeeModel로 구현
+- **Slippage 모델 이식:** V1의 슬리피지 추정 모델을 V2 SlippageModel로 구현
+- **실측 데이터 기반 보정:** V1 모델의 정확도를 실제 거래 데이터로 검증, 필요시 파라미터 조정
+
+**Acceptance Criteria:**
+- [ ] AC-1: V1 Fee 로직 분석 - arbitrage/models/fee_calculator.py 분석, 거래소별 수수료 계산 코드 추출
+- [ ] AC-2: V2 FeeModel 구현 - arbitrage/v2/domain/fee.py에 V1 로직 기반 구현, 각 거래소별 수수료 정확도 검증
+- [ ] AC-3: V1 Slippage 모델 분석 - arbitrage/models/slippage_model.py 분석, 슬리피지 추정 로직 추출
+- [ ] AC-4: V2 SlippageModel 구현 - arbitrage/v2/domain/slippage.py에 V1 로직 기반 구현
+- [ ] AC-5: 실측 데이터 검증 - 실제 거래 데이터(또는 Mock)에 대해 V1 vs V2 Fee/Slippage 계산 결과 비교, 오차율 < 1% 확인
+- [ ] AC-6: 문서화 - Fee/Slippage 모델 설명서 작성 (docs/v2/design/fee_slippage_model.md)
+
+**Evidence 경로:**
+- 이식 보고: `docs/v2/reports/D207/D207-3_REPORT.md`
+- 검증 결과: `logs/evidence/d207_3_fee_slippage_parity/` (V1 vs V2 비교 결과)
+- 모델 설명: `docs/v2/design/fee_slippage_model.md`
+
+**의존성:**
+- Depends on: D207-2 (Entry/Exit 이식) ✅
+- Unblocks: D207-4 (Risk 관리 이식)
+
+---
+
+#### D207-4: V1 Risk 관리 → V2 이식
+
+**상태:** PLANNED (D207-3 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D207/D207-4_REPORT.md`
+
+**목적:**
+- **Position Risk 이식:** V1의 포지션 크기 제한, 동시 포지션 관리 로직을 V2 RiskGuard로 구현
+- **Drawdown 관리 이식:** V1의 누적 손실 추적, Drawdown 임계치 로직을 V2로 구현
+- **통합 Risk 대시보드:** V1의 Risk 메트릭을 V2 Evidence에 포함, 실시간 모니터링 가능하도록 구성
+
+**Acceptance Criteria:**
+- [ ] AC-1: V1 Position Risk 로직 분석 - arbitrage/models/risk_manager.py 분석, 포지션 크기 제한, 동시 포지션 관리 코드 추출
+- [ ] AC-2: V2 PositionRisk 구현 - arbitrage/v2/core/risk_guard.py에 V1 로직 기반 구현
+- [ ] AC-3: V1 Drawdown 관리 분석 - V1의 누적 손실 추적 로직 분석
+- [ ] AC-4: V2 DrawdownManager 구현 - arbitrage/v2/core/risk_guard.py에 Drawdown 관리 로직 추가
+- [ ] AC-5: Risk 메트릭 통합 - V2 Evidence에 position_risk, drawdown, max_loss 등 메트릭 포함, 실시간 업데이트
+- [ ] AC-6: 회귀 테스트 - V1 vs V2 Risk 계산 결과 비교, 일치 확인
+
+**Evidence 경로:**
+- 이식 보고: `docs/v2/reports/D207/D207-4_REPORT.md`
+- 테스트 결과: `logs/evidence/d207_4_risk_parity/` (V1 vs V2 Risk 메트릭 비교)
+- Risk 대시보드: Evidence 파일에 risk_metrics.json 포함
+
+**의존성:**
+- Depends on: D207-3 (Fee/Slippage 이식) ✅
+- Unblocks: D208 (Paper 수익성 검증)
+
+---
+
+### D208: Paper 모드 수익성 검증 (실제 돈 버는지 증명)
+
+**전략:** D207 마이그레이션 완료 후, V2 엔진이 실제로 수익을 생성하는지 Paper 모드에서 검증  
+**Constitutional Basis:** "돈 버는 알고리즘 우선" - 수익 증명 없이 다음 단계 진행 금지
+
+---
+
+#### D208-1: Paper 모드 수익성 검증 (Real MarketData + Slippage/Latency 모델 강제)
+
+**상태:** PLANNED (D207-4 완료 후)
+**커밋:** (미정)
+**테스트:** (미정)
+**문서:** `docs/v2/reports/D208/D208-1_REPORT.md`
+
+**목적:**
+- **실제 시장 데이터 사용:** Real MarketData (Binance/Upbit 실시간 또는 히스토리) 기반 Paper 실행
+- **Slippage/Latency 모델 강제:** 실제 거래 환경을 최대한 시뮬레이션 (Slippage, Latency, Partial Fill 등 반영)
+- **순이익 증명:** 20분 이상 실행 후 net_pnl > 0 증명 (또는 실패 원인 분석)
+
+**Acceptance Criteria:**
+- [ ] AC-1: Real MarketData 소스 - Binance/Upbit 실시간 또는 히스토리 데이터 사용, 최소 20분 데이터 수집
+- [ ] AC-2: Slippage 모델 강제 - 거래소별 실제 Slippage 분포 적용 (Mock이 아닌 실측 기반), 각 주문마다 Slippage 반영
+- [ ] AC-3: Latency 모델 강제 - 네트워크 지연, 주문 처리 지연 등을 시뮬레이션, 평균 Latency 100ms 이상 반영
+- [ ] AC-4: 20분 이상 Paper 실행 - BASELINE 프로파일로 20분 이상 실행, watch_summary.json에 completeness_ratio ≥ 0.95 기록
+- [ ] AC-5: 순이익 증명 - net_pnl > 0 확인. 실패 시 DIAGNOSIS.md에 실패 원인 분석 (시장 기회 부족 vs 로직 오류)
+- [ ] AC-6: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터에 대해 V1 실행 결과와 비교, 성능 저하 없음 확인)
+
+**Evidence 경로:**
+- Paper 실행 로그: `logs/evidence/d208_1_paper_profitability_<date>/`
+  - manifest.json (실행 메타데이터)
+  - kpi_summary.json (수익성 지표: net_pnl, win_rate, sharpe, max_drawdown 등)
+  - metrics_snapshot.json (Slippage, Latency 분포)
+  - watch_summary.json (completeness_ratio, stop_reason)
+  - DIAGNOSIS.md (실패 시 원인 분석)
+- 비교 보고: `docs/v2/reports/D208/D208-1_REPORT.md` (V1 vs V2 수익성 비교)
+
+**의존성:**
+- Depends on: D207-4 (Risk 관리 이식) ✅
+- Unblocks: D209+ (LIVE Ramp 준비)
+
+**DONE 판정 기준:**
+- ✅ AC 6개 전부 체크
+- ✅ net_pnl > 0 증명 (또는 실패 원인 명확히 분석)
+- ✅ Gate Doctor/Fast/Regression 100% PASS
+- ✅ V1 vs V2 수익성 비교 완료
+- ✅ Compare Patch URL 포함된 Closeout Summary
+
+---
+
+### D209: Infrastructure & Operations (인프라/운영 - D208 완료 후)
 
 **전략:** D206 엔진 내재화 완료 후, 모니터링/배포/운영 자동화 진행  
 **Constitutional Basis:** "돈 버는 알고리즘 우선" 원칙 - 인프라는 핵심 로직 검증 후에만
 
 ---
 
-#### D207-1: Grafana (튜닝/운영 모니터링 용도만)
-**상태:** PLANNED (D206 완료 후)
+#### D209-1: Grafana (튜닝/운영 모니터링 용도만)
+**상태:** PLANNED (D208 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
+**문서:** `docs/v2/reports/D209/D209-1_REPORT.md`
 
 **목표:**
 - D205-4~9 지표를 패널로 시각화 (읽기 전용)
-- 제어 기능은 D207-4에서 담당 (UI/API/텔레그램)
+- 제어 기능은 D209-4에서 담당 (UI/API/텔레그램)
 
 **금지:**
 - ❌ 핵심 로직 검증 전 Grafana 먼저 → 절대 금지
-- ❌ Grafana 버튼으로 제어 시도 (D207-4에서 별도 구현)
+- ❌ Grafana 버튼으로 제어 시도 (D209-4에서 별도 구현)
 
 **AC:**
 - [ ] Grafana dashboard: `monitoring/grafana/dashboards/v2_overview.json`
@@ -6197,16 +6375,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 6. **Engine State** (Status: RUNNING/PAUSED/STOPPED/PANIC) - 읽기 전용
 
 **의존성:**
-- Depends on: D206-4 (실행 프로파일 통합) ✅
-- Blocks: D207-2 (Docker Compose)
+- Depends on: D208-1 (Paper 수익성 검증) ✅
+- Blocks: D209-2 (Docker Compose)
 
 ---
 
-#### D207-2: Docker Compose SSOT (패키징)
-**상태:** PLANNED (D206 완료 후)
+#### D209-2: Docker Compose SSOT (패키징)
+**상태:** PLANNED (D208 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
-**문서:** `docs/v2/reports/D207/D207-2_REPORT.md`
+**문서:** `docs/v2/reports/D209/D209-2_REPORT.md`
 
 **목표:**
 - 운영 포장(컨테이너)은 "돈 버는 로직" 검증 후에만
@@ -6223,14 +6401,14 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - PostgreSQL, Redis, Prometheus, Grafana (V1 infra 재사용)
 
 **의존성:**
-- Depends on: D207-1 (Grafana)
-- Blocks: D207-3 (Runbook + Gate/CI)
+- Depends on: D209-1 (Grafana)
+- Blocks: D209-3 (Runbook + Gate/CI)
 
 ---
 
-#### D207-3: Runbook + Gate/CI Automation (운영 자동화)
-**상태:** PLANNED (D206 완료 후)
-**문서:** `docs/v2/reports/D207/D207-3_REPORT.md`
+#### D209-3: Runbook + Gate/CI Automation (운영 자동화)
+**상태:** PLANNED (D208 완료 후)
+**문서:** `docs/v2/reports/D209/D209-3_REPORT.md`
 
 **목표:**
 - 장애 시뮬레이션 + Runbook (운영자 매뉴얼) + Gate/CI 자동화
@@ -6263,14 +6441,14 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 4. Redis Flush: cache rebuild, graceful degradation
 
 **의존성:**
-- Depends on: D207-2 (Docker Compose)
-- Blocks: D207-4 (Admin Control Panel)
+- Depends on: D209-2 (Docker Compose)
+- Blocks: D209-4 (Admin Control Panel)
 
 ---
 
-#### D207-4: Admin Control Panel (최소 제어)
-**상태:** PLANNED (D206 완료 후)
-**문서:** `docs/v2/reports/D207/D207-4_REPORT.md`
+#### D209-4: Admin Control Panel (최소 제어)
+**상태:** PLANNED (D208 완료 후)
+**문서:** `docs/v2/reports/D209/D209-4_REPORT.md`
 
 **목표:**
 - 웹 UI든 텔레그램이든 최소 제어 기능 구현
@@ -6295,11 +6473,11 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - Option 3: Telegram bot (선택)
 
 **의존성:**
-- Depends on: D207-3 (Runbook + Gate/CI)
+- Depends on: D209-3 (Runbook + Gate/CI)
 
 ---
 
-## 📌 D206 vs D207 구분 요약
+## 📌 D206 vs D207 vs D208 vs D209 구분 요약
 
 **D206 (엔진 중심, 돈 버는 알고리즘 우선):**
 - D206-0: 운영 프로토콜 엔진 내재화 (Orchestrator 단일 루프)
@@ -6308,44 +6486,34 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - D206-3: 리스크 컨트롤 & 예외 처리 일원화
 - D206-4: 실행 프로파일 엔진 통합 (SMOKE/BASELINE/LONGRUN)
 
-**D207 (인프라/운영, D206 완료 후):**
-- D207-1: Grafana (모니터링 시각화)
-- D207-2: Docker Compose (패키징)
-- D207-3: Runbook + Gate/CI Automation
-- D207-4: Admin Control Panel
+**D207 (V1 거래 로직 → V2 마이그레이션):**
+- D207-1: V1 코드 분석 및 마이그레이션 계획
+- D207-2: V1 Entry/Exit 규칙 이식
+- D207-3: V1 Fee/Slippage 모델 이식
+- D207-4: V1 Risk 관리 이식
 
-**핵심 원칙:** 인프라는 핵심 로직 검증 후에만. "돈 버는 알고리즘 우선"
+**D208 (Paper 모드 수익성 검증):**
+- D208-1: Real MarketData + Slippage/Latency 모델 강제, net_pnl > 0 증명
 
----
-- Depends on: D205-12-2 (Engine Unification) ← **선행 필수**
-- Depends on: D206-3 (Failure Injection)
-- Blocks: K8s (DEFER)
+**D209 (인프라/운영, D208 완료 후):**
+- D209-1: Grafana (모니터링 시각화)
+- D209-2: Docker Compose (패키징)
+- D209-3: Runbook + Gate/CI Automation
+- D209-4: Admin Control Panel
 
----
-
-#### D206-5: k8s는 "조건 충족 시" DEFER
-**상태:** DEFERRED
-
-**이유:** k8s는 "상용급"이 아니라 "상용급처럼 보이는 장식"이 되기 쉬움
-
-**조건 (모두 충족 필요):**
-- ✅ LIVE ramp 실제 운영 요구 발생
-- ✅ 멀티 리전 또는 HA 필요성 명확
-- ✅ 로컬 Docker Compose로 불충분한 근거
-
-**현재 결정:** D206-5는 DEFER. 로컬 Docker Compose만으로 충분
+**핵심 원칙:** 돈 버는 알고리즘 우선 (D206~D208), 인프라는 검증 후 (D209+)
 
 ---
 
-### LIVE Ramp (D207+) - 잠금 섹션
+### LIVE Ramp (D210+) - 잠금 섹션
 
 **현재 상태:** 🔒 LOCKED  
-**조건:** D206 완료 + V2 아키텍처 검증 + 리스크 가드 재설계 후 재검토
+**조건:** D208 완료 + V2 아키텍처 검증 + 수익성 증명 후 재검토
 
 **원칙:**
-- V2에서 LIVE는 D206 완료 전까지 절대 금지
+- V2에서 LIVE는 D208 완료 전까지 절대 금지
 - READ_ONLY 모드로만 개발
-- LIVE 준비 시 별도 D 번호 할당 (D207+)
+- LIVE 준비 시 별도 D 번호 할당 (D210+)
 
 ---
 
