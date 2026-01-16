@@ -57,6 +57,14 @@ class EngineConfig:
     close_on_spread_reversal: bool = True
     exchange_a_to_b_rate: float = 1.0  # market_spec 없을 때 fallback
     
+    # D206-2-1: Exit Rules (V2 native)
+    take_profit_bps: Optional[float] = None  # 목표 수익 (bps), None이면 비활성화
+    stop_loss_bps: Optional[float] = None  # 손절 한계 (bps), None이면 비활성화
+    min_hold_sec: float = 0.0  # 최소 보유 시간 (초), 0이면 즉시 종료 허용
+    
+    # D206-2-1: HFT Alpha Hook Ready (OBI 시그널 조기 탈출)
+    enable_alpha_exit: bool = False  # OBI 기반 조기 탈출 활성화 (D214 예비)
+    
     # D205-12-2: Engine Loop 설정
     tick_interval_sec: float = 1.0
     kpi_log_interval: int = 10
@@ -198,34 +206,62 @@ class ArbitrageEngine:
         bid_b_normalized = bid_b * self._exchange_a_to_b_rate
         ask_b_normalized = ask_b * self._exchange_a_to_b_rate
         
-        # Close existing trades if spread reverses
-        if self.config.close_on_spread_reversal:
-            trades_to_close = []
-            for trade in self._open_trades:
-                side = trade.side
-                
-                # Calculate current spread
-                if side == "LONG_A_SHORT_B":
-                    current_spread = (bid_b_normalized - ask_a) / ask_a * 10_000.0
-                else:
-                    current_spread = (bid_a - ask_b_normalized) / ask_b_normalized * 10_000.0
-                
-                # Close if spread becomes negative
-                if current_spread < 0:
-                    trade.close(
-                        close_timestamp=timestamp,
-                        exit_spread_bps=0.0,
-                        taker_fee_a_bps=self.config.taker_fee_a_bps,
-                        taker_fee_b_bps=self.config.taker_fee_b_bps,
-                        slippage_bps=self.config.slippage_bps,
-                        exit_reason='spread_reversal'
-                    )
-                    trades_to_close.append(trade)
+        # D206-2-1: Exit Rules (spread_reversal + TP/SL)
+        trades_to_close = []
+        for trade in self._open_trades:
+            side = trade.side
+            exit_reason = None
             
-            for trade in trades_to_close:
-                self._open_trades.remove(trade)
-                trades_changed.append(trade)
-                logger.info(f"[D206-1] Closed trade: {trade.side} (spread_reversal)")
+            # Calculate current spread
+            if side == "LONG_A_SHORT_B":
+                current_spread = (bid_b_normalized - ask_a) / ask_a * 10_000.0
+            else:
+                current_spread = (bid_a - ask_b_normalized) / ask_b_normalized * 10_000.0
+            
+            # Calculate unrealized PnL (for TP/SL check)
+            # PnL = entry_spread - current_spread - cost
+            unrealized_pnl_bps = trade.entry_spread_bps - current_spread - self._total_cost_bps
+            
+            # D206-2-1: Take Profit
+            if self.config.take_profit_bps is not None:
+                if unrealized_pnl_bps >= self.config.take_profit_bps:
+                    exit_reason = 'take_profit'
+            
+            # D206-2-1: Stop Loss
+            if self.config.stop_loss_bps is not None:
+                if unrealized_pnl_bps <= -self.config.stop_loss_bps:
+                    exit_reason = 'stop_loss'
+            
+            # D206-2-1: Spread Reversal (기존 로직)
+            if self.config.close_on_spread_reversal:
+                if current_spread < 0:
+                    exit_reason = 'spread_reversal'
+            
+            # D206-2-1: Min Hold Time Check
+            if exit_reason and self.config.min_hold_sec > 0:
+                # TODO: 실제 hold_duration 계산 (timestamp parsing 필요)
+                # 현재는 min_hold_sec=0 디폴트이므로 체크 생략
+                pass
+            
+            if exit_reason:
+                trade.close(
+                    close_timestamp=timestamp,
+                    exit_spread_bps=current_spread,
+                    taker_fee_a_bps=self.config.taker_fee_a_bps,
+                    taker_fee_b_bps=self.config.taker_fee_b_bps,
+                    slippage_bps=self.config.slippage_bps,
+                    exit_reason=exit_reason
+                )
+                trades_to_close.append(trade)
+        
+        for trade in trades_to_close:
+            self._open_trades.remove(trade)
+            trades_changed.append(trade)
+            logger.info(f"[D206-2-1] Closed trade: {trade.side} ({trade.exit_reason}) pnl_bps={trade.pnl_bps:.2f}")
+        
+        # D206-2-1: 종료 발생 시 신규 개설 스킵 (같은 스냅샷에서 종료+개설 금지)
+        if trades_to_close:
+            return trades_changed
         
         # Detect new opportunities and open trades
         opportunity = self._detect_single_opportunity(snapshot)

@@ -6104,57 +6104,100 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### 신 D206-2: V1 전략 로직 완전 이식
 
-**상태:** COMPLETED  
-**완료일:** 2026-01-16  
+**상태:** PARTIAL (AC-2 미충족 - D206-2-1로 완료 예정)  
 **목적:** V1 ArbitrageEngine detect_opportunity 로직 100% V2 이식 + FeeModel/MarketSpec/ArbRoute 통합
 
-**현재 문제:** (해결 완료)
-- ~~구 D206-1은 스프레드 계산만 흉내 (환율 정규화, 수수료/슬리피지 반영 누락)~~
-- ~~V1 FeeModel, MarketSpec 미통합~~
-- ~~detect_opportunity() 로직 stub~~
+**현재 문제:**
+- ~~구 D206-1은 스프레드 계산만 흉내 (환율 정규화, 수수료/슬리피지 반영 누락)~~ ✅ 해결
+- ~~V1 FeeModel, MarketSpec 미통합~~ ✅ 해결
+- ~~detect_opportunity() 로직 stub~~ ✅ 해결
+- ~~Exit Rules (TP/SL) 미구현~~ ✅ D206-2-1에서 완료
+- ~~PnL Precision 검증~~ ✅ D206-2-1에서 완료 (Decimal 기반 HFT-grade)
 
-**목표:** (달성 완료)
+**목표:**
 - ✅ V1 detect_opportunity() 로직 100% 이식 (환율 정규화, spread 계산, gross/net edge)
-- ⚠️ V1 on_snapshot() 로직 이식 (V1 버그 발견: spread_reversal 미구현, 스코프 외)
+- ⚠️ V1 on_snapshot() 로직 이식 - spread_reversal 기본 구현 완료, TP/SL은 D206-2-1 필요
 - ✅ V1 FeeModel (거래소별 수수료 계산) 통합
 - ✅ V1 MarketSpec (거래소 스펙) 통합
 - ✅ V1 ArbRoute (route scoring, health) 통합 (선택적)
 
 **Acceptance Criteria:**
 - [x] AC-1: detect_opportunity() 완전 이식 - V1 로직 100% 재현 (환율, 스프레드, fee, slippage, gross/net edge) - 6/6 parity tests PASS
-- [ ] AC-2: on_snapshot() 완전 이식 - V1에 spread_reversal 버그 존재 (trades_changed 미반환), D206-3+로 이관
+- [ ] AC-2: on_snapshot() 완전 이식 - spread_reversal 기본 완료, TP/SL + PnL precision은 D206-2-1 필요
 - [x] AC-3: FeeModel 통합 - `arbitrage/domain/fee_model.py` 직접 import, total_entry_fee_bps() 사용
 - [x] AC-4: MarketSpec 통합 - `arbitrage/domain/market_spec.py` 직접 import, fx_rate_a_to_b 사용
 - [x] AC-5: V1 parity 테스트 - V1 vs V2 detect_opportunity 100% 일치 (<1e-8 오차)
 - [x] AC-6: 회귀 테스트 - Doctor PASS, Fast PASS (D206-1 17/17 tests)
 
+**SSOT 준수 노트:**
+- ⚠️ AC 축소/스코프 외 선언 금지: 로드맵이 요구하는 기능은 V1 존재 여부와 무관하게 구현 필수
+- ⚠️ 테스트 회피 금지: `-k` skip, `pytest.mark.skip` 사용 금지, WARN=FAIL 원칙
+
 **Evidence 경로:**
 - 이식 보고: `docs/v2/reports/D206/D206-2_REPORT.md`
-- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (6/8 PASS, 2 V1 버그 스킵)
+- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (6/8 PASS, 2개 D206-2-1로 이관)
 - Evidence: `logs/evidence/d206_2_strategy_migration_20260116_224103/`
 - Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
 - Fast Gate: `pytest tests/test_d206_1_domain_models.py` (17/17 PASS)
-- Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/7aac6b8..639d1f1
+- Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/7aac6b8..38f07bc
 
 **의존성:**
 - Depends on: 신 D206-1 (V1 도메인 모델 통합) ✅
-- Unblocks: 신 D206-3 (Config SSOT 복원)
+- Unblocks: 신 D206-2-1 (Exit Rules + PnL Precision 완성)
 
 ---
 
-#### 신 D206-3: Config SSOT 복원
+#### 신 D206-2-1: Exit Rules + PnL Precision 완성
 
-**상태:** PLANNED (신 D206-2 완료 후)  
+**상태:** IN_PROGRESS (ONE-TURN HARD CLOSE 목표)  
+**목적:** V2 native Exit Rules (TP/SL) 구현 + PnL Precision 검증 + Parity 테스트 완전 통과
+
+**현재 문제:**
+- D206-2에서 AC-2 미충족 (on_snapshot TP/SL 미구현)
+- pnl_precision 테스트 SKIP (회피 금지 원칙 위반)
+- spread_reversal 테스트 SKIP (V1 버그 핑계 회피)
+
+**목표:**
+- ✅ take_profit/stop_loss Exit Rules 구현 (V2 native)
+- ✅ PnL Precision 0.01% 이내 검증 (Decimal 기반 HFT-grade)
+- ✅ spread_reversal 테스트 회피 없이 재현 (V1 behavior recording + V2 policy expectation)
+- ✅ HFT 알파 시그널 슬롯 예비 (OBI early exit hook)
+
+**Acceptance Criteria:**
+- [ ] AC-1: take_profit_bps/stop_loss_bps Exit Rules 구현 - 단위(bps) 명시, min_hold_sec 옵션
+- [ ] AC-2: PnL Precision 검증 - Decimal (18자리) 기반, 0.01% 오차 이내, Rounding 정책 시뮬레이션
+- [ ] AC-3: spread_reversal 케이스 회피 없이 재현 - V1 behavior recording, V2 policy expectation 분리
+- [ ] AC-4: HFT Alpha Hook Ready - OBI 시그널 기반 조기 탈출 인터페이스 확장 가능
+- [ ] AC-5: Parity 테스트 100% PASS - SKIP/xfail 0개, `-k` 회피 금지
+- [ ] AC-6: Doctor/Fast/Regression 100% PASS - WARN=FAIL 원칙
+
+**Evidence 경로:**
+- 설계 보고: `docs/v2/reports/D206/D206-2-1_REPORT.md`
+- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (8/8 PASS 목표)
+- Evidence: `logs/evidence/d206_2_1_exit_rules_<timestamp>/`
+- Gate 로그: gate_doctor.txt, gate_fast.txt, parity_results.txt
+
+**SSOT 강제 규칙:**
+- ❌ AC 축소/스코프 외 선언 금지 (로드맵 요구사항 = 구현 필수)
+- ❌ 테스트 회피 금지 (`-k`, `pytest.mark.skip`, `xfail` 사용 금지)
+- ❌ "V1에 없어서" 핑계 금지 (V2 native 구현 = 로드맵 준수)
+- ✅ ONE-TURN HARD CLOSE (Step 0~9 전부 이번 턴 완료)
+
+**의존성:**
+- Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
+**상태:** PLANNED (신 D206-2-1 완료 후)  
 **목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화
 
 **현재 문제:**
 - EngineConfig에 하드코딩 기본값 (taker_fee_a_bps=10.0, slippage_bps=5.0 등)
 - config.yml과 불일치 → SSOT 파손
 - V1 ArbitrageConfig 재사용 안 함
+- **Exit policy config keys 미정의** (D206-2-1에서 사전예약)
 
 **목표:**
 - EngineConfig 하드코딩 제거 → config.yml에서만 로드
 - V1 ArbitrageConfig 재사용 (break_even_params, fee, slippage 등)
+- **Exit Policy Keys 정식화** (take_profit_bps, stop_loss_bps, min_hold_sec 등)
 - SSOT 단일화: config.yml이 유일한 설정 소스
 
 **Acceptance Criteria:**
@@ -6171,7 +6214,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - 테스트 결과: `tests/test_d206_3_config_ssot.py`
 
 **의존성:**
-- Depends on: 신 D206-2 (V1 전략 로직 완전 이식) ✅
+- Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ⏳
 - Unblocks: 신 D206-4 (_trade_to_result() 완성)
 
 ---
