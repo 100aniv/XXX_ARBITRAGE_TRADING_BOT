@@ -208,5 +208,89 @@ close_on_spread_reversal: false
         assert engine.config.close_on_spread_reversal is False
 
 
+class TestConfigFingerprint:
+    """D206-3 AC-6: Config Fingerprint Tests"""
+    
+    def test_config_fingerprint_generation(self, tmp_path):
+        """Config fingerprint should be SHA256 of canonical JSON"""
+        config_path = tmp_path / "config.yml"
+        config_content = """
+min_spread_bps: 30.0
+max_position_usd: 1000.0
+max_open_trades: 1
+taker_fee_a_bps: 10.0
+taker_fee_b_bps: 10.0
+slippage_bps: 5.0
+exchange_a_to_b_rate: 1.0
+"""
+        config_path.write_text(config_content)
+        
+        from arbitrage.v2.core.engine_report import compute_config_fingerprint
+        
+        config = EngineConfig.from_config_file(str(config_path))
+        fingerprint = compute_config_fingerprint(config, str(config_path))
+        
+        assert fingerprint.startswith("sha256:")
+        assert len(fingerprint) == 71  # "sha256:" + 64 hex chars
+    
+    def test_config_fingerprint_deterministic(self, tmp_path):
+        """Same config should produce same fingerprint"""
+        config_path = tmp_path / "config.yml"
+        config_content = """
+min_spread_bps: 30.0
+max_position_usd: 1000.0
+max_open_trades: 1
+taker_fee_a_bps: 10.0
+taker_fee_b_bps: 10.0
+slippage_bps: 5.0
+exchange_a_to_b_rate: 1.0
+"""
+        config_path.write_text(config_content)
+        
+        from arbitrage.v2.core.engine_report import compute_config_fingerprint
+        
+        config = EngineConfig.from_config_file(str(config_path))
+        fp1 = compute_config_fingerprint(config, str(config_path))
+        fp2 = compute_config_fingerprint(config, str(config_path))
+        
+        assert fp1 == fp2
+    
+    def test_config_fingerprint_different_for_different_values(self, tmp_path):
+        """Different config values should produce different fingerprints"""
+        config_path1 = tmp_path / "config1.yml"
+        config_path2 = tmp_path / "config2.yml"
+        
+        config_content1 = """
+min_spread_bps: 30.0
+max_position_usd: 1000.0
+max_open_trades: 1
+taker_fee_a_bps: 10.0
+taker_fee_b_bps: 10.0
+slippage_bps: 5.0
+exchange_a_to_b_rate: 1.0
+"""
+        config_content2 = """
+min_spread_bps: 40.0
+max_position_usd: 1000.0
+max_open_trades: 1
+taker_fee_a_bps: 10.0
+taker_fee_b_bps: 10.0
+slippage_bps: 5.0
+exchange_a_to_b_rate: 1.0
+"""
+        config_path1.write_text(config_content1)
+        config_path2.write_text(config_content2)
+        
+        from arbitrage.v2.core.engine_report import compute_config_fingerprint
+        
+        config1 = EngineConfig.from_config_file(str(config_path1))
+        config2 = EngineConfig.from_config_file(str(config_path2))
+        
+        fp1 = compute_config_fingerprint(config1, str(config_path1))
+        fp2 = compute_config_fingerprint(config2, str(config_path2))
+        
+        assert fp1 != fp2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

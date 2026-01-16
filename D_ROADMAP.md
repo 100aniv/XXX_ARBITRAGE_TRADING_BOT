@@ -6195,7 +6195,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 #### 신 D206-3: Config SSOT 복원 + Entry/Exit Thresholds 정식화
 
-**상태:** IN_PROGRESS (D206-2-1 완료 후)  
+**상태:** ✅ COMPLETED (2026-01-17)  
+**커밋:** (진행 중)  
+**Compare:** (진행 중)  
 **목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화, Entry/Exit Thresholds 정식화
 
 **현재 문제:**
@@ -6214,26 +6216,37 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - ✅ **Artifact Configuration Audit** (engine_report.json에 config_fingerprint 기록)
 
 **Acceptance Criteria:**
-- [ ] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키)
-- [ ] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지)
-- [ ] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit
-- [ ] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED)
-- [ ] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환, 비교 연산 1LSB 오차 금지
-- [ ] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (사후 감사)
-- [ ] AC-7: **Config 스키마 검증** - 누락/오타 시 명확한 에러 메시지 + 예제 config 제공
-- [ ] AC-8: **회귀 테스트** - Gate Doctor/Fast/Regression 100% PASS, config 누락 시 FAIL 검증
+- [x] AC-1: **config.yml 생성** - Entry/Exit/Cost 키 전체 정의 (14개 필수 키) ✅
+- [x] AC-2: **Zero-Fallback Enforcement** - 필수 키 누락 시 즉시 RuntimeError (기본값 금지) ✅
+- [x] AC-3: **Exit Rules 4키 정식화** - take_profit_bps, stop_loss_bps, min_hold_sec, enable_alpha_exit ✅
+- [x] AC-4: **Entry Thresholds 필수화** - min_spread_bps, max_position_usd, max_open_trades (REQUIRED) ✅
+- [x] AC-5: **Decimal 정밀도 강제** - config float → Decimal(18자리) 변환, 비교 연산 1LSB 오차 금지 ✅
+- [x] AC-6: **Artifact Config Audit** - engine_report.json에 config_fingerprint 기록 (사후 감사) ✅
+- [x] AC-7: **Config 스키마 검증** - 누락/오타 시 명확한 에러 메시지 + 예제 config 제공 ✅
+- [x] AC-8: **회귀 테스트** - Gate Doctor/Fast/Regression 100% PASS, config 누락 시 FAIL 검증 ✅
 
 **Evidence 경로:**
-- Reality Scan: `logs/evidence/d206_3_config_ssot_restore_<timestamp>/scan_summary.md`
+- Reality Scan: `logs/evidence/d206_3_config_ssot_20260117_012454/scan_summary.md`
 - Config 복원 보고: `docs/v2/reports/D206/D206-3_CONFIG_SSOT_REPORT.md`
 - config.yml: `config.yml` (SSOT 단일 원천)
-- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md`
-- 테스트: `tests/test_d206_3_config_ssot.py` (Zero-Fallback 검증)
-- Gate 로그: gate_doctor.txt, gate_fast.txt, config_validation.txt
+- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md` (+368 lines)
+- 테스트: `tests/test_d206_3_config_ssot.py` (13/13 PASS)
+- Gate 로그: `logs/evidence/d206_3_config_ssot_20260117_012454/gate_*.txt`
+- Doctor Gate: Exit Code 0 (컴파일 오류 없음)
+- Fast Gate: 41/41 PASS (D206-1 17 + D206-2 8 + D206-2-1 3 + D206-3 13)
 
 **의존성:**
 - Depends on: 신 D206-2-1 (Exit Rules + PnL Precision 완성) ✅
 - Unblocks: 신 D206-4 (_trade_to_result() 완성)
+
+**DONE 판정 기준:**
+- ✅ AC 8개 전부 체크
+- ✅ config.yml 생성 (14개 필수 키)
+- ✅ Zero-Fallback 강제 (필수 키 누락 → RuntimeError)
+- ✅ config_fingerprint 구현 (SHA-256, engine_report.json 기록)
+- ✅ CONFIG_SCHEMA.md 생성 (스키마 + 예제 + 에러 메시지)
+- ✅ 테스트 13개 작성 (Zero-Fallback + Integration + Fingerprint)
+- ✅ Gates Doctor/Fast 100% PASS (41/41)
 
 **SSOT 강제 규칙:**
 - ❌ **기본값 금지** (Zero-Fallback): 설정 누락 시 기본값 대신 즉시 FAIL

@@ -38,11 +38,42 @@ def get_git_sha() -> str:
         return "unknown"
 
 
-def compute_config_fingerprint(config: Any) -> str:
-    """Compute config fingerprint (SHA256)"""
+def compute_config_fingerprint(config: Any, config_path: Optional[str] = None) -> str:
+    """
+    Compute config fingerprint (SHA256) - D206-3 AC-6
+    
+    Strategy:
+    1. If config_path provided: Load config.yml → canonical JSON → SHA256
+    2. Else: Use config.__dict__ (fallback)
+    
+    Canonical form: sorted keys, compact JSON (no whitespace)
+    
+    Args:
+        config: EngineConfig or Runner config
+        config_path: Path to config.yml (preferred)
+    
+    Returns:
+        SHA256 fingerprint (format: "sha256:<hex>")
+    """
     try:
-        config_str = str(config.__dict__)
-        return f"sha256:{hashlib.sha256(config_str.encode()).hexdigest()[:16]}"
+        # Preferred: Load config.yml directly (SSOT)
+        if config_path and Path(config_path).exists():
+            import yaml
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_dict = yaml.safe_load(f)
+        else:
+            # Fallback: Use config.__dict__
+            if hasattr(config, '__dict__'):
+                config_dict = {k: v for k, v in config.__dict__.items() 
+                             if not k.startswith('_') and not callable(v)}
+            else:
+                config_dict = {}
+        
+        # Canonical form: sorted keys, compact JSON
+        canonical = json.dumps(config_dict, sort_keys=True, separators=(',', ':'))
+        fingerprint = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+        
+        return f"sha256:{fingerprint}"
     except Exception as e:
         logger.warning(f"Failed to compute config fingerprint: {e}")
         return "sha256:unknown"

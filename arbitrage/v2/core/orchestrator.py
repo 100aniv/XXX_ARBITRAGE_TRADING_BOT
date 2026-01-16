@@ -439,11 +439,12 @@ class PaperOrchestrator:
                     # Determine exit code
                     final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
                     
-                    # Generate report
+                    # Generate report (D206-3: config_path for fingerprint)
                     report = generate_engine_report(
                         run_id=self.run_id,
                         config=self.config,
                         kpi=self.kpi,
+                        config_path="config.yml",
                         warning_counts=warn_counts,
                         wallclock_duration=wallclock_duration,
                         expected_duration=expected_duration,
