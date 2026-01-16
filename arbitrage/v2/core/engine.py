@@ -13,6 +13,9 @@ import time
 from .adapter import ExchangeAdapter, OrderResult
 from .order_intent import OrderIntent
 from arbitrage.v2.domain import OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade
+from arbitrage.domain.fee_model import FeeModel, create_fee_model_upbit_binance
+from arbitrage.domain.market_spec import MarketSpec, create_market_spec_upbit_binance
+from arbitrage.domain.arb_route import ArbRoute
 
 
 logger = logging.getLogger(__name__)
@@ -31,34 +34,32 @@ class EngineConfig:
     """
     Configuration for ArbitrageEngine.
     
-    Attributes:
-        min_spread_bps: Minimum spread in basis points
-        max_position_usd: Maximum position size in USD
-        enable_execution: Whether to execute orders (False = dry-run)
-        adapters: Dictionary of exchange adapters
-        taker_fee_a_bps: Exchange A taker fee (bps)
-        taker_fee_b_bps: Exchange B taker fee (bps)
-        slippage_bps: Total slippage (bps)
-        max_open_trades: Maximum concurrent trades
-        close_on_spread_reversal: Close trade when spread reverses
-        exchange_a_to_b_rate: Exchange rate normalization (1 A_unit = N B_unit)
+    D206-2: FeeModel/MarketSpec 통합
+    - fee_model: V1 FeeModel (수수료 계산)
+    - market_spec: V1 MarketSpec (환율, tick/lot size)
+    - arb_route: V1 ArbRoute (route scoring, health)
     """
     min_spread_bps: float = 30.0
     max_position_usd: float = 1000.0
     enable_execution: bool = False
     adapters: Dict[str, ExchangeAdapter] = field(default_factory=dict)
     
-    # D206-1: V1 ArbitrageConfig fields (ProfitCore Bootstrap)
-    taker_fee_a_bps: float = 10.0
-    taker_fee_b_bps: float = 10.0
+    # D206-2: V1 FeeModel/MarketSpec/ArbRoute 통합
+    fee_model: Optional[FeeModel] = None
+    market_spec: Optional[MarketSpec] = None
+    use_arb_route: bool = False  # ArbRoute scoring 사용 여부
+    
+    # D206-1: V1 ArbitrageConfig fields (Backward compatible, deprecated)
+    taker_fee_a_bps: float = 10.0  # fee_model 없을 때 fallback
+    taker_fee_b_bps: float = 10.0  # fee_model 없을 때 fallback
     slippage_bps: float = 5.0
     max_open_trades: int = 1
     close_on_spread_reversal: bool = True
-    exchange_a_to_b_rate: float = 1.0
+    exchange_a_to_b_rate: float = 1.0  # market_spec 없을 때 fallback
     
     # D205-12-2: Engine Loop 설정
-    tick_interval_sec: float = 1.0  # Tick 간격
-    kpi_log_interval: int = 10  # KPI 로그 출력 간격 (iterations)
+    tick_interval_sec: float = 1.0
+    kpi_log_interval: int = 10
 
 
 class ArbitrageEngine:
@@ -93,13 +94,34 @@ class ArbitrageEngine:
         self._open_trades: List[ArbitrageTrade] = []  # Type-safe trade tracking
         self._last_snapshot: Optional[OrderBookSnapshot] = None
         
-        # D206-1: Pre-calculated values (V1 optimization)
-        self._total_cost_bps = (
-            self.config.taker_fee_a_bps
-            + self.config.taker_fee_b_bps
-            + self.config.slippage_bps
-        )
-        self._exchange_a_to_b_rate = self.config.exchange_a_to_b_rate
+        # D206-2: FeeModel/MarketSpec 기반 pre-calculation
+        if self.config.fee_model:
+            self._total_cost_bps = self.config.fee_model.total_entry_fee_bps() + self.config.slippage_bps
+        else:
+            # Fallback: D206-1 compatibility
+            self._total_cost_bps = (
+                self.config.taker_fee_a_bps
+                + self.config.taker_fee_b_bps
+                + self.config.slippage_bps
+            )
+        
+        if self.config.market_spec:
+            self._exchange_a_to_b_rate = self.config.market_spec.fx_rate_a_to_b
+        else:
+            # Fallback: D206-1 compatibility
+            self._exchange_a_to_b_rate = self.config.exchange_a_to_b_rate
+        
+        # D206-2: ArbRoute 통합 (선택적)
+        self._arb_route: Optional[ArbRoute] = None
+        if self.config.use_arb_route and self.config.market_spec and self.config.fee_model:
+            self._arb_route = ArbRoute(
+                symbol_a="KRW-BTC",  # TODO: config에서 가져오기
+                symbol_b="BTCUSDT",
+                market_spec=self.config.market_spec,
+                fee_model=self.config.fee_model,
+                min_spread_bps=self.config.min_spread_bps,
+                slippage_bps=self.config.slippage_bps,
+            )
         
         logger.info(f"[V2 Engine] Initialized with {len(self.adapters)} adapters")
         logger.info(f"[D206-1] ProfitCore: total_cost={self._total_cost_bps:.2f} bps, fx_rate={self._exchange_a_to_b_rate}")
@@ -153,8 +175,8 @@ class ArbitrageEngine:
         self._last_snapshot = snapshot
         trades_changed = []
         
-        # Extract prices (backward compatible)
-        if isinstance(snapshot, OrderBookSnapshot):
+        # D206-2: V1/V2 OrderBookSnapshot duck typing
+        if hasattr(snapshot, 'best_bid_a'):  # OrderBookSnapshot (V1 or V2)
             bid_a = snapshot.best_bid_a
             ask_a = snapshot.best_ask_a
             bid_b = snapshot.best_bid_b
@@ -283,7 +305,7 @@ class ArbitrageEngine:
     
     def _detect_single_opportunity(self, snapshot) -> Optional[ArbitrageOpportunity]:
         """
-        D206-1: V1 detect_opportunity logic (core profit logic).
+        D206-2: V1 detect_opportunity logic with ArbRoute integration.
         
         Args:
             snapshot: OrderBookSnapshot or dict (backward compatible)
@@ -291,8 +313,12 @@ class ArbitrageEngine:
         Returns:
             ArbitrageOpportunity or None
         """
-        # Backward compatibility: accept dict or OrderBookSnapshot
-        if isinstance(snapshot, OrderBookSnapshot):
+        # D206-2: V1/V2 OrderBookSnapshot duck typing (타입 호환성)
+        if self._arb_route and hasattr(snapshot, 'best_bid_a'):
+            return self._detect_with_route(snapshot)
+        
+        # Backward compatibility: accept dict or OrderBookSnapshot (duck typing)
+        if hasattr(snapshot, 'best_bid_a'):  # OrderBookSnapshot (V1 or V2)
             bid_a = snapshot.best_bid_a
             ask_a = snapshot.best_ask_a
             bid_b = snapshot.best_bid_b
@@ -343,6 +369,58 @@ class ArbitrageEngine:
             timestamp=timestamp,
             side=side,
             spread_bps=best_spread,
+            gross_edge_bps=gross_edge,
+            net_edge_bps=net_edge,
+            notional_usd=self.config.max_position_usd,
+        )
+    
+    def _detect_with_route(self, snapshot: OrderBookSnapshot) -> Optional[ArbitrageOpportunity]:
+        """
+        D206-2: ArbRoute 기반 기회 탐지 (route scoring).
+        
+        Args:
+            snapshot: OrderBookSnapshot
+        
+        Returns:
+            ArbitrageOpportunity or None
+        """
+        from arbitrage.domain.arb_route import RouteDirection
+        
+        # ArbRoute.evaluate() 호출
+        decision = self._arb_route.evaluate(
+            snapshot=snapshot,
+            inventory_imbalance_ratio=0.0,  # TODO: inventory tracking
+        )
+        
+        # RouteScore < 50이면 SKIP
+        if decision.direction == RouteDirection.SKIP:
+            logger.debug(f"[ArbRoute] SKIP: {decision.reason}")
+            return None
+        
+        # RouteDecision → ArbitrageOpportunity 변환
+        # Re-calculate spread/edge (ArbRoute는 net spread만 반환)
+        bid_a = snapshot.best_bid_a
+        ask_a = snapshot.best_ask_a
+        bid_b = snapshot.best_bid_b
+        ask_b = snapshot.best_ask_b
+        
+        bid_b_normalized = bid_b * self._exchange_a_to_b_rate
+        ask_b_normalized = ask_b * self._exchange_a_to_b_rate
+        
+        if decision.direction == RouteDirection.LONG_A_SHORT_B:
+            spread = (bid_b_normalized - ask_a) / ask_a * 10_000.0
+            side = "LONG_A_SHORT_B"
+        else:  # LONG_B_SHORT_A
+            spread = (bid_a - ask_b_normalized) / ask_b_normalized * 10_000.0
+            side = "LONG_B_SHORT_A"
+        
+        gross_edge = spread
+        net_edge = spread - self._total_cost_bps
+        
+        return ArbitrageOpportunity(
+            timestamp=snapshot.timestamp,
+            side=side,
+            spread_bps=spread,
             gross_edge_bps=gross_edge,
             net_edge_bps=net_edge,
             notional_usd=self.config.max_position_usd,
