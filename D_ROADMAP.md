@@ -5915,7 +5915,546 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### D206: 운영 프로토콜 엔진 내재화 + 수익 로직 모듈화
+## 🔄 REBASELOG (2026-01-16) - Roadmap Rebase: Profit-Logic First
+
+**Rebase Date:** 2026-01-16  
+**Rebase Reason:** "돈 버는 로직 우선" 헌법 원칙 강제 - 인프라/운영 작업이 수익 생성 로직보다 먼저 진행되는 구조적 문제 해결  
+**Constitutional Basis:** SSOT_RULES.md Section A (SSOT 원칙), "돈 버는 알고리즘 우선" 원칙
+
+**Reality Scan Evidence:** `logs/evidence/ROADMAP_REBASE_SCAN_20260116_133527/scan_summary.md`
+
+### 매핑 테이블 (정보 누락 0%)
+
+| 구 D 번호 | 신 D 번호 | 제목 | 상태 | 커밋/증거 |
+|----------|----------|------|------|-----------|
+| **구 D206** | **신 D210** | 운영 프로토콜 엔진 내재화 + 수익 로직 모듈화 | PARTIAL | - |
+| 구 D206-0 | 신 D210-0 | 운영 프로토콜 엔진 내재화 | DONE | (증거 경로 유지) |
+| 구 D206-1 | 신 D210-1 | 수익 로직 모듈화 및 튜너 인터페이스 | COMPLETED | 커밋: 8541488, eddcc66 |
+| 구 D206-2 | 신 D210-2 | 자동 파라미터 튜너 | PLANNED | - |
+| 구 D206-3 | 신 D210-3 | 리스크 컨트롤 | PLANNED | - |
+| 구 D206-4 | 신 D210-4 | 실행 프로파일 통합 | PLANNED | - |
+| **구 D207** | **신 D211** | V1 거래 로직 → V2 마이그레이션 | PLANNED | - |
+| 구 D207-1 | 신 D211-1 | V1 거래 로직 분석 및 마이그레이션 계획 | PLANNED | - |
+| 구 D207-2 | 신 D211-2 | V1 Entry/Exit 규칙 이식 | PLANNED | - |
+| 구 D207-3 | 신 D211-3 | V1 Fee/Slippage 모델 이식 | PLANNED | - |
+| 구 D207-4 | 신 D211-4 | V1 Risk 관리 이식 | PLANNED | - |
+| **구 D208** | **신 D212** | Paper 모드 수익성 검증 | PLANNED | - |
+| 구 D208-1 | 신 D212-1 | Paper 수익성 검증 (Real MarketData) | PLANNED | - |
+| **구 D209** | **신 D213** | Infrastructure & Operations | PLANNED | - |
+| 구 D209-1 | 신 D213-1 | Grafana | PLANNED | - |
+| 구 D209-2 | 신 D213-2 | Docker Compose | PLANNED | - |
+| 구 D209-3 | 신 D213-3 | Runbook + Gate/CI | PLANNED | - |
+| 구 D209-4 | 신 D213-4 | Admin Control Panel | PLANNED | - |
+
+### 신규 D206~D209 정의 (Profit-Logic First)
+
+| 신 D 번호 | 제목 | 목적 |
+|----------|------|------|
+| **신 D206** | V1→V2 전략/상태기계 완전 이식 | V1 ArbitrageEngine detect_opportunity/on_snapshot 완전 이식 + 도메인 모델 통합 |
+| 신 D206-0 | Gate Integrity Restore (블로커) | Registry/Preflight DOPING 제거 - 런타임 artifact 검증 강제 |
+| 신 D206-1 | V1 도메인 모델 통합 | OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade, ArbRoute 통합 |
+| 신 D206-2 | V1 전략 로직 완전 이식 | detect_opportunity/on_snapshot dict→dataclass, FeeModel/MarketSpec 통합 |
+| 신 D206-3 | Config SSOT 복원 | EngineConfig 하드코딩 제거, config.yml 재사용, SSOT 단일화 |
+| 신 D206-4 | _trade_to_result() 완성 | PaperExecutor 연동, 주문/체결 파이프라인 완성 |
+| **신 D207** | Paper 수익성 증명 | Real market data + 실전 모델 (slippage/latency/partial fill) |
+| 신 D207-1 | BASELINE 20분 수익성 | net_pnl > 0 증명 또는 실패 원인 분석 |
+| 신 D207-2 | LONGRUN 60분 정합성 | heartbeat/chain_summary 시간 정합성 ±5% PASS |
+| 신 D207-3 | 승률 100% 방지 | 승률 100% 발견 시 FAIL + 원인 분석 (Mock 데이터 의심) |
+| **신 D208** | 주문 라이프사이클/실패모델 | rate limit, timeout, reject, partial fill, cancel, replace 시나리오 |
+| 신 D208-1 | 주문 실패 시나리오 | 429 rate limit, timeout, reject, partial fill 각각 대응 검증 |
+| 신 D208-2 | 리스크 가드 통합 | position limit, loss cutoff, kill-switch 엔진 통합 |
+| 신 D208-3 | Fail-Fast 전파 | ExitCode 전파 체계 완성, 모든 실패는 ExitCode=1 |
+| **신 D209** | LIVE 진입 설계/게이트 (구현은 봉인) | LIVE order_submit 잠금 + allowlist + 증거 규격 명시 |
+| 신 D209-1 | LIVE 설계 문서 | LIVE 아키텍처, allowlist, 증거 규격, DONE 판정 기준 명시 |
+| 신 D209-2 | LIVE Gate 설계 | order_submit 잠금 메커니즘, ExitCode 강제, 증거 검증 규칙 |
+| 신 D209-3 | LIVE 봉인 검증 | LIVE 코드 실행 불가 증명, allowlist 외 진입 FAIL 검증 |
+
+### 변경 사유
+
+**구조적 문제:**
+1. **구 D206-1 "ProfitCore Bootstrap"은 뼈대만** - V1 도메인 모델 미통합, dict 기반 흉내만
+2. **구 D206-2 Auto Tuner는 시기상조** - 전략/상태기계 완성 전 튜닝은 "쓰레기 최적화"
+3. **구 D207 마이그레이션 계획만** - 실제 코드 통합 없음
+4. **구 D208 수익성 검증 불가** - 전략 완성 전 수익성 증명 불가능
+5. **Gate DOPING 상태** - Registry/Preflight가 파일 존재만 확인, 실질 검증 없음
+
+**해결 방안:**
+1. **신 D206: V1→V2 완전 이식** - 도메인 모델 + 전략 로직 + Config SSOT + 주문 파이프라인
+2. **신 D207: Paper 수익성** - Real data + 실전 모델로 net_pnl > 0 증명
+3. **신 D208: 실패 대응** - 주문 라이프사이클 + 리스크 가드 + Fail-Fast
+4. **신 D209: LIVE 설계만** - 구현은 게이트로 봉인, 설계 문서만 작성
+5. **Gate Integrity** - 신 D206-0에서 DOPING 제거 블로커로 선행 처리
+
+**SSOT 무결성:**
+- ✅ 정보 누락 0% (기존 D206~D209 원문 → D210~D213 이동)
+- ✅ 커밋/증거 재귀속 (구 D206-1 커밋 8541488, eddcc66 → 신 D210-1)
+- ✅ D 번호 중복 방지 (매핑 테이블 기준 유일성 보장)
+- ✅ AC 형식 통일 (모든 신규 D는 [ ] AC-1, [ ] AC-2... 체크리스트)
+
+---
+
+### 신 D206: V1→V2 전략/상태기계 완전 이식 (돈 버는 로직 우선)
+
+**Freeze Point:** D205-18-4R2 (Run Protocol 강제화) ✅  
+**Strategy:** V1 ArbitrageEngine 핵심 로직 100% V2 통합 → Config SSOT 복원 → 주문 파이프라인 완성  
+**Constitutional Basis:** "돈 버는 알고리즘 우선" (SSOT_RULES.md), Scan-First → Reuse-First (V1 유산 강제 재사용)
+
+**Reality Scan:** `logs/evidence/ROADMAP_REBASE_SCAN_20260116_133527/scan_summary.md`
+
+**현재 문제 (구 D206-1 eddcc66 패치 검증):**
+- ❌ V1 도메인 모델 미통합 (OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade는 dict로만 흉내)
+- ❌ Config SSOT 파손 (EngineConfig에 하드코딩 기본값: taker_fee_a_bps=10.0 등)
+- ❌ _trade_to_result() stub (실제 주문/체결 파이프라인 미연결)
+- ❌ Gate DOPING (ComponentRegistryChecker는 EVIDENCE_FORMAT.md 존재만 확인)
+- ⚠️ 구 D206-2 Auto Tuner 진행 시 "쓰레기 데이터 최적화" 위험
+
+---
+
+#### 신 D206-0: Gate Integrity Restore (블로커 - 선행 필수)
+
+**상태:** PLANNED (리베이스 직후 최우선)  
+**목적:** Registry/Preflight DOPING 제거 - 런타임 artifact 검증 강제
+
+**현재 DOPING 상태:**
+1. **ComponentRegistryChecker.check_evidence_fields()** - EVIDENCE_FORMAT.md 존재만 확인, 실제 스키마 검증 없음
+2. **PreflightChecker** - PaperRunner 내부 속성 직접 검사 (runner.upbit_provider, runner.redis_client 등)
+3. **Runner 비대화** - Gate 요구사항 때문에 PaperRunner가 프로퍼티 노출 (thin wrapper 원칙 위반)
+
+**목표:**
+- Gate는 Core 런타임 artifact만 검증 (manifest.json, kpi_summary.json, evidence 파일)
+- Runner 내부 속성 검사 금지 (thin wrapper 유지)
+- 파일 존재 검사 → 실제 스키마/필드 검증으로 강화
+
+**Acceptance Criteria:**
+- [ ] AC-1: Registry 강화 - EVIDENCE_FORMAT.md 스키마 파싱, evidence_kpi_fields 실제 존재 검증
+- [ ] AC-2: Preflight 강화 - Runner 속성 검사 → manifest.json/kpi_summary.json 필드 검증으로 교체
+- [ ] AC-3: Runner 속성 제거 - PaperRunner에서 Gate 전용 프로퍼티 제거 (use_real_data, marketdata_mode 등)
+- [ ] AC-4: Artifact 기반 검증 - 모든 Gate는 logs/evidence/*/ 아래 파일만 검증
+- [ ] AC-5: Gate 회귀 테스트 - Doctor/Fast/Regression 100% PASS, 새 검증 로직으로 통과
+- [ ] AC-6: DOPING 0 증명 - check_ssot_docs.py ExitCode=0, Gate 우회 흔적 0개
+
+**Evidence 경로:**
+- Gate 강화 보고: `docs/v2/reports/D206/D206-0_GATE_RESTORE_REPORT.md`
+- 테스트 결과: `logs/evidence/d206_0_gate_restore_<date>/`
+- 회귀 검증: Gate Doctor/Fast/Regression 로그
+
+**의존성:**
+- Depends on: 없음 (최우선 블로커)
+- Unblocks: 신 D206-1 (V1 도메인 모델 통합)
+
+**DONE 판정 기준:**
+- ✅ AC 6개 전부 체크
+- ✅ Gate Doctor/Fast/Regression 100% PASS (새 검증 로직)
+- ✅ check_ssot_docs.py ExitCode=0
+- ✅ Runner thin wrapper 원칙 복원 (Gate 전용 프로퍼티 0개)
+
+---
+
+#### 신 D206-1: V1 도메인 모델 통합
+
+**상태:** PLANNED (신 D206-0 완료 후)  
+**목적:** V1 도메인 모델 (OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade, ArbRoute) V2에 통합
+
+**현재 문제:**
+- 구 D206-1(커밋 8541488, eddcc66)은 dict 기반 흉내만
+- V1 domain 모델 (`arbitrage/domain/*.py`) 미사용
+- Engine이 dict로 데이터 전달 → 타입 안정성 0
+
+**목표:**
+- `arbitrage/domain/` 모듈 V2에서 재사용
+- Engine detect_opportunity() 반환값: dict → ArbitrageOpportunity dataclass
+- Engine on_snapshot() 거래 추적: dict → ArbitrageTrade dataclass
+- V1 ArbRoute 의사결정 로직 통합
+
+**Acceptance Criteria:**
+- [ ] AC-1: 도메인 모델 임포트 - `arbitrage/v2/core/engine.py`에서 `arbitrage.domain.*` 임포트
+- [ ] AC-2: OrderBookSnapshot 통합 - detect_opportunity() 인자를 dict → OrderBookSnapshot dataclass로 변경
+- [ ] AC-3: ArbitrageOpportunity 통합 - detect_opportunity() 반환값을 dict → ArbitrageOpportunity로 변경
+- [ ] AC-4: ArbitrageTrade 통합 - Engine 내부 _open_trades: List[dict] → List[ArbitrageTrade]
+- [ ] AC-5: ArbRoute 통합 - V1 ArbRoute 의사결정 로직 (스프레드/fee/health/score 기반) Engine에 통합
+- [ ] AC-6: 타입 안정성 검증 - mypy 타입 체크 0 error, Engine 메서드 타입 힌트 100%
+
+**Evidence 경로:**
+- 통합 보고: `docs/v2/reports/D206/D206-1_DOMAIN_MODEL_REPORT.md`
+- 테스트 결과: `tests/test_d206_1_domain_model.py` (도메인 모델 통합 검증)
+- 타입 체크: mypy 실행 결과
+
+**의존성:**
+- Depends on: 신 D206-0 (Gate Integrity Restore) ✅
+- Unblocks: 신 D206-2 (V1 전략 로직 완전 이식)
+
+---
+
+#### 신 D206-2: V1 전략 로직 완전 이식
+
+**상태:** PLANNED (신 D206-1 완료 후)  
+**목적:** V1 ArbitrageEngine detect_opportunity/on_snapshot 로직 100% V2 이식 + FeeModel/MarketSpec 통합
+
+**현재 문제:**
+- 구 D206-1은 스프레드 계산만 흉내 (환율 정규화, 수수료/슬리피지 반영 누락)
+- V1 FeeModel, MarketSpec 미통합
+- on_snapshot() 거래 개설/종료 로직 stub
+
+**목표:**
+- V1 detect_opportunity() 로직 100% 이식 (환율 정규화, bid/ask 스프레드 확장, gross/net edge 계산)
+- V1 on_snapshot() 로직 100% 이식 (기존 거래 종료, 새 기회 개설)
+- V1 FeeModel (거래소별 수수료 계산) 통합
+- V1 MarketSpec (거래소 스펙) 통합
+
+**Acceptance Criteria:**
+- [ ] AC-1: detect_opportunity() 완전 이식 - V1 로직 100% 재현 (환율, 스프레드, fee, slippage, gross/net edge)
+- [ ] AC-2: on_snapshot() 완전 이식 - V1 거래 개설/종료 로직 100% 재현 (spread_reversal, take_profit, stop_loss)
+- [ ] AC-3: FeeModel 통합 - `arbitrage/domain/fee_model.py` 재사용, 거래소별 수수료 정확도 검증
+- [ ] AC-4: MarketSpec 통합 - `arbitrage/domain/market_spec.py` 재사용, 거래소 스펙 일치 확인
+- [ ] AC-5: V1 parity 테스트 - V1 vs V2 동일 데이터 결과 100% 일치 (detect_opportunity, on_snapshot)
+- [ ] AC-6: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS
+
+**Evidence 경로:**
+- 이식 보고: `docs/v2/reports/D206/D206-2_STRATEGY_MIGRATION_REPORT.md`
+- Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (V1 vs V2 결과 비교)
+- 회귀 검증: Gate 로그
+
+**의존성:**
+- Depends on: 신 D206-1 (V1 도메인 모델 통합) ✅
+- Unblocks: 신 D206-3 (Config SSOT 복원)
+
+---
+
+#### 신 D206-3: Config SSOT 복원
+
+**상태:** PLANNED (신 D206-2 완료 후)  
+**목적:** EngineConfig 하드코딩 제거, config.yml SSOT 단일화
+
+**현재 문제:**
+- EngineConfig에 하드코딩 기본값 (taker_fee_a_bps=10.0, slippage_bps=5.0 등)
+- config.yml과 불일치 → SSOT 파손
+- V1 ArbitrageConfig 재사용 안 함
+
+**목표:**
+- EngineConfig 하드코딩 제거 → config.yml에서만 로드
+- V1 ArbitrageConfig 재사용 (break_even_params, fee, slippage 등)
+- SSOT 단일화: config.yml이 유일한 설정 소스
+
+**Acceptance Criteria:**
+- [ ] AC-1: 하드코딩 제거 - EngineConfig 모든 기본값 제거, config.yml 필수 로드
+- [ ] AC-2: V1 Config 재사용 - V1 ArbitrageConfig 파라미터 V2 EngineConfig에 통합
+- [ ] AC-3: SSOT 검증 - config.yml 변경 시 Engine 동작 즉시 반영, 하드코딩 0개 증명
+- [ ] AC-4: Config 스키마 검증 - config.yml 누락/오타 시 Engine 시작 실패, 명확한 에러 메시지
+- [ ] AC-5: 문서 동기화 - `docs/v2/design/CONFIG_SCHEMA.md` 갱신 (모든 필드 설명)
+- [ ] AC-6: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS
+
+**Evidence 경로:**
+- Config 복원 보고: `docs/v2/reports/D206/D206-3_CONFIG_SSOT_REPORT.md`
+- 스키마 문서: `docs/v2/design/CONFIG_SCHEMA.md`
+- 테스트 결과: `tests/test_d206_3_config_ssot.py`
+
+**의존성:**
+- Depends on: 신 D206-2 (V1 전략 로직 완전 이식) ✅
+- Unblocks: 신 D206-4 (_trade_to_result() 완성)
+
+---
+
+#### 신 D206-4: _trade_to_result() 완성 (주문 파이프라인)
+
+**상태:** PLANNED (신 D206-3 완료 후)  
+**목적:** _trade_to_result() stub 제거, PaperExecutor 연동, 주문/체결 파이프라인 완성
+
+**현재 문제:**
+- _trade_to_result()는 stub (실제 주문 미실행)
+- PaperExecutor 연동 없음
+- OrderIntent → Order → Fill → Trade 파이프라인 단절
+
+**목표:**
+- _trade_to_result() 구현 완성
+- PaperExecutor 연동 (OrderIntent → Order 변환)
+- Fill 처리 및 Trade 기록 완성
+- DB Ledger 기록 (orders/fills/trades 테이블)
+
+**Acceptance Criteria:**
+- [ ] AC-1: _trade_to_result() 구현 - OrderIntent → PaperExecutor.submit_order() 호출
+- [ ] AC-2: OrderResult 처리 - PaperExecutor 반환값 (OrderResult) 파싱, filled_qty/avg_price 추출
+- [ ] AC-3: Fill 기록 - Fill 객체 생성, DB fills 테이블 기록
+- [ ] AC-4: Trade 기록 - Trade 객체 생성, DB trades 테이블 기록, PnL 계산
+- [ ] AC-5: 파이프라인 통합 테스트 - Engine detect_opportunity → _create_intents → _trade_to_result → DB 기록 전체 플로우 검증
+- [ ] AC-6: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS, 기존 PaperExecutor 테스트 유지
+
+**Evidence 경로:**
+- 파이프라인 보고: `docs/v2/reports/D206/D206-4_PIPELINE_COMPLETION_REPORT.md`
+- 통합 테스트: `tests/test_d206_4_order_pipeline.py` (전체 플로우 검증)
+- DB 검증: DB 테이블 (orders/fills/trades) 데이터 일치 확인
+
+**의존성:**
+- Depends on: 신 D206-3 (Config SSOT 복원) ✅
+- Unblocks: 신 D207 (Paper 수익성 증명)
+
+**DONE 판정 기준:**
+- ✅ AC 6개 전부 체크
+- ✅ OrderIntent → Order → Fill → Trade 전체 플로우 동작
+- ✅ DB Ledger 기록 100% (orders/fills/trades)
+- ✅ Gate Doctor/Fast/Regression 100% PASS
+
+---
+
+### 신 D207: Paper 수익성 증명 (Real MarketData + 실전 모델)
+
+**전략:** 신 D206 완전 이식 완료 후, V2 엔진이 실제로 수익을 생성하는지 Paper 모드에서 증명  
+**Constitutional Basis:** "돈 버는 알고리즘 우선" - 수익 증명 없이 다음 단계 진행 금지
+
+---
+
+#### 신 D207-1: BASELINE 20분 수익성
+
+**상태:** PLANNED (신 D206-4 완료 후)  
+**목적:** Real MarketData + Slippage/Latency 모델 강제, 20분 BASELINE 실행 후 net_pnl > 0 증명
+
+**목표:**
+- Real MarketData (Binance/Upbit 실시간 또는 히스토리) 사용
+- Slippage/Latency/Partial Fill 모델 강제
+- 20분 BASELINE 실행 후 net_pnl > 0 증명 (실패 시 원인 분석)
+
+**Acceptance Criteria:**
+- [ ] AC-1: Real MarketData - Binance/Upbit 실시간 또는 히스토리 데이터 사용, Mock 데이터 금지
+- [ ] AC-2: Slippage 모델 - 거래소별 실측 Slippage 분포 적용, 각 주문마다 반영
+- [ ] AC-3: Latency 모델 - 네트워크/주문 처리 지연 시뮬레이션, 평균 100ms 이상
+- [ ] AC-4: BASELINE 20분 - 20분 실행, watch_summary.json completeness_ratio ≥ 0.95
+- [ ] AC-5: net_pnl > 0 - 순이익 증명. 실패 시 DIAGNOSIS.md에 원인 분석 (시장 기회 부족 vs 로직 오류)
+- [ ] AC-6: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터 대상)
+
+**Evidence 경로:**
+- Paper 실행: `logs/evidence/d207_1_baseline_20m_<date>/`
+  - manifest.json, kpi_summary.json, watch_summary.json
+  - DIAGNOSIS.md (실패 시)
+- 비교 보고: `docs/v2/reports/D207/D207-1_PROFITABILITY_REPORT.md`
+
+**의존성:**
+- Depends on: 신 D206-4 (_trade_to_result() 완성) ✅
+- Unblocks: 신 D207-2 (LONGRUN 60분 정합성)
+
+---
+
+#### 신 D207-2: LONGRUN 60분 정합성
+
+**상태:** PLANNED (신 D207-1 완료 후)  
+**목적:** LONGRUN 60분 실행, heartbeat/chain_summary 시간 정합성 ±5% PASS
+
+**목표:**
+- LONGRUN 60분 실행 (OPS_PROTOCOL.md 검증)
+- heartbeat.jsonl 간격 ≤65초 (OPS Invariant)
+- chain_summary.json wallclock ±5% (OPS Invariant)
+
+**Acceptance Criteria:**
+- [ ] AC-1: LONGRUN 60분 - 60분 실행, watch_summary.json completeness_ratio ≥ 0.95
+- [ ] AC-2: Heartbeat 정합성 - heartbeat.jsonl 최대 간격 ≤65초
+- [ ] AC-3: Wallclock 정합성 - chain_summary.json 실행 시간 ±5% 이내
+- [ ] AC-4: DB Invariant - DB inserts 매칭 (orders/fills/trades 일치)
+- [ ] AC-5: Evidence 완전성 - manifest, kpi_summary, heartbeat, chain_summary 모두 생성
+- [ ] AC-6: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS
+
+**Evidence 경로:**
+- LONGRUN 실행: `logs/evidence/d207_2_longrun_60m_<date>/`
+- OPS 검증: heartbeat.jsonl, chain_summary.json 정합성 확인
+
+**의존성:**
+- Depends on: 신 D207-1 (BASELINE 20분 수익성) ✅
+- Unblocks: 신 D207-3 (승률 100% 방지)
+
+---
+
+#### 신 D207-3: 승률 100% 방지
+
+**상태:** PLANNED (신 D207-2 완료 후)  
+**목적:** 승률 100% 발견 시 FAIL + 원인 분석 (Mock 데이터 의심)
+
+**목표:**
+- 승률 100%는 비현실적 → Mock 데이터 또는 로직 오류 의심
+- 승률 95% 이하 강제 (OPS_PROTOCOL.md 예외 처리)
+- 실패 원인 분석 강제
+
+**Acceptance Criteria:**
+- [ ] AC-1: 승률 임계치 - kpi_summary.json win_rate < 1.0 (100% 금지)
+- [ ] AC-2: 승률 100% 감지 - win_rate = 1.0 발견 시 ExitCode=1, stop_reason="WIN_RATE_100_SUSPICIOUS"
+- [ ] AC-3: 원인 분석 - DIAGNOSIS.md에 원인 분석 (Mock 데이터 사용 여부, 로직 오류 가능성)
+- [ ] AC-4: 예외 처리 - OPS_PROTOCOL.md에 승률 95% 초과 시 is_optimistic_warning 플래그 기록
+- [ ] AC-5: 테스트 케이스 - 의도적으로 승률 100% 만드는 테스트, FAIL 확인
+- [ ] AC-6: 문서화 - OPS_PROTOCOL.md에 승률 100% 감지 시나리오 추가
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d207_3_win_rate_100_prevention.py`
+- 문서 갱신: `docs/v2/OPS_PROTOCOL.md` (승률 100% 시나리오)
+
+**의존성:**
+- Depends on: 신 D207-2 (LONGRUN 60분 정합성) ✅
+- Unblocks: 신 D208 (주문 라이프사이클/실패모델)
+
+---
+
+### 신 D208: 주문 라이프사이클/실패모델/리스크 가드
+
+**전략:** 신 D207 수익성 증명 완료 후, 주문 실패 시나리오 + 리스크 가드 통합  
+**Constitutional Basis:** OPS_PROTOCOL.md (Failure Modes & Recovery)
+
+---
+
+#### 신 D208-1: 주문 실패 시나리오
+
+**상태:** PLANNED (신 D207-3 완료 후)  
+**목적:** rate limit, timeout, reject, partial fill 각각 대응 검증
+
+**Acceptance Criteria:**
+- [ ] AC-1: 429 Rate Limit - throttling 자동 활성화, manual pause 가능
+- [ ] AC-2: Timeout - 재시도 로직, timeout 임계치 설정
+- [ ] AC-3: Reject - 주문 거부 시 원인 분석 (insufficient balance, invalid symbol 등)
+- [ ] AC-4: Partial Fill - 부분 체결 시 Fill 기록, 잔여 주문 처리
+- [ ] AC-5: 실패 시나리오 테스트 - 각 실패 타입별 테스트 케이스, ExitCode 전파 확인
+- [ ] AC-6: 문서화 - OPS_PROTOCOL.md #8 Failure Modes 갱신
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d208_1_order_failure_scenarios.py`
+- 문서 갱신: `docs/v2/OPS_PROTOCOL.md` #8 Failure Modes
+
+**의존성:**
+- Depends on: 신 D207-3 (승률 100% 방지) ✅
+- Unblocks: 신 D208-2 (리스크 가드 통합)
+
+---
+
+#### 신 D208-2: 리스크 가드 통합
+
+**상태:** PLANNED (신 D208-1 완료 후)  
+**목적:** position limit, loss cutoff, kill-switch 엔진 통합
+
+**Acceptance Criteria:**
+- [ ] AC-1: Position Limit - max_position_usd 임계치, 초과 시 신규 주문 차단
+- [ ] AC-2: Loss Cutoff - max_drawdown, max_consecutive_losses 임계치, 초과 시 ExitCode=1
+- [ ] AC-3: Kill-Switch - RiskGuard.stop(reason="RISK_XXX") 호출 시 Graceful Stop
+- [ ] AC-4: 리스크 메트릭 - kpi_summary.json에 position_risk, drawdown, consecutive_losses 기록
+- [ ] AC-5: 테스트 케이스 - 각 리스크 임계치 초과 시나리오 테스트, ExitCode=1 확인
+- [ ] AC-6: 문서화 - docs/v2/design/RISK_GUARD.md 작성
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d208_2_risk_guard.py`
+- 설계 문서: `docs/v2/design/RISK_GUARD.md`
+
+**의존성:**
+- Depends on: 신 D208-1 (주문 실패 시나리오) ✅
+- Unblocks: 신 D208-3 (Fail-Fast 전파)
+
+---
+
+#### 신 D208-3: Fail-Fast 전파
+
+**상태:** PLANNED (신 D208-2 완료 후)  
+**목적:** ExitCode 전파 체계 완성, 모든 실패는 ExitCode=1
+
+**Acceptance Criteria:**
+- [ ] AC-1: ExitCode 체계 - 정상 종료=0, 비정상 종료=1, 모든 예외 catch
+- [ ] AC-2: stop_reason 체계 - watch_summary.json에 stop_reason 필드 ("NORMAL", "ERROR_XXX", "RISK_XXX")
+- [ ] AC-3: 예외 핸들러 일원화 - Orchestrator.run() 최상위 try/except, clean exit
+- [ ] AC-4: Alert 시스템 - ExitCode=1 시 Slack/Email Alert 발송 (Best-Effort)
+- [ ] AC-5: 테스트 케이스 - 의도적 예외 발생 시 ExitCode=1 확인
+- [ ] AC-6: 문서화 - OPS_PROTOCOL.md #7 ExitCode 체계 갱신
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d208_3_fail_fast.py`
+- 문서 갱신: `docs/v2/OPS_PROTOCOL.md` #7 ExitCode
+
+**의존성:**
+- Depends on: 신 D208-2 (리스크 가드 통합) ✅
+- Unblocks: 신 D209 (LIVE 진입 설계/게이트)
+
+---
+
+### 신 D209: LIVE 진입 설계/게이트 (구현은 봉인)
+
+**전략:** 신 D208 완료 후, LIVE 아키텍처 설계 + 잠금 메커니즘 명시 (실제 LIVE 구현은 게이트로 봉인)  
+**Constitutional Basis:** "V2에서 LIVE는 D208 완료 전까지 절대 금지" (READ_ONLY 원칙)
+
+---
+
+#### 신 D209-1: LIVE 설계 문서
+
+**상태:** PLANNED (신 D208-3 완료 후)  
+**목적:** LIVE 아키텍처, allowlist, 증거 규격, DONE 판정 기준 명시
+
+**Acceptance Criteria:**
+- [ ] AC-1: LIVE 아키텍처 - `docs/v2/design/LIVE_ARCHITECTURE.md` 작성 (order_submit 실제 호출 시나리오)
+- [ ] AC-2: Allowlist 정의 - LIVE 진입 허용 조건 명시 (D208 완료, 수익성 증명, Gate 100% PASS)
+- [ ] AC-3: 증거 규격 - LIVE 실행 시 요구되는 Evidence 파일 목록 (manifest, kpi_summary, trade_log 등)
+- [ ] AC-4: DONE 판정 기준 - LIVE 단계 DONE 조건 명시 (실거래 20분, net_pnl > 0, 0 실패)
+- [ ] AC-5: 리스크 경고 - LIVE 리스크 시나리오 명시 (자금 손실, API 제한, 거래소 정책 변경 등)
+- [ ] AC-6: 문서 검토 - LIVE_ARCHITECTURE.md에 대한 CTO/리드 검토 필수
+
+**Evidence 경로:**
+- 설계 문서: `docs/v2/design/LIVE_ARCHITECTURE.md`
+- 검토 로그: 문서 검토 기록 (GitHub PR 또는 별도 문서)
+
+**의존성:**
+- Depends on: 신 D208-3 (Fail-Fast 전파) ✅
+- Unblocks: 신 D209-2 (LIVE Gate 설계)
+
+---
+
+#### 신 D209-2: LIVE Gate 설계
+
+**상태:** PLANNED (신 D209-1 완료 후)  
+**목적:** order_submit 잠금 메커니즘, ExitCode 강제, 증거 검증 규칙 설계
+
+**Acceptance Criteria:**
+- [ ] AC-1: 잠금 메커니즘 - LiveAdapter.submit_order()에 allowlist 검사, 허가 없으면 ExitCode=1
+- [ ] AC-2: ExitCode 강제 - LIVE 미허가 진입 시 ExitCode=1, stop_reason="LIVE_NOT_ALLOWED"
+- [ ] AC-3: 증거 검증 - LIVE 실행 시 Evidence 파일 검증 규칙 (필수 필드, 스키마 일치)
+- [ ] AC-4: Gate 스크립트 설계 - `scripts/check_live_gate.py` 설계 (실제 구현은 별도 D-step)
+- [ ] AC-5: 테스트 케이스 설계 - LIVE 잠금 테스트 시나리오 명시 (미허가 진입 FAIL 확인)
+- [ ] AC-6: 문서화 - `docs/v2/LIVE_GATE_DESIGN.md` 작성
+
+**Evidence 경로:**
+- 설계 문서: `docs/v2/LIVE_GATE_DESIGN.md`
+- 테스트 시나리오: `docs/v2/LIVE_GATE_TEST_SCENARIOS.md`
+
+**의존성:**
+- Depends on: 신 D209-1 (LIVE 설계 문서) ✅
+- Unblocks: 신 D209-3 (LIVE 봉인 검증)
+
+---
+
+#### 신 D209-3: LIVE 봉인 검증
+
+**상태:** PLANNED (신 D209-2 완료 후)  
+**목적:** LIVE 코드 실행 불가 증명, allowlist 외 진입 FAIL 검증
+
+**Acceptance Criteria:**
+- [ ] AC-1: 잠금 테스트 - LiveAdapter.submit_order() 호출 시 ExitCode=1 확인 (allowlist 미등록 상태)
+- [ ] AC-2: 우회 방지 - LiveAdapter 이외의 실거래 경로 0개 증명 (ripgrep 검색)
+- [ ] AC-3: 문서 일치 - LIVE_GATE_DESIGN.md와 실제 잠금 동작 일치 확인
+- [ ] AC-4: Gate 검증 - check_live_gate.py 실행 시 LIVE 미허가 상태 FAIL 확인
+- [ ] AC-5: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS (LIVE 잠금 유지)
+- [ ] AC-6: 증거 문서 - `docs/v2/reports/D209/D209-3_LIVE_SEAL_VERIFICATION.md` 작성
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d209_3_live_seal.py`
+- 검증 보고: `docs/v2/reports/D209/D209-3_LIVE_SEAL_VERIFICATION.md`
+
+**의존성:**
+- Depends on: 신 D209-2 (LIVE Gate 설계) ✅
+- Unblocks: 없음 (LIVE 실제 구현은 별도 D-step에서 allowlist 해제 후)
+
+**DONE 판정 기준:**
+- ✅ AC 6개 전부 체크
+- ✅ LIVE 코드 실행 불가 증명 (allowlist 외 진입 FAIL)
+- ✅ LIVE_GATE_DESIGN.md 문서 완성
+- ✅ Gate Doctor/Fast/Regression 100% PASS
+
+---
+
+## 신 D210~D213: 구 D206~D209 원문 이관 (정보 누락 0%)
+
+**이관 사유:** 2026-01-16 Roadmap Rebase - "돈 버는 로직 우선" 헌법 원칙 강제  
+**매핑:** REBASELOG 매핑 테이블 참조 (구 D206~D209 → 신 D210~D213)  
+**커밋/증거:** 모든 커밋 및 증거 경로 유지 (구 D206-1 커밋 8541488 → 신 D210-1)
+
+---
+
+### 신 D210: 운영 프로토콜 엔진 내재화 + 수익 로직 모듈화 [구 D206 원문]
 
 **Freeze Point:** D205-18-4R2 (Run Protocol 강제화)까지 안정화 기반 확립  
 **Strategy:** 엔진 내재화 (OPS_PROTOCOL → Engine) → 수익 로직 모듈화 → 리스크 컨트롤 → 실행 프로파일 통합  
@@ -5982,7 +6521,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-0: 운영 프로토콜 엔진 내재화
+#### 신 D210-0: 운영 프로토콜 엔진 내재화 [구 D206-0]
 
 **상태:** ✅ COMPLETED (2026-01-15)
 **커밋:** f54ebb5 (initial), 31cd2fa (FIXPACK)
@@ -6029,7 +6568,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-1: 수익 로직 모듈화 및 튜너 인터페이스 설계
+#### 신 D210-1: 수익 로직 모듈화 및 튜너 인터페이스 설계 [구 D206-1]
 
 **상태:** ✅ COMPLETED (2026-01-16)
 **커밋:** 8541488 (D206-1 HARDENED CLOSEOUT)
@@ -6067,9 +6606,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-2: 자동 파라미터 튜너 내재화 및 성능 검증
+#### 신 D210-2: 자동 파라미터 튜너 내재화 및 성능 검증 [구 D206-2]
 
-**상태:** PLANNED (D206-1 완료 후)
+**상태:** PLANNED (신 D210-1 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-2_REPORT.md`
@@ -6098,9 +6637,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-3: 리스크 컨트롤 & 종료/예외 처리 일원화
+#### 신 D210-3: 리스크 컨트롤 & 종료/예외 처리 일원화 [구 D206-3]
 
-**상태:** PLANNED (D206-2 완료 후)
+**상태:** PLANNED (신 D210-2 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-3_REPORT.md`
@@ -6129,9 +6668,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D206-4: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합
+#### 신 D210-4: 실행 프로파일(PAPER/SMOKE/BASELINE/LONGRUN) 엔진 통합 [구 D206-4]
 
-**상태:** PLANNED (D206-3 완료 후)
+**상태:** PLANNED (신 D210-3 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D206/D206-4_REPORT.md`
@@ -6160,16 +6699,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### D207: V1 거래 로직 → V2 마이그레이션 (돈 버는 부분 우선)
+### 신 D211: V1 거래 로직 → V2 마이그레이션 [구 D207 원문]
 
-**전략:** D206-1 완료 후, V1의 수익 생성 로직을 V2 엔진에 이식. "돈 버는 알고리즘 우선" 원칙 적용  
+**전략:** 신 D210-1 완료 후, V1의 수익 생성 로직을 V2 엔진에 이식. "돈 버는 알고리즘 우선" 원칙 적용  
 **Constitutional Basis:** Scan-First → Reuse-First (V1 유산 강제 재사용)
 
 ---
 
-#### D207-1: V1 거래 로직 분석 및 마이그레이션 계획 수립
+#### 신 D211-1: V1 거래 로직 분석 및 마이그레이션 계획 수립 [구 D207-1]
 
-**상태:** PLANNED (D206-1 완료 후)
+**상태:** PLANNED (신 D210-1 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-1_REPORT.md`
@@ -6198,9 +6737,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D207-2: V1 Entry/Exit 규칙 → V2 이식
+#### 신 D211-2: V1 Entry/Exit 규칙 → V2 이식 [구 D207-2]
 
-**상태:** PLANNED (D207-1 완료 후)
+**상태:** PLANNED (신 D211-1 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-2_REPORT.md`
@@ -6229,9 +6768,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D207-3: V1 Fee/Slippage 모델 → V2 이식
+#### 신 D211-3: V1 Fee/Slippage 모델 → V2 이식 [구 D207-3]
 
-**상태:** PLANNED (D207-2 완료 후)
+**상태:** PLANNED (신 D211-2 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-3_REPORT.md`
@@ -6260,9 +6799,9 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D207-4: V1 Risk 관리 → V2 이식
+#### 신 D211-4: V1 Risk 관리 → V2 이식 [구 D207-4]
 
-**상태:** PLANNED (D207-3 완료 후)
+**상태:** PLANNED (신 D211-3 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D207/D207-4_REPORT.md`
@@ -6291,16 +6830,16 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### D208: Paper 모드 수익성 검증 (실제 돈 버는지 증명)
+### 신 D212: Paper 모드 수익성 검증 [구 D208 원문]
 
-**전략:** D207 마이그레이션 완료 후, V2 엔진이 실제로 수익을 생성하는지 Paper 모드에서 검증  
+**전략:** 신 D211 마이그레이션 완료 후, V2 엔진이 실제로 수익을 생성하는지 Paper 모드에서 검증  
 **Constitutional Basis:** "돈 버는 알고리즘 우선" - 수익 증명 없이 다음 단계 진행 금지
 
 ---
 
-#### D208-1: Paper 모드 수익성 검증 (Real MarketData + Slippage/Latency 모델 강제)
+#### 신 D212-1: Paper 모드 수익성 검증 (Real MarketData + Slippage/Latency 모델 강제) [구 D208-1]
 
-**상태:** PLANNED (D207-4 완료 후)
+**상태:** PLANNED (신 D211-4 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D208/D208-1_REPORT.md`
@@ -6340,15 +6879,15 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### D209: Infrastructure & Operations (인프라/운영 - D208 완료 후)
+### 신 D213: Infrastructure & Operations [구 D209 원문]
 
-**전략:** D206 엔진 내재화 완료 후, 모니터링/배포/운영 자동화 진행  
+**전략:** 신 D210 엔진 내재화 완료 후, 모니터링/배포/운영 자동화 진행  
 **Constitutional Basis:** "돈 버는 알고리즘 우선" 원칙 - 인프라는 핵심 로직 검증 후에만
 
 ---
 
-#### D209-1: Grafana (튜닝/운영 모니터링 용도만)
-**상태:** PLANNED (D208 완료 후)
+#### 신 D213-1: Grafana (튜닝/운영 모니터링 용도만) [구 D209-1]
+**상태:** PLANNED (신 D212 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D209/D209-1_REPORT.md`
@@ -6381,8 +6920,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D209-2: Docker Compose SSOT (패키징)
-**상태:** PLANNED (D208 완료 후)
+#### 신 D213-2: Docker Compose SSOT (패키징) [구 D209-2]
+**상태:** PLANNED (신 D212 완료 후)
 **커밋:** (미정)
 **테스트:** (미정)
 **문서:** `docs/v2/reports/D209/D209-2_REPORT.md`
@@ -6407,8 +6946,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D209-3: Runbook + Gate/CI Automation (운영 자동화)
-**상태:** PLANNED (D208 완료 후)
+#### 신 D213-3: Runbook + Gate/CI Automation (운영 자동화) [구 D209-3]
+**상태:** PLANNED (신 D212 완료 후)
 **문서:** `docs/v2/reports/D209/D209-3_REPORT.md`
 
 **목표:**
@@ -6447,8 +6986,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-#### D209-4: Admin Control Panel (최소 제어)
-**상태:** PLANNED (D208 완료 후)
+#### 신 D213-4: Admin Control Panel (최소 제어) [구 D209-4]
+**상태:** PLANNED (신 D212 완료 후)
 **문서:** `docs/v2/reports/D209/D209-4_REPORT.md`
 
 **목표:**
@@ -6506,9 +7045,36 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
-### LIVE Ramp (D210+) - 잠금 섹션
+### LIVE Ramp (D214+) - 잠금 섹션
 
 **현재 상태:** 🔒 LOCKED  
+**조건:** 신 D209 (LIVE 설계) 완료 + 신 D206~D208 (V1→V2 완전 이식 + Paper 수익성 + 실패 대응) 완료 후 재검토
+
+**원칙:**
+- V2에서 LIVE 실제 구현은 신 D209 설계 완료 전까지 절대 금지
+- 신 D209-3 (LIVE 봉인 검증) PASS 전까지는 설계만 허용
+- LIVE 실제 구현 시 별도 D 번호 할당 (D214+)
+- allowlist 해제는 CTO/리드 승인 필수
+
+---
+
+## V2 마일스톤 요약
+
+| Phase | D 번호 | 상태 | 목표 |
+|-------|--------|------|------|
+| **Foundation** | D200 | 🔄 IN_PROGRESS | SSOT 확정 + Config + Infra 재사용 |
+| **Adapter** | D201 | ✅ DONE | Upbit/Binance 구현 + Payload 검증 |
+| **MarketData** | D202 | ⏳ PLANNED | REST/WS 통합 + Cache |
+| **Detector** | D203 | ⏳ PLANNED | Opportunity + Fee Model |
+| **Paper Loop** | D204 | ⏳ PLANNED | 20m/1h/3h Smoke + KPI |
+| **Reporting** | D205 | ⏳ PLANNED | PnL + Dashboard |
+| **Ops/Deploy** | D206 | ⏳ PLANNED | 인프라 재사용 + 배포 런북 |
+| **LIVE** | D207+ | 🔒 LOCKED | 조건 충족 후 재검토 |
+
+---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 **조건:** D208 완료 + V2 아키텍처 검증 + 수익성 증명 후 재검토
 
 **원칙:**
