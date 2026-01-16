@@ -6129,12 +6129,12 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [x] AC-6: 회귀 테스트 - Doctor PASS, Fast PASS (D206-1 17/17 tests)
 
 **Evidence 경로:**
-- 이식 보고: `docs/v2/reports/D206/D206-2_STRATEGY_MIGRATION_REPORT.md`
+- 이식 보고: `docs/v2/reports/D206/D206-2_REPORT.md`
 - Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (6/8 PASS, 2 V1 버그 스킵)
 - Evidence: `logs/evidence/d206_2_strategy_migration_20260116_224103/`
 - Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
 - Fast Gate: `pytest tests/test_d206_1_domain_models.py` (17/17 PASS)
-- Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/7aac6b8..TBD
+- Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/7aac6b8..d4d5e2d
 
 **의존성:**
 - Depends on: 신 D206-1 (V1 도메인 모델 통합) ✅
