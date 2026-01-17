@@ -6465,11 +6465,11 @@ enable_execution: false       # REQUIRED
 
 ---
 
-#### 신 D207-4: Strategy Parameter AutoTuner (Optional, Post-Baseline)
+#### 신 D207-4: Strategy Parameter AutoTuner (Bayesian Optimization)
 
 **상태:** PLANNED (신 D207-1 BASELINE PASS 이후)  
 **목적:** 전략 파라미터 자동 튜닝 (Bayesian Optimization, 구 D206-2 성격)  
-**Tag:** [OPTIONAL] (수익성 증명 후 선택적 수행)
+**Tag:** [CORE] (수익성 증명 후 필수 수행 - 지능적 전략 최적화)
 
 **배경:**
 - LEGACY_D206_D209_ARCHIVE.md의 구 D206-2 "자동 파라미터 튜너 (Bayesian Optimization)"를 Phase 2로 이관
@@ -6576,18 +6576,22 @@ enable_execution: false       # REQUIRED
 
 ---
 
-#### 신 D208-3: Fail-Fast 전파
+#### 신 D208-3: Wallclock 이중 검증 + Fail-Fast 전파
 
 **상태:** PLANNED (신 D208-2 완료 후)  
-**목적:** ExitCode 전파 체계 완성, 모든 실패는 ExitCode=1
+**목적:** ExitCode 전파 체계 완성 + Wallclock/Heartbeat 이중 검증 (D205-10-2 유산 복구)
+
+**배경:**
+- D205-10-2 "Wait Harness v2 — Wallclock Verified"에서 구현된 Wallclock 이중 검증 체계 (watch_summary.json, heartbeat.json)
+- 모든 장기 실행(≥1h)에서 필수 적용 (D205 유산 복구)
 
 **Acceptance Criteria:**
-- [ ] AC-1: ExitCode 체계 - 정상 종료=0, 비정상 종료=1, 모든 예외 catch
-- [ ] AC-2: stop_reason 체계 - watch_summary.json에 stop_reason 필드 ("NORMAL", "ERROR_XXX", "RISK_XXX")
-- [ ] AC-3: 예외 핸들러 일원화 - Orchestrator.run() 최상위 try/except, clean exit
-- [ ] AC-4: Alert 시스템 - ExitCode=1 시 Slack/Email Alert 발송 (Best-Effort)
-- [ ] AC-5: 테스트 케이스 - 의도적 예외 발생 시 ExitCode=1 확인
-- [ ] AC-6: 문서화 - OPS_PROTOCOL.md #7 ExitCode 체계 갱신
+- [ ] AC-1: Wallclock 이중 검증 - monotonic_elapsed_sec vs 실제 시간 ±5% 검증 (D205-10-2 재사용)
+- [ ] AC-2: Heartbeat 정합성 - heartbeat.json 60초 간격 강제, 최대 65초 (OPS Invariant)
+- [ ] AC-3: watch_summary.json 자동 생성 - 모든 종료 경로(정상/예외/Ctrl+C)에서 필수 생성
+- [ ] AC-4: ExitCode 체계 - 정상 종료=0, 비정상 종료=1, 모든 예외 catch
+- [ ] AC-5: stop_reason 체계 - watch_summary.json에 stop_reason 필드 ("TIME_REACHED", "EARLY_INFEASIBLE", "ERROR", "INTERRUPTED")
+- [ ] AC-6: 예외 핸들러 일원화 - Orchestrator.run() 최상위 try/except, clean exit
 
 **Evidence 경로:**
 - 테스트 결과: `tests/test_d208_3_fail_fast.py`
