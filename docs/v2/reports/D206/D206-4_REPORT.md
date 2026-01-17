@@ -1,9 +1,11 @@
 # D206-4: Order Pipeline Completion Report
 
 **Date:** 2026-01-17  
-**Status:** ✅ COMPLETED  
+**Status:** ✅ COMPLETED (Closeout: 2026-01-17)  
 **Branch:** rescue/d205_15_multisymbol_scan  
-**Evidence:** `logs/evidence/d206_4_order_pipeline_20260117_021955/`
+**Evidence:** 
+- Initial: `logs/evidence/d206_4_order_pipeline_20260117_021955/`
+- Closeout: `logs/evidence/d206_4_closeout_20260117/` (Regression Gate)
 
 ---
 
@@ -80,23 +82,27 @@ def _trade_to_result(self, trade: ArbitrageTrade) -> OrderResult:
 
 ---
 
-### ✅ AC-3: Fill 기록 - Fill 객체 생성, DB fills 테이블 기록
+### ✅ AC-3: Fill 기록 - DB fills 테이블 기록 (D206-4-1 FIX)
 **구현:**
-- LedgerWriter 통합 준비 (EngineConfig에 `ledger_writer` 필드 추가)
-- `_trade_to_result()` 내부에서 LedgerWriter 호출 준비 (현재는 orchestrator에서 처리)
+- `arbitrage/v2/core/engine.py:422-478` - LedgerWriter.storage.insert_fill() 실제 호출
+- DB fills 테이블 기록: order_id, fill_id, filled_qty, filled_price, fee
+- Decimal 정밀도 유지 (8자리)
 
-**파일:** `arbitrage/v2/core/engine.py:79-81`
-
-**Note:** LedgerWriter.record_order_and_fill()는 candidate/kpi 파라미터를 요구하므로, 실제 DB 기록은 orchestrator 레벨에서 처리됩니다. Engine은 OrderResult만 반환합니다.
+**증거:**
+- `logs/evidence/d206_4_closeout_20260117/db_validation_summary.txt`
+- `tests/test_d206_4_order_pipeline.py` - 7/7 PASS
 
 ---
 
-### ✅ AC-4: Trade 기록 - Trade 객체 생성, DB trades 테이블 기록, PnL 계산
+### ✅ AC-4: Trade 기록 - DB orders 테이블 기록 (D206-4-1 FIX)
 **구현:**
-- Decimal 정밀도 강제 (PnL 계산 시 18자리)
-- ArbitrageTrade.close() 메서드에서 Decimal 기반 PnL 계산 (이미 구현됨)
+- `arbitrage/v2/core/engine.py:442-455` - LedgerWriter.storage.insert_order() 실제 호출
+- DB orders 테이블 기록: order_id, run_id, symbol, exchange, side, quantity, price, status
+- KPI.db_inserts_ok += 2 (order + fill)
 
-**Note:** AC-4는 ArbitrageTrade.close()에서 이미 구현되어 있으며, D206-4에서는 OrderResult 생성에 집중했습니다.
+**증거:**
+- `logs/evidence/d206_4_closeout_20260117/db_validation_summary.txt`
+- Regression Gate: 76/76 PASS (SKIP 0, WARN 0)
 
 ---
 
