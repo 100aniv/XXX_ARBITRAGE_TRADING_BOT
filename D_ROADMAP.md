@@ -6385,12 +6385,13 @@ enable_execution: false       # REQUIRED
 - 20분 BASELINE 실행 후 net_pnl > 0 증명 (실패 시 원인 분석)
 
 **Acceptance Criteria:**
-- [x] AC-1: Real MarketData - Binance/Upbit 실시간 또는 히스토리 데이터 사용, Mock 데이터 금지
-- [x] AC-2: MockAdapter Slippage 모델 - `arbitrage/v2/adapters/mock_adapter.py` 기반, config.yml 활성화 
-- [ ] AC-3: Latency 모델 - 네트워크/주문 처리 지연 시뮬레이션, 평균 100ms 이상
-- [ ] AC-4: BASELINE 20분 - 20분 실행, watch_summary.json completeness_ratio ≥ 0.95
-- [ ] AC-5: net_pnl > 0 - 순이익 증명. 실패 시 DIAGNOSIS.md에 원인 분석 (시장 기회 부족 vs 로직 오류)
-- [ ] AC-6: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터 대상)
+- [x] AC-1: Real MarketData - Binance/Upbit 실시간 또는 히스토리 데이터 사용, Mock 데이터 금지 (PLANNED)
+- [x] AC-2: MockAdapter Slippage 모델 - `arbitrage/v2/adapters/mock_adapter.py` 기반 거래소별 실측 Slippage 분포 적용, 각 주문마다 반영 (D205-17/18 재사용) ✅
+- [ ] AC-3: Latency 모델 - 네트워크/주문 처리 지연 시뮬레이션, 평균 100ms 이상 (PLANNED)
+- [ ] AC-4: Partial Fill 모델 - 부분 체결 시뮬레이션, Fill 기록 및 잔여 주문 처리 (PLANNED)
+- [ ] AC-5: BASELINE 20분 - 20분 실행, watch_summary.json completeness_ratio ≥ 0.95 (PENDING)
+- [ ] AC-6: net_pnl > 0 - 순이익 증명. 실패 시 DIAGNOSIS.md에 원인 분석 (시장 기회 부족 vs 로직 오류) (PENDING)
+- [ ] AC-7: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터 대상) (PLANNED)
 
 **Evidence 경로:**
 - Infrastructure Validation: `logs/evidence/d207_1_baseline_partial_20260117/` ✅
@@ -6446,7 +6447,7 @@ enable_execution: false       # REQUIRED
 **Acceptance Criteria:**
 - [ ] AC-1: 승률 임계치 - kpi_summary.json win_rate < 1.0 (100% 금지)
 - [ ] AC-2: 승률 100% 감지 - win_rate = 1.0 발견 시 ExitCode=1, stop_reason="WIN_RATE_100_SUSPICIOUS"
-- [ ] AC-3: 원인 분석 - DIAGNOSIS.md에 원인 분석 (Mock 데이터 사용 여부, 로직 오류 가능성)
+- [ ] AC-3: DIAGNOSIS.md 시장 vs 로직 분석 - 실패 원인 분석 (시장 기회 부족 vs 로직 오류), Mock 데이터 사용 여부 검증, 거래 패턴 분석 (D205-9 기준 재사용)
 - [ ] AC-4: 예외 처리 - OPS_PROTOCOL.md에 승률 95% 초과 시 is_optimistic_warning 플래그 기록
 - [ ] AC-5: 테스트 케이스 - 의도적으로 승률 100% 만드는 테스트, FAIL 확인
 - [ ] AC-6: 문서화 - OPS_PROTOCOL.md에 승률 100% 감지 시나리오 추가
@@ -6582,12 +6583,12 @@ enable_execution: false       # REQUIRED
 - 모든 장기 실행(≥1h)에서 필수 적용 (D205 유산 복구)
 
 **Acceptance Criteria:**
-- [ ] AC-1: Wallclock 이중 검증 - monotonic_elapsed_sec vs 실제 시간 ±5% 검증 (D205-10-2 재사용)
+- [ ] AC-1: Wallclock 이중 검증 - monotonic_elapsed_sec vs 실제 시간 **±5% 이내 검증**, 초과 시 ExitCode=1 (D205-10-2 재사용)
 - [ ] AC-2: Heartbeat 정합성 - heartbeat.json 60초 간격 강제, 최대 65초 (OPS Invariant)
-- [ ] AC-3: watch_summary.json 자동 생성 - 모든 종료 경로(정상/예외/Ctrl+C)에서 필수 생성
+- [ ] AC-3: watch_summary.json 자동 생성 - 모든 종료 경로(정상/예외/Ctrl+C)에서 필수 생성, completeness_ratio ≥ 0.95
 - [ ] AC-4: ExitCode 체계 - 정상 종료=0, 비정상 종료=1, 모든 예외 catch
 - [ ] AC-5: stop_reason 체계 - watch_summary.json에 stop_reason 필드 ("TIME_REACHED", "EARLY_INFEASIBLE", "ERROR", "INTERRUPTED")
-- [ ] AC-6: 예외 핸들러 일원화 - Orchestrator.run() 최상위 try/except, clean exit
+- [ ] AC-6: 예외 핸들러 일원화 + Fail-Fast 전파 - Orchestrator.run() 최상위 try/except, clean exit, 하위 모듈 예외 즉시 전파
 
 **Evidence 경로:**
 - 테스트 결과: `tests/test_d208_3_fail_fast.py`
