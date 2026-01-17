@@ -6393,11 +6393,11 @@ enable_execution: false       # REQUIRED
 - [ ] AC-6: KPI 비교 - V1 vs V2 수익성 비교 (동일 데이터 대상)
 
 **Evidence 경로:**
-- Infrastructure Validation: `logs/evidence/d207_1_baseline_partial_20260117/` 
-- Paper 실행 (TODO): `logs/evidence/d207_1_baseline_20m_<date>/`
+- Infrastructure Validation: `logs/evidence/d207_1_baseline_partial_20260117/` ✅
+- Paper 실행 (D207-1-1): `logs/evidence/d207_1_baseline_20m_<date>/` (별도 세션 필요)
   - manifest.json, kpi_summary.json, watch_summary.json
   - DIAGNOSIS.md (실패 시)
-- 비교 보고: `docs/v2/reports/D207/D207-1_BASELINE_REPORT.md` 
+- 비교 보고: `docs/v2/reports/D207/D207-1_REPORT.md` ✅ (PARTIAL) 
 
 **의존성:**
 - Depends on: 신 D206-4 (_trade_to_result() 완성) 
