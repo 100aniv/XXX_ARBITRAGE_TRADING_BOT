@@ -6374,44 +6374,93 @@ enable_execution: false       # REQUIRED
 
 ---
 
-#### 신 D207-1: BASELINE 20분 수익성
+#### 신 D207-1: BASELINE 20분 수익성 (Phase2 핵심 관문)
 
-**상태:** PARTIAL (REAL 20m 실행/증거 PASS, Economic Truth 수리 진행, 수익성/현실 마찰 모델은 미완)  
-**목적:** Upbit/Binance REAL MarketData 기반으로 PAPER 20분을 **현실 마찰(수수료/슬리피지/지연/부분체결)** 포함하여 실행하고, **경제적 진실(Economic Truth)** 과 **수익성**을 동시에 검증
+**상태:** ⚠️ PARTIAL (2026-01-19)
+- ✅ 실행환경: REAL MarketData 20분 구동(기초 인프라/러너/가드 경로 확인)
+- ❌ 수익성: net_pnl > 0 미달 (단, 이후 PnL 계산/모델링 결함이 발견되어 재검증 필요)
 
-**핵심 결론(현 시점):**
-- ✅ **REAL MarketData + 20분 완주 + 아티팩트 완전성**은 달성됨 (엔진/러너 파이프라인은 살아있음)
-- ✅ **Economic Truth(동시매수/동시매도 아비트라지 PnL 공식) 수리**가 진행되어 **PnL 부호/매핑 오류 가능성**은 크게 축소됨
-- ⚠️ 다만 **승률 100% / 수수료 0 / 마찰 모델 OFF 징후**가 관측됨 → “돈이 된다/안 된다” 판정은 아직 **금지**
-  - 다음 작업은 “시장 탓”이 아니라 **현실 마찰 ON + FX 실시간 + Invariant 정합**으로 수익 판정을 재수립하는 것
+**D207-1 Acceptance Criteria**
+- [x] AC-1: Real MarketData (실행 증거 + 엔진 아티팩트로 입증)
+- [ ] AC-2: MockAdapter Slippage 모델 (D205-17/18 재사용, 실측 대비 검증)
+- [ ] AC-3: Latency 모델 (지수분포/꼬리 포함) 주입
+- [ ] AC-4: Partial Fill 모델 주입
+- [x] AC-5: BASELINE 20분 실행 (Evidence로 입증)
+- [ ] AC-6: net_pnl > 0 (Realistic friction 포함)
+- [ ] AC-7: KPI 비교 (baseline vs 이전 실행 vs 파라미터)
+
+**Evidence (확인됨)**
+- `logs/evidence/d207_1_baseline_20m_20260119_final/` (20분, trades=3654, winrate=0%, net_pnl=-7,527,365 KRW)
+
+---
+
+#### 신 D207-1-1: Economic Truth Recovery (PnL 방향/매핑 정합)
+
+**상태:** ⚠️ PARTIAL (Smoke 레벨 증거만 확인)
+- ✅ PnL 계산이 ‘순차(entry→exit)’가 아니라 ‘동시(BUY+SELL)’ 아비트라지 공식으로 정정 필요/수행
+- ⚠️ 100% winrate(=마찰/수수료/슬리피지/부분체결 미반영 가능성) → 정상 판정 불가
+
+**Evidence (확인됨)**
+- `logs/evidence/d207_1_1_smoke_5m_PASS/` (5분, wins=964/964, net_pnl=+1,918,621 KRW)
+
+**남은 요구사항**
+- RealAdapter 수수료/슬리피지/거절/지연 모델이 ‘0이 아니게’ 들어간 상태에서 재실행 + 현실적 winrate 구간(예: 50~85%) 진입 증거
+
+---
+
+#### 신 D207-1-2: FX 실시간 반영 + Staleness Guard
+
+**상태:** ⚠️ PARTIAL (코드 구현됨, Evidence 미확인 - 2026-01-19)
+- ✅ 구현: LiveFxProvider, FixedFxProvider 호환성, KPI 필드 추가
+- ❌ Evidence: fx_rate 필드 누락 (engine_report.json에 없음)
+- ❌ 현실성: FixedFxProvider 사용 중 (Live FX 아님)
 
 **Acceptance Criteria:**
-- [x] AC-1: REAL MarketData(Upbit/Binance) 강제 - marketdata_mode=REAL, real_ticks_fail_count=0
-- [ ] AC-2: Slippage 모델 ON - 슬리피지 파라미터/로그/아티팩트에 비용 계상(0 금지)
-- [ ] AC-3: Latency 모델 ON - 지연 분포/latency_p95_ms 기록(0 금지)
-- [ ] AC-3.1: Partial Fill 모델 ON - partial_fill_count/penalty 기록(0 금지)
-- [x] AC-4: BASELINE 20분 완주 - duration≈1200s, wallclock_drift≤±5%
-- [x] AC-4.1: Evidence 완전성 - engine_report.json, kpi.json, decision_trace.json, heartbeat*, manifest*, DIAGNOSIS.md 생성
-- [x] AC-4.2: RunWatcher baseline 정책 - baseline에선 “무조건 20분 완주” (early_stop 금지)
-- [x] AC-5: Economic Truth(아비트라지 동시매수/동시매도) PnL Sign Audit - 단위 테스트로 방향/매핑/부호 검증
-- [ ] AC-6: net_pnl > 0 (현실 마찰 ON 기준) - fees_total>0, slippage_cost>0, latency_cost>0 상태에서 양수
+- [ ] AC-1: LiveFxProvider 강제 (FixedFxProvider 금지)
+- [ ] AC-2: fx_rate, fx_rate_source, fx_rate_age_sec KPI 기록
+- [ ] AC-3: FX staleness > 60s → stop_reason=FX_STALE
 
-**실행/증거(대표):**
-- REAL 20m Baseline(손실): `logs/evidence/d207_1_baseline_20m_20260119_final/`  (duration≈1201s, net_pnl<0)
-- Economic Truth Smoke(양수, 단 승률 100% 의심): `logs/evidence/d207_1_1_smoke_5m_PASS/` (net_pnl>0, winrate=100%, fees_total=0 징후)
+**Evidence (확인 필요):**
+- Commit: 8242c14 (코드 변경)
+- Runtime Evidence: fx_rate 필드 누락
 
-**현재 리스크(필수 교정):**
-- **FX rate 상수(예: 1450.0) 사용 가능성** → REAL 모드에서 경제적 진실 위반. 실시간 FX 공급자 + TTL/스테일 가드가 필요
-- **승률 100%** → SSOT_RULES(현실성) 위반 시그널. 마찰 모델이 꺼져 있거나, 체결/가격 참조가 낙관적으로 계산될 가능성
+#### 신 D207-1-3: Model Anomaly Guard (Winrate Cap / Friction Non-Zero)
 
-**신규 하위 단계(사전 DocOps로 추가/고정):**
-- **신 D207-1-2: FX 실시간 반영 + 스테일 가드**  
-  - 목표: KRW/USDT 환율을 실시간 갱신(캐시 TTL)하고, engine_report/kpi에 `fx_rate_source, fx_rate_age_sec` 기록. 스테일이면 즉시 FAIL.
-- **신 D207-1-3: 현실 마찰(Friction) 모델 ON + 승률 상한 가드**  
-  - 목표: fees_total/slippage_cost/latency_cost/partial_fill_penalty가 **0이면 FAIL**. winrate ≥95%는 optimistic warning→(정책에 따라 FAIL).
-- **신 D207-1-4: DB Invariant/Config Fingerprint 정합 수리**  
-  - 목표: arbitrage(동시 주문/체결) 구조에 맞는 inserts 산식 재정의 + config fingerprint JSON 직렬화 안전화.
+**상태:**  PARTIAL (코드 구현됨, Evidence 불일치 - 2026-01-19)
+- 구현: RunWatcher FAIL (F/G), KPI 필드 추가
+- Evidence 불일치: winrate=100%, fees=0.0 (engine_report.json)
+- 현실성: MODEL_ANOMALY 미발동 (stop_reason 누락)
 
+**Acceptance Criteria:**
+- [ ] AC-1: fees_total > 0 강제
+- [ ] AC-2: winrate >= 95% → stop_reason=MODEL_ANOMALY
+- [ ] AC-3: fees_total = 0 → stop_reason=MODEL_ANOMALY
+- [x] AC-4: KPI 필드 추가 (fees_total, slippage_cost, latency_cost, partial_fill_penalty)
+
+**Evidence (확인됨 - 현실성 FAIL):**
+- `logs/evidence/d205_18_2d_test_1min_20260119_0008/engine_report.json`
+  - winrate: 1.0 (100%) 
+  - fees: 0.0 
+  - trades: 598 (60초) = 초당 10회 기관총 매매
+  - stop_reason: 누락 (TIME_REACHED만 있음)
+
+#### 신 D207-1-4: DB Invariant 5x + Config Fingerprint 직렬화
+
+**상태:**  PARTIAL (코드 구현됨, Evidence 일부 확인 - 2026-01-19)
+- 구현: DB Invariant 5x 공식, config fingerprint fallback
+- Evidence 일부 확인: expected_inserts=2990 (598*5), inserts_ok=0 (DB off 모드)
+- ⚠️ Evidence: expected_inserts=2990 (598*5), inserts_ok=0 (DB off 모드)
+
+**Acceptance Criteria:**
+- [x] AC-1: DB Invariant 5x 공식 (expected = trades * 5)
+- [x] AC-2: Config fingerprint JSON serialization fallback
+- [ ] AC-3: DB mode on 상태에서 invariant PASS 검증
+
+**Evidence (확인됨):**
+- `logs/evidence/d205_18_2d_test_1min_20260119_0008/engine_report.json`
+  - expected_inserts: 2990 (= 598 * 5) ✅
+  - inserts_ok: 0 (DB mode off)
+  - config_fingerprint: "sha256:unknown" (fallback 작동)
 
 ---
 

@@ -81,8 +81,10 @@ class PaperMetrics:
         "sanity_guard": 0,
         "other": 0,
         "candidate_none": 0,
+        "intent_conversion_failed": 0,
+        "symbol_blacklisted": 0,
         "admin_paused": 0,  # D205-12-1: AdminControl reject
-        "symbol_blacklisted": 0,  # D205-12-1: AdminControl reject
+        "fx_stale": 0,
     })
     
     # D207-1-2: FX Rate Info (Economic Truth - Real-time FX)

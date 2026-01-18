@@ -57,6 +57,10 @@ class WatcherConfig:
     # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (MODEL_ANOMALY)
     check_friction_nonzero: bool = True  # fees_total=0 감지 시 FAIL
     
+    # Add-on Beta: Anti-Machinegun Guard
+    check_machinegun: bool = True  # 기관총 매매 감지
+    max_trades_per_minute: int = 20  # 1분당 최대 거래 수 (초당 0.33회)
+    
     # Evidence 경로
     evidence_dir: str = "logs/evidence"
 
@@ -254,6 +258,25 @@ class RunWatcher:
                 self._save_stop_reason_snapshot(kpi, "FAIL_G_FRICTION_ZERO")
                 self._trigger_graceful_stop()
                 return
+        
+        # Add-on Beta: FAIL 조건 (H): Machinegun Trading (1분당 20회 초과)
+        if self.config.check_machinegun and kpi.closed_trades >= 10:
+            # duration_sec 계산: wallclock_start가 있으면 사용, 없으면 스킨
+            if hasattr(kpi, 'wallclock_start') and kpi.wallclock_start:
+                duration_sec = now - kpi.wallclock_start
+                if duration_sec >= 60:  # 1분 이상 경과
+                    trades_per_minute = (kpi.closed_trades / duration_sec) * 60
+                    if trades_per_minute > self.config.max_trades_per_minute:
+                        self.stop_reason = "MODEL_ANOMALY"
+                        self.diagnosis = (
+                            f"FAIL (H): Machinegun trading detected ({trades_per_minute:.1f} trades/min > {self.config.max_trades_per_minute}). "
+                            f"This indicates missing min_hold_sec enforcement or unrealistic execution frequency. "
+                            f"Total trades: {kpi.closed_trades} in {duration_sec:.1f}s."
+                        )
+                        logger.error(f"[RunWatcher] {self.diagnosis}")
+                        self._save_stop_reason_snapshot(kpi, "FAIL_H_MACHINEGUN")
+                        self._trigger_graceful_stop()
+                        return
         
         # 정상: Heartbeat 기록 (파일 + 로그)
         self._save_heartbeat(kpi)

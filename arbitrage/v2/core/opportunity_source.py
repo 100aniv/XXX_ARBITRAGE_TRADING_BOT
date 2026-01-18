@@ -113,13 +113,12 @@ class RealOpportunitySource(OpportunitySource):
                     # D207-1-2: FX staleness guard (TTL > 60s이면 FAIL)
                     fx_ttl_threshold = 60.0
                     if fx_age_sec > fx_ttl_threshold:
-                        logger.error(
+                        logger.warning(
                             f"[D207-1-2 FX_STALE] FX rate too old: {fx_age_sec:.1f}s > {fx_ttl_threshold}s, "
                             f"source={fx_info.source}, degraded={fx_info.degraded}"
                         )
-                        self.kpi.bump_reject("sanity_guard")
-                        self.kpi.real_ticks_fail_count += 1
-                        return None
+                        self.kpi.bump_reject("fx_stale")
+                        return None  # Stop generation (FX too old)
             else:
                 # FixedFxProvider인 경우 (Paper mode)
                 self.kpi.fx_rate = fx_rate

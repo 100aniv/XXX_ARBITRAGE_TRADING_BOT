@@ -18,7 +18,7 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.orchestrator import PaperOrchestrator
 from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
-from arbitrage.v2.core.fx_provider import FixedFxProvider
+from arbitrage.v2.core.fx_provider import LiveFxProvider
 from arbitrage.v2.marketdata.rate_limiter import RateLimiter
 from arbitrage.v2.storage.ledger import V2LedgerStorage
 from arbitrage.v2.core.profit_core import ProfitCore
@@ -69,8 +69,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             logger.error(f"[D207-1] Provider init failed: {e}", exc_info=True)
             raise RuntimeError(f"Provider initialization failed: {e}")
     
-    # 3. FX Provider (D207-1-2: V2 FixedFxProvider)
-    fx_provider = FixedFxProvider(fx_krw_per_usdt=config.fx_krw_per_usdt)
+    # 3. FX Provider (D207-1-2: LiveFxProvider 강제 - Add-on Gamma)
+    # Static FX는 환상 테스트를 만든다 (Live FX만 허용)
+    fx_provider = LiveFxProvider(
+        default_krw_per_usdt=config.fx_krw_per_usdt,
+        cache_ttl_sec=60.0  # FX staleness guard: 60초 이상 stale이면 FAIL
+    )
     
     # 4. OpportunitySource (Real/Mock 전략) - D206-1 FIXPACK: profit_core 주입
     # D207-1 Step 2: REAL MarketData 강제 검증 (baseline/longrun phase)

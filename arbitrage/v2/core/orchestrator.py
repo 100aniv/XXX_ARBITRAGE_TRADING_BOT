@@ -28,10 +28,11 @@ from arbitrage.v2.core.paper_executor import PaperExecutor
 from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
+from arbitrage.v2.core.run_watcher import RunWatcher
+from arbitrage.v2.core.engine_report import generate_engine_report
+from arbitrage.v2.intent.converter import candidate_to_order_intents
+from arbitrage.v2.domain.order import OrderSide
 from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
-from arbitrage.v2.core.run_watcher import create_watcher
-from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.core.order_intent import OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -261,22 +262,18 @@ class PaperOrchestrator:
                 self.ledger_writer.record_order_and_fill(intents[1], exit_result, candidate, self.kpi)
                 
                 # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
-                # 아비트라지는 simultaneous trading (BUY + SELL 동시)
-                # PnL = (SELL_price - BUY_price) * quantity - fees
+                # Add-on Alpha: Domain-Driven PnL (pnl_calculator.py SSOT)
                 total_fee = entry_result.fee + exit_result.fee
                 
-                # BUY/SELL intent 구분
-                if intents[0].side == OrderSide.BUY:
-                    buy_result = entry_result
-                    sell_result = exit_result
-                else:
-                    buy_result = exit_result
-                    sell_result = entry_result
-                
-                # 아비트라지 PnL: (SELL - BUY) * qty - fees
-                gross_pnl = (sell_result.filled_price - buy_result.filled_price) * buy_result.filled_qty
-                realized_pnl = gross_pnl - total_fee
-                is_win = realized_pnl > 0
+                # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
+                gross_pnl, realized_pnl, is_win = calculate_pnl_summary(
+                    entry_side=intents[0].side.value,
+                    exit_side=intents[1].side.value,
+                    entry_price=entry_result.filled_price,
+                    exit_price=exit_result.filled_price,
+                    quantity=entry_result.filled_qty,
+                    total_fee=total_fee
+                )
                 
                 trade_id = str(uuid.uuid4())
                 self.ledger_writer.record_trade_complete(

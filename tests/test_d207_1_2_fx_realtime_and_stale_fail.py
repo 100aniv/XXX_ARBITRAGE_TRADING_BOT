@@ -146,10 +146,10 @@ class TestFxRealtimeAndStaleGuard:
         # When: Generate opportunity with stale FX
         candidate = opp_source.generate(iteration=1)
         
-        # Then: Should return None (FAIL due to stale FX)
+        # Then: Should reject (FX too old)
         assert candidate is None, "Candidate should be None (FX_STALE)"
+        assert kpi.reject_reasons.get("fx_stale", 0) > 0, "fx_stale reject should be incremented"
         assert kpi.fx_rate_age_sec > 60, "fx_rate_age_sec should be > 60"
-        assert kpi.reject_reasons["sanity_guard"] > 0, "sanity_guard reject should be incremented"
         
         print(f"✅ FX stale guard triggered: age={kpi.fx_rate_age_sec}s > 60s")
     
