@@ -511,10 +511,12 @@ class PaperOrchestrator:
         
         from arbitrage.v2.core.run_watcher import create_watcher
         self._watcher = create_watcher(
-            config=watcher_config,
             kpi_getter=lambda: self.kpi,
             stop_callback=self.request_stop,
             run_id=self.run_id,
+            heartbeat_sec=watcher_config.heartbeat_sec,
+            early_stop_enabled=watcher_config.early_stop_enabled,
+            evidence_dir=watcher_config.evidence_dir,
         )
         self._watcher.start()
         logger.info("[Orchestrator] RunWatcher started (with Safety Guards D/E)")

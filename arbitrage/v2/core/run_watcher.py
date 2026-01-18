@@ -390,6 +390,7 @@ def create_watcher(
     stop_callback: Callable,
     run_id: str = "unknown",
     heartbeat_sec: int = 60,
+    early_stop_enabled: bool = True,
     min_trades_for_check: int = 100,
     max_drawdown_pct: float = 20.0,
     max_consecutive_losses: int = 10,
@@ -403,6 +404,7 @@ def create_watcher(
         stop_callback: PaperRunner.request_stop()를 호출하는 함수
         run_id: Run ID (evidence 경로용)
         heartbeat_sec: Heartbeat 주기 (초)
+        early_stop_enabled: early_stop 활성화 여부 (baseline에서는 False)
         min_trades_for_check: wins=0 체크할 최소 거래 수
         max_drawdown_pct: 최대 낙폭 비율 (%) - Safety Guard D
         max_consecutive_losses: 최대 연속 손실 횟수 - Safety Guard E
@@ -413,6 +415,7 @@ def create_watcher(
     """
     config = WatcherConfig(
         heartbeat_sec=heartbeat_sec,
+        early_stop_enabled=early_stop_enabled,
         min_trades_for_winrate_check=min_trades_for_check,
         max_drawdown_pct=max_drawdown_pct,
         max_consecutive_losses=max_consecutive_losses,

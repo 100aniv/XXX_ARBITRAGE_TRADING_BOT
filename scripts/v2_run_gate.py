@@ -148,46 +148,56 @@ class V2GateRunner:
         """Step C: Run Baseline (phase-specific RunWatcher policy)"""
         print(f"\n[GATE C] Run Baseline ({self.phase}, {self.duration_minutes}m)")
         
-        # D207-1: Direct import 방식 (subprocess 캐시 문제 우회)
-        print(f"  Executing PaperRunner directly (import mode)...")
+        # D207-1: subprocess with full cache disable
+        cmd = [
+            sys.executable,
+            "-c",
+            f"""
+import sys
+sys.path.insert(0, r'{self.repo_root}')
+from arbitrage.v2.harness.paper_runner import PaperRunnerConfig, PaperRunner
+
+config = PaperRunnerConfig(
+    duration_minutes={self.duration_minutes},
+    phase='{self.phase}',
+    output_dir=r'{self.evidence_dir}',
+    use_real_data=True,
+)
+
+runner = PaperRunner(config)
+exit_code = runner.run()
+sys.exit(exit_code)
+"""
+        ]
         
-        try:
-            # sys.path에 repo_root 추가
-            if str(self.repo_root) not in sys.path:
-                sys.path.insert(0, str(self.repo_root))
-            
-            # paper_runner import 및 실행
-            from arbitrage.v2.harness.paper_runner import PaperRunnerConfig, PaperRunner
-            from arbitrage.v2.opportunity import BreakEvenParams, FeeModel, FeeStructure
-            
-            # Config 생성
-            config = PaperRunnerConfig(
-                duration_minutes=self.duration_minutes,
-                phase=self.phase,
-                output_dir=str(self.evidence_dir),
-                use_real_data=True,  # REAL MarketData 강제
-            )
-            
-            print(f"  Config: phase={config.phase}, duration={config.duration_minutes}m, output_dir={config.output_dir}")
-            print(f"  use_real_data={config.use_real_data}, marketdata_mode=REAL")
-            
-            # Runner 실행
-            runner = PaperRunner(config)
-            exit_code = runner.run()
-            
-            if exit_code != 0:
-                print(f"  ❌ Baseline failed (ExitCode={exit_code})")
-                return False
-            
-            print(f"  ✅ Baseline passed (ExitCode=0)")
-            return True
-            
-        except Exception as e:
-            print(f"  ❌ Baseline execution failed: {e}")
-            import traceback
-            error_msg = traceback.format_exc()
-            (self.evidence_dir / "baseline_error.txt").write_text(error_msg, encoding="utf-8")
+        print(f"  Executing PaperRunner in clean subprocess...")
+        
+        # 환경변수: 모든 캐시 비활성화
+        import os
+        env = os.environ.copy()
+        env['PYTHONDONTWRITEBYTECODE'] = '1'
+        env['PYTHONUNBUFFERED'] = '1'
+        
+        result = subprocess.run(
+            cmd,
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            env=env
+        )
+        
+        # Output 저장
+        (self.evidence_dir / "baseline_stdout.txt").write_text(result.stdout, encoding="utf-8")
+        (self.evidence_dir / "baseline_stderr.txt").write_text(result.stderr, encoding="utf-8")
+        
+        if result.returncode != 0:
+            print(f"  ❌ Baseline failed (ExitCode={result.returncode})")
+            print(f"     Stdout: {self.evidence_dir / 'baseline_stdout.txt'}")
+            print(f"     Stderr: {self.evidence_dir / 'baseline_stderr.txt'}")
             return False
+        
+        print(f"  ✅ Baseline passed (ExitCode=0)")
+        return True
     
     def _check_marketdata_liveness(self) -> bool:
         """Step D: Marketdata Liveness Guard (60s bid/ask change)"""
