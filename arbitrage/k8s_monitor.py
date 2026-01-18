@@ -11,7 +11,7 @@ import subprocess
 import json
 from typing import Dict, List, Optional, Literal
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class K8sJobMonitor:
         Returns:
             K8sMonitorSnapshot
         """
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         errors = []
         
         logger.info(f"[D32_K8S_MONITOR] Loading snapshot: namespace={self.namespace}, selector={self.label_selector}")

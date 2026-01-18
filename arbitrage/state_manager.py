@@ -20,7 +20,7 @@ import logging
 import json
 import os
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import redis
 import numpy as np
 
@@ -166,7 +166,7 @@ class StateManager:
             "bid": str(bid),
             "ask": str(ask),
             "mid": str((bid + ask) / 2),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self._set_redis_or_memory(key, data, ttl=60)
     
@@ -524,7 +524,7 @@ class StateManager:
             component: 컴포넌트 이름
         """
         key = self._get_key("heartbeat", component)
-        self._set_redis_or_memory(key, datetime.utcnow().isoformat(), ttl=60)
+        self._set_redis_or_memory(key, datetime.now(timezone.utc).isoformat(), ttl=60)
     
     def get_heartbeat(self, component: str) -> Optional[str]:
         """하트비트 조회"""

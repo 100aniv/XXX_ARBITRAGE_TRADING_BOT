@@ -16,6 +16,7 @@ Date: 2026-01-06
 import inspect
 import pytest
 from pathlib import Path
+from typing import Callable
 
 
 def test_paper_runner_no_while_loop():

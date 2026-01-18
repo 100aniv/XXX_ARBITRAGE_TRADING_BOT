@@ -20,7 +20,7 @@ D60: Multi-Symbol Capital & Position Limits
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class OrderSide(str, Enum):
@@ -75,8 +75,8 @@ class Order:
     price: float
     status: OrderStatus
     filled_quantity: float = 0.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     @property
     def fill_rate(self) -> float:
@@ -94,7 +94,7 @@ class Position:
     entry_price: float
     current_price: float
     side: OrderSide
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     # D57: Multi-Symbol 확장 필드
     symbol_context: Optional[str] = None  # 심볼이 속한 컨텍스트 (예: "KRW-BTC", "BTCUSDT")
     
@@ -127,7 +127,7 @@ class Signal:
     sell_price: float
     spread: float
     spread_pct: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     @property
     def is_profitable(self) -> bool:
@@ -147,7 +147,7 @@ class ExecutionResult:
     gross_pnl: float
     net_pnl: float
     fees: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     @property
     def pnl_pct(self) -> float:
@@ -165,7 +165,7 @@ class RiskMetrics:
     expected_shortfall: float
     max_drawdown: float
     sharpe_ratio: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -201,7 +201,7 @@ class PortfolioState:
     positions: Dict[str, Position] = field(default_factory=dict)
     orders: Dict[str, Order] = field(default_factory=dict)
     risk_metrics: Optional[RiskMetrics] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     # D57: Multi-Symbol 확장 필드
     symbol: Optional[str] = None  # 단일 심볼 모드일 때 심볼 지정
     per_symbol_positions: Dict[str, Dict[str, Position]] = field(default_factory=dict)  # {symbol: {pos_id: Position}}

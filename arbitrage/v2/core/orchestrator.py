@@ -164,6 +164,21 @@ class PaperOrchestrator:
         
         logger.info(f"[D207-1] Orchestrator starting (state={self._state.value})...")
         
+        # Add-on AA: Provider Verification (D207-1 RECOVERY)
+        # Verify actual provider class type (isinstance check)
+        from arbitrage.v2.core.opportunity_source import RealOpportunitySource, MockOpportunitySource
+        provider_class_name = self.opportunity_source.__class__.__name__
+        is_real = isinstance(self.opportunity_source, RealOpportunitySource)
+        is_mock = isinstance(self.opportunity_source, MockOpportunitySource)
+        
+        logger.info(f"[Provider Verification] Class: {provider_class_name}, is_real={is_real}, is_mock={is_mock}")
+        
+        # Record provider type in KPI (for engine_report)
+        if hasattr(self.kpi, 'provider_class_name'):
+            self.kpi.provider_class_name = provider_class_name
+        if hasattr(self.kpi, 'provider_is_real'):
+            self.kpi.provider_is_real = is_real
+        
         # RunWatcher 시작
         self.start_watcher()
         
@@ -419,42 +434,41 @@ class PaperOrchestrator:
             try:
                 db_counts = self.ledger_writer.get_counts() if hasattr(self, 'ledger_writer') else None
                 
-                # Legacy evidence (기존 kpi_summary.json 등)
-                if hasattr(self, 'kpi') and hasattr(self, 'evidence_collector'):
-                    self.save_evidence(db_counts=db_counts)
-                    logger.info("[D207-1] Atomic Evidence Flush completed")
+                # Add-on AA: Provider Verification - pass to engine_report
+                provider_class_name = self.opportunity_source.__class__.__name__
+                from arbitrage.v2.core.opportunity_source import RealOpportunitySource
+                provider_is_real = isinstance(self.opportunity_source, RealOpportunitySource)
                 
-                # D206-0: Standard Engine Report (Artifact-First SSOT)
-                if hasattr(self, 'kpi') and hasattr(self, 'config'):
-                    from arbitrage.v2.core.engine_report import generate_engine_report, save_engine_report_atomic
-                    
-                    # Calculate wallclock duration
-                    wallclock_end = time.time()
-                    wallclock_duration = wallclock_end - wallclock_start if 'wallclock_start' in locals() else 0.0
-                    expected_duration = self.config.duration_minutes * 60
-                    
-                    # Get warning counts
-                    warn_counts = self._warning_handler.get_counts() if hasattr(self, '_warning_handler') else {"warning_count": 0, "error_count": 0}
-                    
-                    # Determine exit code
-                    final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
-                    
-                    # Generate report
-                    report = generate_engine_report(
-                        run_id=self.run_id,
-                        config=self.config,
-                        kpi=self.kpi,
-                        warning_counts=warn_counts,
-                        wallclock_duration=wallclock_duration,
-                        expected_duration=expected_duration,
-                        db_counts=db_counts,
-                        exit_code=final_exit_code
-                    )
-                    
-                    # Save with atomic flush
-                    save_engine_report_atomic(report, self.config.output_dir)
-                    logger.info("[D206-0] Standard Engine Report saved (Artifact-First)")
-                    
+                # Get warning counts
+                warn_counts = self._warning_handler.get_counts() if hasattr(self, '_warning_handler') else {"warning_count": 0, "error_count": 0}
+                
+                # Determine exit code
+                final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
+                
+                # Wallclock duration (fallback if not defined)
+                wallclock_duration = 0.0
+                expected_duration = self.config.duration_minutes * 60 if hasattr(self.config, 'duration_minutes') else 0.0
+                if hasattr(self, 'kpi') and hasattr(self.kpi, 'wallclock_start'):
+                    wallclock_duration = time.time() - self.kpi.wallclock_start
+                
+                from arbitrage.v2.core.engine_report import generate_engine_report, save_engine_report_atomic
+                
+                # Generate report
+                report = generate_engine_report(
+                    run_id=self.run_id,
+                    config=self.config,
+                    kpi=self.kpi,
+                    warning_counts=warn_counts,
+                    wallclock_duration=wallclock_duration,
+                    expected_duration=expected_duration,
+                    db_counts=db_counts,
+                    exit_code=final_exit_code
+                )
+                
+                # Save with atomic flush
+                save_engine_report_atomic(report, self.config.output_dir)
+                logger.info("[D206-0] Standard Engine Report saved (Artifact-First)")
+                
             except Exception as flush_error:
                 logger.error(f"[D206-0] Atomic Evidence/Report Flush failed: {flush_error}")
             

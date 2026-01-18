@@ -15,7 +15,7 @@ D16 Live Trading — Safety Module (LiveGuard)
 
 import logging
 from typing import Optional, Dict, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 import numpy as np
 
@@ -32,8 +32,8 @@ class SafetyState:
     total_loss: float = 0.0
     trades_this_hour: int = 0
     trades_today: int = 0
-    last_hour_reset: datetime = field(default_factory=datetime.utcnow)
-    last_day_reset: datetime = field(default_factory=datetime.utcnow)
+    last_hour_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_day_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     circuit_breaker_active: bool = False
     circuit_breaker_activated_at: Optional[datetime] = None
 
@@ -100,7 +100,7 @@ class SafetyModule:
             (허용 여부, 거부 사유)
         """
         # 일일 리셋 확인
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if (now - self.state.last_day_reset).days >= 1:
             self.state.daily_loss = 0.0
             self.state.trades_today = 0
@@ -139,7 +139,7 @@ class SafetyModule:
         Returns:
             (허용 여부, 거부 사유)
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # 시간별 리셋
         if (now - self.state.last_hour_reset).seconds >= 3600:
@@ -218,7 +218,7 @@ class SafetyModule:
         Returns:
             (허용 여부, 거부 사유)
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # 회로차단기 쿨다운 확인
         if self.state.circuit_breaker_active:
@@ -283,7 +283,7 @@ class SafetyModule:
         Args:
             loss: 손실액
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # 일일 리셋
         if (now - self.state.last_day_reset).days >= 1:
@@ -323,7 +323,7 @@ class SafetyModule:
         """일일 통계 리셋"""
         self.state.daily_loss = 0.0
         self.state.trades_today = 0
-        self.state.last_day_reset = datetime.utcnow()
+        self.state.last_day_reset = datetime.now(timezone.utc)
         logger.info("Daily statistics reset")
     
     def reset_all(self) -> None:

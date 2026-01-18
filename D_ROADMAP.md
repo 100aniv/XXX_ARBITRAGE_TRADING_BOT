@@ -6376,13 +6376,26 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-1: BASELINE 20분 수익성
 
-**상태:** PLANNED (신 D206-4 완료 후)  
+**상태:** ⚠️ NOT COMPLETED (2026-01-18) - 이전 실행 AC 미충족, 표준 러너 재구축 중  
 **목적:** Real MarketData + Slippage/Latency 모델 강제, 20분 BASELINE 실행 후 net_pnl > 0 증명
 
 **목표:**
 - Real MarketData (Binance/Upbit 실시간 또는 히스토리) 사용
 - Slippage/Latency/Partial Fill 모델 강제
 - 20분 BASELINE 실행 후 net_pnl > 0 증명 (실패 시 원인 분석)
+
+**이전 실행 실패 근거 (2026-01-18):**
+- ❌ AC-5 미충족: 1분 조기 중단 (20분 요구)
+- ❌ AC-6 미충족: net_pnl < 0
+- ❌ Evidence 누락: watch_summary.json, engine_report.json 부재
+- ❌ 모델 ON 증거 부족: fees_total=0, latency_p95_ms=0, fill_rate=1.0
+- ❌ SSOT 위반: "COMPLETED WITH DIAGNOSIS" 선언은 로드맵 AC 기준 무효
+
+**복구 전략:**
+- 표준 게이트 러너 구축 (scripts/v2_run_gate.py) - 모니터링/진단/증거 강제
+- RunWatcher 정책 분기 (baseline: early_stop_disabled=True)
+- Net Edge Sanity Guard 추가 (negative edge 187회 반복 방지)
+- Provider Verification (marketdata_mode 정확성 보장)
 
 **Acceptance Criteria:**
 - [x] AC-1: Real MarketData - Binance/Upbit 실시간 또는 히스토리 데이터 사용, Mock 데이터 금지 (PLANNED)
@@ -6790,43 +6803,6 @@ enable_execution: false       # REQUIRED
 - Report: docs/v2/reports/D210/D210-3_REPORT.md
 
 **의존성:**
-- Depends on: D210-2 (A-S Model) 
-- Unblocks: D210-4 (Performance Benchmark)
-
----
-
-#### D210-4: 알파 모델 Performance Benchmark
-
-**상태:**  PLANNED (D210-3 완료 후)  
-**목적:** Baseline vs OBI vs A-S 수익성 비교, 최적 알파 모델 조합 결정
-
-**Acceptance Criteria:**
-- [ ] AC-1: Baseline vs OBI vs A-S 수익성 비교
-- [ ] AC-2: Sharpe Ratio, Max Drawdown 비교
-- [ ] AC-3: Market Condition별 성능 분석
-- [ ] AC-4: 최적 알파 모델 조합 결정
-- [ ] AC-5: 장기 Paper 실행 (1시간)
-- [ ] AC-6: 문서화 - Benchmark Report
-
-**Evidence 경로:**
-- Benchmark 스크립트: scripts/run_d210_4_alpha_benchmark.py
-- Backtesting 결과: logs/evidence/d210_4_alpha_benchmark/
-- Report: docs/v2/reports/D210/D210-4_BENCHMARK_REPORT.md
-
-**의존성:**
-- Depends on: D210-3 (Inventory Risk) 
-- Unblocks: D211 (Backtesting/Replay)
-
----
-
-### D211: Backtesting/Replay 엔진 (Truth 강화)
-
-**전략:** 과거 데이터 기반 전략 검증 + Walk-Forward Testing, Overfitting 방지  
-**Constitutional Basis:** Freqtrade Backtesting Framework + Walk-Forward Validation
-
----
-
-
 
 ---
 

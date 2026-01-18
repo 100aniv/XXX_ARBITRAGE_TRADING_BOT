@@ -112,7 +112,7 @@ def generate_engine_report(
     git_sha = get_git_sha()
     
     # Config fingerprint
-    config_fingerprint = compute_config_fingerprint(config, config_path=config_path)
+    config_fingerprint = compute_config_fingerprint(config)
     
     # Exchanges/Symbols
     exchanges = getattr(config, 'exchanges', ['upbit', 'binance'])

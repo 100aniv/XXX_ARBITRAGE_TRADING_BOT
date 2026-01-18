@@ -5,7 +5,7 @@ Engine-centric arbitrage logic.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING, Callable
 from enum import Enum
 import logging
 import yaml
@@ -68,6 +68,9 @@ class EngineConfig:
     enable_execution: bool = False
     tick_interval_sec: float = 1.0
     kpi_log_interval: int = 10
+    
+    # Add-on Z: Net Edge Sanity Guard (D207-1 RECOVERY)
+    min_net_edge_bps: float = 0.0  # Minimum net edge to open trade (default: 0, no negative edge)
     
     # D206-2: V1 FeeModel/MarketSpec/ArbRoute 통합 (dynamic, not from config.yml)
     adapters: Dict[str, ExchangeAdapter] = field(default_factory=dict)
@@ -199,6 +202,37 @@ class ArbitrageEngine:
         logger.info(f"[D206-1] ProfitCore: total_cost={self._total_cost_bps:.2f} bps, fx_rate={self._exchange_a_to_b_rate}")
         if admin_control:
             logger.info(f"[D205-12-2] AdminControl enabled: {admin_control.state_key}")
+    
+    def update_runtime_config(self, new_params: dict) -> None:
+        """
+        Add-on AB: Bayesian Hot-Reload API (D207-1 RECOVERY)
+        
+        Update engine config at runtime without restarting process.
+        Intended for Bayesian Optimizer (D207-4) to tune parameters on-the-fly.
+        
+        Args:
+            new_params: Dict of config params to update
+                Allowed keys: min_spread_bps, min_net_edge_bps, take_profit_bps, stop_loss_bps
+        
+        Example:
+            engine.update_runtime_config({'min_spread_bps': 25.0, 'min_net_edge_bps': 5.0})
+        """
+        allowed_keys = {
+            'min_spread_bps', 'min_net_edge_bps', 'max_position_usd', 'max_open_trades',
+            'take_profit_bps', 'stop_loss_bps', 'min_hold_sec', 'close_on_spread_reversal'
+        }
+        
+        for key, value in new_params.items():
+            if key not in allowed_keys:
+                logger.warning(f"[Bayesian Hot-Reload] Ignoring unknown param: {key}")
+                continue
+            
+            if hasattr(self.config, key):
+                old_value = getattr(self.config, key)
+                setattr(self.config, key, value)
+                logger.info(f"[Bayesian Hot-Reload] Updated {key}: {old_value} → {value}")
+            else:
+                logger.warning(f"[Bayesian Hot-Reload] Config has no attribute: {key}")
     
     def run_cycle(self) -> List[OrderResult]:
         """
@@ -586,8 +620,10 @@ class ArbitrageEngine:
         best_spread = max(spread_a_to_b, spread_b_to_a)
         net_edge = best_spread - self._total_cost_bps
         
-        # V1 D45: Accept if net_edge >= 0 (not < min_spread_bps)
-        if net_edge < 0:
+        # Add-on Z: Net Edge Sanity Guard (D207-1 RECOVERY)
+        # Block trades with net_edge < config.min_net_edge_bps
+        if net_edge < self.config.min_net_edge_bps:
+            logger.debug(f"[Net Edge Guard] Blocked: net_edge={net_edge:.2f} < min={self.config.min_net_edge_bps:.2f}")
             return None
         
         # Check max open trades

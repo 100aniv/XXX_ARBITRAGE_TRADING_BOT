@@ -88,7 +88,7 @@ class LedgerWriter:
             logger.error(f"[D207-1] DB insert failed: {e}")
             
             if self.config.db_mode == "strict":
-                logger.error(f"[D205-18-2D] FAIL: strict mode")
+                logger.error(f"[D207-1] FAIL: strict mode")
                 raise RuntimeError(f"DB insert failed in strict mode: {error_msg}")
             
             kpi.db_inserts_failed += rows_inserted
@@ -151,7 +151,7 @@ class LedgerWriter:
             logger.error(f"[D207-1] Trade record failed: {e}")
             
             if self.config.db_mode == "strict":
-                logger.error(f"[D207-1] FAIL: strict mode")
+                logger.error(f"[D205-18-2D] FAIL: strict mode")
                 raise RuntimeError(f"Trade record failed in strict mode: {error_msg}")
             
             kpi.db_inserts_failed += rows_inserted

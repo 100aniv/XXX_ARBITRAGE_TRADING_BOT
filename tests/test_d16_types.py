@@ -8,7 +8,7 @@ D16 Tests — Type Definitions
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from arbitrage.types import (
     Price, Order, Position, Signal, ExecutionResult,
     OrderSide, OrderStatus, ExchangeType
@@ -25,7 +25,7 @@ class TestPrice:
             symbol="KRW-BTC",
             bid=50_000_000,
             ask=50_100_000,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         assert price.exchange == ExchangeType.UPBIT
@@ -40,7 +40,7 @@ class TestPrice:
             symbol="KRW-BTC",
             bid=50_000_000,
             ask=50_100_000,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         assert price.mid == 50_050_000
@@ -52,7 +52,7 @@ class TestPrice:
             symbol="KRW-BTC",
             bid=50_000_000,
             ask=50_100_000,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         assert price.spread == 100_000

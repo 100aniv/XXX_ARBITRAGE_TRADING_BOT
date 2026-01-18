@@ -12,7 +12,7 @@ import subprocess
 from typing import Dict, List, Optional, Literal, Any
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class K8sApplyJobResult:
     stdout: str
     stderr: str
     status: Literal["SKIPPED", "SUCCESS", "FAILED"]
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass

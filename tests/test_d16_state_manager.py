@@ -8,7 +8,7 @@ Redis 기반 상태 관리자 테스트.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock, MagicMock, patch
 from arbitrage.state_manager import StateManager
 from arbitrage.types import (
@@ -190,7 +190,7 @@ class TestStateManager:
     
     def test_get_heartbeat(self, state_manager):
         """하트비트 조회"""
-        state_manager._redis.get.return_value = datetime.utcnow().isoformat()
+        state_manager._redis.get.return_value = datetime.now(timezone.utc).isoformat()
         
         heartbeat = state_manager.get_heartbeat("live_trader")
         
