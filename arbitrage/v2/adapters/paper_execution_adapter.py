@@ -1,11 +1,20 @@
 """
-MockAdapter - Test Adapter
+PaperExecutionAdapter - Paper Trading Adapter
 
-Mock implementation for testing without real API calls.
+D207-1-5 Add-on Alpha: Naming to Reality
+- 이전 이름: MockAdapter (오해의 소지 - "Mock 데이터"로 혼동)
+- 새 이름: PaperExecutionAdapter (Paper Trading = 실제 시장가 + 모의 체결)
+- MockAdapter는 backward compatibility를 위한 deprecated alias로 유지
+
+Paper execution without real API calls (but with REAL market data).
 
 D205-17: Realism Injection
 - Slippage model: 20-50bps (config.yml SSOT, D205-18-1)
 - 목적: 100% 승률 가짜 낙관 제거, 현실적 50-80% 승률 목표
+
+D207-1-3 Add-on BF: Non-Zero Friction Value
+- 수수료 모델: Upbit 5bps (0.05%), Binance 4bps (0.04%)
+- fees_total > 0 강제 (현실 마찰 반영)
 """
 
 from typing import Dict, Any, Optional
@@ -15,9 +24,12 @@ import random
 from arbitrage.v2.core import ExchangeAdapter, OrderIntent, OrderResult, OrderSide, OrderType
 
 
-class MockAdapter(ExchangeAdapter):
+class PaperExecutionAdapter(ExchangeAdapter):
     """
-    Mock adapter for testing.
+    Paper trading adapter - executes orders in paper mode with realistic friction.
+    
+    NOTE: This is NOT about "mock data" - it uses REAL market data from exchanges.
+    "Paper" means we don't send real orders, but we simulate fills with realistic fees/slippage.
     
     D205-18-1: SSOT 통합
     - 슬리피지 설정: config.yml에서 로드 (하드코딩 제거)
@@ -29,8 +41,8 @@ class MockAdapter(ExchangeAdapter):
     - fees_total > 0 강제 (현실 마찰 반영)
     
     Useful for:
-    - Unit testing
-    - Integration testing without real APIs
+    - Paper trading (real prices, simulated fills)
+    - Integration testing without real money
     - Smoke testing with realistic friction
     """
     
@@ -252,3 +264,8 @@ class MockAdapter(ExchangeAdapter):
             fee=fee,
             raw_response=response
         )
+
+
+# D207-1-5 Add-on Alpha: Backward compatibility alias
+# DEPRECATED: Use PaperExecutionAdapter instead
+MockAdapter = PaperExecutionAdapter

@@ -1,6 +1,6 @@
 """V2 Exchange Adapters"""
 
-from .mock_adapter import MockAdapter
+from arbitrage.v2.adapters.paper_execution_adapter import PaperExecutionAdapter, MockAdapter
 from .upbit_adapter import UpbitAdapter
 from .binance_adapter import BinanceAdapter
 

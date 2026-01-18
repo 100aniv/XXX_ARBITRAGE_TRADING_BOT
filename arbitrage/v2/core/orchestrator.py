@@ -401,13 +401,20 @@ class PaperOrchestrator:
             else:
                 logger.info(f"[D205-18-4-FIX-3] F4 Evidence Completeness skipped (duration={duration_sec}s < 60s)")
             
-            # Exit Code 보장: watcher stop_reason='ERROR' 시 return 1
-            if self._watcher and self._watcher.stop_reason == "ERROR":
+            # D207-1-5 Step 3: StopReason/ExitCode 정합성 - RunWatcher FAIL → Exit 1
+            # MODEL_ANOMALY, FX_STALE, ERROR 모두 Exit 1 강제
+            if self._watcher and self._watcher.stop_reason in ["ERROR", "MODEL_ANOMALY", "FX_STALE"]:
                 logger.error(
-                    f"[D205-18-3] RunWatcher triggered FAIL. "
+                    f"[D207-1-5] RunWatcher triggered FAIL. "
+                    f"stop_reason={self._watcher.stop_reason}, "
                     f"Diagnosis: {self._watcher.diagnosis}"
                 )
                 self._state = OrchestratorState.ERROR
+                
+                # Evidence 저장 (finally 블록 전에)
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                
                 return 1
             
             # D206-0 FIX: WARN=FAIL 원칙 강제 (WARNING도 FAIL)

@@ -6408,43 +6408,58 @@ enable_execution: false       # REQUIRED
 
 ---
 
-#### 신 D207-1-2: FX 실시간 반영 + Staleness Guard
+### D207-1-2 (AU): Dynamic FX Intelligence (Real-time FX + Staleness Guard)
+**상태:** ⚠️ PARTIAL (단위 테스트만으로는 DONE 금지: REAL baseline evidence로 FX KPI 박제 필요)
 
-**상태:** ⚠️ PARTIAL (Tests PASS, Real Evidence 미확인 - 2026-01-19)
-- ✅ 구현: LiveFxProvider 강제, KPI 필드 추가, FX staleness guard
-- ✅ Tests: 3/3 PASS (test_d207_1_2_fx_realtime_and_stale_fail.py)
-- ❌ Real Evidence: baseline 실행에서 fx_rate 기록 미확인
-- ✅ Domain-Driven: pnl_calculator.py SSOT, orchestrator 로직 제거
+**AC 체크:**
+- [ ] AC-1: REAL baseline에서 `fx_rate`, `fx_rate_source`, `fx_rate_age_sec`, `fx_rate_timestamp`, `fx_rate_degraded` 기록
+- [ ] AC-2: FX staleness(>60s) 발생 시 opportunity reject + stop_reason=`FX_STALE`(또는 동급) + **Exit 1**
+- [ ] AC-3: D_ROADMAP에 Evidence 링크 + 지표 박제
 
-**Acceptance Criteria:**
-- [ ] AC-1: LiveFxProvider 강제 + baseline 실행 증거 (runtime_factory.py 변경 완료, 실행 미확인)
-- [ ] AC-2: fx_rate, fx_rate_source, fx_rate_age_sec, fx_rate_timestamp KPI 기록 (필드 추가 완료, 실행 미확인)
-- [ ] AC-3: FX staleness > 60s → return None (FAIL) (코드 완료, 실행 미확인)
+---
 
-**Evidence (테스트 기반만):**
-- Tests: 3/3 PASS (fx_rate_info, fx_stale_guard, fixed_fx_provider)
-- ❌ Baseline Evidence 부족: logs/evidence/d207_1_2_baseline_* 없음
+### D207-1-3 (AT): Active Failure Detection (Friction/Winrate/Machinegun Guards)
+**상태:** ⚠️ PARTIAL (코드는 추가됐지만, Evidence가 원자적/정합적이지 않아 ‘작동’ 증거 불충분)
 
-#### 신 D207-1-3: Model Anomaly Guard (Winrate Cap / Friction Non-Zero)
+**현재 관측된 문제(증거 기준):**
+- `engine_report.gate_validation`에서 warnings/errors가 0이 아닌데도 `exit_code=0` → **WARN=FAIL 위반**
+- `engine_report.stop_reason`와 `watch_summary.stop_reason`가 서로 다르게 기록되는 케이스 존재 → **Evidence 불정합**
 
-**상태:** ⚠️ PARTIAL (Tests PASS, 실제 baseline에서 MODEL_ANOMALY 미발동 - 2026-01-19)
-- ✅ 구현: RunWatcher FAIL (F/G/H), KPI 필드 추가, Anti-Machinegun Guard
-- ✅ Tests: 4/4 PASS (test_d207_1_3_friction_must_be_nonzero_and_winrate_cap.py)
-- ❌ **실제 문제: baseline에서 fees_total=0, winrate=100% 발생 (D207-1-1 Evidence 참조)**
-- ❌ **가드 미작동: RunWatcher FAIL F/G가 baseline에서 트리거 안 됨**
-- 🔍 **근본 원인: MockAdapter가 수수료를 계산하지 않음 (fee=0.0 하드코딩)**
+**AC 체크:**
+- [ ] AC-1: fees_total=0 → stop_reason=`MODEL_ANOMALY` + Exit 1 (FAIL 증명)
+- [ ] AC-2: winrate>=95% → stop_reason=`MODEL_ANOMALY` + Exit 1 (FAIL 증명)
+- [ ] AC-3: trades_per_minute>20 → stop_reason=`MODEL_ANOMALY` + Exit 1 (FAIL 증명)
+- [ ] AC-4: WARN/SKIP/ERROR = 즉시 FAIL (Exit 1) ‘런타임 증거’
 
-**Acceptance Criteria:**
-- [ ] AC-1: fees_total > 0 강제 (코드 완료, **MockAdapter 수수료 모델 필요**)
-- [ ] AC-2: winrate >= 95% → stop_reason=MODEL_ANOMALY (코드 완료, **baseline 실행 미확인**)
-- [ ] AC-3: fees_total = 0 → stop_reason=MODEL_ANOMALY (코드 완료, **baseline에서 미발동**)
-- [x] AC-4: KPI 필드 추가 (fees_total, slippage_cost, latency_cost, partial_fill_penalty) ✅
-- [ ] AC-5: Anti-Machinegun Guard (trades_per_minute > 20 → FAIL H) (코드 완료, **baseline 실행 미확인**)
+---
 
-**Evidence (테스트 vs 실제 불일치):**
-- ✅ Tests: 4/4 PASS (friction_costs_recorded, winrate_cap_fail, friction_zero_fail, friction_pass)
-- ❌ **Baseline Reality: fees_total=0.0, winrate=100% (logs/evidence/d205_18_2d_test_1min_20260119_0008/)**
-- ❌ **가드 미발동: stop_reason에 MODEL_ANOMALY 없음**
+### D207-1-4 (AV): 5x Ledger Rule + Config Fingerprint
+**상태:** ⚠️ PARTIAL (공식은 보이지만, DB/지문/가드까지 ‘런타임 증거’가 필요)
+
+**AC 체크:**
+- [x] AC-1: expected_inserts = trades * 5 (engine_report에 공식 반영)
+- [ ] AC-2: config fingerprint가 항상 직렬화 가능(sha256:unknown fallback 포함) — 런타임 artifact로 증명
+- [ ] AC-3: (DB를 쓰는 모드에서) inserts_ok == expected_inserts 증명
+
+---
+
+### D207-1-5 (NEW): Gate Wiring & Evidence Atomicity (WARN=FAIL + StopReason=FAIL)
+**상태:** ⬜ TODO
+
+**목표:** “가드가 발동하면 무조건 FAIL(Exit 1)” + “Evidence가 원자적으로 정합”을 강제한다.
+
+**AC 체크:**
+- [ ] AC-0: 아키텍처 경계 고정: Runner/Gate는 엔진 내부 객체를 참조하지 않고, 엔진이 생성한 Standard JSON Artifacts만 검증한다 (Artifact-First, Thin Wrapper)
+- [ ] AC-1: warnings>0 또는 errors>0 또는 skips>0 → `exit_code=1` 강제
+- [ ] AC-2: stop_reason=`MODEL_ANOMALY`/`FX_STALE` → status=`FAIL` + `exit_code=1` 강제
+
+---
+
+### Naming Note (UX / 오해 방지)
+- `MockAdapter`는 MarketData가 아니라 **Execution(체결) 측면의 Paper Adapter**다.
+- 오해 방지를 위해 다음 중 1개를 D207-1-5에서 같이 수행 권장:
+  - (권장) `PaperExecutionAdapter`로 rename + `MockAdapter`는 deprecated alias 유지
+  - 또는 최소한 docstring/README/SSOT에 “Mock=PaperExecution”을 명시
 
 ---
 
@@ -7063,6 +7078,9 @@ enable_execution: false       # REQUIRED
 - D219: LIVE Scale-up
 
 ---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

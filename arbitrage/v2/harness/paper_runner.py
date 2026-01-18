@@ -183,10 +183,17 @@ class PaperRunner:
         """
         메인 실행 (Thin Wrapper)
         
+        D207-1-5 Step 2: Evidence Atomicity
+        - 예외 발생 시에도 DIAGNOSIS.md 생성
+        - finally에서 최소 evidence 보장
+        
         Returns:
             Exit code (0=success, 1=failure)
         """
         logger.info(f"[D207-1] PaperRunner starting (duration={self.config.duration_minutes}m)")
+        
+        orchestrator = None
+        exit_code = 1  # 기본값 FAIL
         
         try:
             from arbitrage.v2.core.runtime_factory import build_paper_runtime
@@ -208,7 +215,57 @@ class PaperRunner:
             
         except Exception as e:
             logger.error(f"[D207-1] PaperRunner failed: {e}", exc_info=True)
+            
+            # D207-1-5 Step 2: Evidence Atomicity - DIAGNOSIS.md 생성
+            try:
+                from pathlib import Path
+                import traceback
+                
+                output_dir = Path(self.config.output_dir)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                diagnosis_path = output_dir / "DIAGNOSIS.md"
+                with open(diagnosis_path, "w", encoding="utf-8") as f:
+                    f.write("# DIAGNOSIS - Runner Exception\n\n")
+                    f.write(f"**Exception:** {type(e).__name__}\n\n")
+                    f.write(f"**Message:** {str(e)}\n\n")
+                    f.write("## Traceback\n\n```\n")
+                    f.write(traceback.format_exc())
+                    f.write("\n```\n")
+                
+                logger.info(f"[D207-1-5] DIAGNOSIS.md saved: {diagnosis_path}")
+            except Exception as diag_err:
+                logger.error(f"[D207-1-5] DIAGNOSIS.md save failed: {diag_err}")
+            
             return 1
+        
+        finally:
+            # D207-1-5 Step 2: Evidence Atomicity - 최소 manifest 보장
+            if orchestrator and hasattr(orchestrator, 'kpi'):
+                try:
+                    from pathlib import Path
+                    import json
+                    from datetime import datetime, timezone
+                    
+                    output_dir = Path(self.config.output_dir)
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # manifest.json 최소 생성 (orchestrator가 생성 안 했을 경우 대비)
+                    manifest_path = output_dir / "manifest.json"
+                    if not manifest_path.exists():
+                        manifest = {
+                            "run_id": self.config.run_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "phase": self.config.phase,
+                            "duration_minutes": self.config.duration_minutes,
+                            "exit_code": exit_code,
+                            "status": "PASS" if exit_code == 0 else "FAIL"
+                        }
+                        with open(manifest_path, "w", encoding="utf-8") as f:
+                            json.dump(manifest, f, indent=2)
+                        logger.info(f"[D207-1-5] manifest.json (minimal) saved: {manifest_path}")
+                except Exception as finally_err:
+                    logger.error(f"[D207-1-5] Finally block failed: {finally_err}")
 
 
 def main():
