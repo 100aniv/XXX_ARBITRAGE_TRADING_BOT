@@ -148,29 +148,18 @@ class V2GateRunner:
         """Step C: Run Baseline (phase-specific RunWatcher policy)"""
         print(f"\n[GATE C] Run Baseline ({self.phase}, {self.duration_minutes}m)")
         
-        # D207-1: subprocess with full cache disable
+        # D207-1: -B -m 방식 (bytecode 완전 비활성화 + 모듈 실행)
         cmd = [
             sys.executable,
-            "-c",
-            f"""
-import sys
-sys.path.insert(0, r'{self.repo_root}')
-from arbitrage.v2.harness.paper_runner import PaperRunnerConfig, PaperRunner
-
-config = PaperRunnerConfig(
-    duration_minutes={self.duration_minutes},
-    phase='{self.phase}',
-    output_dir=r'{self.evidence_dir}',
-    use_real_data=True,
-)
-
-runner = PaperRunner(config)
-exit_code = runner.run()
-sys.exit(exit_code)
-"""
+            "-B",  # Don't write .pyc files
+            "-m", "arbitrage.v2.harness.paper_runner",
+            "--duration", str(self.duration_minutes),
+            "--phase", self.phase,
+            "--output-dir", str(self.evidence_dir),
+            "--use-real-data",
         ]
         
-        print(f"  Executing PaperRunner in clean subprocess...")
+        print(f"  Executing PaperRunner with -B -m (bytecode disabled)...")
         
         # 환경변수: 모든 캐시 비활성화
         import os
