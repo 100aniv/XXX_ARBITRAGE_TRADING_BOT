@@ -6376,8 +6376,14 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-1: BASELINE 20분 수익성
 
-**상태:** ⚠️ NOT COMPLETED (2026-01-18) - 이전 실행 AC 미충족, 표준 러너 재구축 중  
+**상태:** ⚠️ PARTIAL (2026-01-19) - AC-5 PASS, AC-6 FAIL (net_pnl < 0, DIAGNOSIS 작성 완료)  
 **목적:** Real MarketData + Slippage/Latency 모델 강제, 20분 BASELINE 실행 후 net_pnl > 0 증명
+
+**실행 결과 (2026-01-19):**
+- ✅ AC-5 PASS: 20분 실행 완료 (1201.14s, drift 0.1%, 3654 iterations)
+- ❌ AC-6 FAIL: net_pnl = -7,527,365 KRW (winrate 0.0%, 모든 거래 손실)
+- ✅ DIAGNOSIS.md 작성: 원인 분석 완료 (시장 차익거래 기회 부족, 수수료 모델 미반영)
+- ✅ REAL MarketData 검증: marketdata_mode=REAL, real_ticks_ok=3654
 
 **목표:**
 - Real MarketData (Binance/Upbit 실시간 또는 히스토리) 사용
@@ -6996,6 +7002,10 @@ enable_execution: false       # REQUIRED
 - D218: LIVE Pilot (소액 실거래)
 - D219: LIVE Scale-up
 
+---
+
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 ---
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
