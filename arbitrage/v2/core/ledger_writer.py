@@ -47,43 +47,45 @@ class LedgerWriter:
         error_msg = ""
         
         try:
-            order_record = {
-                "order_id": str(uuid.uuid4()),
-                "run_id": self.config.run_id,
-                "symbol": intent.symbol,
-                "exchange": intent.exchange,
-                "side": intent.side.value,
-                "order_type": intent.order_type.value,
-                "base_qty": intent.base_qty,
-                "quote_amount": intent.quote_amount,
-                "limit_price": None,
-                "status": "filled",
-                "created_at": datetime.now(timezone.utc),
-            }
+            order_id = str(uuid.uuid4())
+            timestamp = datetime.now(timezone.utc)
             
-            self.storage.insert_order(order_record)
+            self.storage.insert_order(
+                run_id=self.config.run_id,
+                order_id=order_id,
+                timestamp=timestamp,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                order_type=intent.order_type.value,
+                quantity=float(intent.base_qty) if intent.base_qty else None,
+                price=None,
+                status="filled",
+            )
             rows_inserted += 1
             
-            fill_record = {
-                "fill_id": str(uuid.uuid4()),
-                "order_id": order_record["order_id"],
-                "run_id": self.config.run_id,
-                "symbol": intent.symbol,
-                "exchange": intent.exchange,
-                "side": intent.side.value,
-                "filled_qty": order_result.filled_qty,
-                "filled_price": order_result.filled_price,
-                "fee": order_result.fee,
-                "filled_at": datetime.now(timezone.utc),
-            }
+            fill_id = str(uuid.uuid4())
+            filled_at = datetime.now(timezone.utc)
             
-            self.storage.insert_fill(fill_record)
+            self.storage.insert_fill(
+                run_id=self.config.run_id,
+                order_id=order_id,
+                fill_id=fill_id,
+                timestamp=filled_at,
+                exchange=intent.exchange,
+                symbol=intent.symbol,
+                side=intent.side.value,
+                filled_quantity=float(order_result.filled_qty),
+                filled_price=float(order_result.filled_price),
+                fee=float(order_result.fee),
+                fee_currency="KRW",
+            )
             rows_inserted += 1
             kpi.db_inserts_ok += rows_inserted
             
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"[D205-18-2D] DB insert failed: {e}")
+            logger.error(f"[D207-1] DB insert failed: {e}")
             
             if self.config.db_mode == "strict":
                 logger.error(f"[D205-18-2D] FAIL: strict mode")
@@ -113,33 +115,43 @@ class LedgerWriter:
         try:
             entry_intent = intents[0]
             exit_intent = intents[1]
+            timestamp = datetime.now(timezone.utc)
             
-            trade_record = {
-                "trade_id": trade_id,
-                "run_id": self.config.run_id,
-                "symbol": candidate.symbol,
-                "entry_exchange": entry_intent.exchange,
-                "exit_exchange": exit_intent.exchange,
-                "entry_price": entry_result.filled_price,
-                "exit_price": exit_result.filled_price,
-                "quantity": entry_result.filled_qty,
-                "entry_fee": entry_result.fee,
-                "exit_fee": exit_result.fee,
-                "realized_pnl": realized_pnl,
-                "opened_at": datetime.now(timezone.utc),
-                "closed_at": datetime.now(timezone.utc),
-            }
+            # Generate fake order IDs (assume they exist from record_order_and_fill)
+            entry_order_id = f"entry_{trade_id[:8]}"
+            exit_order_id = f"exit_{trade_id[:8]}"
             
-            self.storage.insert_trade(trade_record)
+            self.storage.insert_trade(
+                run_id=self.config.run_id,
+                trade_id=trade_id,
+                timestamp=timestamp,
+                entry_exchange=entry_intent.exchange,
+                entry_symbol=candidate.symbol,
+                entry_side=entry_intent.side.value,
+                entry_order_id=entry_order_id,
+                entry_quantity=float(entry_result.filled_qty),
+                entry_price=float(entry_result.filled_price),
+                entry_timestamp=timestamp,
+                status="closed",
+                exit_exchange=exit_intent.exchange,
+                exit_symbol=candidate.symbol,
+                exit_side=exit_intent.side.value,
+                exit_order_id=exit_order_id,
+                exit_quantity=float(exit_result.filled_qty),
+                exit_price=float(exit_result.filled_price),
+                exit_timestamp=timestamp,
+                realized_pnl=float(realized_pnl),
+                total_fee=float(entry_result.fee + exit_result.fee),
+            )
             rows_inserted += 1
             kpi.db_inserts_ok += rows_inserted
             
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"[D205-18-2D] Trade record failed: {e}")
+            logger.error(f"[D207-1] Trade record failed: {e}")
             
             if self.config.db_mode == "strict":
-                logger.error(f"[D205-18-2D] FAIL: strict mode")
+                logger.error(f"[D207-1] FAIL: strict mode")
                 raise RuntimeError(f"Trade record failed in strict mode: {error_msg}")
             
             kpi.db_inserts_failed += rows_inserted
@@ -162,5 +174,5 @@ class LedgerWriter:
                 "v2_trades": len(trades),
             }
         except Exception as e:
-            logger.warning(f"[D205-18-2D] DB counts failed: {e}")
+            logger.warning(f"[D207-1] DB counts failed: {e}")
             return None

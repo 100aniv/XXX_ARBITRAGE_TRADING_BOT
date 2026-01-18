@@ -38,7 +38,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     Returns:
         PaperOrchestrator (모든 의존성 주입 완료)
     """
-    logger.info(f"[D205-18-2D] Building Paper Runtime...")
+    logger.info(f"[D207-1] Building Paper Runtime...")
     
     # 0. D206-1 CLOSEOUT: ProfitCore (config.yml 기반)
     v2_config = load_config("config/v2/config.yml")
@@ -64,9 +64,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             binance_provider = BinanceRestProvider(timeout=10.0)
             rate_limiter_upbit = RateLimiter(requests_per_second=9, burst=2)
             rate_limiter_binance = RateLimiter(requests_per_second=20, burst=5)
-            logger.info(f"[D205-18-2D] Real MarketData Providers initialized")
+            logger.info(f"[D207-1] Real MarketData Providers initialized")
         except Exception as e:
-            logger.error(f"[D205-18-2D] Provider init failed: {e}", exc_info=True)
+            logger.error(f"[D207-1] Provider init failed: {e}", exc_info=True)
             raise RuntimeError(f"Provider initialization failed: {e}")
     
     # 3. FX Provider

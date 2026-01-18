@@ -135,7 +135,7 @@ class PaperOrchestrator:
     
     def request_stop(self):
         """RunWatcher 중단 요청"""
-        logger.warning("[D205-18-2D] Stop requested by RunWatcher")
+        logger.warning("[D207-1] Stop requested by RunWatcher")
         self._stop_requested = True
     
     def _register_signal_handlers(self):
@@ -154,7 +154,7 @@ class PaperOrchestrator:
         
         signal.signal(signal.SIGTERM, sigterm_handler)
         signal.signal(signal.SIGINT, sigterm_handler)
-        logger.info("[D205-18-4-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
+        logger.error("[D207-1]-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
     
     def run(self) -> int:
         """메인 실행 루프"""
@@ -162,7 +162,7 @@ class PaperOrchestrator:
         self._state = OrchestratorState.RUNNING
         self._warning_handler.reset()  # D206-0 AC-2: WARNING 카운터 리셋
         
-        logger.info(f"[D206-0] Orchestrator starting (state={self._state.value})...")
+        logger.info(f"[D207-1] Orchestrator starting (state={self._state.value})...")
         
         # RunWatcher 시작
         self.start_watcher()
@@ -264,11 +264,11 @@ class PaperOrchestrator:
                 
                 # KPI 출력 (10 iteration마다)
                 if iteration % 10 == 0:
-                    logger.info(f"[D205-18-2D KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, closed={self.kpi.closed_trades}, pnl={self.kpi.net_pnl:.2f}")
+                    logger.info(f"[D207-1 KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, closed={self.kpi.closed_trades}, pnl={self.kpi.net_pnl:.2f}")
                 
                 time.sleep(0.1)
             
-            logger.info(f"[D205-18-2D] Orchestrator completed: {iteration} iterations")
+            logger.info(f"[D207-1] Orchestrator completed: {iteration} iterations")
             
             # D205-18-4-FIX-2 F5: SIGTERM 시 즉시 Evidence Flush + Exit 1
             if self._sigterm_received:
@@ -422,7 +422,7 @@ class PaperOrchestrator:
                 # Legacy evidence (기존 kpi_summary.json 등)
                 if hasattr(self, 'kpi') and hasattr(self, 'evidence_collector'):
                     self.save_evidence(db_counts=db_counts)
-                    logger.info("[D205-18-4R2] Atomic Evidence Flush completed")
+                    logger.info("[D207-1] Atomic Evidence Flush completed")
                 
                 # D206-0: Standard Engine Report (Artifact-First SSOT)
                 if hasattr(self, 'kpi') and hasattr(self, 'config'):
@@ -439,12 +439,11 @@ class PaperOrchestrator:
                     # Determine exit code
                     final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
                     
-                    # Generate report (D206-3: config_path for fingerprint)
+                    # Generate report
                     report = generate_engine_report(
                         run_id=self.run_id,
                         config=self.config,
                         kpi=self.kpi,
-                        config_path="config.yml",
                         warning_counts=warn_counts,
                         wallclock_duration=wallclock_duration,
                         expected_duration=expected_duration,

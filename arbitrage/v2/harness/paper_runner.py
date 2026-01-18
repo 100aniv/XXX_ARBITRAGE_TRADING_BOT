@@ -110,7 +110,7 @@ class PaperRunner:
         self.admin_control = admin_control
         self.kpi = None  # D205-18-4-FIX-3: 테스트 호환성
         self._orchestrator = None  # D206-1: Orchestrator 참조
-        logger.info(f"[D205-18-2D] PaperRunner initialized: {config.run_id}")
+        logger.info(f"[D207-1] PaperRunner initialized: {config.run_id}")
     
     # D206-1 CLOSEOUT: Registry Evidence Fields (프로퍼티로 Orchestrator KPI 노출)
     @property
@@ -186,7 +186,7 @@ class PaperRunner:
         Returns:
             Exit code (0=success, 1=failure)
         """
-        logger.info(f"[D205-18-2D] PaperRunner starting (duration={self.config.duration_minutes}m)")
+        logger.info(f"[D207-1] PaperRunner starting (duration={self.config.duration_minutes}m)")
         
         try:
             from arbitrage.v2.core.runtime_factory import build_paper_runtime
@@ -203,11 +203,11 @@ class PaperRunner:
             # D206-0: KPI 참조 노출 (테스트 호환성)
             self.kpi = orchestrator.kpi
             
-            logger.info(f"[D205-18-2D] PaperRunner completed: exit_code={exit_code}")
+            logger.info(f"[D207-1] PaperRunner completed: exit_code={exit_code}")
             return exit_code
             
         except Exception as e:
-            logger.error(f"[D205-18-2D] PaperRunner failed: {e}", exc_info=True)
+            logger.error(f"[D207-1] PaperRunner failed: {e}", exc_info=True)
             return 1
 
 
@@ -221,8 +221,14 @@ def main():
     parser.add_argument("--db-mode", default="optional", choices=["strict", "optional", "off"], help="DB mode")
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema")
     parser.add_argument("--use-real-data", action="store_true", help="Use Real MarketData")
-    
     args = parser.parse_args()
+    
+    # D207-1 REAL 강제 가드: baseline/longrun은 REAL MarketData 필수
+    if args.phase in ["baseline", "longrun"] and not args.use_real_data:
+        logger.error(f"[D207-1 GUARD] FAIL: phase={args.phase} requires --use-real-data")
+        logger.error(f"[D207-1 GUARD] Reason: MOCK data is invalid for {args.phase} validation")
+        logger.error(f"[D207-1 GUARD] Fix: Add --use-real-data flag")
+        sys.exit(1)
     
     config = PaperRunnerConfig(
         duration_minutes=args.duration,

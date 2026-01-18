@@ -30,6 +30,7 @@ class RealOpportunitySource(OpportunitySource):
         fx_provider,  # FixedFxProvider or LiveFxProvider
         break_even_params: BreakEvenParams,
         kpi,
+        profit_core=None,
     ):
         self.upbit_provider = upbit_provider
         self.binance_provider = binance_provider
@@ -38,62 +39,63 @@ class RealOpportunitySource(OpportunitySource):
         self.fx_provider = fx_provider
         self.break_even_params = break_even_params
         self.kpi = kpi
+        self.profit_core = profit_core
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
         """Real MarketData 기반 Opportunity 생성 (D205-9)"""
         try:
             if self.upbit_provider is None or self.binance_provider is None:
-                logger.error(f"[D205-18-2D] Provider is None")
+                logger.error(f"[D207-1] Provider is None")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
-            if not self.rate_limiter_upbit.consume(weight=1):
+            if not self.rate_limiter_upbit.consume(tokens=1):
                 self.kpi.ratelimit_hits += 1
                 if iteration % 10 == 1:
-                    logger.warning(f"[D205-18-2D] Upbit RateLimit exceeded")
+                    logger.warning(f"[D207-1] Upbit RateLimit exceeded")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
             ticker_upbit = self.upbit_provider.get_ticker("BTC/KRW")
             if not ticker_upbit or ticker_upbit.last <= 0:
                 if iteration % 10 == 1:
-                    logger.warning(f"[D205-18-2D] Upbit ticker fetch failed")
+                    logger.warning(f"[D207-1] Upbit ticker fetch failed")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
-            if not self.rate_limiter_binance.consume(weight=1):
+            if not self.rate_limiter_binance.consume(tokens=1):
                 self.kpi.ratelimit_hits += 1
                 if iteration % 10 == 1:
-                    logger.warning(f"[D205-18-2D] Binance RateLimit exceeded")
+                    logger.warning(f"[D207-1] Binance RateLimit exceeded")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
             ticker_binance = self.binance_provider.get_ticker("BTC/USDT")
             if not ticker_binance or ticker_binance.last <= 0:
                 if iteration % 10 == 1:
-                    logger.warning(f"[D205-18-2D] Binance ticker fetch failed")
+                    logger.warning(f"[D207-1] Binance ticker fetch failed")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
             # D206-1 FIXPACK: profit_core 필수 (검증됨)
             if not self.profit_core.check_price_sanity("upbit", ticker_upbit.last):
-                logger.error(f"[D205-18-2D] Upbit price suspicious: {ticker_upbit.last:.0f} KRW")
+                logger.error(f"[D207-1] Upbit price suspicious: {ticker_upbit.last:.0f} KRW")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
             if ticker_binance.last < 20_000 or ticker_binance.last > 150_000:
-                logger.error(f"[D205-18-2D] Binance price suspicious: {ticker_binance.last:.2f} USDT")
+                logger.error(f"[D207-1] Binance price suspicious: {ticker_binance.last:.2f} USDT")
                 self.kpi.real_ticks_fail_count += 1
                 return None
             
             if iteration == 1:
-                logger.info(f"[D205-18-2D] Real Upbit: {ticker_upbit.last:,.0f} KRW")
-                logger.info(f"[D205-18-2D] Real Binance: {ticker_binance.last:.2f} USDT")
+                logger.info(f"[D207-1] Real Upbit: {ticker_upbit.last:,.0f} KRW")
+                logger.info(f"[D207-1] Real Binance: {ticker_binance.last:.2f} USDT")
             
             fx_rate = self.fx_provider.get_rate("USDT", "KRW")
             
             if fx_rate < 1000 or fx_rate > 2000:
-                logger.error(f"[D205-18-2D] FX rate suspicious: {fx_rate} KRW/USDT")
+                logger.error(f"[D207-1] FX rate suspicious: {fx_rate} KRW/USDT")
                 self.kpi.bump_reject("sanity_guard")
                 self.kpi.real_ticks_fail_count += 1
                 return None
@@ -103,8 +105,8 @@ class RealOpportunitySource(OpportunitySource):
             price_b = normalize_price_to_krw(price_b_usdt, "USDT", fx_rate)
             
             if iteration == 1:
-                logger.info(f"[D205-18-2D] FX rate: {fx_rate} KRW/USDT")
-                logger.info(f"[D205-18-2D] Normalized Binance: {price_b:,.0f} KRW")
+                logger.info(f"[D207-1] FX rate: {fx_rate} KRW/USDT")
+                logger.info(f"[D207-1] Normalized Binance: {price_b:,.0f} KRW")
             
             candidate = build_candidate(
                 symbol="BTC/KRW",
@@ -119,7 +121,7 @@ class RealOpportunitySource(OpportunitySource):
             return candidate
             
         except Exception as e:
-            logger.warning(f"[D205-18-2D] Real opportunity failed: {e}")
+            logger.warning(f"[D207-1] Real opportunity failed: {e}")
             self.kpi.errors.append(f"real_opportunity: {e}")
             self.kpi.real_ticks_fail_count += 1
             return None
@@ -185,6 +187,6 @@ class MockOpportunitySource(OpportunitySource):
             )
             return candidate
         except Exception as e:
-            logger.warning(f"[D205-18-2D] Mock build_candidate failed: {e}")
+            logger.warning(f"[D207-1] Mock build_candidate failed: {e}")
             self.kpi.errors.append(f"build_candidate: {e}")
             return None
