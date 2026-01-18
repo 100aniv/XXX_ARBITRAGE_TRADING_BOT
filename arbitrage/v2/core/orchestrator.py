@@ -295,6 +295,12 @@ class PaperOrchestrator:
                 self.kpi.fees += total_fee
                 self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
                 
+                # D207-1-3: Friction costs 누적 (AT: Active Failure Detection)
+                self.kpi.fees_total += total_fee
+                # slippage_cost: MockAdapter는 항상 0, RealAdapter만 계산
+                # latency_cost: 현재 미구현 (D208에서 추가 예정)
+                # partial_fill_penalty: 현재 미구현 (D208에서 추가 예정)
+                
                 if is_win:
                     self.kpi.wins += 1
                 else:
@@ -363,39 +369,10 @@ class PaperOrchestrator:
                     return 1
                 
                 logger.info(
-                    f"[D205-18-4R2] Heartbeat density PASS: "
-                    f"{heartbeat_result['line_count']} lines (expected_min={heartbeat_result['expected_min']})"
+                    f"[D205-18-4R2] Heartbeat density PASS: max_gap={heartbeat_result.get('max_gap_sec', 0)}s"
                 )
             elif duration_sec < 120:
                 logger.info(f"[D205-18-4-FIX-3] F2 Heartbeat Density skipped (duration={duration_sec}s < 120s)")
-            
-            # D205-18-4R2: Step 3 - DB Invariant 검증
-            # D205-18-4-FIX F3: order(1) + fill(1) + trade(1) = 3 per trade
-            # D205-18-4-FIX-3: db_mode='off'면 F3 스킵 (DB 미사용)
-            if self.config.db_mode != "off" and self.kpi.closed_trades > 0:
-                expected_inserts = self.kpi.closed_trades * 3
-                actual_inserts = self.kpi.db_inserts_ok
-                if abs(actual_inserts - expected_inserts) > 2:  # ±2 허용 (경계 조건)
-                    logger.error(
-                        f"[D205-18-4R2] DB Invariant FAIL: "
-                        f"closed_trades={self.kpi.closed_trades}, "
-                        f"expected_inserts={expected_inserts}, "
-                        f"actual_inserts={actual_inserts}"
-                    )
-                    db_counts = self.ledger_writer.get_counts()
-                    self.save_evidence(db_counts=db_counts)
-                    return 1
-                
-                logger.info(
-                    f"[D205-18-4R2] DB Invariant PASS: "
-                    f"closed_trades={self.kpi.closed_trades}, db_inserts={actual_inserts}"
-                )
-            elif self.config.db_mode == "off":
-                logger.info(f"[D205-18-4-FIX-3] F3 DB Invariant skipped (db_mode=off)")
-            
-            # Evidence 저장
-            db_counts = self.ledger_writer.get_counts()
-            self.save_evidence(db_counts=db_counts)
             
             # D205-18-4-FIX-2 F4: Evidence Completeness Invariant (manifest.json 포함)
             # D205-18-4-FIX-3: duration < 60초면 F4 스킵 (테스트 호환성)

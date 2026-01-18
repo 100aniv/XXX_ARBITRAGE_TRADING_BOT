@@ -131,7 +131,7 @@ def generate_engine_report(
     # DB integrity
     inserts_ok = db_counts.get('total_inserts', 0) if db_counts else kpi.db_inserts_ok
     inserts_failed = db_counts.get('failed_inserts', 0) if db_counts else kpi.db_inserts_failed
-    expected_inserts = kpi.closed_trades * 3  # order + fill + trade
+    expected_inserts = kpi.closed_trades * 5  # D207-1-4 AV: 2 orders + 2 fills + 1 trade
     
     # Status
     status = "PASS" if exit_code == 0 else "FAIL"

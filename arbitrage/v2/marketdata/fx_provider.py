@@ -22,3 +22,7 @@ class FXProvider:
             return 1.0 / self.default_krw_per_usdt
         else:
             raise ValueError(f"Unsupported currency pair: {from_currency}/{to_currency}")
+    
+    def get_fx_rate(self, from_currency: str, to_currency: str) -> float:
+        """D207-1-2: V2 호환성 (get_rate 별칭)"""
+        return self.get_rate(from_currency, to_currency)

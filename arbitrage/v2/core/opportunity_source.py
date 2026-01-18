@@ -92,7 +92,41 @@ class RealOpportunitySource(OpportunitySource):
                 logger.info(f"[D207-1] Real Upbit: {ticker_upbit.last:,.0f} KRW")
                 logger.info(f"[D207-1] Real Binance: {ticker_binance.last:.2f} USDT")
             
-            fx_rate = self.fx_provider.get_rate("USDT", "KRW")
+            # D207-1-2: FX rate 조회 (AU: Dynamic FX Intelligence)
+            fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+            
+            # D207-1-2: FX rate info 기록 (LiveFxProvider인 경우)
+            if hasattr(self.fx_provider, 'get_rate_info'):
+                fx_info = self.fx_provider.get_rate_info()
+                if fx_info:
+                    self.kpi.fx_rate = fx_info.rate
+                    self.kpi.fx_rate_source = fx_info.source
+                    self.kpi.fx_rate_timestamp = fx_info.timestamp.isoformat()
+                    self.kpi.fx_rate_degraded = fx_info.degraded
+                    
+                    # D207-1-2: FX age 계산 (TTL guard)
+                    from datetime import datetime, timezone
+                    import time
+                    fx_age_sec = (datetime.now(timezone.utc) - fx_info.timestamp).total_seconds()
+                    self.kpi.fx_rate_age_sec = fx_age_sec
+                    
+                    # D207-1-2: FX staleness guard (TTL > 60s이면 FAIL)
+                    fx_ttl_threshold = 60.0
+                    if fx_age_sec > fx_ttl_threshold:
+                        logger.error(
+                            f"[D207-1-2 FX_STALE] FX rate too old: {fx_age_sec:.1f}s > {fx_ttl_threshold}s, "
+                            f"source={fx_info.source}, degraded={fx_info.degraded}"
+                        )
+                        self.kpi.bump_reject("sanity_guard")
+                        self.kpi.real_ticks_fail_count += 1
+                        return None
+            else:
+                # FixedFxProvider인 경우 (Paper mode)
+                self.kpi.fx_rate = fx_rate
+                self.kpi.fx_rate_source = "fixed"
+                self.kpi.fx_rate_age_sec = 0.0
+                self.kpi.fx_rate_timestamp = ""
+                self.kpi.fx_rate_degraded = False
             
             if fx_rate < 1000 or fx_rate > 2000:
                 logger.error(f"[D207-1] FX rate suspicious: {fx_rate} KRW/USDT")
@@ -169,7 +203,7 @@ class MockOpportunitySource(OpportunitySource):
         base_price_a_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
         base_price_b_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
         
-        fx_rate = self.fx_provider.get_rate("USDT", "KRW")
+        fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
         base_price_b_krw = normalize_price_to_krw(base_price_b_usdt, "USDT", fx_rate)
         
         spread_pct = 0.003 + (iteration % 10) * 0.0002

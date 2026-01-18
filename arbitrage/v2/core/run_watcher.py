@@ -50,6 +50,13 @@ class WatcherConfig:
     # FAIL 조건 (E): Consecutive Losses (연속 손실)
     max_consecutive_losses: int = 10  # 10연속 손실 시 중단
     
+    # D207-1-3: FAIL 조건 (F): Winrate 상한 (Economic Truth - Reality Model)
+    winrate_cap_threshold: float = 0.95  # 95% 승률 상한 (100%는 비현실적)
+    min_trades_for_winrate_cap: int = 10  # 최소 10거래 후 검사
+    
+    # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (MODEL_ANOMALY)
+    check_friction_nonzero: bool = True  # fees_total=0 감지 시 FAIL
+    
     # Evidence 경로
     evidence_dir: str = "logs/evidence"
 
@@ -215,6 +222,36 @@ class RunWatcher:
                 )
                 logger.error(f"[RunWatcher] {self.diagnosis}")
                 self._save_stop_reason_snapshot(kpi, "FAIL_E_CONSECUTIVE_LOSSES")
+                self._trigger_graceful_stop()
+                return
+        
+        # D207-1-3: FAIL 조건 (F): Winrate Cap (AT: Active Failure Detection)
+        if (
+            kpi.closed_trades >= self.config.min_trades_for_winrate_cap
+            and kpi.winrate_pct >= (self.config.winrate_cap_threshold * 100)
+        ):
+            self.stop_reason = "MODEL_ANOMALY"
+            self.diagnosis = (
+                f"FAIL (F): Winrate too high ({kpi.winrate_pct:.1f}% >= {self.config.winrate_cap_threshold * 100}%). "
+                f"100% winrate is unrealistic. "
+                f"Possible causes: Mock data OR friction model disabled OR optimistic bias."
+            )
+            logger.error(f"[RunWatcher] {self.diagnosis}")
+            self._save_stop_reason_snapshot(kpi, "FAIL_F_WINRATE_CAP")
+            self._trigger_graceful_stop()
+            return
+        
+        # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (AT: Active Failure Detection)
+        if self.config.check_friction_nonzero and kpi.closed_trades >= 5:
+            if kpi.fees_total == 0.0:
+                self.stop_reason = "MODEL_ANOMALY"
+                self.diagnosis = (
+                    f"FAIL (G): fees_total=0 after {kpi.closed_trades} trades. "
+                    f"Friction model is disabled or not applied. "
+                    f"Cannot validate economic truth without realistic costs."
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_G_FRICTION_ZERO")
                 self._trigger_graceful_stop()
                 return
         

@@ -85,6 +85,19 @@ class PaperMetrics:
         "symbol_blacklisted": 0,  # D205-12-1: AdminControl reject
     })
     
+    # D207-1-2: FX Rate Info (Economic Truth - Real-time FX)
+    fx_rate: float = 0.0
+    fx_rate_source: str = "unknown"
+    fx_rate_age_sec: float = 0.0
+    fx_rate_timestamp: str = ""
+    fx_rate_degraded: bool = False
+    
+    # D207-1-3: Friction Costs (Economic Truth - Reality Model)
+    fees_total: float = 0.0
+    slippage_cost: float = 0.0
+    latency_cost: float = 0.0
+    partial_fill_penalty: float = 0.0
+    
     def bump_reject(self, reason: str) -> None:
         """
         Reject reason 카운트 증가
@@ -165,6 +178,17 @@ class PaperMetrics:
             "dedup_hits": self.dedup_hits,
             # D205-10: Decision Trace
             "reject_reasons": dict(self.reject_reasons),
+            # D207-1-2: FX Rate Info
+            "fx_rate": round(self.fx_rate, 4),
+            "fx_rate_source": self.fx_rate_source,
+            "fx_rate_age_sec": round(self.fx_rate_age_sec, 2),
+            "fx_rate_timestamp": self.fx_rate_timestamp,
+            "fx_rate_degraded": self.fx_rate_degraded,
+            # D207-1-3: Friction Costs
+            "fees_total": round(self.fees_total, 4),
+            "slippage_cost": round(self.slippage_cost, 4),
+            "latency_cost": round(self.latency_cost, 4),
+            "partial_fill_penalty": round(self.partial_fill_penalty, 4),
         }
         
         # 시스템 메트릭 (psutil 있으면)
