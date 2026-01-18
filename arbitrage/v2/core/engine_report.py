@@ -75,7 +75,7 @@ def compute_config_fingerprint(config: Any, config_path: Optional[str] = None) -
         
         return f"sha256:{fingerprint}"
     except Exception as e:
-        logger.warning(f"Failed to compute config fingerprint: {e}")
+        logger.info(f"Config fingerprint fallback (non-serializable): {e}")
         return "sha256:unknown"
 
 

@@ -135,6 +135,9 @@ universe:
 
 # Strategy (전략 파라미터)
 strategy:
+  # Edge Guard (D207-1-1: Economic Truth)
+  min_net_edge_bps: 5.0  # 음수/제로 edge 거래 차단 (최소 순수익 마진)
+  
   # Break-even 계산식 (D205-15-6: Config SSOT)
   # break_even_bps = fee_entry + fee_exit + execution_risk_round_trip + buffer
   # execution_risk_round_trip = (slippage + latency) * 2
@@ -278,7 +281,7 @@ tuning:
     max_safe_ratio: [0.2, 0.3, 0.4]
     
     # Min Spread (bps)
-    min_spread_bps: [20.0, 25.0, 30.0, 35.0]
+    min_spread_bps: 20.0
   
   # Sweep 설정
   sweep:

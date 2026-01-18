@@ -28,8 +28,10 @@ from arbitrage.v2.core.paper_executor import PaperExecutor
 from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
+from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
 from arbitrage.v2.core.run_watcher import create_watcher
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
+from arbitrage.v2.core.order_intent import OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -245,9 +247,12 @@ class PaperOrchestrator:
                 
                 self.kpi.intents_created += len(intents)
                 
-                # 3. 주문 실행
-                entry_result = self.executor.execute(intents[0], ref_price=candidate.price_a)
-                exit_result = self.executor.execute(intents[1], ref_price=candidate.price_b)
+                # 3. 주문 실행 (D207-1-1 FIX: ref_price는 해당 거래소 가격으로 매핑)
+                # intents[0].exchange에 맞는 ref_price 적용
+                ref_price_0 = candidate.price_a if intents[0].exchange == candidate.exchange_a else candidate.price_b
+                ref_price_1 = candidate.price_a if intents[1].exchange == candidate.exchange_a else candidate.price_b
+                entry_result = self.executor.execute(intents[0], ref_price=ref_price_0)
+                exit_result = self.executor.execute(intents[1], ref_price=ref_price_1)
                 
                 self.kpi.mock_executions += 2
                 
@@ -255,8 +260,23 @@ class PaperOrchestrator:
                 self.ledger_writer.record_order_and_fill(intents[0], entry_result, candidate, self.kpi)
                 self.ledger_writer.record_order_and_fill(intents[1], exit_result, candidate, self.kpi)
                 
-                # 5. Trade 완료 기록
-                realized_pnl = (exit_result.filled_price - entry_result.filled_price) * entry_result.filled_qty - (entry_result.fee + exit_result.fee)
+                # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
+                # 아비트라지는 simultaneous trading (BUY + SELL 동시)
+                # PnL = (SELL_price - BUY_price) * quantity - fees
+                total_fee = entry_result.fee + exit_result.fee
+                
+                # BUY/SELL intent 구분
+                if intents[0].side == OrderSide.BUY:
+                    buy_result = entry_result
+                    sell_result = exit_result
+                else:
+                    buy_result = exit_result
+                    sell_result = entry_result
+                
+                # 아비트라지 PnL: (SELL - BUY) * qty - fees
+                gross_pnl = (sell_result.filled_price - buy_result.filled_price) * buy_result.filled_qty
+                realized_pnl = gross_pnl - total_fee
+                is_win = realized_pnl > 0
                 
                 trade_id = str(uuid.uuid4())
                 self.ledger_writer.record_trade_complete(
@@ -271,11 +291,11 @@ class PaperOrchestrator:
                 
                 # 6. KPI 업데이트
                 self.kpi.closed_trades += 1
-                self.kpi.gross_pnl += realized_pnl
-                self.kpi.fees += (entry_result.fee + exit_result.fee)
+                self.kpi.gross_pnl += gross_pnl
+                self.kpi.fees += total_fee
                 self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
                 
-                if realized_pnl > 0:
+                if is_win:
                     self.kpi.wins += 1
                 else:
                     self.kpi.losses += 1
@@ -483,6 +503,29 @@ class PaperOrchestrator:
                 # Save with atomic flush
                 save_engine_report_atomic(report, self.config.output_dir)
                 logger.info("[D206-0] Standard Engine Report saved (Artifact-First)")
+                
+                # D207-1-1: watch_summary.json 생성 (OPS_PROTOCOL 필수 파일)
+                import json
+                from datetime import datetime, timezone
+                from pathlib import Path
+                
+                watch_summary = {
+                    "planned_total_hours": self.config.duration_minutes / 60.0 if hasattr(self.config, 'duration_minutes') else 0.0,
+                    "started_at_utc": datetime.fromtimestamp(self.kpi.wallclock_start, tz=timezone.utc).isoformat() if hasattr(self.kpi, 'wallclock_start') else None,
+                    "ended_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "monotonic_elapsed_sec": wallclock_duration,
+                    "completeness_ratio": 1.0 if final_exit_code == 0 else (wallclock_duration / expected_duration if expected_duration > 0 else 0.0),
+                    "stop_reason": "TIME_REACHED" if final_exit_code == 0 else (self._watcher.stop_reason if self._watcher and self._watcher.stop_reason else "ERROR")
+                }
+                
+                watch_summary_path = Path(self.config.output_dir) / "watch_summary.json"
+                with open(watch_summary_path, "w", encoding="utf-8") as f:
+                    json.dump(watch_summary, f, indent=2)
+                    f.flush()
+                    import os
+                    os.fsync(f.fileno())
+                
+                logger.info(f"[D207-1-1] watch_summary.json saved: {watch_summary_path}")
                 
             except Exception as flush_error:
                 logger.error(f"[D206-0] Atomic Evidence/Report Flush failed: {flush_error}")

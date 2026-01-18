@@ -216,6 +216,7 @@ def main():
     parser = argparse.ArgumentParser(description="D205-18-2D Paper Runner (Thin Wrapper)")
     parser.add_argument("--duration", type=int, required=True, help="Duration in minutes")
     parser.add_argument("--phase", default="smoke", choices=["smoke", "smoke_test", "baseline", "longrun", "test_1min"], help="Execution phase")
+    parser.add_argument("--output-dir", default="", help="Evidence output directory")
     parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols")
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="optional", choices=["strict", "optional", "off"], help="DB mode")
