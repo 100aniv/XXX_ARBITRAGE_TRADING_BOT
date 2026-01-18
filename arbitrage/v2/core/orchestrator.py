@@ -30,8 +30,8 @@ from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.run_watcher import RunWatcher
 from arbitrage.v2.core.engine_report import generate_engine_report
-from arbitrage.v2.intent.converter import candidate_to_order_intents
-from arbitrage.v2.domain.order import OrderSide
+from arbitrage.v2.core.order_intent import OrderSide
+from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
 from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
 
 logger = logging.getLogger(__name__)
@@ -507,36 +507,32 @@ class PaperOrchestrator:
             self.stop_watcher()
     
     def start_watcher(self):
-        """RunWatcher 시작"""
+        """RunWatcher 시작 (D207-1-3: MODEL_ANOMALY Guards)"""
         if self._watcher:
             logger.warning("[Orchestrator] Watcher already running")
             return
         
-        from arbitrage.v2.core.run_watcher import WatcherConfig
+        from arbitrage.v2.core.run_watcher import RunWatcher, WatcherConfig
         
-        # D207-1 Step 3: baseline/longrun phase에서는 early_stop_enabled=False
-        phase = getattr(self.config, 'phase', 'unknown')
-        early_stop_enabled = phase not in ["baseline", "longrun"]
-        
+        # D207-1-3: WatcherConfig with MODEL_ANOMALY Guards (winrate cap, friction check)
         watcher_config = WatcherConfig(
             heartbeat_sec=60,
-            early_stop_enabled=early_stop_enabled,
+            winrate_cap_threshold=0.95,  # 95% 승률 상한
+            min_trades_for_winrate_cap=10,
+            check_friction_nonzero=True,  # fees_total=0 차단
+            check_machinegun=True,
+            max_trades_per_minute=20,
             evidence_dir=self.config.output_dir,
         )
         
-        logger.info(f"[D207-1] WatcherConfig: phase={phase}, early_stop_enabled={early_stop_enabled}")
-        
-        from arbitrage.v2.core.run_watcher import create_watcher
-        self._watcher = create_watcher(
+        self._watcher = RunWatcher(
+            config=watcher_config,
             kpi_getter=lambda: self.kpi,
             stop_callback=self.request_stop,
-            run_id=self.run_id,
-            heartbeat_sec=watcher_config.heartbeat_sec,
-            early_stop_enabled=watcher_config.early_stop_enabled,
-            evidence_dir=watcher_config.evidence_dir,
+            run_id=self.run_id
         )
         self._watcher.start()
-        logger.info("[Orchestrator] RunWatcher started (with Safety Guards D/E)")
+        logger.info("[D207-1-3] RunWatcher started (winrate_cap=95%, friction_check=ON, machinegun_guard=ON)")
     
     def stop_watcher(self):
         """RunWatcher 정리"""

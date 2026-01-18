@@ -24,11 +24,22 @@ class MockAdapter(ExchangeAdapter):
     - BUY: filled_price = ref_price * (1 + slippage)
     - SELL: filled_price = ref_price * (1 - slippage)
     
+    D207-1-3 Add-on BF: Non-Zero Friction Value
+    - 수수료 모델: Upbit 5bps (0.05%), Binance 4bps (0.04%)
+    - fees_total > 0 강제 (현실 마찰 반영)
+    
     Useful for:
     - Unit testing
     - Integration testing without real APIs
     - Smoke testing with realistic friction
     """
+    
+    # D207-1-3 Add-on BF: 실전 수수료 (bps)
+    FEE_RATES = {
+        "upbit": 5.0,    # 0.05% (5 bps)
+        "binance": 4.0,  # 0.04% (4 bps)
+        "mock": 5.0,     # fallback
+    }
     
     def __init__(
         self, 
@@ -196,6 +207,10 @@ class MockAdapter(ExchangeAdapter):
         """
         Parse mock response to OrderResult.
         
+        D207-1-3 Add-on BF: Non-Zero Friction Value
+        - 수수료 계산: filled_qty * filled_price * fee_rate
+        - Upbit 5bps, Binance 4bps 강제 적용
+        
         Args:
             response: Mock response
             
@@ -205,11 +220,35 @@ class MockAdapter(ExchangeAdapter):
         status = response.get("status", "filled")
         success = (status == "filled")
         
+        # D207-1-3 Add-on BF: 수수료 계산 (현실 마찰)
+        fee = 0.0
+        if success:
+            filled_qty = response.get("filled_qty", 0.0)
+            filled_price = response.get("filled_price", 0.0)
+            exchange = response.get("exchange", "mock").lower()
+            
+            # 거래소별 수수료율 (bps)
+            fee_rate_bps = self.FEE_RATES.get(exchange, self.FEE_RATES["mock"])
+            fee_rate = fee_rate_bps / 10000.0  # bps -> ratio
+            
+            # 수수료 = 거래 금액 * 수수료율
+            trade_value = filled_qty * filled_price
+            fee = trade_value * fee_rate
+            
+            # 검증 로그
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"[D207-1-3 Add-on BF] Fee calculated: exchange={exchange}, "
+                f"qty={filled_qty:.6f}, price={filled_price:.2f}, "
+                f"fee_rate={fee_rate_bps}bps, fee={fee:.4f}"
+            )
+        
         return OrderResult(
             success=success,
             order_id=response["order_id"],
             filled_qty=response.get("filled_qty") if success else 0.0,
             filled_price=response.get("filled_price") if success else 0.0,
-            fee=0.0,
+            fee=fee,
             raw_response=response
         )

@@ -6410,57 +6410,41 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-1-2: FX 실시간 반영 + Staleness Guard
 
-**상태:** ⚠️ PARTIAL (코드 구현됨, Evidence 미확인 - 2026-01-19)
-- ✅ 구현: LiveFxProvider, FixedFxProvider 호환성, KPI 필드 추가
-- ❌ Evidence: fx_rate 필드 누락 (engine_report.json에 없음)
-- ❌ 현실성: FixedFxProvider 사용 중 (Live FX 아님)
+**상태:** ⚠️ PARTIAL (Tests PASS, Real Evidence 미확인 - 2026-01-19)
+- ✅ 구현: LiveFxProvider 강제, KPI 필드 추가, FX staleness guard
+- ✅ Tests: 3/3 PASS (test_d207_1_2_fx_realtime_and_stale_fail.py)
+- ❌ Real Evidence: baseline 실행에서 fx_rate 기록 미확인
+- ✅ Domain-Driven: pnl_calculator.py SSOT, orchestrator 로직 제거
 
 **Acceptance Criteria:**
-- [ ] AC-1: LiveFxProvider 강제 (FixedFxProvider 금지)
-- [ ] AC-2: fx_rate, fx_rate_source, fx_rate_age_sec KPI 기록
-- [ ] AC-3: FX staleness > 60s → stop_reason=FX_STALE
+- [ ] AC-1: LiveFxProvider 강제 + baseline 실행 증거 (runtime_factory.py 변경 완료, 실행 미확인)
+- [ ] AC-2: fx_rate, fx_rate_source, fx_rate_age_sec, fx_rate_timestamp KPI 기록 (필드 추가 완료, 실행 미확인)
+- [ ] AC-3: FX staleness > 60s → return None (FAIL) (코드 완료, 실행 미확인)
 
-**Evidence (확인 필요):**
-- Commit: 8242c14 (코드 변경)
-- Runtime Evidence: fx_rate 필드 누락
+**Evidence (테스트 기반만):**
+- Tests: 3/3 PASS (fx_rate_info, fx_stale_guard, fixed_fx_provider)
+- ❌ Baseline Evidence 부족: logs/evidence/d207_1_2_baseline_* 없음
 
 #### 신 D207-1-3: Model Anomaly Guard (Winrate Cap / Friction Non-Zero)
 
-**상태:**  PARTIAL (코드 구현됨, Evidence 불일치 - 2026-01-19)
-- 구현: RunWatcher FAIL (F/G), KPI 필드 추가
-- Evidence 불일치: winrate=100%, fees=0.0 (engine_report.json)
-- 현실성: MODEL_ANOMALY 미발동 (stop_reason 누락)
+**상태:** ⚠️ PARTIAL (Tests PASS, 실제 baseline에서 MODEL_ANOMALY 미발동 - 2026-01-19)
+- ✅ 구현: RunWatcher FAIL (F/G/H), KPI 필드 추가, Anti-Machinegun Guard
+- ✅ Tests: 4/4 PASS (test_d207_1_3_friction_must_be_nonzero_and_winrate_cap.py)
+- ❌ **실제 문제: baseline에서 fees_total=0, winrate=100% 발생 (D207-1-1 Evidence 참조)**
+- ❌ **가드 미작동: RunWatcher FAIL F/G가 baseline에서 트리거 안 됨**
+- 🔍 **근본 원인: MockAdapter가 수수료를 계산하지 않음 (fee=0.0 하드코딩)**
 
 **Acceptance Criteria:**
-- [ ] AC-1: fees_total > 0 강제
-- [ ] AC-2: winrate >= 95% → stop_reason=MODEL_ANOMALY
-- [ ] AC-3: fees_total = 0 → stop_reason=MODEL_ANOMALY
-- [x] AC-4: KPI 필드 추가 (fees_total, slippage_cost, latency_cost, partial_fill_penalty)
+- [ ] AC-1: fees_total > 0 강제 (코드 완료, **MockAdapter 수수료 모델 필요**)
+- [ ] AC-2: winrate >= 95% → stop_reason=MODEL_ANOMALY (코드 완료, **baseline 실행 미확인**)
+- [ ] AC-3: fees_total = 0 → stop_reason=MODEL_ANOMALY (코드 완료, **baseline에서 미발동**)
+- [x] AC-4: KPI 필드 추가 (fees_total, slippage_cost, latency_cost, partial_fill_penalty) ✅
+- [ ] AC-5: Anti-Machinegun Guard (trades_per_minute > 20 → FAIL H) (코드 완료, **baseline 실행 미확인**)
 
-**Evidence (확인됨 - 현실성 FAIL):**
-- `logs/evidence/d205_18_2d_test_1min_20260119_0008/engine_report.json`
-  - winrate: 1.0 (100%) 
-  - fees: 0.0 
-  - trades: 598 (60초) = 초당 10회 기관총 매매
-  - stop_reason: 누락 (TIME_REACHED만 있음)
-
-#### 신 D207-1-4: DB Invariant 5x + Config Fingerprint 직렬화
-
-**상태:**  PARTIAL (코드 구현됨, Evidence 일부 확인 - 2026-01-19)
-- 구현: DB Invariant 5x 공식, config fingerprint fallback
-- Evidence 일부 확인: expected_inserts=2990 (598*5), inserts_ok=0 (DB off 모드)
-- ⚠️ Evidence: expected_inserts=2990 (598*5), inserts_ok=0 (DB off 모드)
-
-**Acceptance Criteria:**
-- [x] AC-1: DB Invariant 5x 공식 (expected = trades * 5)
-- [x] AC-2: Config fingerprint JSON serialization fallback
-- [ ] AC-3: DB mode on 상태에서 invariant PASS 검증
-
-**Evidence (확인됨):**
-- `logs/evidence/d205_18_2d_test_1min_20260119_0008/engine_report.json`
-  - expected_inserts: 2990 (= 598 * 5) ✅
-  - inserts_ok: 0 (DB mode off)
-  - config_fingerprint: "sha256:unknown" (fallback 작동)
+**Evidence (테스트 vs 실제 불일치):**
+- ✅ Tests: 4/4 PASS (friction_costs_recorded, winrate_cap_fail, friction_zero_fail, friction_pass)
+- ❌ **Baseline Reality: fees_total=0.0, winrate=100% (logs/evidence/d205_18_2d_test_1min_20260119_0008/)**
+- ❌ **가드 미발동: stop_reason에 MODEL_ANOMALY 없음**
 
 ---
 

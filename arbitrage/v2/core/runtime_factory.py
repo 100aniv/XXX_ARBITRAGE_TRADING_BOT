@@ -72,8 +72,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     # 3. FX Provider (D207-1-2: LiveFxProvider 강제 - Add-on Gamma)
     # Static FX는 환상 테스트를 만든다 (Live FX만 허용)
     fx_provider = LiveFxProvider(
-        default_krw_per_usdt=config.fx_krw_per_usdt,
-        cache_ttl_sec=60.0  # FX staleness guard: 60초 이상 stale이면 FAIL
+        source="crypto_implied",
+        ttl_seconds=60.0,  # FX staleness guard: 60초 이상 stale이면 FAIL
+        market_data_fetcher=None  # RealOpportunitySource가 자체 fetcher 사용
     )
     
     # 4. OpportunitySource (Real/Mock 전략) - D206-1 FIXPACK: profit_core 주입
