@@ -32,6 +32,9 @@ class WatcherConfig:
     """RunWatcher 설정"""
     heartbeat_sec: int = 60  # Heartbeat 주기 (초)
     
+    # D207-1 Step 3: early_stop 제어 플래그 (baseline에서는 False)
+    early_stop_enabled: bool = True  # True: early stop 활성화, False: 비활성화
+    
     # FAIL 조건 (A): wins=0 연속
     min_trades_for_winrate_check: int = 100
     
@@ -132,6 +135,12 @@ class RunWatcher:
         
         # KPI 가져오기
         kpi = self.kpi_getter()
+        
+        # D207-1 Step 3: early_stop_enabled=False이면 FAIL 조건 스킵 (heartbeat만 기록)
+        if not self.config.early_stop_enabled:
+            self._save_heartbeat(kpi)
+            logger.debug(f"[RunWatcher] Heartbeat OK (early_stop_disabled) - trades={kpi.closed_trades}, pnl={kpi.net_pnl:.2f}")
+            return
         
         # FAIL 조건 (A): wins=0 AND closed_trades >= N
         if kpi.closed_trades >= self.config.min_trades_for_winrate_check and kpi.wins == 0:

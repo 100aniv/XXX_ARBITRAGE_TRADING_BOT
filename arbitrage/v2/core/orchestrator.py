@@ -165,7 +165,7 @@ class PaperOrchestrator:
         logger.info(f"[D207-1] Orchestrator starting (state={self._state.value})...")
         
         # Add-on AA: Provider Verification (D207-1 RECOVERY)
-        # Verify actual provider class type (isinstance check)
+        # D207-1 Step 2: REAL MarketData 강제 검증 (Runtime)
         from arbitrage.v2.core.opportunity_source import RealOpportunitySource, MockOpportunitySource
         provider_class_name = self.opportunity_source.__class__.__name__
         is_real = isinstance(self.opportunity_source, RealOpportunitySource)
@@ -173,11 +173,26 @@ class PaperOrchestrator:
         
         logger.info(f"[Provider Verification] Class: {provider_class_name}, is_real={is_real}, is_mock={is_mock}")
         
+        # D207-1 Step 2: baseline/longrun phase에서 Mock 발견 시 즉시 Exit 1
+        if hasattr(self.config, 'phase') and self.config.phase in ["baseline", "longrun"]:
+            if is_mock:
+                logger.error(f"[D207-1 REAL GUARD] FAIL: phase={self.config.phase} but provider is MockOpportunitySource")
+                logger.error(f"[D207-1 REAL GUARD] Expected: RealOpportunitySource, Got: {provider_class_name}")
+                logger.error(f"[D207-1 REAL GUARD] Fix: Ensure --use-real-data flag is passed and RuntimeFactory uses RealOpportunitySource")
+                self._state = OrchestratorState.ERROR
+                return 1  # 즉시 Exit 1
+        
         # Record provider type in KPI (for engine_report)
         if hasattr(self.kpi, 'provider_class_name'):
             self.kpi.provider_class_name = provider_class_name
         if hasattr(self.kpi, 'provider_is_real'):
             self.kpi.provider_is_real = is_real
+        
+        # marketdata_mode 라벨 강제 정합성 (REAL/MOCK)
+        self.kpi.marketdata_mode = "REAL" if is_real else "MOCK"
+        self.kpi.upbit_marketdata_ok = is_real
+        self.kpi.binance_marketdata_ok = is_real
+        logger.info(f"[D207-1] marketdata_mode set to: {self.kpi.marketdata_mode}")
         
         # RunWatcher 시작
         self.start_watcher()
@@ -476,18 +491,33 @@ class PaperOrchestrator:
     
     def start_watcher(self):
         """RunWatcher 시작"""
+        if self._watcher:
+            logger.warning("[Orchestrator] Watcher already running")
+            return
+        
+        from arbitrage.v2.core.run_watcher import WatcherConfig
+        
+        # D207-1 Step 3: baseline/longrun phase에서는 early_stop_enabled=False
+        phase = getattr(self.config, 'phase', 'unknown')
+        early_stop_enabled = phase not in ["baseline", "longrun"]
+        
+        watcher_config = WatcherConfig(
+            heartbeat_sec=60,
+            early_stop_enabled=early_stop_enabled,
+            evidence_dir=self.config.output_dir,
+        )
+        
+        logger.info(f"[D207-1] WatcherConfig: phase={phase}, early_stop_enabled={early_stop_enabled}")
+        
+        from arbitrage.v2.core.run_watcher import create_watcher
         self._watcher = create_watcher(
+            config=watcher_config,
             kpi_getter=lambda: self.kpi,
             stop_callback=self.request_stop,
-            run_id="",
-            heartbeat_sec=60,
-            min_trades_for_check=100,
-            max_drawdown_pct=20.0,
-            max_consecutive_losses=10,
-            evidence_dir=self.config.output_dir
+            run_id=self.run_id,
         )
         self._watcher.start()
-        logger.info("[D205-18-3] RunWatcher started (with Safety Guards D/E)")
+        logger.info("[Orchestrator] RunWatcher started (with Safety Guards D/E)")
     
     def stop_watcher(self):
         """RunWatcher 정리"""

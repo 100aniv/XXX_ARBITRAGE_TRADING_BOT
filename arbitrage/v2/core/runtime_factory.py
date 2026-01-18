@@ -73,6 +73,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     fx_provider = FXProvider(default_krw_per_usdt=config.fx_krw_per_usdt)
     
     # 4. OpportunitySource (Real/Mock 전략) - D206-1 FIXPACK: profit_core 주입
+    # D207-1 Step 2: REAL MarketData 강제 검증 (baseline/longrun phase)
+    if config.phase in ["baseline", "longrun"] and not config.use_real_data:
+        logger.error(f"[D207-1 REAL GUARD] FAIL: phase={config.phase} requires use_real_data=True")
+        logger.error(f"[D207-1 REAL GUARD] Reason: MOCK data is invalid for {config.phase} validation")
+        raise RuntimeError(f"phase={config.phase} requires --use-real-data flag")
+    
     if config.use_real_data:
         opportunity_source = RealOpportunitySource(
             upbit_provider=upbit_provider,
@@ -84,6 +90,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
         )
+        logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData)")
     else:
         opportunity_source = MockOpportunitySource(
             fx_provider=fx_provider,
@@ -91,6 +98,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
         )
+        logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     
     # 5. PaperExecutor (주문 실행 + Balance) - D206-1 FIXPACK: profit_core 주입
     executor = PaperExecutor(profit_core)  # D206-1 FIXPACK

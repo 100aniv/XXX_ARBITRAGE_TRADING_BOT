@@ -233,6 +233,7 @@ def main():
     config = PaperRunnerConfig(
         duration_minutes=args.duration,
         phase=args.phase,
+        output_dir=args.output_dir or "",
         symbols_top=args.symbols_top,
         db_connection_string=args.db_connection_string or "",
         db_mode=args.db_mode,
