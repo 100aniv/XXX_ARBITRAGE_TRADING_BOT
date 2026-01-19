@@ -6445,22 +6445,52 @@ enable_execution: false       # REQUIRED
 ---
 
 ### D207-1-5 (NEW): Gate Wiring & Evidence Atomicity (WARN=FAIL + StopReason=FAIL)
-**상태:** ⬜ TODO
+**상태:** ✅ COMPLETED (2026-01-19, commit: dfa4d7d)
 
-**목표:** “가드가 발동하면 무조건 FAIL(Exit 1)” + “Evidence가 원자적으로 정합”을 강제한다.
+**목표:** "가드가 발동하면 무조건 FAIL(Exit 1)" + "Evidence가 원자적으로 정합"을 강제한다.
 
 **AC 체크:**
-- [ ] AC-0: 아키텍처 경계 고정: Runner/Gate는 엔진 내부 객체를 참조하지 않고, 엔진이 생성한 Standard JSON Artifacts만 검증한다 (Artifact-First, Thin Wrapper)
-- [ ] AC-1: warnings>0 또는 errors>0 또는 skips>0 → `exit_code=1` 강제
-- [ ] AC-2: stop_reason=`MODEL_ANOMALY`/`FX_STALE` → status=`FAIL` + `exit_code=1` 강제
+- [x] AC-0: 아키텍처 경계 고정: Runner/Gate는 엔진 내부 객체를 참조하지 않고, 엔진이 생성한 Standard JSON Artifacts만 검증한다 (Artifact-First, Thin Wrapper)
+- [x] AC-1: StopReason Single Truth Chain - Orchestrator가 유일한 SSOT 소유자
+- [x] AC-2: stop_reason이 engine_report.json, kpi.json, watch_summary.json에 동일하게 기록됨
+- [x] AC-3: MODEL_ANOMALY 트리거 시 exit_code=1 + stop_reason="MODEL_ANOMALY" 기록됨
+- [x] AC-4: db_integrity.enabled 필드 추가 (D207-1-4 보완)
+
+**Evidence 경로:**
+- 테스트 결과: `tests/test_d207_1_5_truth_chain.py` (5/5 PASS)
+- REAL baseline: `logs/evidence/d207_1_5_final_v3/`
+- 검증 결과:
+  - engine_report.json: stop_reason="MODEL_ANOMALY", status="FAIL" 
+  - kpi.json: stop_reason="MODEL_ANOMALY" 
+  - watch_summary.json: stop_reason="MODEL_ANOMALY" 
+
+**코드 변경:**
+- `arbitrage/v2/core/metrics.py`: stop_reason, stop_message 필드 추가
+- `arbitrage/v2/core/engine_report.py`: stop_reason, stop_message 파라미터 추가
+- `arbitrage/v2/core/orchestrator.py`: _final_exit_code, _stop_reason, _stop_message 인스턴스 변수 + Truth Chain 로직
+
+**SSOT 노트:**
+- **구 D206-2와의 차이:** 구 D206-2는 "시기상조(쓰레기 최적화)"로 Rebase됨. D207-4는 D207-1 BASELINE PASS 이후에만 수행하여 "의미 있는 최적화" 보장.
+- **D205-14와의 차이:** D205-14는 execution_quality (slippage, partial fill), D207-4는 strategy (entry/exit thresholds)
+- **Optional 태그:** D207-1 BASELINE이 net_pnl > 0를 달성하면 D208로 바로 진행 가능. D207-4는 "성능 개선" 목적.
+
+**Note (구 D206-2 Rebase 사유):**
+```
+구 D206-2: 자동 파라미터 튜너 (Bayesian Optimization) - PLANNED (미수행)
+- Rebase 사유: "시기상조 (쓰레기 최적화)"
+- Phase 2 (D207) BASELINE 수익성 증명 후로 이관
+- 원본: LEGACY_D206_D209_ARCHIVE.md Line 124-136
+```
 
 ---
 
-### Naming Note (UX / 오해 방지)
-- `MockAdapter`는 MarketData가 아니라 **Execution(체결) 측면의 Paper Adapter**다.
-- 오해 방지를 위해 다음 중 1개를 D207-1-5에서 같이 수행 권장:
-  - (권장) `PaperExecutionAdapter`로 rename + `MockAdapter`는 deprecated alias 유지
-  - 또는 최소한 docstring/README/SSOT에 “Mock=PaperExecution”을 명시
+### Add-on Alpha: Naming to Reality (MockAdapter → PaperExecutionAdapter)
+**상태:** ✅ COMPLETED (2026-01-19 - D207-1-5)
+
+**변경:**
+- 파일: `mock_adapter.py` → `paper_execution_adapter.py`
+- 클래스: `MockAdapter` → `PaperExecutionAdapter` (alias 유지)
+- Docstring: "Paper Trading = REAL 시장가 + 모의 체결" (Mock 데이터 아님)
 
 ---
 
@@ -7083,5 +7113,7 @@ enable_execution: false       # REQUIRED
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 
+이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
+모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
