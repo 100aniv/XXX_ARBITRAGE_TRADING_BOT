@@ -87,7 +87,9 @@ def generate_engine_report(
     wallclock_duration: float,
     expected_duration: float,
     db_counts: Optional[Dict[str, int]],
-    exit_code: int
+    exit_code: int,
+    stop_reason: str = "",
+    stop_message: str = ""
 ) -> Dict[str, Any]:
     """
     Generate standard engine report (D206-0 SSOT)
@@ -180,8 +182,14 @@ def generate_engine_report(
             "inserts_ok": inserts_ok,
             "inserts_failed": inserts_failed,
             "expected_inserts": expected_inserts,
-            "closed_trades": kpi.closed_trades
+            "closed_trades": kpi.closed_trades,
+            "enabled": inserts_ok > 0 or inserts_failed > 0,  # D207-1-4: DB 사용 여부 명시
+            "reason": "DB mode active" if (inserts_ok > 0 or inserts_failed > 0) else "Paper mode (no DB)"
         },
+        
+        # D207-1-5: StopReason Single Truth Chain (SSOT)
+        "stop_reason": stop_reason if stop_reason else ("TIME_REACHED" if exit_code == 0 else "ERROR"),
+        "stop_message": stop_message,
         
         "status": status
     }

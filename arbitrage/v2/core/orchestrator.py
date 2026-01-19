@@ -127,6 +127,11 @@ class PaperOrchestrator:
         # D206-0 AC-5: 상태 관리
         self._state = OrchestratorState.IDLE
         
+        # D207-1-5: StopReason Single Truth Chain (SSOT)
+        self._final_exit_code = 0
+        self._stop_reason = ""
+        self._stop_message = ""
+        
         # D206-0 AC-2: WARN=FAIL Handler
         self._warning_handler = WarningCounterHandler()
         logging.getLogger().addHandler(self._warning_handler)
@@ -335,6 +340,15 @@ class PaperOrchestrator:
             actual_duration = wallclock_end - wallclock_start
             expected_duration = duration_sec
             
+            # D207-1-5: RunWatcher stop_reason 먼저 체크 (Truth Chain SSOT)
+            # MODEL_ANOMALY가 트리거되었다면 해당 stop_reason 사용
+            if self._watcher and self._watcher.stop_reason:
+                self._stop_reason = self._watcher.stop_reason
+                self._stop_message = self._watcher.diagnosis or ""
+                self._final_exit_code = 1
+                self.kpi.stop_reason = self._stop_reason
+                self.kpi.stop_message = self._stop_message
+            
             # D205-18-4R2: Step 1 - Wallclock Duration 검증 (±5% 범위)
             tolerance = expected_duration * 0.05
             if abs(actual_duration - expected_duration) > tolerance:
@@ -343,6 +357,14 @@ class PaperOrchestrator:
                     f"actual={actual_duration:.1f}s, expected={expected_duration:.1f}s, "
                     f"tolerance=±{tolerance:.1f}s"
                 )
+                # D207-1-5: stop_reason이 아직 설정되지 않았다면 WALLCLOCK_FAIL 설정
+                if not self._stop_reason:
+                    self._stop_reason = "WALLCLOCK_FAIL"
+                    self._stop_message = f"actual={actual_duration:.1f}s, expected={expected_duration:.1f}s"
+                    self._final_exit_code = 1
+                    self.kpi.stop_reason = self._stop_reason
+                    self.kpi.stop_message = self._stop_message
+                
                 # Evidence 저장 후 FAIL 반환
                 db_counts = self.ledger_writer.get_counts()
                 self.save_evidence(db_counts=db_counts)
@@ -433,7 +455,16 @@ class PaperOrchestrator:
                 self.kpi.error_count = warn_counts["error_count"]
                 return 1
             
+            # D207-1-5: 정상 종료 시 TIME_REACHED
             self._state = OrchestratorState.STOPPED
+            self._final_exit_code = 0
+            self._stop_reason = "TIME_REACHED"
+            self._stop_message = "Normal completion"
+            
+            # KPI에도 동일하게 기록 (Truth Chain)
+            self.kpi.stop_reason = self._stop_reason
+            self.kpi.stop_message = self._stop_message
+            
             return 0
             
         except Exception as e:
@@ -458,8 +489,10 @@ class PaperOrchestrator:
                 # Get warning counts
                 warn_counts = self._warning_handler.get_counts() if hasattr(self, '_warning_handler') else {"warning_count": 0, "error_count": 0}
                 
-                # Determine exit code
-                final_exit_code = 0 if self._state != OrchestratorState.ERROR else 1
+                # D207-1-5: exit_code와 stop_reason은 인스턴스 변수에서 가져옴 (Truth Chain SSOT)
+                final_exit_code = self._final_exit_code if self._final_exit_code != 0 else (1 if self._state == OrchestratorState.ERROR else 0)
+                final_stop_reason = self._stop_reason if self._stop_reason else ("TIME_REACHED" if final_exit_code == 0 else "ERROR")
+                final_stop_message = self._stop_message if self._stop_message else ""
                 
                 # Wallclock duration (fallback if not defined)
                 wallclock_duration = 0.0
@@ -469,7 +502,7 @@ class PaperOrchestrator:
                 
                 from arbitrage.v2.core.engine_report import generate_engine_report, save_engine_report_atomic
                 
-                # Generate report
+                # Generate report with stop_reason (D207-1-5 Truth Chain)
                 report = generate_engine_report(
                     run_id=self.run_id,
                     config=self.config,
@@ -478,7 +511,9 @@ class PaperOrchestrator:
                     wallclock_duration=wallclock_duration,
                     expected_duration=expected_duration,
                     db_counts=db_counts,
-                    exit_code=final_exit_code
+                    exit_code=final_exit_code,
+                    stop_reason=final_stop_reason,
+                    stop_message=final_stop_message
                 )
                 
                 # Save with atomic flush

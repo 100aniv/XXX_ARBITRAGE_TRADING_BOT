@@ -100,6 +100,11 @@ class PaperMetrics:
     latency_cost: float = 0.0
     partial_fill_penalty: float = 0.0
     
+    # D207-1-5: StopReason Single Truth Chain (SSOT)
+    # Orchestrator가 유일한 소유자, 모든 파일에 동일하게 기록
+    stop_reason: str = ""  # TIME_REACHED, MODEL_ANOMALY, FX_STALE, ERROR, USER_SIGINT
+    stop_message: str = ""  # 상세 설명
+    
     def bump_reject(self, reason: str) -> None:
         """
         Reject reason 카운트 증가
@@ -191,6 +196,9 @@ class PaperMetrics:
             "slippage_cost": round(self.slippage_cost, 4),
             "latency_cost": round(self.latency_cost, 4),
             "partial_fill_penalty": round(self.partial_fill_penalty, 4),
+            # D207-1-5: StopReason Single Truth Chain
+            "stop_reason": self.stop_reason,
+            "stop_message": self.stop_message,
         }
         
         # 시스템 메트릭 (psutil 있으면)
