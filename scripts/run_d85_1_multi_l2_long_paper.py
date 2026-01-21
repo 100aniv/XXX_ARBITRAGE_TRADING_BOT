@@ -33,7 +33,7 @@ import logging
 import sys
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 from dataclasses import dataclass
@@ -143,7 +143,7 @@ def run_multi_l2_long_paper(
         실행 KPI (dict)
     """
     # 0. 세션 ID 및 출력 경로 설정
-    session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     
     output_dir.mkdir(parents=True, exist_ok=True)
     

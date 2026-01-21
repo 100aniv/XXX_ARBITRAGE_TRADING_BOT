@@ -8,7 +8,7 @@ K8s Job/Pod 상태를 기반으로 건강 상태를 평가하고 CI/CD 친화적
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .k8s_monitor import K8sMonitorSnapshot, K8sJobStatus
 
@@ -45,7 +45,7 @@ class K8sHealthSnapshot:
     jobs_health: List[K8sJobHealth]
     errors: List[str]
     overall_health: HealthLevel
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class K8sHealthEvaluator:

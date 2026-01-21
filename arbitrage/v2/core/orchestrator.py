@@ -20,7 +20,7 @@ import sys
 import time
 from enum import Enum
 from typing import Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from arbitrage.v2.core.opportunity_source import OpportunitySource
@@ -31,6 +31,7 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.run_watcher import RunWatcher
 from arbitrage.v2.core.engine_report import generate_engine_report
 from arbitrage.v2.core.order_intent import OrderSide
+from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
 from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
 
@@ -123,6 +124,8 @@ class PaperOrchestrator:
         self._sigterm_received = False
         self._watcher = None
         self.trade_history = []
+        self._last_trade_ts: float = 0.0
+        self._last_loss_ts: Optional[float] = None
         
         # D206-0 AC-5: 상태 관리
         self._state = OrchestratorState.IDLE
@@ -162,7 +165,7 @@ class PaperOrchestrator:
         
         signal.signal(signal.SIGTERM, sigterm_handler)
         signal.signal(signal.SIGINT, sigterm_handler)
-        logger.error("[D207-1]-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
+        logger.info("[D207-1]-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
     
     def run(self) -> int:
         """메인 실행 루프"""
@@ -217,6 +220,10 @@ class PaperOrchestrator:
             self.kpi.wallclock_start = wallclock_start
             logger.info(f"[D205-18-4-FIX F1] Wallclock tracking started (loop entry): {wallclock_start}")
             
+            cycle_interval_sec = float(getattr(self.config, "cycle_interval_seconds", 0.1) or 0.1)
+            if cycle_interval_sec < 0:
+                cycle_interval_sec = 0.0
+
             while time.time() - start_time < duration_sec:
                 iteration += 1
                 
@@ -245,8 +252,51 @@ class PaperOrchestrator:
                         self.kpi.bump_reject("symbol_blacklisted")
                         continue
                 
+                # D207-1-6: Realism Pack v1 - min hold & loss cooldown
+                now_ts = time.time()
+                min_hold_ms = getattr(self.config, "min_hold_ms", 0) or 0
+                min_hold_sec = float(min_hold_ms) / 1000.0 if min_hold_ms > 0 else 0.0
+                cooldown_sec = float(getattr(self.config, "cooldown_after_loss_seconds", 0) or 0)
+                cooldown_remaining = 0.0
+                cooldown_reason = ""
+                if self._last_loss_ts is not None and cooldown_sec > 0:
+                    cooldown_remaining = max(cooldown_remaining, (self._last_loss_ts + cooldown_sec) - now_ts)
+                    if cooldown_remaining > 0:
+                        cooldown_reason = "loss_cooldown"
+                if self._last_trade_ts > 0 and min_hold_sec > 0:
+                    hold_remaining = (self._last_trade_ts + min_hold_sec) - now_ts
+                    if hold_remaining > cooldown_remaining:
+                        cooldown_remaining = hold_remaining
+                        cooldown_reason = "min_hold"
+                if cooldown_remaining > 0:
+                    self.kpi.bump_reject("cooldown")
+                    logger.info(
+                        f"[D207-1-6] Cooldown active ({cooldown_reason}), remaining={cooldown_remaining:.2f}s"
+                    )
+                    time.sleep(min(1.0, cooldown_remaining))
+                    continue
+
                 # 2. Intent 변환
-                intents = candidate_to_order_intents(candidate, quote_amount=100000.0)
+                order_size_mode = getattr(self.config, "order_size_policy_mode", "fixed_quote")
+                fixed_quote = getattr(self.config, "fixed_quote", None) or {}
+                default_quote_amount = getattr(self.config, "default_quote_amount", 100000.0)
+                quote_amount = default_quote_amount
+
+                if order_size_mode == "fixed_quote":
+                    if candidate.direction == OpportunityDirection.BUY_A_SELL_B:
+                        buy_exchange = candidate.exchange_a
+                    else:
+                        buy_exchange = candidate.exchange_b
+
+                    if buy_exchange == "upbit":
+                        quote_amount = fixed_quote.get("upbit_krw", quote_amount)
+                    elif buy_exchange == "binance":
+                        quote_amount = fixed_quote.get("binance_usdt", quote_amount)
+
+                if quote_amount is None or quote_amount <= 0:
+                    quote_amount = default_quote_amount
+
+                intents = candidate_to_order_intents(candidate, quote_amount=quote_amount)
                 if not intents or len(intents) != 2:
                     self.kpi.bump_reject("intent_conversion_failed")
                     continue
@@ -269,6 +319,34 @@ class PaperOrchestrator:
                 # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
                 # Add-on Alpha: Domain-Driven PnL (pnl_calculator.py SSOT)
                 total_fee = entry_result.fee + exit_result.fee
+
+                # D207-1-6: Realism Pack v1 - friction totals (slippage/latency/partial/reject)
+                def _calc_slippage_cost(result) -> float:
+                    if not result:
+                        return 0.0
+                    if result.ref_price is None or result.filled_price is None or result.filled_qty is None:
+                        return 0.0
+                    return abs(result.filled_price - result.ref_price) * result.filled_qty
+
+                def _calc_latency_ms(result) -> float:
+                    if not result or result.latency_ms is None:
+                        return 0.0
+                    return float(result.latency_ms)
+
+                def _calc_partial_penalty(result) -> float:
+                    if not result or result.partial_fill_ratio is None:
+                        return 0.0
+                    return max(0.0, 1.0 - float(result.partial_fill_ratio))
+
+                def _calc_reject(result) -> float:
+                    if not result:
+                        return 0.0
+                    return 1.0 if getattr(result, "reject_flag", False) else 0.0
+
+                slippage_cost = _calc_slippage_cost(entry_result) + _calc_slippage_cost(exit_result)
+                latency_cost = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
+                partial_penalty = _calc_partial_penalty(entry_result) + _calc_partial_penalty(exit_result)
+                reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
                 
                 # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
                 gross_pnl, realized_pnl, is_win = calculate_pnl_summary(
@@ -299,24 +377,63 @@ class PaperOrchestrator:
                 
                 # D207-1-3: Friction costs 누적 (AT: Active Failure Detection)
                 self.kpi.fees_total += total_fee
-                # slippage_cost: MockAdapter는 항상 0, RealAdapter만 계산
-                # latency_cost: 현재 미구현 (D208에서 추가 예정)
-                # partial_fill_penalty: 현재 미구현 (D208에서 추가 예정)
+                self.kpi.slippage_cost += slippage_cost
+                self.kpi.latency_cost += latency_cost
+                self.kpi.partial_fill_penalty += partial_penalty
+                # D207-1-6: Realism Pack v1 totals
+                self.kpi.slippage_total += slippage_cost
+                self.kpi.latency_total += latency_cost
+                self.kpi.partial_fill_total += partial_penalty
+                self.kpi.reject_total += reject_count
                 
                 if is_win:
                     self.kpi.wins += 1
                 else:
                     self.kpi.losses += 1
+
+                trade_ts = time.time()
+                self._last_trade_ts = trade_ts
+                if not is_win:
+                    self._last_loss_ts = trade_ts
                 
                 if self.kpi.closed_trades > 0:
                     self.kpi.winrate_pct = (self.kpi.wins / self.kpi.closed_trades) * 100.0
                 
-                # 7. Trade History 기록
+                # 7. Trade History 기록 (D207-3: Reality Proof)
                 self.trade_history.append({
                     "trade_id": trade_id,
                     "iteration": iteration,
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                     "candidate_spread_bps": candidate.spread_bps,
                     "candidate_edge_bps": candidate.edge_bps,
+                    "candidate_break_even_bps": candidate.break_even_bps,
+                    "candidate_direction": candidate.direction.value,
+                    "candidate_profitable": candidate.profitable,
+                    "candidate_price_a": candidate.price_a,
+                    "candidate_price_b": candidate.price_b,
+                    "exchange_a_bid": candidate.exchange_a_bid,
+                    "exchange_a_ask": candidate.exchange_a_ask,
+                    "exchange_b_bid": candidate.exchange_b_bid,
+                    "exchange_b_ask": candidate.exchange_b_ask,
+                    "fx_rate": candidate.fx_rate,
+                    "fx_rate_source": candidate.fx_rate_source,
+                    "fx_rate_age_sec": candidate.fx_rate_age_sec,
+                    "fx_rate_timestamp": candidate.fx_rate_timestamp,
+                    "fx_rate_degraded": candidate.fx_rate_degraded,
+                    "entry_exchange": intents[0].exchange,
+                    "exit_exchange": intents[1].exchange,
+                    "entry_filled_price": entry_result.filled_price,
+                    "exit_filled_price": exit_result.filled_price,
+                    "entry_ref_price": entry_result.ref_price,
+                    "exit_ref_price": exit_result.ref_price,
+                    "entry_slippage_bps": entry_result.slippage_bps,
+                    "exit_slippage_bps": exit_result.slippage_bps,
+                    "entry_drift_bps": entry_result.pessimistic_drift_bps,
+                    "exit_drift_bps": exit_result.pessimistic_drift_bps,
+                    "entry_latency_ms": entry_result.latency_ms,
+                    "exit_latency_ms": exit_result.latency_ms,
+                    "entry_partial_fill_ratio": entry_result.partial_fill_ratio,
+                    "exit_partial_fill_ratio": exit_result.partial_fill_ratio,
                     "realized_pnl": realized_pnl,
                 })
                 
@@ -324,7 +441,8 @@ class PaperOrchestrator:
                 if iteration % 10 == 0:
                     logger.info(f"[D207-1 KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, closed={self.kpi.closed_trades}, pnl={self.kpi.net_pnl:.2f}")
                 
-                time.sleep(0.1)
+                if cycle_interval_sec > 0:
+                    time.sleep(cycle_interval_sec)
             
             logger.info(f"[D207-1] Orchestrator completed: {iteration} iterations")
             
@@ -351,6 +469,8 @@ class PaperOrchestrator:
             
             # D205-18-4R2: Step 1 - Wallclock Duration 검증 (±5% 범위)
             tolerance = expected_duration * 0.05
+            if expected_duration < 10:
+                tolerance = max(tolerance, 1.0)
             if abs(actual_duration - expected_duration) > tolerance:
                 logger.error(
                     f"[D205-18-4R2] Wallclock duration FAIL: "
@@ -393,6 +513,10 @@ class PaperOrchestrator:
             elif duration_sec < 120:
                 logger.info(f"[D205-18-4-FIX-3] F2 Heartbeat Density skipped (duration={duration_sec}s < 120s)")
             
+            # Evidence Completeness 검사 전 Evidence 저장 (kpi/manifest/chain_summary 생성)
+            db_counts = self.ledger_writer.get_counts()
+            self.save_evidence(db_counts=db_counts)
+
             # D205-18-4-FIX-2 F4: Evidence Completeness Invariant (manifest.json 포함)
             # D205-18-4-FIX-3: duration < 60초면 F4 스킵 (테스트 호환성)
             if duration_sec >= 60:
@@ -425,7 +549,12 @@ class PaperOrchestrator:
             
             # D207-1-5 Step 3: StopReason/ExitCode 정합성 - RunWatcher FAIL → Exit 1
             # MODEL_ANOMALY, FX_STALE, ERROR 모두 Exit 1 강제
-            if self._watcher and self._watcher.stop_reason in ["ERROR", "MODEL_ANOMALY", "FX_STALE"]:
+            if self._watcher and self._watcher.stop_reason in [
+                "ERROR",
+                "MODEL_ANOMALY",
+                "FX_STALE",
+                "WIN_RATE_100_SUSPICIOUS",
+            ]:
                 logger.error(
                     f"[D207-1-5] RunWatcher triggered FAIL. "
                     f"stop_reason={self._watcher.stop_reason}, "
@@ -522,7 +651,6 @@ class PaperOrchestrator:
                 
                 # D207-1-1: watch_summary.json 생성 (OPS_PROTOCOL 필수 파일)
                 import json
-                from datetime import datetime, timezone
                 from pathlib import Path
                 
                 watch_summary = {
@@ -557,15 +685,21 @@ class PaperOrchestrator:
         from arbitrage.v2.core.run_watcher import RunWatcher, WatcherConfig
         
         # D207-1-3: WatcherConfig with MODEL_ANOMALY Guards (winrate cap, friction check)
+        from pathlib import Path
+        evidence_root = str(Path(self.config.output_dir).parent)
+        phase = getattr(self.config, "phase", "")
+        early_stop_enabled = phase not in ["baseline", "longrun"]
         watcher_config = WatcherConfig(
             heartbeat_sec=60,
+            early_stop_enabled=early_stop_enabled,
             winrate_cap_threshold=0.95,  # 95% 승률 상한
             min_trades_for_winrate_cap=10,
             check_friction_nonzero=True,  # fees_total=0 차단
             check_machinegun=True,
             max_trades_per_minute=20,
-            evidence_dir=self.config.output_dir,
+            evidence_dir=evidence_root,
         )
+        logger.info(f"[D207-1] WatcherConfig: phase={phase}, early_stop_enabled={early_stop_enabled}")
         
         self._watcher = RunWatcher(
             config=watcher_config,

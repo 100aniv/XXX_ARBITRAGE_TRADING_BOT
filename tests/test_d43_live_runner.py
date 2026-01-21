@@ -5,10 +5,11 @@ D43 Arbitrage Live Runner Tests
 ArbitrageLiveRunner 및 관련 기능 테스트 (100% mock 기반).
 """
 
+import asyncio
 import pytest
 import time
 from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 
 from arbitrage.arbitrage_core import (
     ArbitrageEngine,
@@ -233,7 +234,7 @@ class TestProcessSnapshot:
         
         # 스냅샷 생성
         snapshot = OrderBookSnapshot(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             best_bid_a=100000.0,
             best_ask_a=101000.0,
             best_bid_b=40000.0,
@@ -277,7 +278,7 @@ class TestExecuteTrades:
         
         # 거래 생성
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=1000.0,
@@ -318,8 +319,8 @@ class TestExecuteTrades:
         
         # 거래 종료
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
-            close_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
+            close_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             exit_spread_bps=20.0,
@@ -383,7 +384,7 @@ class TestRunOnce:
             config=config,
         )
         
-        result = runner.run_once()
+        result = asyncio.run(runner.run_once())
         
         assert result is True
         assert runner._loop_count == 1
@@ -439,7 +440,7 @@ class TestRunForever:
         )
         
         start_time = time.time()
-        runner.run_forever()
+        asyncio.run(runner.run_forever())
         elapsed = time.time() - start_time
         
         # 최대 런타임 초과하지 않음
@@ -520,7 +521,7 @@ class TestPaperModeNoNetworkCalls:
         # requests 라이브러리가 호출되지 않음을 확인
         with patch("requests.get") as mock_get:
             with patch("requests.post") as mock_post:
-                runner.run_once()
+                asyncio.run(runner.run_once())
                 
                 # 호출되지 않음
                 mock_get.assert_not_called()

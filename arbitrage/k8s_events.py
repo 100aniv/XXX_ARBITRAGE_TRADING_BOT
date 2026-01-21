@@ -10,7 +10,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ class K8sEventCollector:
             namespace=self.namespace,
             selector=self.label_selector,
             events=events,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             errors=errors
         )
     

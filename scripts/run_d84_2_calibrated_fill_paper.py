@@ -37,7 +37,7 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
 from dataclasses import dataclass
@@ -200,7 +200,7 @@ def run_calibrated_fill_paper(
         실행 KPI (dict)
     """
     # 0. 세션 ID 및 출력 경로 설정
-    session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     
     # D87-3/D87-5/D91-2/D91-3: session_tag가 있으면 해당 디렉토리 사용
     if session_tag:

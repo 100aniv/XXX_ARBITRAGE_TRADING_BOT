@@ -21,7 +21,11 @@ class TestMarketBuyQtyContract:
     def test_market_buy_qty_calculation(self):
         """MARKET BUY: filled_qty = quote_amount / filled_price"""
         # D205-18-1 Gate Recovery: 테스트는 deterministic (슬리피지 0)
-        adapter = MockAdapter(enable_slippage=False)
+        adapter = MockAdapter(
+            enable_slippage=False,
+            pessimistic_drift_bps_min=0.0,
+            pessimistic_drift_bps_max=0.0,
+        )
         
         # MARKET BUY: 500,000 KRW @ 50,000,000 KRW/BTC
         intent = OrderIntent(
@@ -63,7 +67,11 @@ class TestMarketBuyQtyContract:
     def test_market_buy_without_ref_price_fails(self):
         """MARKET BUY without ref_price → RuntimeError"""
         # D205-18-1 Gate Recovery: 테스트는 deterministic (슬리피지 0)
-        adapter = MockAdapter(enable_slippage=False)
+        adapter = MockAdapter(
+            enable_slippage=False,
+            pessimistic_drift_bps_min=0.0,
+            pessimistic_drift_bps_max=0.0,
+        )
         
         payload = {
             "exchange": "upbit",

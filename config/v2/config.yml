@@ -23,6 +23,7 @@ execution:
   # QUICK: 빠른 검증 (슬리피지/latency 모델 옵션)
   # SSOT: 운영급 검증 (WARN=FAIL, 슬리피지/latency 강제, DB strict)
   rigor: "quick"  # quick | ssot
+  cycle_interval_seconds: 2.0
 
 # Legacy (Deprecated, use execution.environment)
 mode: "paper"  # paper, live, replay
@@ -171,8 +172,8 @@ strategy:
       upbit_krw: 5000     # 업비트 고정 주문 금액
       binance_usdt: 10.0  # 바이낸스 고정 주문 금액
 
-# Engine cycle 주기 (초)
-cycle_interval_seconds: 1.0
+# Engine cycle interval (seconds)
+cycle_interval_seconds: 2.0
 
 # 동시 실행 가능 주문 수
 max_concurrent_orders: 1
@@ -190,6 +191,11 @@ mock_adapter:
   slippage_bps_min: 20.0
   slippage_bps_max: 50.0
 
+  # Pessimistic drift 범위 (bps)
+  # D207-3: Physical price contamination guard
+  pessimistic_drift_bps_min: 10.0
+  pessimistic_drift_bps_max: 10.0
+
 # Safety (안전 장치)
 safety:
   # 일일 최대 손실 (KRW)
@@ -197,6 +203,9 @@ safety:
   
   # 최대 포지션 크기 (USD 기준)
   max_position_usd: 1000.0
+  
+  # Min Hold (최소 보유 시간, ms)
+  min_hold_ms: 1000
   
   # Cooldown (연속 손실 후 대기 시간, 초)
   cooldown_after_loss_seconds: 300  # 5분

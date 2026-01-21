@@ -6,7 +6,7 @@ RiskGuard의 리스크 체크 로직을 검증합니다.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from arbitrage.arbitrage_core import ArbitrageTrade
 from arbitrage.live_runner import RiskGuard, RiskLimits, RiskGuardDecision
@@ -51,7 +51,7 @@ class TestRiskGuardTradeAllowed:
         guard = RiskGuard(limits)
         
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=1000.0,
@@ -67,7 +67,7 @@ class TestRiskGuardTradeAllowed:
         guard = RiskGuard(limits)
         
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=2000.0,  # 제한 초과
@@ -86,7 +86,7 @@ class TestRiskGuardTradeAllowed:
         guard = RiskGuard(limits)
         
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=1000.0,
@@ -109,7 +109,7 @@ class TestRiskGuardTradeAllowed:
         guard.daily_loss_usd = 100.0
         
         trade = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=1000.0,
@@ -166,7 +166,7 @@ class TestRiskGuardScenarios:
         
         # 첫 번째 거래: OK
         trade1 = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=500.0,
@@ -180,7 +180,7 @@ class TestRiskGuardScenarios:
         
         # 두 번째 거래: OK
         trade2 = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_B_SHORT_A",
             entry_spread_bps=50.0,
             notional_usd=500.0,
@@ -194,7 +194,7 @@ class TestRiskGuardScenarios:
         
         # 세 번째 거래: SESSION_STOP (손실 한계 도달)
         trade3 = ArbitrageTrade(
-            open_timestamp=datetime.utcnow().isoformat(),
+            open_timestamp=datetime.now(timezone.utc).isoformat(),
             side="LONG_A_SHORT_B",
             entry_spread_bps=50.0,
             notional_usd=500.0,

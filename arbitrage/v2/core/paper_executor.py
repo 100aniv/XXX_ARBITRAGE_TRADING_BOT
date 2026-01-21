@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import logging
 
 from arbitrage.v2.core import OrderIntent, OrderSide
@@ -20,12 +20,14 @@ class PaperExecutor:
     def __init__(
         self,
         profit_core: ProfitCore,
-        initial_balance: Optional[Dict[str, float]] = None
+        initial_balance: Optional[Dict[str, float]] = None,
+        adapter_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Args:
             profit_core: ProfitCore (REQUIRED - config.yml 기반)
             initial_balance: 초기 잔고
+            adapter_config: PaperExecutionAdapter 설정 (mock_adapter 섹션 포함)
         
         Raises:
             TypeError: profit_core가 None일 경우
@@ -34,7 +36,7 @@ class PaperExecutor:
             raise TypeError("PaperExecutor: profit_core is REQUIRED (WARN=FAIL principle)")
         
         self.profit_core = profit_core
-        self.adapter = MockAdapter(enable_slippage=False)
+        self.adapter = MockAdapter(config=adapter_config)
         self.balance = initial_balance or {
             "KRW": 10_000_000.0,
             "USDT": 10_000.0,

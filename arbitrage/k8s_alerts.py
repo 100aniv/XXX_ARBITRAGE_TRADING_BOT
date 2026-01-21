@@ -18,7 +18,7 @@ import json
 import logging
 import requests
 from dataclasses import dataclass, asdict, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Literal
 from hashlib import md5
 
@@ -361,7 +361,7 @@ class K8sAlertManager:
                         },
                     ],
                     "footer": "D35 K8s Alert Manager",
-                    "ts": int(datetime.utcnow().timestamp()),
+                    "ts": int(datetime.now(timezone.utc).timestamp()),
                 }
             ],
         }

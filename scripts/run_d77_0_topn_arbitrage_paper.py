@@ -27,7 +27,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -925,13 +925,13 @@ class D77PAPERRunner:
                     
                     # D82-0: TradeLogger에 기록
                     trade_entry = TradeLogEntry(
-                        timestamp=datetime.utcnow().isoformat(),
+                        timestamp=datetime.now(timezone.utc).isoformat(),
                         session_id=self.metrics["session_id"],
                         trade_id=result.trade_id,
                         universe_mode=self.universe_mode.name,
                         symbol=result.symbol,
                         route_type="single_exchange",  # D82-1: Upbit only
-                        entry_timestamp=datetime.utcnow().isoformat(),
+                        entry_timestamp=datetime.now(timezone.utc).isoformat(),
                         entry_bid_upbit=spread_snapshot.upbit_bid,
                         entry_ask_binance=spread_snapshot.upbit_ask,
                         entry_spread_bps=spread_snapshot.spread_bps,

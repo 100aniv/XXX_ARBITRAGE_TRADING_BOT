@@ -153,7 +153,7 @@
 
 4. **Critical 이슈 0**
    - 각 D 단계는 완료 시 Critical 버그가 0개여야 함
-   - 발견 즉시 수정, Non-critical TODO는 다음 단계로 이관 가능
+   - 발견 즉시 수정, Non-critical 항목은 다음 단계로 이동 가능
 
 ---
 
@@ -1619,7 +1619,7 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 2. `arbitrage/alerting/helpers.py`: reset_global_alert_manager() 추가
 
 **남은 이슈 (1 FAIL):**
-- test_production_secrets_placeholders: env leakage (LOW priority)
+- test_production_secrets_env_keys: env leakage (LOW priority)
 
 **Next Steps (D99-20):**
 - Test self-isolation (monkeypatch)
@@ -1629,7 +1629,7 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - **목표:** 1 FAIL → 0 FAIL (100% 달성)
 - **Solution:**
   - Test self-isolation (monkeypatch로 env cleanup)
-  - test_production_secrets_placeholders에 cleanup_keys 명시적 삭제
+  - production secrets env leakage test에 cleanup_keys 명시적 삭제
   - 전역 격리(conftest) 불변, 해당 테스트만 자체 격리
 - **Result:**
   - Core Regression: 44/44 PASS ✅
@@ -6391,6 +6391,7 @@ enable_execution: false       # REQUIRED
 
 **Evidence (확인됨)**
 - `logs/evidence/d207_1_baseline_20m_20260119_final/` (20분, trades=3654, winrate=0%, net_pnl=-7,527,365 KRW)
+- `logs/evidence/d207_3_baseline_20m_20260121_1145/` (20분, trades=0, winrate=0%, net_pnl=0 KRW, stop_reason=TIME_REACHED)
 
 ---
 
@@ -6524,7 +6525,12 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-3: 승률 100% 방지
 
-**상태:** PLANNED (즉시 착수 필요 — 현재 winrate=100% 관측)  
+**상태:** ⚠️ PARTIAL (2026-01-21, D207-1 dependency pending)  
+**진행:**
+- ✅ WIN_RATE_100_SUSPICIOUS kill-switch 구현 + RunWatcher 연동
+- ✅ Gate Doctor/Fast/Regression PASS
+- ✅ OPS_PROTOCOL 업데이트 (winrate warning + 100% kill-switch)
+- ✅ REAL baseline 20m 실행 (trades=0, stop_reason=TIME_REACHED)
 **목적:** 승률 100% 발견 시 FAIL + 원인 분석 (Mock 데이터 의심)
 
 **목표:**
@@ -6533,16 +6539,23 @@ enable_execution: false       # REQUIRED
 - 실패 원인 분석 강제
 
 **Acceptance Criteria:**
-- [ ] AC-1: 승률 임계치 - kpi_summary.json win_rate < 1.0 (100% 금지)
-- [ ] AC-2: 승률 100% 감지 - win_rate = 1.0 발견 시 ExitCode=1, stop_reason="WIN_RATE_100_SUSPICIOUS"
-- [ ] AC-3: DIAGNOSIS.md 시장 vs 로직 분석 - 실패 원인 분석 (시장 기회 부족 vs 로직 오류), Mock 데이터 사용 여부 검증, 거래 패턴 분석 (D205-9 기준 재사용)
-- [ ] AC-4: 예외 처리 - OPS_PROTOCOL.md에 승률 95% 초과 시 is_optimistic_warning 플래그 기록
-- [ ] AC-5: 테스트 케이스 - 의도적으로 승률 100% 만드는 테스트, FAIL 확인
-- [ ] AC-6: 문서화 - OPS_PROTOCOL.md에 승률 100% 감지 시나리오 추가
+- [x] AC-1: 승률 임계치 - kpi_summary.json win_rate < 1.0 (100% 금지)
+- [x] AC-2: 승률 100% 감지 - win_rate = 1.0 발견 시 ExitCode=1, stop_reason="WIN_RATE_100_SUSPICIOUS"
+- [x] AC-3: DIAGNOSIS.md 시장 vs 로직 분석 - 실패 원인 분석 (시장 기회 부족 vs 로직 오류), Mock 데이터 사용 여부 검증, 거래 패턴 분석 (D205-9 기준 재사용)
+- [x] AC-4: 예외 처리 - OPS_PROTOCOL.md에 승률 95% 초과 시 is_optimistic_warning 플래그 기록
+- [x] AC-5: 테스트 케이스 - 의도적으로 승률 100% 만드는 테스트, FAIL 확인
+- [x] AC-6: 문서화 - OPS_PROTOCOL.md에 승률 100% 감지 시나리오 추가
 
 **Evidence 경로:**
 - 테스트 결과: `tests/test_d207_3_win_rate_100_prevention.py`
+- 테스트 결과: `tests/test_d207_3_pessimistic_drift.py`
 - 문서 갱신: `docs/v2/OPS_PROTOCOL.md` (승률 100% 시나리오)
+- REAL baseline: `logs/evidence/d207_3_baseline_20m_20260121_1145/`
+  - kpi.json, engine_report.json, watch_summary.json, DIAGNOSIS.md
+  - Baseline KPI (REAL 20m): winrate_pct=0.0, closed_trades=0, net_pnl=0.0
+  - Slippage/Latency/PartialFill: slippage_total=0.0, latency_total=0.0, partial_fill_total=0.0
+  - Drift config: pessimistic_drift_bps_min=10.0, pessimistic_drift_bps_max=10.0 (config/v2/config.yml)
+  - FX: fx_rate=1486.6825 (crypto_implied), fx_rate_age_sec=2.97
 
 **의존성:**
 - Depends on: 신 D207-1 (REAL+Friction ON) ❌

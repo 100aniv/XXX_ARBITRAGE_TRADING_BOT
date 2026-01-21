@@ -40,6 +40,7 @@ class ThresholdConfig:
     use_exchange_fees: bool
     slippage_bps: float
     buffer_bps: float
+    latency_bps: float = 10.0
 
 
 @dataclass
@@ -77,6 +78,7 @@ class SafetyConfig:
     """안전 장치 설정"""
     max_daily_loss_krw: float
     max_position_usd: float
+    min_hold_ms: int
     cooldown_after_loss_seconds: int
     emergency_stop: Dict
 
@@ -198,6 +200,8 @@ class V2Config:
     profit_core: ProfitCoreConfig  # D206-1: Profit Core (하드코딩 제거)
     tuner: TunerConfig  # D206-1: Tuner Interface
     meta: MetaConfig
+    fx: Dict[str, Any] = field(default_factory=dict)
+    mock_adapter: Dict[str, Any] = field(default_factory=dict)
     
     def validate(self):
         """설정 검증"""
@@ -238,6 +242,8 @@ class V2Config:
             raise ValueError("slippage_bps는 0 이상이어야 함")
         if self.strategy.threshold.buffer_bps < 0:
             raise ValueError("buffer_bps는 0 이상이어야 함")
+        if self.strategy.threshold.latency_bps < 0:
+            raise ValueError("latency_bps는 0 이상이어야 함")
         
         # Safety limits 양수 확인
         if self.safety.max_daily_loss_krw <= 0:
@@ -264,18 +270,24 @@ class V2Config:
         else:
             fee_a = 0.0
             fee_b = 0.0
-        
+
         slippage = self.strategy.threshold.slippage_bps
+        latency = self.strategy.threshold.latency_bps
         buffer = self.strategy.threshold.buffer_bps
-        
-        break_even = fee_a + fee_b + slippage + buffer
-        
+
+        fee_entry = fee_a + fee_b
+        fee_exit = fee_entry
+        execution_risk_round_trip = 2.0 * (slippage + latency)
+
+        break_even = fee_entry + fee_exit + execution_risk_round_trip + buffer
+
         logger.debug(
             f"[V2 Config] Break-even spread: "
-            f"{fee_a:.2f} (fee_a) + {fee_b:.2f} (fee_b) + "
-            f"{slippage:.2f} (slippage) + {buffer:.2f} (buffer) = {break_even:.2f} bps"
+            f"{fee_entry:.2f} (fee_entry) + {fee_exit:.2f} (fee_exit) + "
+            f"{execution_risk_round_trip:.2f} (exec_risk_round_trip) + "
+            f"{buffer:.2f} (buffer) = {break_even:.2f} bps"
         )
-        
+
         return break_even
 
 
@@ -335,15 +347,32 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     )
     
     # Strategy 파싱
+    strategy_raw = raw_config.get('strategy', {})
+    break_even_raw = strategy_raw.get('break_even') or {}
+    threshold_raw = strategy_raw.get('threshold') or {}
+
     threshold = ThresholdConfig(
-        use_exchange_fees=raw_config['strategy']['threshold']['use_exchange_fees'],
-        slippage_bps=raw_config['strategy']['threshold']['slippage_bps'],
-        buffer_bps=raw_config['strategy']['threshold']['buffer_bps'],
+        use_exchange_fees=break_even_raw.get(
+            'use_exchange_fees',
+            threshold_raw.get('use_exchange_fees', True),
+        ),
+        slippage_bps=break_even_raw.get(
+            'slippage_bps',
+            threshold_raw.get('slippage_bps', 0.0),
+        ),
+        buffer_bps=break_even_raw.get(
+            'buffer_bps',
+            threshold_raw.get('buffer_bps', 0.0),
+        ),
+        latency_bps=break_even_raw.get(
+            'latency_bps',
+            threshold_raw.get('latency_bps', 10.0),
+        ),
     )
-    
+
     order_size_policy = OrderSizePolicyConfig(
-        mode=raw_config['strategy']['order_size_policy']['mode'],
-        fixed_quote=raw_config['strategy']['order_size_policy'].get('fixed_quote'),
+        mode=strategy_raw['order_size_policy']['mode'],
+        fixed_quote=strategy_raw['order_size_policy'].get('fixed_quote'),
     )
     
     strategy = StrategyConfig(
@@ -363,6 +392,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     safety = SafetyConfig(
         max_daily_loss_krw=raw_config['safety']['max_daily_loss_krw'],
         max_position_usd=raw_config['safety']['max_position_usd'],
+        min_hold_ms=raw_config['safety']['min_hold_ms'],
         cooldown_after_loss_seconds=raw_config['safety']['cooldown_after_loss_seconds'],
         emergency_stop=raw_config['safety']['emergency_stop'],
     )
@@ -430,6 +460,12 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         tuner_type=tuner_data.get('tuner_type', 'static'),
         param_overrides=tuner_data.get('param_overrides'),
     )
+
+    # FX 설정
+    fx = raw_config.get('fx', {}) or {}
+
+    # MockAdapter 설정 (PaperExecutionAdapter 설정 전용)
+    mock_adapter = raw_config.get('mock_adapter', {}) or {}
     
     # Meta 파싱
     meta = MetaConfig(
@@ -465,6 +501,8 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         profit_core=profit_core,  # D206-1
         tuner=tuner,  # D206-1
         meta=meta,
+        fx=fx,
+        mock_adapter=mock_adapter,
     )
 
     # 검증

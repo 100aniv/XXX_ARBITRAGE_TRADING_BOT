@@ -167,8 +167,11 @@ def generate_engine_report(
         
         "cost_summary": {
             "fee_total": round(kpi.fees, 2),
-            "slippage_total": 0.0,  # V2에서 slippage 미구현
-            "exec_cost_total": round(kpi.fees, 2)
+            "slippage_total": round(getattr(kpi, "slippage_total", 0.0), 2),
+            "latency_total_ms": round(getattr(kpi, "latency_total", 0.0), 2),
+            "partial_fill_total": round(getattr(kpi, "partial_fill_total", 0.0), 4),
+            "reject_total": round(getattr(kpi, "reject_total", 0.0), 4),
+            "exec_cost_total": round(kpi.fees + getattr(kpi, "slippage_total", 0.0), 2)
         },
         
         "heartbeat_summary": {

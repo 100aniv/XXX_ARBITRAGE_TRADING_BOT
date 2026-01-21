@@ -4,10 +4,13 @@ D50: Metrics Server
 HTTP 엔드포인트를 통해 메트릭을 노출한다.
 """
 
+import asyncio
+import inspect
 import logging
 import threading
 import time
 from typing import Optional
+import sys
 
 try:
     from fastapi import FastAPI
@@ -53,7 +56,10 @@ class MetricsServer:
         self.host = host
         self.port = port
         self.metrics_format = metrics_format
-        
+
+        if sys.version_info >= (3, 14):
+            asyncio.iscoroutinefunction = inspect.iscoroutinefunction
+
         self.app = FastAPI(title="Arbitrage Metrics Server")
         self._setup_routes()
         

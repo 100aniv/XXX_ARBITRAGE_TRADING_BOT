@@ -26,7 +26,7 @@ import logging
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
 
@@ -141,7 +141,7 @@ def run_smoke_test(duration_minutes: int, symbol: str = "BTC") -> Dict[str, Any]
     env["ARBITRAGE_ENV"] = "paper"
     
     # D83-0.5: FillEventCollector 출력 경로
-    session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     output_dir = Path("logs/d83-0.5")
     output_dir.mkdir(parents=True, exist_ok=True)
     

@@ -110,8 +110,14 @@ logs/evidence/d205_18_2d_baseline_20260118_1442/
 1. D206-4-2 FIX: LedgerWriter 파라미터 수정
 2. D206-4-3 FIX: engine_report 함수 시그니처 수정
 3. D207-1-1 재실행: 수정 후 20분 BASELINE 재실행
-4. D207-1 COMPLETED: net_pnl > 0 + DB 기록 검증 후 완료
+4. D207-1 closeout: net_pnl > 0 + DB 기록 검증 후 완료
 
 ---
 
 **Status:** ❌ FAILED - 엔진 구현 미완성 (DB Insert, Report 생성)
+
+---
+
+## 정직한 손실 & 기술적 사기 제거 (연계 기록)
+- **정직한 손실:** D207-3 REAL baseline 20m에서 trades=0, net_pnl=0.0 기록
+- **기술적 사기(100% 승률) 제거:** WIN_RATE_100_SUSPICIOUS kill-switch + pessimistic drift로 100% 승률 경로 차단

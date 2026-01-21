@@ -18,7 +18,7 @@ Date: 2025-12-06
 import json
 import logging
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from threading import Lock
@@ -98,7 +98,7 @@ class FillEventCollector:
         """
         self.output_path = Path(output_path)
         self.enabled = enabled
-        self.session_id = session_id or datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        self.session_id = session_id or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         self.lock = Lock()
         self.events_count = 0
         
@@ -148,7 +148,7 @@ class FillEventCollector:
             return
         
         event = FillEvent(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             session_id=self.session_id,
             symbol=symbol,
             side=side.value,

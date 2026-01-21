@@ -307,7 +307,7 @@ class TestAsyncFullTransitionBackwardCompatibility:
         )
         
         # Sync 루프 실행
-        result = runner.run_once()
+        result = asyncio.run(runner.run_once())
         
         assert result is True
         assert runner._loop_count == 1

@@ -13,7 +13,7 @@ Author: arbitrage-lite V2
 Date: 2026-01-10
 """
 
-from typing import Literal
+from typing import Literal, Optional
 from arbitrage.v2.opportunity import BreakEvenParams
 from dataclasses import dataclass
 from decimal import Decimal

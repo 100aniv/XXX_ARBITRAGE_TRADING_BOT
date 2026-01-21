@@ -74,7 +74,7 @@ class TestEvidencePacker:
             packer.start()
             
             # manifest.json 파싱
-            with open(packer.manifest_path, "r") as f:
+            with open(packer.manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
             
             assert "run_id" in manifest
@@ -95,7 +95,7 @@ class TestEvidencePacker:
             packer.start()
             
             # git_info.json 파싱
-            with open(packer.git_info_path, "r") as f:
+            with open(packer.git_info_path, "r", encoding="utf-8") as f:
                 git_info = json.load(f)
             
             assert "timestamp" in git_info
@@ -157,7 +157,7 @@ class TestEvidencePacker:
             packer.start()
             packer.finish("PASS")
             
-            with open(packer.manifest_path, "r") as f:
+            with open(packer.manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
             
             assert manifest["status"] == "PASS"
@@ -211,7 +211,7 @@ class TestEvidenceIntegration:
             assert packer.cmd_history_path.exists()
             
             # 6. JSON 파싱 검증
-            with open(packer.manifest_path, "r") as f:
+            with open(packer.manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
             assert manifest["status"] == "PASS"
             assert "doctor" in manifest["gates"]

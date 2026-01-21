@@ -106,7 +106,13 @@
    - 조건: winrate ≥ 95% → WARNING 로그, edge_after_cost 교차 검증 필수
    - 위반 시: FAIL 아님, WARNING으로 기록 (Report에 분석 필수)
    - 근거: Paper 모드 본질적 한계 (슬리피지 없음, 즉시 체결)
-   - 검증: KPI.winrate >= 0.95 → log warning + 플래그 기록
+   - 검증: KPI.winrate >= 0.95 → log warning + is_optimistic_warning 플래그 기록
+
+4. **승률 100% Kill-switch (D207-3)**
+   - 조건: closed_trades >= 20 AND winrate = 100%
+   - 위반 시: ExitCode=1, stop_reason="WIN_RATE_100_SUSPICIOUS"
+   - 근거: Mock 데이터 또는 낙관 편향 가능성
+   - 검증: RunWatcher가 stop_reason 설정 + snapshot 증거 저장
 
 ### 2.6.2 LIVE 모드 Invariant (설계 단계, D206-0~4 구현 예정)
 

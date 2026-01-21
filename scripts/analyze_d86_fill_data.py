@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 
 # 프로젝트 루트 추가
@@ -233,7 +233,7 @@ def generate_calibration_json(
     """
     calibration = {
         "version": "d86_0",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source": "D86 Smoke Test (5min, Multi L2)",
         "total_events": total_events,
         "unmatched_events": unmatched_events,

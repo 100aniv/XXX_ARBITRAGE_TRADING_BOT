@@ -28,7 +28,7 @@ class TestFxRealtimeAndStaleGuard:
         """AU-1: FX rate info가 KPI에 기록되는지 검증"""
         # Given: LiveFxProvider with mock market data
         market_data_fetcher = Mock()
-        market_data_fetcher.get_mid_price = Mock(side_effect=lambda ex, sym: 100_000_000.0 if ex == "upbit" else 70_000.0)
+        market_data_fetcher.get_mid_price = Mock(side_effect=lambda ex, sym: 105_000_000.0 if ex == "upbit" else 70_000.0)
         
         fx_provider = LiveFxProvider(
             source="crypto_implied",
@@ -48,9 +48,13 @@ class TestFxRealtimeAndStaleGuard:
         )
         
         upbit_provider = Mock()
-        upbit_provider.get_ticker = Mock(return_value=Mock(last=100_000_000.0))
+        upbit_provider.get_ticker = Mock(
+            return_value=Mock(bid=104_000_000.0, ask=104_100_000.0, last=104_050_000.0)
+        )
         binance_provider = Mock()
-        binance_provider.get_ticker = Mock(return_value=Mock(last=70_000.0))
+        binance_provider.get_ticker = Mock(
+            return_value=Mock(bid=70_000.0, ask=70_100.0, last=70_050.0)
+        )
         
         rate_limiter_upbit = Mock()
         rate_limiter_upbit.consume = Mock(return_value=True)
@@ -83,6 +87,56 @@ class TestFxRealtimeAndStaleGuard:
         assert kpi.fx_rate_age_sec >= 0, "fx_rate_age_sec should be >= 0"
         
         print(f"✅ FX rate info recorded: rate={kpi.fx_rate}, source={kpi.fx_rate_source}, age={kpi.fx_rate_age_sec}s")
+
+    def test_real_opportunity_uses_bid_ask_execution_prices(self):
+        """AU-4: bid/ask 실행 가격 우선 사용 (last fallback)"""
+        fx_provider = FixedFxProvider(fx_krw_per_usdt=1400.0)
+
+        kpi = PaperMetrics()
+        break_even_params = BreakEvenParams(
+            fee_model=FeeModel(
+                fee_a=FeeStructure(exchange_name="upbit", maker_fee_bps=5.0, taker_fee_bps=5.0),
+                fee_b=FeeStructure(exchange_name="binance", maker_fee_bps=10.0, taker_fee_bps=10.0),
+            ),
+            slippage_bps=5.0,
+            latency_bps=2.0,
+            buffer_bps=3.0,
+        )
+
+        upbit_provider = Mock()
+        upbit_provider.get_ticker = Mock(
+            return_value=Mock(bid=100_000_000.0, ask=100_100_000.0, last=150_000_000.0)
+        )
+        binance_provider = Mock()
+        binance_provider.get_ticker = Mock(
+            return_value=Mock(bid=70_000.0, ask=70_100.0, last=120_000.0)
+        )
+
+        rate_limiter_upbit = Mock()
+        rate_limiter_upbit.consume = Mock(return_value=True)
+        rate_limiter_binance = Mock()
+        rate_limiter_binance.consume = Mock(return_value=True)
+
+        profit_core = Mock()
+        profit_core.check_price_sanity = Mock(return_value=True)
+
+        opp_source = RealOpportunitySource(
+            upbit_provider=upbit_provider,
+            binance_provider=binance_provider,
+            rate_limiter_upbit=rate_limiter_upbit,
+            rate_limiter_binance=rate_limiter_binance,
+            fx_provider=fx_provider,
+            break_even_params=break_even_params,
+            kpi=kpi,
+            profit_core=profit_core,
+        )
+
+        candidate = opp_source.generate(iteration=1)
+
+        assert candidate is not None
+        assert candidate.price_a == pytest.approx(100_000_000.0)
+        expected_price_b = 70_100.0 * 1400.0
+        assert candidate.price_b == pytest.approx(expected_price_b)
     
     def test_fx_stale_guard_triggers_fail(self):
         """AU-2: FX rate age > TTL 시 FAIL 검증"""

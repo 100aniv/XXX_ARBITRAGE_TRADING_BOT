@@ -59,6 +59,7 @@ class BreakEvenParams:
         return cls(
             fee_model=fee_model,
             slippage_bps=threshold_config.slippage_bps,
+            latency_bps=threshold_config.latency_bps,
             buffer_bps=threshold_config.buffer_bps,
         )
 

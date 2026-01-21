@@ -9,7 +9,7 @@ D98-3: LiveExecutor ReadOnlyGuard 추가
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from arbitrage.types import (
@@ -46,7 +46,7 @@ class ExecutionResult:
     sell_price: float = 0.0
     quantity: float = 0.0
     pnl: float = 0.0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     # D80-4: Fill Model 정보 (선택적)
     buy_slippage_bps: float = 0.0
@@ -322,7 +322,7 @@ class PaperExecutor(BaseExecutor):
             entry_price=trade.buy_price,
             current_price=trade.sell_price,
             side=OrderSide.BUY,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
         self.positions[position_id] = position
         
@@ -600,7 +600,7 @@ class PaperExecutor(BaseExecutor):
                 entry_price=buy_fill_result.effective_price,
                 current_price=sell_fill_result.effective_price,
                 side=OrderSide.BUY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
             self.positions[position_id] = position
         
@@ -1011,7 +1011,7 @@ class LiveExecutor(BaseExecutor):
                 entry_price=trade.buy_price,
                 current_price=trade.sell_price,
                 side=OrderSide.BUY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
             self.positions[position_id] = position
             

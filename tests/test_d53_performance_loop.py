@@ -5,6 +5,7 @@ D53: Performance Tuning & Optimization - Loop Performance Tests
 LiveRunner 루프 성능 최적화 검증.
 """
 
+import asyncio
 import time
 import pytest
 from arbitrage.arbitrage_core import (
@@ -68,7 +69,7 @@ class TestLoopPerformance:
         loop_times = []
         for _ in range(10):
             loop_start = time.time()
-            runner.run_once()
+            asyncio.run(runner.run_once())
             loop_end = time.time()
             loop_time_ms = (loop_end - loop_start) * 1000.0
             loop_times.append(loop_time_ms)
@@ -203,7 +204,7 @@ class TestLoopMetricsOptimization:
         
         # 10회 루프 실행
         for _ in range(10):
-            runner.run_once()
+            asyncio.run(runner.run_once())
         
         # 메트릭 확인
         assert len(metrics_collector.loop_times) == 10

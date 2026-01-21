@@ -22,6 +22,12 @@ class OrderResult:
         filled_qty: Filled quantity (base asset)
         filled_price: Average fill price
         fee: Transaction fee (in quote currency)
+        ref_price: Reference price used for slippage calculation
+        slippage_bps: Applied slippage in basis points
+        pessimistic_drift_bps: Applied pessimistic drift in basis points
+        latency_ms: Simulated execution latency (milliseconds)
+        reject_flag: Whether the order was rejected
+        partial_fill_ratio: Partial fill ratio (0.0~1.0)
         error_message: Error message if failed
         raw_response: Raw exchange response (for debugging)
     """
@@ -30,6 +36,12 @@ class OrderResult:
     filled_qty: Optional[float] = None
     filled_price: Optional[float] = None
     fee: Optional[float] = None
+    ref_price: Optional[float] = None
+    slippage_bps: Optional[float] = None
+    pessimistic_drift_bps: Optional[float] = None
+    latency_ms: Optional[float] = None
+    reject_flag: Optional[bool] = None
+    partial_fill_ratio: Optional[float] = None
     error_message: Optional[str] = None
     raw_response: Optional[Dict[str, Any]] = None
 

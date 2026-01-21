@@ -21,7 +21,7 @@ import json
 import logging
 import sys
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -135,7 +135,7 @@ def extract_fill_events_from_kpi(kpi_path: Path) -> List[FillEvent]:
     for i in range(round_trips):
         # BUY Event
         buy_event = FillEvent(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             session_id=session_id,
             run_id=filename,
             symbol="BTC/USDT",  # 추정
@@ -157,7 +157,7 @@ def extract_fill_events_from_kpi(kpi_path: Path) -> List[FillEvent]:
         
         # SELL Event
         sell_event = FillEvent(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             session_id=session_id,
             run_id=filename,
             symbol="BTC/USDT",

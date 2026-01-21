@@ -18,6 +18,7 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from arbitrage.v2.opportunity import BreakEvenParams
@@ -43,12 +44,21 @@ class PaperRunnerConfig:
     db_mode: str = "optional"
     ensure_schema: bool = True
     use_real_data: bool = False
+    min_hold_ms: Optional[int] = None
+    cooldown_after_loss_seconds: Optional[int] = None
     fx_krw_per_usdt: float = 1450.0
+    fx_provider_mode: Optional[str] = None
     break_even_params: Optional[BreakEvenParams] = None
+    order_size_policy_mode: Optional[str] = None
+    fixed_quote: Optional[dict] = None
+    default_quote_amount: float = 100000.0
+    break_even_params_auto: bool = False
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
-        if not self.run_id:
+        if self.output_dir and not self.run_id:
+            self.run_id = Path(self.output_dir).name
+        elif not self.run_id:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
             self.run_id = f"d205_18_2d_{self.phase}_{timestamp}"
         
@@ -74,6 +84,10 @@ class PaperRunnerConfig:
                 latency_bps=2.0,
                 buffer_bps=3.0,
             )
+            self.break_even_params_auto = True
+
+        if not self.fx_provider_mode:
+            self.fx_provider_mode = "live" if self.use_real_data else "fixed"
 
 
 class PaperRunner:

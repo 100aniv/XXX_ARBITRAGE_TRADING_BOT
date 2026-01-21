@@ -25,7 +25,7 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
 
@@ -123,7 +123,7 @@ def run_minimal_paper(duration_seconds: int) -> Dict[str, Any]:
     logger.info(f"[D83-0.5] Starting minimal PAPER (duration={duration_seconds}s)")
     
     # 1. 세션 ID 및 출력 경로
-    session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     output_dir = Path("logs/d83-0.5")
     output_dir.mkdir(parents=True, exist_ok=True)
     

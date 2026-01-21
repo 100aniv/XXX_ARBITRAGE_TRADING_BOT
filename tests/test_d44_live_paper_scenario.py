@@ -9,7 +9,8 @@ import pytest
 import threading
 import time
 
-from arbitrage.arbitrage_core import ArbitrageEngine, ArbitrageConfig, OrderBookSnapshot
+from arbitrage.arbitrage_core import ArbitrageEngine, ArbitrageConfig
+from arbitrage.exchanges.base import OrderBookSnapshot as ExchangeOrderBookSnapshot
 from arbitrage.exchanges import PaperExchange
 from arbitrage.live_runner import ArbitrageLiveRunner, ArbitrageLiveConfig, RiskLimits
 
@@ -130,7 +131,7 @@ class TestLiveRunnerWithDynamicPrices:
                 bid_b, ask_b = 40000.0, 40000.0
             
             # 호가 주입
-            snapshot_a = OrderBookSnapshot(
+            snapshot_a = ExchangeOrderBookSnapshot(
                 symbol="KRW-BTC",
                 timestamp=time.time(),
                 bids=[(bid_a, 1.0)],
@@ -138,7 +139,7 @@ class TestLiveRunnerWithDynamicPrices:
             )
             exchange_a.set_orderbook("KRW-BTC", snapshot_a)
             
-            snapshot_b = OrderBookSnapshot(
+            snapshot_b = ExchangeOrderBookSnapshot(
                 symbol="BTCUSDT",
                 timestamp=time.time(),
                 bids=[(bid_b, 1.0)],

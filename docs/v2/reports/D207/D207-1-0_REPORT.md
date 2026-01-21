@@ -166,3 +166,9 @@ pytest tests/test_d206_4_order_pipeline.py -v --tb=short
 - D207-1-1: 20분 BASELINE 실행 (별도 세션)
 - D207-2: LONGRUN 60분 정합성
 - D207-3: 승률 100% 방지 + DIAGNOSIS
+
+---
+
+## 정직한 손실 & 기술적 사기 제거 (연계 기록)
+- **정직한 손실:** D207-3 REAL baseline 20m에서 trades=0, net_pnl=0.0 기록
+- **기술적 사기(100% 승률) 제거:** WIN_RATE_100_SUSPICIOUS kill-switch + pessimistic drift로 100% 승률 경로 차단

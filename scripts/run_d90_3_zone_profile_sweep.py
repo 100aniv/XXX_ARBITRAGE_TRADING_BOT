@@ -22,7 +22,7 @@ import logging
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -145,7 +145,7 @@ def run_single_profile(
         
         if not kpi_path:
             # 기본 경로 추정
-            kpi_path = Path(f"logs/d87-3/{session_tag}") / f"kpi_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            kpi_path = Path(f"logs/d87-3/{session_tag}") / f"kpi_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
         
         # KPI 로드
         if kpi_path.exists():
@@ -274,7 +274,7 @@ def generate_summary_markdown(aggregated: Dict[str, Any], output_path: Path):
     lines = []
     lines.append("# D90-3: Zone Profile Tuning v1 - Sweep Summary")
     lines.append("")
-    lines.append(f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+    lines.append(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     lines.append("")
     lines.append("---")
     lines.append("")

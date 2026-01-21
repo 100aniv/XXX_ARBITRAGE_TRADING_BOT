@@ -7,7 +7,7 @@ Stores metrics in Redis for fast access.
 
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Deque
 from dataclasses import dataclass, field
 
@@ -171,7 +171,7 @@ class MetricsCollector:
             "guard_triggers_per_minute": str(total_guard),
             "pnl_change_1min": f"{total_pnl:.2f}",
             "sample_count": str(len(self.samples)),
-            "last_update": datetime.utcnow().isoformat()
+            "last_update": datetime.now(timezone.utc).isoformat()
         }
     
     def get_current_metrics(self) -> Dict[str, Any]:

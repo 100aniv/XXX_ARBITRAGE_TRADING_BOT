@@ -20,7 +20,7 @@ import json
 import logging
 import statistics
 from dataclasses import dataclass, asdict, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -166,7 +166,7 @@ class TradeLogger:
         )
         
         entry = TradeLogEntry(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             session_id="d77-0-top_20-20251204001337",
             trade_id="rt_001",
             symbol="BTC/USDT",
@@ -388,7 +388,7 @@ def create_mock_trade_entry(
     Returns:
         Mock TradeLogEntry
     """
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     
     return TradeLogEntry(
         timestamp=now,
@@ -586,7 +586,7 @@ class RuntimeEdgeMonitor:
         effective_edge = avg_spread - avg_slip - self.fee_bps
         
         return EdgeSnapshot(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             window_size=len(self.trade_buffer),
             avg_spread_bps=avg_spread,
             avg_slippage_bps=avg_slip,

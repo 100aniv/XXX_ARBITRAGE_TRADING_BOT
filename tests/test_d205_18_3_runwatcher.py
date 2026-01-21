@@ -37,6 +37,7 @@ class TestRunWatcherHeartbeat:
         kpi.wins = 3
         kpi.losses = 2
         kpi.net_pnl = 100.0
+        kpi.fees_total = 10.0
         
         stop_called = False
         def mock_stop():
@@ -91,6 +92,7 @@ class TestSafetyGuardMaxDrawdown:
         kpi.wins = 5
         kpi.losses = 5
         kpi.net_pnl = 100.0  # Peak
+        kpi.fees_total = 10.0
         
         stop_called = False
         def mock_stop():

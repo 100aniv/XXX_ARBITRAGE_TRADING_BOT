@@ -14,7 +14,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional, Any
 
@@ -604,7 +604,7 @@ class ArbitrageLiveRunner:
                     return None
                 
                 snapshot = OrderBookSnapshot(
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     best_bid_a=best_bid_a,
                     best_ask_a=best_ask_a,
                     best_bid_b=best_bid_b,
@@ -663,7 +663,7 @@ class ArbitrageLiveRunner:
             
             # OrderBookSnapshot 생성 (D37 형식)
             snapshot = OrderBookSnapshot(
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 best_bid_a=best_bid_a,
                 best_ask_a=best_ask_a,
                 best_bid_b=best_bid_b,
@@ -1370,7 +1370,7 @@ class ArbitrageLiveRunner:
                 return False
             
             snapshot = OrderBookSnapshot(
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 best_bid_a=best_bid_a,
                 best_ask_a=best_ask_a,
                 best_bid_b=best_bid_b,
@@ -1691,7 +1691,7 @@ class ArbitrageLiveRunner:
         
         if mode == "CLEAN_RESET":
             # 새 세션 ID 생성
-            self._session_id = f"session_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            self._session_id = f"session_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
             logger.info(f"[D70_SESSION] CLEAN_RESET: new session_id={self._session_id}")
             
             # Redis 이전 세션 삭제 (선택)

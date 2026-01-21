@@ -48,6 +48,15 @@ class OpportunityCandidate:
         edge_bps: Edge (bps) = spread_bps - break_even_bps
         direction: 거래 방향
         profitable: 수익 가능 여부 (edge_bps > 0)
+        exchange_a_bid: 거래소 A bid (정규화 통화)
+        exchange_a_ask: 거래소 A ask (정규화 통화)
+        exchange_b_bid: 거래소 B bid (정규화 통화)
+        exchange_b_ask: 거래소 B ask (정규화 통화)
+        fx_rate: FX rate (예: KRW/USDT)
+        fx_rate_source: FX source label
+        fx_rate_age_sec: FX age seconds
+        fx_rate_timestamp: FX timestamp (ISO)
+        fx_rate_degraded: FX degraded flag
     """
     symbol: str
     exchange_a: str
@@ -59,6 +68,15 @@ class OpportunityCandidate:
     edge_bps: float
     direction: OpportunityDirection
     profitable: bool
+    exchange_a_bid: Optional[float] = None
+    exchange_a_ask: Optional[float] = None
+    exchange_b_bid: Optional[float] = None
+    exchange_b_ask: Optional[float] = None
+    fx_rate: Optional[float] = None
+    fx_rate_source: Optional[str] = None
+    fx_rate_age_sec: Optional[float] = None
+    fx_rate_timestamp: Optional[str] = None
+    fx_rate_degraded: Optional[bool] = None
 
 
 def detect_candidates(

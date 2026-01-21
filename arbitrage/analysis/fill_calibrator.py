@@ -18,7 +18,7 @@ Date: 2025-12-06
 import json
 import logging
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict
 import statistics
@@ -255,7 +255,7 @@ class FillModelCalibrator:
         # Calibration Table 생성
         calibration = {
             "version": version,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "source": source,
             "total_events": stats["total_events"],
             "unmatched_events": stats["unmatched_events"],

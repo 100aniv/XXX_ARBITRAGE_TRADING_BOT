@@ -18,11 +18,13 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.orchestrator import PaperOrchestrator
 from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
-from arbitrage.v2.core.fx_provider import LiveFxProvider
+from arbitrage.v2.core.fx_provider import LiveFxProvider, FixedFxProvider
 from arbitrage.v2.marketdata.rate_limiter import RateLimiter
 from arbitrage.v2.storage.ledger import V2LedgerStorage
 from arbitrage.v2.core.profit_core import ProfitCore
 from arbitrage.v2.core.config import load_config
+from arbitrage.v2.domain.break_even import BreakEvenParams
+from arbitrage.domain.fee_model import FeeModel, FeeStructure
 from arbitrage.redis_client import RedisClient
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,62 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     v2_config = load_config("config/v2/config.yml")
     profit_core = ProfitCore(v2_config.profit_core)
     logger.info(f"[D206-1] ProfitCore loaded: default_price_krw={v2_config.profit_core.default_price_krw}")
+
+    if getattr(config, "order_size_policy_mode", None) is None:
+        config.order_size_policy_mode = v2_config.strategy.order_size_policy.mode
+    if getattr(config, "fixed_quote", None) is None:
+        config.fixed_quote = v2_config.strategy.order_size_policy.fixed_quote
+
+    if getattr(config, "break_even_params", None) is None or getattr(config, "break_even_params_auto", False):
+        use_exchange_fees = v2_config.strategy.threshold.use_exchange_fees
+        upbit_cfg = v2_config.exchanges.get("upbit")
+        binance_cfg = v2_config.exchanges.get("binance")
+        if use_exchange_fees and upbit_cfg and binance_cfg:
+            fee_a = FeeStructure(
+                exchange_name="upbit",
+                maker_fee_bps=upbit_cfg.maker_fee_bps,
+                taker_fee_bps=upbit_cfg.taker_fee_bps,
+            )
+            fee_b = FeeStructure(
+                exchange_name="binance",
+                maker_fee_bps=binance_cfg.maker_fee_bps,
+                taker_fee_bps=binance_cfg.taker_fee_bps,
+            )
+        else:
+            fee_a = FeeStructure(exchange_name="upbit", maker_fee_bps=0.0, taker_fee_bps=0.0)
+            fee_b = FeeStructure(exchange_name="binance", maker_fee_bps=0.0, taker_fee_bps=0.0)
+
+        fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
+        config.break_even_params = BreakEvenParams.from_threshold_config(
+            fee_model=fee_model,
+            threshold_config=v2_config.strategy.threshold,
+        )
+        config.break_even_params_auto = False
+
+    if getattr(config, "min_hold_ms", None) is None:
+        config.min_hold_ms = v2_config.safety.min_hold_ms
+    if getattr(config, "cooldown_after_loss_seconds", None) is None:
+        config.cooldown_after_loss_seconds = v2_config.safety.cooldown_after_loss_seconds
+    if config.use_real_data and getattr(config, "cycle_interval_seconds", None) is None:
+        exec_cfg = getattr(v2_config, "execution", None)
+        if exec_cfg is not None and getattr(exec_cfg, "cycle_interval_seconds", None) is not None:
+            config.cycle_interval_seconds = exec_cfg.cycle_interval_seconds
+        else:
+            config.cycle_interval_seconds = v2_config.cycle_interval_seconds
+
+    fx_config = getattr(v2_config, "fx", {}) or {}
+    fx_provider_mode = getattr(config, "fx_provider_mode", None)
+    if fx_provider_mode is None:
+        fx_provider_mode = fx_config.get("provider")
+    if fx_provider_mode is None:
+        fx_provider_mode = "live" if config.use_real_data else "fixed"
+    config.fx_provider_mode = fx_provider_mode
+    if config.fx_provider_mode == "fixed":
+        fixed_cfg = fx_config.get("fixed", {}) or {}
+        config.fx_krw_per_usdt = fixed_cfg.get(
+            "krw_per_usdt",
+            getattr(config, "fx_krw_per_usdt", 1450.0),
+        )
     
     # 1. Metrics & Evidence
     kpi = PaperMetrics()
@@ -69,13 +127,50 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             logger.error(f"[D207-1] Provider init failed: {e}", exc_info=True)
             raise RuntimeError(f"Provider initialization failed: {e}")
     
-    # 3. FX Provider (D207-1-2: LiveFxProvider 강제 - Add-on Gamma)
-    # Static FX는 환상 테스트를 만든다 (Live FX만 허용)
-    fx_provider = LiveFxProvider(
-        source="crypto_implied",
-        ttl_seconds=60.0,  # FX staleness guard: 60초 이상 stale이면 FAIL
-        market_data_fetcher=None  # RealOpportunitySource가 자체 fetcher 사용
-    )
+    # 3. FX Provider (D207-1-2: Real data는 Live FX, 테스트/Mock은 Fixed FX)
+    fx_mode = getattr(config, "fx_provider_mode", "live" if config.use_real_data else "fixed")
+
+    # D207-3: REAL 모드에서는 fixed FX 금지 (원천 차단)
+    if config.use_real_data and fx_mode == "fixed":
+        raise RuntimeError("REAL mode requires live FX provider (fixed FX is forbidden)")
+
+    class _FxMarketDataFetcher:
+        def __init__(self, upbit, binance):
+            self.upbit = upbit
+            self.binance = binance
+
+        def get_mid_price(self, exchange: str, symbol: str) -> float:
+            provider = self.upbit if exchange == "upbit" else self.binance
+            if provider is None:
+                raise RuntimeError(f"FX fetcher provider missing: {exchange}")
+            ticker = provider.get_ticker(symbol)
+            if not ticker:
+                raise RuntimeError(f"FX fetcher ticker missing: {exchange}/{symbol}")
+            bid = getattr(ticker, "bid", None)
+            ask = getattr(ticker, "ask", None)
+            if bid and ask:
+                return (bid + ask) / 2.0
+            last = getattr(ticker, "last", None)
+            if last:
+                return float(last)
+            raise RuntimeError(f"FX fetcher price missing: {exchange}/{symbol}")
+
+    if fx_mode == "fixed":
+        fx_provider = FixedFxProvider(fx_krw_per_usdt=getattr(config, "fx_krw_per_usdt", 1450.0))
+        logger.info("[D207-1] FixedFxProvider selected for paper/test mode")
+    else:
+        fx_live_cfg = fx_config.get("live", {}) or {}
+        fx_source = fx_live_cfg.get("source", "crypto_implied")
+        fx_ttl_seconds = fx_live_cfg.get("ttl_seconds", 60.0)
+        fx_http_cfg = fx_live_cfg.get("http", {}) or {}
+        market_data_fetcher = _FxMarketDataFetcher(upbit_provider, binance_provider) if config.use_real_data else None
+        fx_provider = LiveFxProvider(
+            source=fx_source,
+            ttl_seconds=fx_ttl_seconds,
+            http_base_url=fx_http_cfg.get("base_url"),
+            http_timeout=fx_http_cfg.get("timeout_seconds", 5.0),
+            market_data_fetcher=market_data_fetcher,
+        )
     
     # 4. OpportunitySource (Real/Mock 전략) - D206-1 FIXPACK: profit_core 주입
     # D207-1 Step 2: REAL MarketData 강제 검증 (baseline/longrun phase)
@@ -106,7 +201,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     
     # 5. PaperExecutor (주문 실행 + Balance) - D206-1 FIXPACK: profit_core 주입
-    executor = PaperExecutor(profit_core)  # D206-1 FIXPACK
+    adapter_config = {"mock_adapter": v2_config.mock_adapter} if v2_config.mock_adapter else None
+    executor = PaperExecutor(profit_core, adapter_config=adapter_config)  # D206-1 FIXPACK
     
     # 6. LedgerWriter (DB 기록)
     storage = None

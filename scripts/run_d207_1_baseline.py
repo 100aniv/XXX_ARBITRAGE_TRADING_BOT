@@ -18,9 +18,8 @@ if __name__ == "__main__":
         "run_d207_1_baseline.py",
         "--phase", "baseline",
         "--duration", "20",
-        "--output-dir", "logs/evidence/d207_1_baseline_20m_20260119_recovery",
+        "--output-dir", "logs/evidence/d207_1_baseline_20m_20260120_execprice_fix",
         "--use-real-data",
-        "--disable-early-stop",
     ]
     exit_code = main()
     sys.exit(exit_code)

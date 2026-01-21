@@ -62,6 +62,8 @@ class EvidencePacker:
                 ["git", "rev-parse", "--short", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=Path.cwd()
             )
             return result.stdout.strip()
@@ -91,6 +93,8 @@ class EvidencePacker:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=Path.cwd(),
                 timeout=5
             )
@@ -103,6 +107,8 @@ class EvidencePacker:
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=Path.cwd(),
                 timeout=5
             )
@@ -114,6 +120,8 @@ class EvidencePacker:
                 ["git", "log", "-1", "--pretty=%B"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=Path.cwd(),
                 timeout=5
             )
@@ -125,6 +133,8 @@ class EvidencePacker:
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=Path.cwd(),
                 timeout=5
             )
@@ -284,6 +294,8 @@ class EvidencePacker:
                 ["docker", "ps", "--filter", "name=redis", "--format", "{{.State}}"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=5
             )
             docker_redis = "running" if "running" in result.stdout else "stopped"
@@ -295,6 +307,8 @@ class EvidencePacker:
                 ["docker", "ps", "--filter", "name=postgres", "--format", "{{.State}}"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=5
             )
             docker_postgres = "running" if "running" in result.stdout else "stopped"

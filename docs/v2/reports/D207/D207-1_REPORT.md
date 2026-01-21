@@ -122,3 +122,10 @@ python -m arbitrage.v2.harness.paper_runner --duration 20 --phase baseline
 **미완료:** 실제 20분 BASELINE 실행 (물리적 시간 제약)
 
 **권장:** D207-1-1 브랜치 생성, 별도 세션에서 20분 BASELINE 실행
+
+---
+
+## 정직한 손실 & 기술적 사기 제거 (연계 기록)
+- **정직한 손실:** D207-3 REAL baseline 20m에서 trades=0, net_pnl=0.0 기록
+- **기술적 사기(100% 승률) 제거:** WIN_RATE_100_SUSPICIOUS kill-switch + pessimistic drift로 100% 승률 경로 차단
+- **Baseline 핵심 수치:** winrate_pct=0.0, slippage_total=0.0, latency_total=0.0, partial_fill_total=0.0

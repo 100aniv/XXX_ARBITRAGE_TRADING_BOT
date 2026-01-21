@@ -84,7 +84,9 @@ class PaperMetrics:
         "intent_conversion_failed": 0,
         "symbol_blacklisted": 0,
         "admin_paused": 0,  # D205-12-1: AdminControl reject
+        "cooldown": 0,
         "fx_stale": 0,
+        "exit_candidate_none": 0,
     })
     
     # D207-1-2: FX Rate Info (Economic Truth - Real-time FX)
@@ -99,6 +101,11 @@ class PaperMetrics:
     slippage_cost: float = 0.0
     latency_cost: float = 0.0
     partial_fill_penalty: float = 0.0
+    # D207-1-6: Realism Pack v1 - explicit totals
+    slippage_total: float = 0.0
+    latency_total: float = 0.0
+    reject_total: float = 0.0
+    partial_fill_total: float = 0.0
     
     # D207-1-5: StopReason Single Truth Chain (SSOT)
     # Orchestrator가 유일한 소유자, 모든 파일에 동일하게 기록
@@ -196,6 +203,11 @@ class PaperMetrics:
             "slippage_cost": round(self.slippage_cost, 4),
             "latency_cost": round(self.latency_cost, 4),
             "partial_fill_penalty": round(self.partial_fill_penalty, 4),
+            # D207-1-6: Realism Pack v1 totals
+            "slippage_total": round(self.slippage_total, 4),
+            "latency_total": round(self.latency_total, 4),
+            "reject_total": round(self.reject_total, 4),
+            "partial_fill_total": round(self.partial_fill_total, 4),
             # D207-1-5: StopReason Single Truth Chain
             "stop_reason": self.stop_reason,
             "stop_message": self.stop_message,

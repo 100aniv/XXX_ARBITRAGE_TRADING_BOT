@@ -56,6 +56,13 @@ class WatcherConfig:
     
     # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (MODEL_ANOMALY)
     check_friction_nonzero: bool = True  # fees_total=0 감지 시 FAIL
+
+    # D207-3: FAIL 조건 (X): Winrate 100% Kill-switch
+    winrate_100_trade_threshold: int = 20  # 20거래 이상 + 100% 승률 시 중단
+
+    # D207-1-2: FAIL 조건 (FX): FX Staleness Kill-switch
+    fx_stale_enabled: bool = True
+    fx_stale_threshold_sec: float = 60.0
     
     # Add-on Beta: Anti-Machinegun Guard
     check_machinegun: bool = True  # 기관총 매매 감지
@@ -147,6 +154,36 @@ class RunWatcher:
         # KPI 가져오기
         kpi = self.kpi_getter()
         
+        # D207-1-2: FX Staleness Kill-switch (Early-stop과 무관)
+        if self.config.fx_stale_enabled:
+            fx_age_sec = getattr(kpi, "fx_rate_age_sec", None)
+            fx_source = getattr(kpi, "fx_rate_source", "")
+            if fx_age_sec is not None and fx_age_sec > self.config.fx_stale_threshold_sec:
+                self.stop_reason = "FX_STALE"
+                self.diagnosis = (
+                    f"FAIL (FX): FX rate too old ({fx_age_sec:.1f}s > {self.config.fx_stale_threshold_sec}s). "
+                    f"source={fx_source}"
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_FX_STALE")
+                self._trigger_graceful_stop()
+                return
+
+        # D207-3: Winrate 100% Kill-switch (Early-stop과 무관)
+        if (
+            kpi.closed_trades >= self.config.winrate_100_trade_threshold
+            and kpi.winrate_pct >= 100.0
+        ):
+            self.stop_reason = "WIN_RATE_100_SUSPICIOUS"
+            self.diagnosis = (
+                f"FAIL (D207-3): 100% winrate detected after {kpi.closed_trades} trades. "
+                f"Mock data or optimistic bias suspected."
+            )
+            logger.error(f"[RunWatcher] {self.diagnosis}")
+            self._save_stop_reason_snapshot(kpi, "FAIL_WINRATE_100")
+            self._trigger_graceful_stop()
+            return
+
         # D207-1 Step 3: early_stop_enabled=False이면 FAIL 조건 스킵 (heartbeat만 기록)
         if not self.config.early_stop_enabled:
             self._save_heartbeat(kpi)
@@ -316,6 +353,10 @@ class RunWatcher:
                     "losses": kpi.losses,
                     "net_pnl": float(kpi.net_pnl),
                     "opportunities_generated": kpi.opportunities_generated,
+                    "fx_rate": getattr(kpi, "fx_rate", 0.0),
+                    "fx_rate_source": getattr(kpi, "fx_rate_source", ""),
+                    "fx_rate_age_sec": getattr(kpi, "fx_rate_age_sec", 0.0),
+                    "fx_rate_timestamp": getattr(kpi, "fx_rate_timestamp", ""),
                 },
                 "guards": {
                     "peak_pnl": float(self._peak_pnl),
@@ -323,7 +364,7 @@ class RunWatcher:
                     "consecutive_losses": self._consecutive_losses,
                 },
             }
-            
+
             with open(self._heartbeat_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(heartbeat_data) + "\n")
         except Exception as e:
@@ -341,8 +382,14 @@ class RunWatcher:
                     "closed_trades": kpi.closed_trades,
                     "wins": kpi.wins,
                     "losses": kpi.losses,
+                    "winrate_pct": float(getattr(kpi, "winrate_pct", 0.0)),
                     "net_pnl": float(kpi.net_pnl),
                     "opportunities_generated": kpi.opportunities_generated,
+                    "fees_total": float(getattr(kpi, "fees_total", 0.0)),
+                    "fx_rate": getattr(kpi, "fx_rate", 0.0),
+                    "fx_rate_source": getattr(kpi, "fx_rate_source", ""),
+                    "fx_rate_age_sec": float(getattr(kpi, "fx_rate_age_sec", 0.0)),
+                    "fx_rate_timestamp": getattr(kpi, "fx_rate_timestamp", ""),
                 },
                 "guard_state": {
                     "peak_pnl": float(self._peak_pnl),

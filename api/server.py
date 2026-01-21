@@ -15,7 +15,7 @@ D16 Live Trading — FastAPI Backend
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import JSONResponse
 import asyncio
@@ -64,7 +64,7 @@ async def health_check() -> Dict[str, Any]:
         
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0"
         }
     except Exception as e:
@@ -92,7 +92,7 @@ async def get_live_metrics() -> Dict[str, Any]:
         return {
             "metrics": metrics,
             "portfolio": portfolio,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
@@ -118,7 +118,7 @@ async def get_positions() -> Dict[str, Any]:
         return {
             "positions": positions,
             "count": len(positions),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Error getting positions: {e}")
@@ -147,7 +147,7 @@ async def get_position(symbol: str) -> Dict[str, Any]:
         
         return {
             "position": position,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except HTTPException:
         raise
@@ -175,7 +175,7 @@ async def get_signals() -> Dict[str, Any]:
         return {
             "signals": signals,
             "count": len(signals),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Error getting signals: {e}")
@@ -204,7 +204,7 @@ async def get_signal(symbol: str) -> Dict[str, Any]:
         
         return {
             "signal": signal,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except HTTPException:
         raise
@@ -232,7 +232,7 @@ async def get_orders() -> Dict[str, Any]:
         return {
             "orders": orders,
             "count": len(orders),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Error getting orders: {e}")
@@ -261,7 +261,7 @@ async def get_order(order_id: str) -> Dict[str, Any]:
         
         return {
             "order": order,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except HTTPException:
         raise
@@ -296,7 +296,7 @@ async def get_executions(symbol: Optional[str] = None, limit: int = 100) -> Dict
         return {
             "executions": executions,
             "count": len(executions),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except HTTPException:
         raise
@@ -326,7 +326,7 @@ async def websocket_metrics(websocket: WebSocket):
                     "type": "metrics",
                     "metrics": metrics,
                     "portfolio": portfolio,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 
                 await websocket.send_json(data)
@@ -362,7 +362,7 @@ async def websocket_signals(websocket: WebSocket):
                             "type": "signal",
                             "symbol": symbol,
                             "signal": signal,
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }
                         await websocket.send_json(data)
                 
@@ -385,7 +385,7 @@ async def http_exception_handler(request, exc):
         status_code=exc.status_code,
         content={
             "error": exc.detail,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     )
 

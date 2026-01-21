@@ -211,7 +211,7 @@ class TradeSignal:
     direction: Optional[str] = None
     spread_opportunity: Optional[SpreadOpportunity] = None
     reason: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     def __repr__(self):
         action_emoji = {"OPEN": "🟢", "CLOSE": "🔴", "HOLD": "⏸️"}.get(self.action.upper(), "❓")

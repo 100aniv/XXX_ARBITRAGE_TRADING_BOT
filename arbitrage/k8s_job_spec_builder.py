@@ -8,7 +8,7 @@ D38 tuning job을 K8s Job manifest로 변환.
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class K8sJobSpecBuilder:
                 "labels": {
                     "app": "arbitrage-tuning",
                     "job-id": job_id,
-                    "created-at": datetime.utcnow().isoformat(),
+                    "created-at": datetime.now(timezone.utc).isoformat(),
                 },
                 "annotations": {
                     "job-id": job_id,

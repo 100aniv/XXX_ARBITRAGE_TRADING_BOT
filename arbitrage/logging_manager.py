@@ -24,7 +24,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -396,7 +396,7 @@ class LoggingManager:
         
         # Create log record
         record = LogRecord(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level=level.value,
             component=component,
             category=category.value,

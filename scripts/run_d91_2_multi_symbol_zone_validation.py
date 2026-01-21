@@ -33,7 +33,7 @@ import logging
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -154,7 +154,7 @@ def run_symbol_validation(
     
     # Session tag 생성
     session_tag = f"d91_2_{symbol.lower()}_{mode}_20m"
-    session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     
     # 로그 디렉터리 설정
     output_dir = Path(__file__).parent.parent / "logs" / "d91-2" / session_tag
@@ -210,7 +210,7 @@ def run_symbol_validation(
         kpi = {}
         for possible_kpi_path in [
             kpi_path,
-            output_dir / f"kpi_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json",
+            output_dir / f"kpi_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json",
         ]:
             if possible_kpi_path.exists():
                 with open(possible_kpi_path, 'r') as f:
