@@ -19,7 +19,7 @@ import signal
 import sys
 import time
 from enum import Enum
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from datetime import datetime, timezone
 import uuid
 
@@ -124,6 +124,8 @@ class PaperOrchestrator:
         self._sigterm_received = False
         self._watcher = None
         self.trade_history = []
+        self.edge_distribution_samples: List[Dict[str, Any]] = []
+        self._last_edge_distribution_iteration: Optional[int] = None
         self._last_trade_ts: float = 0.0
         self._last_loss_ts: Optional[float] = None
         
@@ -236,6 +238,12 @@ class PaperOrchestrator:
                 
                 # 1. Opportunity 생성
                 candidate = self.opportunity_source.generate(iteration)
+                edge_sample = self.opportunity_source.get_edge_distribution_sample()
+                if edge_sample:
+                    sample_iteration = edge_sample.get("iteration")
+                    if sample_iteration != self._last_edge_distribution_iteration:
+                        self.edge_distribution_samples.append(edge_sample)
+                        self._last_edge_distribution_iteration = sample_iteration
                 if not candidate:
                     self.kpi.bump_reject("candidate_none")
                     continue
@@ -554,6 +562,7 @@ class PaperOrchestrator:
                 "MODEL_ANOMALY",
                 "FX_STALE",
                 "WIN_RATE_100_SUSPICIOUS",
+                "TRADE_STARVATION",
             ]:
                 logger.error(
                     f"[D207-1-5] RunWatcher triggered FAIL. "
@@ -721,6 +730,7 @@ class PaperOrchestrator:
         self.evidence_collector.save(
             metrics=self.kpi,
             trade_history=self.trade_history,
+            edge_distribution=self.edge_distribution_samples,
             db_counts=db_counts,
             phase=self.config.phase
         )

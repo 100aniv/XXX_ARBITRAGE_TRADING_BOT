@@ -82,6 +82,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         config.min_hold_ms = v2_config.safety.min_hold_ms
     if getattr(config, "cooldown_after_loss_seconds", None) is None:
         config.cooldown_after_loss_seconds = v2_config.safety.cooldown_after_loss_seconds
+    deterministic_drift_bps = float(getattr(v2_config.strategy, "deterministic_drift_bps", 0.0))
+    if getattr(config, "deterministic_drift_bps", None) is None:
+        config.deterministic_drift_bps = deterministic_drift_bps
     if config.use_real_data and getattr(config, "cycle_interval_seconds", None) is None:
         exec_cfg = getattr(v2_config, "execution", None)
         if exec_cfg is not None and getattr(exec_cfg, "cycle_interval_seconds", None) is not None:
@@ -189,6 +192,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             break_even_params=config.break_even_params,
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
+            deterministic_drift_bps=config.deterministic_drift_bps,
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData)")
     else:
@@ -197,6 +201,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             break_even_params=config.break_even_params,
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
+            deterministic_drift_bps=config.deterministic_drift_bps,
         )
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     

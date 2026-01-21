@@ -53,6 +53,7 @@ class PaperRunnerConfig:
     fixed_quote: Optional[dict] = None
     default_quote_amount: float = 100000.0
     break_even_params_auto: bool = False
+    deterministic_drift_bps: Optional[float] = None
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""

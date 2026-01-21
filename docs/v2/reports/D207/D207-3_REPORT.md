@@ -1,8 +1,8 @@
 # D207-3: 승률 100% 방지 보고
 
-**Date:** 2026-01-21  
+**Date:** 2026-01-22  
 **Status:** ⚠️ PARTIAL (D207-1 dependency pending)  
-**Evidence:** `logs/evidence/d207_3_baseline_20m_20260121_1145/`
+**Evidence:** `logs/evidence/d207_3_baseline_20m_20260122_0125/`
 
 ---
 
@@ -18,26 +18,29 @@
 2. Reality Proof 필드 확장 (trade_history 기록)
 3. PaperExecutionAdapter pessimistic drift 적용 및 OrderResult 전달
 4. REAL 모드 live FX 강제 + 루프 주기 제어
+5. deterministic_drift_bps(10bps) 탐지 반영 + runtime_factory 주입
+6. edge_distribution.json 아티팩트 저장 + manifest 연결
+7. Trade Starvation kill-switch (TRADE_STARVATION)
 
 ---
 
 ## 테스트 결과
-- Doctor: `python -m compileall -f -q arbitrage/v2` (Exit 0)
-- Fast: D207-3 관련 테스트 PASS
-- Regression: `pytest -q` PASS
-- Gate Evidence: `logs/evidence/d207_3_gate_20260121_1345/`
+- Doctor: `logs/evidence/20260122_010129_gate_doctor_a4c79f6/` (PASS)
+- Fast: `logs/evidence/20260122_010804_gate_fast_a4c79f6/` (PASS)
+- Regression: `logs/evidence/20260122_011209_gate_regression_a4c79f6/` (PASS)
 
 ---
 
 ## REAL Baseline (20m)
-- Evidence: `logs/evidence/d207_3_baseline_20m_20260121_1145/`
+- Evidence: `logs/evidence/d207_3_baseline_20m_20260122_0125/`
 - stop_reason: TIME_REACHED
 - closed_trades: 0
 - winrate_pct: 0.0
 - net_pnl: 0.0
 - slippage_total: 0.0, latency_total: 0.0, partial_fill_total: 0.0
-- pessimistic_drift_bps: 10.0 (min=max)
-- DIAGNOSIS: `logs/evidence/d207_3_baseline_20m_20260121_1145/DIAGNOSIS.md`
+- deterministic_drift_bps: 10.0 (config/v2/config.yml)
+- opportunities_generated=0, candidate_none=10706
+- edge_distribution.json: 10706 samples
 
 ## 정직한 손실 & 기술적 사기 제거
 - **정직한 손실:** 거래 미체결로 PnL 0.0 (과장 없는 무수익 기록)
@@ -50,7 +53,10 @@
 - `D_ROADMAP.md`: D207-3 AC 및 Evidence 갱신
 
 ## DocOps Gate
-- `logs/evidence/d207_3_docops_20260121_1415/` (check_ssot_docs.py Exit 0)
+- **Gate (A):** check_ssot_docs.py ExitCode=0 ✅ PASS
+- **Gate (B):** ripgrep 위반 탐지 ✅ PASS (migration 관련 과거 기록만 발견)
+- **Gate (C):** Pre-commit sanity ✅ PASS (13 files modified, 3 untracked)
+- **Evidence:** `logs/evidence/d207_3_docops_gate_20260122/ssot_docs_check_exitcode.txt` (0), `ssot_docs_check_raw.txt`
 
 ---
 

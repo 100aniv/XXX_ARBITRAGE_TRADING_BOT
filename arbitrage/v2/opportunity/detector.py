@@ -57,6 +57,8 @@ class OpportunityCandidate:
         fx_rate_age_sec: FX age seconds
         fx_rate_timestamp: FX timestamp (ISO)
         fx_rate_degraded: FX degraded flag
+        deterministic_drift_bps: Deterministic drift penalty (bps)
+        net_edge_bps: Edge after deterministic drift (bps)
     """
     symbol: str
     exchange_a: str
@@ -77,6 +79,8 @@ class OpportunityCandidate:
     fx_rate_age_sec: Optional[float] = None
     fx_rate_timestamp: Optional[str] = None
     fx_rate_degraded: Optional[bool] = None
+    deterministic_drift_bps: float = 0.0
+    net_edge_bps: float = 0.0
 
 
 def detect_candidates(
@@ -86,6 +90,7 @@ def detect_candidates(
     price_a: float,
     price_b: float,
     params: BreakEvenParams,
+    deterministic_drift_bps: float = 0.0,
 ) -> Optional[OpportunityCandidate]:
     """
     단일 심볼에 대한 기회 탐지
@@ -127,6 +132,7 @@ def detect_candidates(
     
     # 3. Edge 계산
     edge_bps = compute_edge_bps(spread_bps, break_even_bps)
+    net_edge_bps = edge_bps - deterministic_drift_bps
     
     # 4. Direction 판단
     if price_a < price_b:
@@ -139,8 +145,8 @@ def detect_candidates(
         # 가격 동일 → 기회 없음
         direction = OpportunityDirection.NONE
     
-    # 5. Profitable 여부
-    profitable = edge_bps > 0
+    # 5. Profitable 여부 (deterministic drift 반영)
+    profitable = net_edge_bps > 0
     
     return OpportunityCandidate(
         symbol=symbol,
@@ -153,6 +159,8 @@ def detect_candidates(
         edge_bps=edge_bps,
         direction=direction,
         profitable=profitable,
+        deterministic_drift_bps=deterministic_drift_bps,
+        net_edge_bps=net_edge_bps,
     )
 
 

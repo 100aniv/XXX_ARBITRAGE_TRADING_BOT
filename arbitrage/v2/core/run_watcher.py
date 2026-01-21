@@ -63,6 +63,12 @@ class WatcherConfig:
     # D207-1-2: FAIL 조건 (FX): FX Staleness Kill-switch
     fx_stale_enabled: bool = True
     fx_stale_threshold_sec: float = 60.0
+
+    # D207-3: FAIL 조건 (T): Trade Starvation Kill-switch
+    trade_starvation_enabled: bool = True
+    trade_starvation_after_sec: float = 1200.0  # 20분
+    trade_starvation_min_opportunities: int = 100
+    trade_starvation_max_intents: int = 0
     
     # Add-on Beta: Anti-Machinegun Guard
     check_machinegun: bool = True  # 기관총 매매 감지
@@ -99,6 +105,7 @@ class RunWatcher:
         self._negative_edge_start: Optional[float] = None
         self._no_opportunity_start: Optional[float] = None
         self._last_check_time: Optional[float] = None
+        self._start_time: Optional[float] = None
         
         # Safety Guard 추적
         self._peak_pnl: float = 0.0
@@ -120,6 +127,7 @@ class RunWatcher:
         
         self._stop_event.clear()
         self._running = True
+        self._start_time = time.time()
         self._thread = threading.Thread(target=self._watch_loop, daemon=True)
         self._thread.start()
         logger.info(f"[RunWatcher] Started (heartbeat: {self.config.heartbeat_sec}s)")
@@ -183,6 +191,28 @@ class RunWatcher:
             self._save_stop_reason_snapshot(kpi, "FAIL_WINRATE_100")
             self._trigger_graceful_stop()
             return
+
+        # D207-3: Trade Starvation Kill-switch (Early-stop과 무관)
+        if self.config.trade_starvation_enabled:
+            start_ts = getattr(kpi, "wallclock_start", None) or self._start_time
+            if start_ts is not None:
+                elapsed_sec = now - start_ts
+                opportunities = getattr(kpi, "opportunities_generated", 0)
+                intents = getattr(kpi, "intents_created", 0)
+                if (
+                    elapsed_sec >= self.config.trade_starvation_after_sec
+                    and opportunities >= self.config.trade_starvation_min_opportunities
+                    and intents <= self.config.trade_starvation_max_intents
+                ):
+                    self.stop_reason = "TRADE_STARVATION"
+                    self.diagnosis = (
+                        f"FAIL (D207-3): Trade starvation after {elapsed_sec:.0f}s. "
+                        f"opportunities={opportunities}, intents={intents}"
+                    )
+                    logger.error(f"[RunWatcher] {self.diagnosis}")
+                    self._save_stop_reason_snapshot(kpi, "FAIL_TRADE_STARVATION")
+                    self._trigger_graceful_stop()
+                    return
 
         # D207-1 Step 3: early_stop_enabled=False이면 FAIL 조건 스킵 (heartbeat만 기록)
         if not self.config.early_stop_enabled:
@@ -385,6 +415,7 @@ class RunWatcher:
                     "winrate_pct": float(getattr(kpi, "winrate_pct", 0.0)),
                     "net_pnl": float(kpi.net_pnl),
                     "opportunities_generated": kpi.opportunities_generated,
+                    "intents_created": kpi.intents_created,
                     "fees_total": float(getattr(kpi, "fees_total", 0.0)),
                     "fx_rate": getattr(kpi, "fx_rate", 0.0),
                     "fx_rate_source": getattr(kpi, "fx_rate_source", ""),

@@ -55,6 +55,7 @@ class StrategyConfig:
     """전략 파라미터"""
     threshold: ThresholdConfig
     order_size_policy: OrderSizePolicyConfig
+    deterministic_drift_bps: float = 0.0
 
 
 @dataclass
@@ -378,6 +379,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
     strategy = StrategyConfig(
         threshold=threshold,
         order_size_policy=order_size_policy,
+        deterministic_drift_bps=float(strategy_raw.get('deterministic_drift_bps', 0.0)),
     )
     
     # Execution 파싱 (선택적 필드, 기본값 사용)

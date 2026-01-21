@@ -138,6 +138,7 @@ universe:
 strategy:
   # Edge Guard (D207-1-1: Economic Truth)
   min_net_edge_bps: 5.0  # 음수/제로 edge 거래 차단 (최소 순수익 마진)
+  deterministic_drift_bps: 10.0  # D207-3: 탐지 단계 고정 드리프트 패널티
   
   # Break-even 계산식 (D205-15-6: Config SSOT)
   # break_even_bps = fee_entry + fee_exit + execution_risk_round_trip + buffer

@@ -27,6 +27,7 @@ def build_candidate(
     price_a: float,
     price_b: float,
     params: BreakEvenParams,
+    deterministic_drift_bps: float = 0.0,
 ) -> Optional[OpportunityCandidate]:
     """
     Build OpportunityCandidate from 2 exchange prices.
@@ -52,6 +53,7 @@ def build_candidate(
         price_a=price_a,
         price_b=price_b,
         params=params,
+        deterministic_drift_bps=deterministic_drift_bps,
     )
 
 
@@ -188,6 +190,7 @@ def build_and_convert(
     base_qty: Optional[float] = None,
     quote_amount: Optional[float] = None,
     order_type: OrderType = OrderType.MARKET,
+    deterministic_drift_bps: float = 0.0,
 ) -> List[OrderIntent]:
     """
     Convenience function: build_candidate() + candidate_to_order_intents().
@@ -213,6 +216,7 @@ def build_and_convert(
         price_a=price_a,
         price_b=price_b,
         params=params,
+        deterministic_drift_bps=deterministic_drift_bps,
     )
     
     if not candidate:

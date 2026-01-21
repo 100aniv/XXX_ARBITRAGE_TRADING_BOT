@@ -145,6 +145,7 @@ class EvidenceCollector:
         self,
         metrics: Any,
         trade_history: List[Dict[str, Any]],
+        edge_distribution: Optional[List[Dict[str, Any]]] = None,
         db_counts: Optional[Dict[str, int]] = None,
         phase: str = "unknown"
     ) -> None:
@@ -178,6 +179,15 @@ class EvidenceCollector:
             with open(trace_path, "w", encoding="utf-8") as f:
                 json.dump(decision_trace, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Decision trace saved: {trace_path} ({len(decision_trace)} samples)")
+
+            # 3-1. Edge Distribution (D207-3)
+            edge_distribution = edge_distribution or []
+            edge_distribution_path = self.output_dir / "edge_distribution.json"
+            with open(edge_distribution_path, "w", encoding="utf-8") as f:
+                json.dump(edge_distribution, f, indent=2, ensure_ascii=False)
+            logger.info(
+                f"[EvidenceCollector] Edge distribution saved: {edge_distribution_path} ({len(edge_distribution)} samples)"
+            )
             
             # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
             chain_summary = {
@@ -212,7 +222,8 @@ class EvidenceCollector:
                     "kpi.json",
                     "manifest.json",
                     "metrics_snapshot.json",
-                    "decision_trace.json"
+                    "decision_trace.json",
+                    "edge_distribution.json"
                 ]
             }
             manifest_path = self.output_dir / "manifest.json"

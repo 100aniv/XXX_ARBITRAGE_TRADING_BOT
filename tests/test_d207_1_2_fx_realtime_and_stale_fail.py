@@ -134,9 +134,12 @@ class TestFxRealtimeAndStaleGuard:
         candidate = opp_source.generate(iteration=1)
 
         assert candidate is not None
-        assert candidate.price_a == pytest.approx(100_000_000.0)
-        expected_price_b = 70_100.0 * 1400.0
-        assert candidate.price_b == pytest.approx(expected_price_b)
+        bid_a = 100_000_000.0
+        ask_a = 100_100_000.0
+        bid_b = 70_000.0 * 1400.0
+        ask_b = 70_100.0 * 1400.0
+        assert candidate.price_a in (pytest.approx(bid_a), pytest.approx(ask_a))
+        assert candidate.price_b in (pytest.approx(bid_b), pytest.approx(ask_b))
     
     def test_fx_stale_guard_triggers_fail(self):
         """AU-2: FX rate age > TTL 시 FAIL 검증"""

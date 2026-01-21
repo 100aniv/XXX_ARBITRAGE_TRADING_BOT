@@ -6528,6 +6528,9 @@ enable_execution: false       # REQUIRED
 **상태:** ⚠️ PARTIAL (2026-01-21, D207-1 dependency pending)  
 **진행:**
 - ✅ WIN_RATE_100_SUSPICIOUS kill-switch 구현 + RunWatcher 연동
+- ✅ deterministic_drift_bps(10bps) 탐지 경로 적용 + runtime_factory 주입
+- ✅ edge_distribution.json 아티팩트 저장 (tick별 상위 50 샘플)
+- ✅ Trade Starvation kill-switch 구현 (TRADE_STARVATION)
 - ✅ Gate Doctor/Fast/Regression PASS
 - ✅ OPS_PROTOCOL 업데이트 (winrate warning + 100% kill-switch)
 - ✅ REAL baseline 20m 실행 (trades=0, stop_reason=TIME_REACHED)
@@ -6545,17 +6548,31 @@ enable_execution: false       # REQUIRED
 - [x] AC-4: 예외 처리 - OPS_PROTOCOL.md에 승률 95% 초과 시 is_optimistic_warning 플래그 기록
 - [x] AC-5: 테스트 케이스 - 의도적으로 승률 100% 만드는 테스트, FAIL 확인
 - [x] AC-6: 문서화 - OPS_PROTOCOL.md에 승률 100% 감지 시나리오 추가
+- [x] AC-7: deterministic drift 탐지 반영 - net_edge_bps = edge_bps - drift, config 주입
+- [x] AC-8: edge_distribution.json 저장 및 manifest 포함
+- [x] AC-9: Trade Starvation kill-switch - 20분 경과 후 opp>=100 & intents=0이면 ExitCode=1
 
 **Evidence 경로:**
 - 테스트 결과: `tests/test_d207_3_win_rate_100_prevention.py`
 - 테스트 결과: `tests/test_d207_3_pessimistic_drift.py`
+- 테스트 결과: `tests/test_d207_3_trade_starvation.py`
+- 테스트 결과: `tests/test_d207_3_edge_distribution_artifact.py`
 - 문서 갱신: `docs/v2/OPS_PROTOCOL.md` (승률 100% 시나리오)
+- Gate Evidence: `logs/evidence/20260122_010129_gate_doctor_a4c79f6/`
+- Gate Evidence: `logs/evidence/20260122_010804_gate_fast_a4c79f6/`
+- Gate Evidence: `logs/evidence/20260122_011209_gate_regression_a4c79f6/`
 - REAL baseline: `logs/evidence/d207_3_baseline_20m_20260121_1145/`
   - kpi.json, engine_report.json, watch_summary.json, DIAGNOSIS.md
   - Baseline KPI (REAL 20m): winrate_pct=0.0, closed_trades=0, net_pnl=0.0
   - Slippage/Latency/PartialFill: slippage_total=0.0, latency_total=0.0, partial_fill_total=0.0
   - Drift config: pessimistic_drift_bps_min=10.0, pessimistic_drift_bps_max=10.0 (config/v2/config.yml)
   - FX: fx_rate=1486.6825 (crypto_implied), fx_rate_age_sec=2.97
+  - REAL baseline 추가: `logs/evidence/d207_3_baseline_20m_20260122_0125/`
+    - kpi.json, engine_report.json, watch_summary.json, edge_distribution.json
+    - Baseline KPI (REAL 20m): winrate_pct=0.0, closed_trades=0, net_pnl=0.0
+    - opportunities_generated=0, candidate_none=10706
+    - deterministic_drift_bps=10.0 (config/v2/config.yml)
+    - FX: fx_rate=1484.8021 (crypto_implied), fx_rate_age_sec=3.19
 
 **의존성:**
 - Depends on: 신 D207-1 (REAL+Friction ON) ❌
