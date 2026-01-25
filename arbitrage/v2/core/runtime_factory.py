@@ -121,10 +121,10 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     
     if config.use_real_data:
         try:
-            upbit_provider = UpbitRestProvider(timeout=10.0)
-            binance_provider = BinanceRestProvider(timeout=10.0)
             rate_limiter_upbit = RateLimiter(requests_per_second=9, burst=2)
             rate_limiter_binance = RateLimiter(requests_per_second=20, burst=5)
+            upbit_provider = UpbitRestProvider(timeout=10.0, rate_limiter=rate_limiter_upbit)
+            binance_provider = BinanceRestProvider(timeout=10.0)
             logger.info(f"[D207-1] Real MarketData Providers initialized")
         except Exception as e:
             logger.error(f"[D207-1] Provider init failed: {e}", exc_info=True)

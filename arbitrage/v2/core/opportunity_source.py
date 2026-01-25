@@ -123,18 +123,24 @@ class RealOpportunitySource(OpportunitySource):
                 _set_edge_distribution([], reason="provider_none")
                 return None
             
-            if not self.rate_limiter_upbit.consume(tokens=1):
-                self.kpi.ratelimit_hits += 1
-                if iteration % 10 == 1:
-                    logger.warning(f"[D207-1] Upbit RateLimit exceeded")
-                self.kpi.real_ticks_fail_count += 1
-                _set_edge_distribution([], reason="ratelimit_upbit")
-                return None
+            if self.rate_limiter_upbit and getattr(self.upbit_provider, "rate_limiter", None) is None:
+                if not self.rate_limiter_upbit.consume(tokens=1):
+                    self.kpi.ratelimit_hits += 1
+                    if iteration % 10 == 1:
+                        logger.warning(f"[D207-1] Upbit RateLimit exceeded")
+                    self.kpi.real_ticks_fail_count += 1
+                    _set_edge_distribution([], reason="ratelimit_upbit")
+                    return None
             
             ticker_upbit = self.upbit_provider.get_ticker("BTC/KRW")
             if not ticker_upbit:
+                upbit_status = getattr(self.upbit_provider, "last_error_status", None)
                 if iteration % 10 == 1:
-                    logger.warning(f"[D207-1] Upbit ticker fetch failed")
+                    if upbit_status == 429:
+                        self.kpi.ratelimit_hits += 1
+                        logger.info("[D207-1] Upbit ticker rate limited (429)")
+                    else:
+                        logger.warning(f"[D207-1] Upbit ticker fetch failed")
                 self.kpi.real_ticks_fail_count += 1
                 _set_edge_distribution([], reason="ticker_upbit_missing")
                 return None

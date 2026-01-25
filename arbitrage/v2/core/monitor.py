@@ -16,6 +16,7 @@ Date: 2026-01-11
 import os
 import json
 import logging
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -57,6 +58,8 @@ class EvidenceCollector:
         Returns:
             Snapshot dict
         """
+        reject_total = int(sum(metrics.reject_reasons.values()))
+
         snapshot = {
             "type": "metrics_snapshot",
             "timestamp": metrics.to_dict().get("start_time"),
@@ -67,6 +70,7 @@ class EvidenceCollector:
                 "generated": metrics.opportunities_generated,
                 "intents_created": metrics.intents_created,
                 "reject_reasons": dict(metrics.reject_reasons),
+                "reject_total": reject_total,
             },
             
             # Execution 통계
@@ -207,6 +211,39 @@ class EvidenceCollector:
             logger.info(f"[EvidenceCollector] Chain summary saved: {chain_summary_path}")
             
             # 5. Manifest (OPS_PROTOCOL 필수 파일 목록 포함)
+            files = [
+                "chain_summary.json",
+                "heartbeat.jsonl",
+                "kpi.json",
+                "manifest.json",
+                "metrics_snapshot.json",
+                "decision_trace.json",
+                "edge_distribution.json",
+            ]
+            run_log_path = self.output_dir / "run_log.txt"
+            if run_log_path.exists():
+                files.append("run_log.txt")
+
+            file_meta: Dict[str, Any] = {}
+            for filename in files:
+                filepath = self.output_dir / filename
+                if not filepath.exists():
+                    continue
+                size_bytes = filepath.stat().st_size
+                if filename == "manifest.json":
+                    file_meta[filename] = {
+                        "size_bytes": size_bytes,
+                        "sha256": None,
+                        "note": "self_reference"
+                    }
+                    continue
+                with open(filepath, "rb") as f:
+                    sha256 = hashlib.sha256(f.read()).hexdigest()
+                file_meta[filename] = {
+                    "size_bytes": size_bytes,
+                    "sha256": f"sha256:{sha256}"
+                }
+
             manifest = {
                 "run_id": self.run_id,
                 "phase": phase,
@@ -216,15 +253,8 @@ class EvidenceCollector:
                 "winrate_pct": kpi_dict.get("winrate_pct"),
                 "net_pnl": kpi_dict.get("net_pnl"),
                 "marketdata_mode": kpi_dict.get("marketdata_mode"),
-                "files": [
-                    "chain_summary.json",
-                    "heartbeat.jsonl",
-                    "kpi.json",
-                    "manifest.json",
-                    "metrics_snapshot.json",
-                    "decision_trace.json",
-                    "edge_distribution.json"
-                ]
+                "files": files,
+                "file_meta": file_meta,
             }
             manifest_path = self.output_dir / "manifest.json"
             with open(manifest_path, "w", encoding="utf-8") as f:

@@ -392,7 +392,9 @@ class PaperOrchestrator:
                 self.kpi.slippage_total += slippage_cost
                 self.kpi.latency_total += latency_cost
                 self.kpi.partial_fill_total += partial_penalty
-                self.kpi.reject_total += reject_count
+                if reject_count:
+                    for _ in range(int(reject_count)):
+                        self.kpi.bump_reject("execution_reject")
                 
                 if is_win:
                     self.kpi.wins += 1
@@ -465,6 +467,10 @@ class PaperOrchestrator:
             wallclock_end = time.time()
             actual_duration = wallclock_end - wallclock_start
             expected_duration = duration_sec
+            if hasattr(self, "kpi"):
+                self.kpi.expected_duration_sec = expected_duration
+                if expected_duration > 0:
+                    self.kpi.wallclock_drift_pct = abs(actual_duration - expected_duration) / expected_duration * 100.0
             
             # D207-1-5: RunWatcher stop_reason 먼저 체크 (Truth Chain SSOT)
             # MODEL_ANOMALY가 트리거되었다면 해당 stop_reason 사용
@@ -507,6 +513,8 @@ class PaperOrchestrator:
             # D205-18-4-FIX-3: duration < 120초면 F2 스킵 (테스트 호환성)
             if duration_sec >= 120 and self._watcher:
                 heartbeat_result = self._watcher.verify_heartbeat_density()
+                if hasattr(self, "kpi"):
+                    self.kpi.max_heartbeat_gap_sec = heartbeat_result.get("max_gap_seconds", 0.0)
                 if heartbeat_result["status"] == "FAIL":
                     logger.error(
                         f"[D205-18-4R2] Heartbeat density FAIL: {heartbeat_result['message']}"
@@ -516,10 +524,12 @@ class PaperOrchestrator:
                     return 1
                 
                 logger.info(
-                    f"[D205-18-4R2] Heartbeat density PASS: max_gap={heartbeat_result.get('max_gap_sec', 0)}s"
+                    f"[D205-18-4R2] Heartbeat density PASS: max_gap={heartbeat_result.get('max_gap_seconds', 0)}s"
                 )
             elif duration_sec < 120:
                 logger.info(f"[D205-18-4-FIX-3] F2 Heartbeat Density skipped (duration={duration_sec}s < 120s)")
+                if hasattr(self, "kpi"):
+                    self.kpi.max_heartbeat_gap_sec = 0.0
             
             # Evidence Completeness 검사 전 Evidence 저장 (kpi/manifest/chain_summary 생성)
             db_counts = self.ledger_writer.get_counts()
@@ -631,6 +641,9 @@ class PaperOrchestrator:
                 final_exit_code = self._final_exit_code if self._final_exit_code != 0 else (1 if self._state == OrchestratorState.ERROR else 0)
                 final_stop_reason = self._stop_reason if self._stop_reason else ("TIME_REACHED" if final_exit_code == 0 else "ERROR")
                 final_stop_message = self._stop_message if self._stop_message else ""
+
+                if hasattr(self, "kpi") and hasattr(self.kpi, "sync_reject_total"):
+                    self.kpi.sync_reject_total()
                 
                 # Wallclock duration (fallback if not defined)
                 wallclock_duration = 0.0

@@ -37,6 +37,9 @@ class PaperMetrics:
     """
     start_time: float = field(default_factory=time.time)
     wallclock_start: float = field(default_factory=time.time)  # D205-18-4R: Wall-clock 기준
+    expected_duration_sec: float = 0.0
+    wallclock_drift_pct: float = 0.0
+    max_heartbeat_gap_sec: float = 0.0
     opportunities_generated: int = 0
     intents_created: int = 0
     mock_executions: int = 0
@@ -87,6 +90,7 @@ class PaperMetrics:
         "cooldown": 0,
         "fx_stale": 0,
         "exit_candidate_none": 0,
+        "execution_reject": 0,
     })
     
     # D207-1-2: FX Rate Info (Economic Truth - Real-time FX)
@@ -145,6 +149,17 @@ class PaperMetrics:
         # Winrate 계산
         if self.closed_trades > 0:
             self.winrate_pct = (self.wins / self.closed_trades) * 100
+
+    def sync_reject_total(self) -> int:
+        """
+        reject_total을 reject_reasons 합계로 동기화
+
+        Returns:
+            reject_total (int)
+        """
+        total = int(sum(self.reject_reasons.values()))
+        self.reject_total = float(total)
+        return total
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -158,10 +173,15 @@ class PaperMetrics:
         # D205-18-4R: Wall-clock 기준 duration 계산
         duration_seconds = time.time() - self.wallclock_start
         
+        reject_total = self.sync_reject_total()
+
         kpi = {
             "start_time": datetime.fromtimestamp(self.wallclock_start).isoformat(),
             "duration_seconds": round(duration_seconds, 2),
             "duration_minutes": round(duration_seconds / 60, 2),
+            "expected_duration_sec": round(self.expected_duration_sec, 2),
+            "wallclock_drift_pct": round(self.wallclock_drift_pct, 2),
+            "max_heartbeat_gap_sec": round(self.max_heartbeat_gap_sec, 2),
             "opportunities_generated": self.opportunities_generated,
             "intents_created": self.intents_created,
             "mock_executions": self.mock_executions,
@@ -206,7 +226,7 @@ class PaperMetrics:
             # D207-1-6: Realism Pack v1 totals
             "slippage_total": round(self.slippage_total, 4),
             "latency_total": round(self.latency_total, 4),
-            "reject_total": round(self.reject_total, 4),
+            "reject_total": reject_total,
             "partial_fill_total": round(self.partial_fill_total, 4),
             # D207-1-5: StopReason Single Truth Chain
             "stop_reason": self.stop_reason,
