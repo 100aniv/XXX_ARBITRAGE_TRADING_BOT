@@ -6639,6 +6639,31 @@ enable_execution: false       # REQUIRED
 
 ---
 
+### 신 D208-0: [META] Structural Normalization (Plan)
+
+**상태:** PLANNED (D207-4 완료 후)  
+**목적:** V2 엔진 구조 정규화 및 D208+ 준비
+
+**목표:**
+- MockAdapter → ExecutionBridge 리네이밍 (행동변경 0)
+- Unified Engine Interface (Backtest/Paper/Live 통합)
+- V1 레거시 코드 삭제 후보 리스트업
+
+**Acceptance Criteria:**
+- [ ] AC-1: ExecutionBridge 리네이밍 - MockAdapter → ExecutionBridge (alias 유지, 행동변경 0)
+- [ ] AC-2: Unified Engine Interface - Backtest/Paper/Live 동일 Engine + 교체 가능한 Adapter 구조 정리
+- [ ] AC-3: V1 Purge 계획 - 삭제 후보 목록화 + 참조 0 확인 (실제 삭제는 D209+ 범위)
+
+**Evidence 경로:**
+- 설계 문서: `docs/v2/design/STRUCTURAL_NORMALIZATION.md`
+- 리네이밍 계획: `docs/v2/reports/D208/D208-0_PLAN.md`
+
+**의존성:**
+- Depends on: D207-4 (Double-count Fix + CTO Audit)
+- Unblocks: D208-1 (주문 실패 시나리오)
+
+---
+
 ### 신 D208: 주문 라이프사이클/실패모델/리스크 가드
 
 **전략:** 신 D207 수익성 증명 완료 후, 주문 실패 시나리오 + 리스크 가드 통합  
