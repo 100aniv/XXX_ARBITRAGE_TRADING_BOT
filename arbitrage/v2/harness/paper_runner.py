@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple, Dict, Any
 
 from arbitrage.v2.opportunity import BreakEvenParams
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
@@ -38,6 +38,9 @@ class PaperRunnerConfig:
     phase: str = "smoke"
     run_id: str = ""
     output_dir: str = ""
+    config_path: Optional[str] = None
+    symbols: Optional[List[Tuple[str, str]]] = None
+    cli_args: Optional[Dict[str, Any]] = None
     symbols_top: int = 10
     db_connection_string: str = ""
     read_only: bool = True
@@ -313,6 +316,8 @@ def main():
         ensure_schema=args.ensure_schema,
         use_real_data=args.use_real_data,
     )
+
+    config.cli_args = vars(args)
     
     runner = PaperRunner(config)
     exit_code = runner.run()

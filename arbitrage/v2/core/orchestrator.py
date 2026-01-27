@@ -29,7 +29,7 @@ from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.run_watcher import RunWatcher
-from arbitrage.v2.core.engine_report import generate_engine_report
+from arbitrage.v2.core.engine_report import generate_engine_report, get_git_sha, get_git_branch
 from arbitrage.v2.core.order_intent import OrderSide
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
@@ -211,6 +211,21 @@ class PaperOrchestrator:
         self.start_watcher()
         
         try:
+            symbols = getattr(self.config, "symbols", None)
+            if not symbols:
+                msg = "symbols list empty"
+                logger.error(f"[D207-5 INVALID_RUN] FAIL: {msg}")
+                self.kpi.error_count += 1
+                self.kpi.errors.append("invalid_run:symbols_empty")
+                self._state = OrchestratorState.ERROR
+                self._final_exit_code = 1
+                self._stop_reason = "INVALID_RUN_SYMBOLS_EMPTY"
+                self._stop_message = msg
+                self.kpi.stop_reason = self._stop_reason
+                self.kpi.stop_message = self._stop_message
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                return 1
             duration_sec = self.config.duration_minutes * 60
             iteration = 0
             
@@ -455,6 +470,21 @@ class PaperOrchestrator:
                     time.sleep(cycle_interval_sec)
             
             logger.info(f"[D207-1] Orchestrator completed: {iteration} iterations")
+
+            if self.kpi.marketdata_mode == "REAL" and self.kpi.real_ticks_ok_count == 0:
+                msg = "real_ticks_ok_count=0"
+                logger.error(f"[D207-5 INVALID_RUN] FAIL: {msg}")
+                self.kpi.error_count += 1
+                self.kpi.errors.append("invalid_run:real_ticks_zero")
+                self._state = OrchestratorState.ERROR
+                self._final_exit_code = 1
+                self._stop_reason = "INVALID_RUN_REAL_TICKS_ZERO"
+                self._stop_message = msg
+                self.kpi.stop_reason = self._stop_reason
+                self.kpi.stop_message = self._stop_message
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                return 1
             
             # D205-18-4-FIX-2 F5: SIGTERM 시 즉시 Evidence Flush + Exit 1
             if self._sigterm_received:
@@ -740,12 +770,21 @@ class PaperOrchestrator:
     
     def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
         """Evidence 저장"""
+        run_meta = {
+            "run_id": self.run_id,
+            "git_sha": get_git_sha(),
+            "branch": get_git_branch(),
+            "config_path": getattr(self.config, "config_path", None),
+            "symbols": getattr(self.config, "symbols", None),
+            "cli_args": getattr(self.config, "cli_args", None),
+        }
         self.evidence_collector.save(
             metrics=self.kpi,
             trade_history=self.trade_history,
             edge_distribution=self.edge_distribution_samples,
             db_counts=db_counts,
-            phase=self.config.phase
+            phase=self.config.phase,
+            run_meta=run_meta
         )
         logger.info(f"[D206-0] Evidence saved")
     

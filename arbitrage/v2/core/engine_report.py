@@ -38,6 +38,22 @@ def get_git_sha() -> str:
         return "unknown"
 
 
+def get_git_branch() -> str:
+    """Get current git branch name"""
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception as e:
+        logger.warning(f"Failed to get git branch: {e}")
+        return "unknown"
+
+
 def compute_config_fingerprint(config: Any, config_path: Optional[str] = None) -> str:
     """
     Compute config fingerprint (SHA256) - D206-3 AC-6
@@ -114,13 +130,24 @@ def generate_engine_report(
     git_sha = get_git_sha()
     
     # Config fingerprint
-    config_fingerprint = compute_config_fingerprint(config)
+    config_path = getattr(config, "config_path", None)
+    config_fingerprint = compute_config_fingerprint(config, config_path=config_path)
     
     # Exchanges/Symbols
     exchanges = getattr(config, 'exchanges', ['upbit', 'binance'])
     symbols = getattr(config, 'symbols', [])
     if not symbols and hasattr(kpi, 'symbols_count'):
         symbols = [f"TOP{kpi.symbols_count}"]
+
+    # Run meta (D207-5)
+    run_meta = {
+        "run_id": run_id,
+        "git_sha": git_sha,
+        "branch": get_git_branch(),
+        "config_path": config_path,
+        "symbols": symbols,
+        "cli_args": getattr(config, "cli_args", None),
+    }
     
     # Wallclock drift
     wallclock_drift_pct = 0.0
@@ -149,6 +176,7 @@ def generate_engine_report(
         "exchanges": exchanges,
         "symbols": symbols,
         "config_fingerprint": config_fingerprint,
+        "run_meta": run_meta,
         
         "gate_validation": {
             "warnings_count": warning_counts.get("warning_count", 0),

@@ -2312,6 +2312,18 @@ def mask_sensitive(text: str, key_length: int = 8) -> str:
 
 ---
 
+### 2026-01-27 KST - D208-0 제거 및 D208 승격 (D207-5 Rebase)
+**사유:** D208-0 계획 블록 제거, D208을 Structural Normalization으로 승격하고 후속 D번호를 1단계 시프트
+
+**변경 내역:**
+- D208-0 제거 → **신 D208: Structural Normalization**
+- 기존 신 D208(주문 라이프사이클) → **신 D209**
+- 기존 신 D209(LIVE Gate) → **신 D210**
+
+**커밋:** (진행 중)
+
+---
+
 ## Core Regression SSOT 정의 (2025-12-17)
 
 **Core Regression은 항상 100% PASS여야 합니다.**
@@ -5960,14 +5972,15 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 | 신 D207-1 | BASELINE 20분 수익성 | net_pnl > 0 증명 또는 실패 원인 분석 |
 | 신 D207-2 | LONGRUN 60분 정합성 | heartbeat/chain_summary 시간 정합성 ±5% PASS |
 | 신 D207-3 | 승률 100% 방지 | 승률 100% 발견 시 FAIL + 원인 분석 (Mock 데이터 의심) |
-| **신 D208** | 주문 라이프사이클/실패모델 | rate limit, timeout, reject, partial fill, cancel, replace 시나리오 |
-| 신 D208-1 | 주문 실패 시나리오 | 429 rate limit, timeout, reject, partial fill 각각 대응 검증 |
-| 신 D208-2 | 리스크 가드 통합 | position limit, loss cutoff, kill-switch 엔진 통합 |
-| 신 D208-3 | Fail-Fast 전파 | ExitCode 전파 체계 완성, 모든 실패는 ExitCode=1 |
-| **신 D209** | LIVE 진입 설계/게이트 (구현은 봉인) | LIVE order_submit 잠금 + allowlist + 증거 규격 명시 |
-| 신 D209-1 | LIVE 설계 문서 | LIVE 아키텍처, allowlist, 증거 규격, DONE 판정 기준 명시 |
-| 신 D209-2 | LIVE Gate 설계 | order_submit 잠금 메커니즘, ExitCode 강제, 증거 검증 규칙 |
-| 신 D209-3 | LIVE 봉인 검증 | LIVE 코드 실행 불가 증명, allowlist 외 진입 FAIL 검증 |
+| **신 D208** | Structural Normalization | MockAdapter → ExecutionBridge, Unified Engine Interface, V1 purge 계획 |
+| **신 D209** | 주문 라이프사이클/실패모델 | rate limit, timeout, reject, partial fill, cancel, replace 시나리오 |
+| 신 D209-1 | 주문 실패 시나리오 | 429 rate limit, timeout, reject, partial fill 각각 대응 검증 |
+| 신 D209-2 | 리스크 가드 통합 | position limit, loss cutoff, kill-switch 엔진 통합 |
+| 신 D209-3 | Fail-Fast 전파 | ExitCode 전파 체계 완성, 모든 실패는 ExitCode=1 |
+| **신 D210** | LIVE 진입 설계/게이트 (구현은 봉인) | LIVE order_submit 잠금 + allowlist + 증거 규격 명시 |
+| 신 D210-1 | LIVE 설계 문서 | LIVE 아키텍처, allowlist, 증거 규격, DONE 판정 기준 명시 |
+| 신 D210-2 | LIVE Gate 설계 | order_submit 잠금 메커니즘, ExitCode 강제, 증거 검증 규칙 |
+| 신 D210-3 | LIVE 봉인 검증 | LIVE 코드 실행 불가 증명, allowlist 외 진입 FAIL 검증 |
 
 ### 변경 사유
 
@@ -5981,9 +5994,10 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 **해결 방안:**
 1. **신 D206: V1→V2 완전 이식** - 도메인 모델 + 전략 로직 + Config SSOT + 주문 파이프라인
 2. **신 D207: Paper 수익성** - Real data + 실전 모델로 net_pnl > 0 증명
-3. **신 D208: 실패 대응** - 주문 라이프사이클 + 리스크 가드 + Fail-Fast
-4. **신 D209: LIVE 설계만** - 구현은 게이트로 봉인, 설계 문서만 작성
-5. **Gate Integrity** - 신 D206-0에서 DOPING 제거 블로커로 선행 처리
+3. **신 D208: Structural Normalization** - MockAdapter → ExecutionBridge, Unified Engine Interface, V1 purge 계획
+4. **신 D209: 실패 대응** - 주문 라이프사이클 + 리스크 가드 + Fail-Fast
+5. **신 D210: LIVE 설계만** - 구현은 게이트로 봉인, 설계 문서만 작성
+6. **Gate Integrity** - 신 D206-0에서 DOPING 제거 블로커로 선행 처리
 
 **SSOT 무결성:**
 - ✅ 정보 누락 0% (기존 D206~D209 원문 → D210~D213 이동)
@@ -6622,7 +6636,7 @@ enable_execution: false       # REQUIRED
 
 **의존성:**
 - Depends on: 신 D207-1 (REAL+Friction ON PASS) ❌
-- Unblocks: 신 D208 (주문 라이프사이클/리스크 가드)
+- Unblocks: 신 D209 (주문 라이프사이클/리스크 가드)
 
 **SSOT 노트:**
 - **구 D206-2와의 차이:** 구 D206-2는 "시기상조(쓰레기 최적화)"로 Rebase됨. D207-4는 D207-1 BASELINE PASS 이후에만 수행하여 "의미 있는 최적화" 보장.
@@ -6639,7 +6653,7 @@ enable_execution: false       # REQUIRED
 
 ---
 
-### 신 D208-0: [META] Structural Normalization (Plan)
+### 신 D208: Structural Normalization (Plan)
 
 **상태:** PLANNED (D207-4 완료 후)  
 **목적:** V2 엔진 구조 정규화 및 D208+ 준비
@@ -6656,22 +6670,22 @@ enable_execution: false       # REQUIRED
 
 **Evidence 경로:**
 - 설계 문서: `docs/v2/design/STRUCTURAL_NORMALIZATION.md`
-- 리네이밍 계획: `docs/v2/reports/D208/D208-0_PLAN.md`
+- 리네이밍 계획: `docs/v2/reports/D208/D208_PLAN.md`
 
 **의존성:**
 - Depends on: D207-4 (Double-count Fix + CTO Audit)
-- Unblocks: D208-1 (주문 실패 시나리오)
+- Unblocks: D209-1 (주문 실패 시나리오)
 
 ---
 
-### 신 D208: 주문 라이프사이클/실패모델/리스크 가드
+### 신 D209: 주문 라이프사이클/실패모델/리스크 가드
 
 **전략:** 신 D207 수익성 증명 완료 후, 주문 실패 시나리오 + 리스크 가드 통합  
 **Constitutional Basis:** OPS_PROTOCOL.md (Failure Modes & Recovery)
 
 ---
 
-#### 신 D208-1: 주문 실패 시나리오
+#### 신 D209-1: 주문 실패 시나리오
 
 **상태:** PLANNED (신 D207-3 완료 후)  
 **목적:** rate limit, timeout, reject, partial fill 각각 대응 검증
@@ -6685,18 +6699,18 @@ enable_execution: false       # REQUIRED
 - [ ] AC-6: 문서화 - OPS_PROTOCOL.md #8 Failure Modes 갱신
 
 **Evidence 경로:**
-- 테스트 결과: `tests/test_d208_1_order_failure_scenarios.py`
+- 테스트 결과: `tests/test_d209_1_order_failure_scenarios.py`
 - 문서 갱신: `docs/v2/OPS_PROTOCOL.md` #8 Failure Modes
 
 **의존성:**
 - Depends on: 신 D207-3 (승률 100% 방지) ✅
-- Unblocks: 신 D208-2 (리스크 가드 통합)
+- Unblocks: 신 D209-2 (리스크 가드 통합)
 
 ---
 
-#### 신 D208-2: 리스크 가드 통합
+#### 신 D209-2: 리스크 가드 통합
 
-**상태:** PLANNED (신 D208-1 완료 후)  
+**상태:** PLANNED (신 D209-1 완료 후)  
 **목적:** position limit, loss cutoff, kill-switch 엔진 통합
 
 **Acceptance Criteria:**
@@ -6708,18 +6722,18 @@ enable_execution: false       # REQUIRED
 - [ ] AC-6: 문서화 - docs/v2/design/RISK_GUARD.md 작성
 
 **Evidence 경로:**
-- 테스트 결과: `tests/test_d208_2_risk_guard.py`
+- 테스트 결과: `tests/test_d209_2_risk_guard.py`
 - 설계 문서: `docs/v2/design/RISK_GUARD.md`
 
 **의존성:**
-- Depends on: 신 D208-1 (주문 실패 시나리오) ✅
-- Unblocks: 신 D208-3 (Fail-Fast 전파)
+- Depends on: 신 D209-1 (주문 실패 시나리오) ✅
+- Unblocks: 신 D209-3 (Fail-Fast 전파)
 
 ---
 
-#### 신 D208-3: Wallclock 이중 검증 + Fail-Fast 전파
+#### 신 D209-3: Wallclock 이중 검증 + Fail-Fast 전파
 
-**상태:** PLANNED (신 D208-2 완료 후)  
+**상태:** PLANNED (신 D209-2 완료 후)  
 **목적:** ExitCode 전파 체계 완성 + Wallclock/Heartbeat 이중 검증 (D205-10-2 유산 복구)
 
 **배경:**
@@ -6735,30 +6749,30 @@ enable_execution: false       # REQUIRED
 - [ ] AC-6: 예외 핸들러 일원화 + Fail-Fast 전파 - Orchestrator.run() 최상위 try/except, clean exit, 하위 모듈 예외 즉시 전파
 
 **Evidence 경로:**
-- 테스트 결과: `tests/test_d208_3_fail_fast.py`
+- 테스트 결과: `tests/test_d209_3_fail_fast.py`
 - 문서 갱신: `docs/v2/OPS_PROTOCOL.md` #7 ExitCode
 
 **의존성:**
-- Depends on: 신 D208-2 (리스크 가드 통합) ✅
-- Unblocks: 신 D209 (LIVE 진입 설계/게이트)
+- Depends on: 신 D209-2 (리스크 가드 통합) ✅
+- Unblocks: 신 D210 (LIVE 진입 설계/게이트)
 
 ---
 
-### 신 D209: LIVE 진입 설계/게이트 (구현은 봉인)
+### 신 D210: LIVE 진입 설계/게이트 (구현은 봉인)
 
-**전략:** 신 D208 완료 후, LIVE 아키텍처 설계 + 잠금 메커니즘 명시 (실제 LIVE 구현은 게이트로 봉인)  
-**Constitutional Basis:** "V2에서 LIVE는 D208 완료 전까지 절대 금지" (READ_ONLY 원칙)
+**전략:** 신 D209 완료 후, LIVE 아키텍처 설계 + 잠금 메커니즘 명시 (실제 LIVE 구현은 게이트로 봉인)  
+**Constitutional Basis:** "V2에서 LIVE는 D209 완료 전까지 절대 금지" (READ_ONLY 원칙)
 
 ---
 
-#### 신 D209-1: LIVE 설계 문서
+#### 신 D210-1: LIVE 설계 문서
 
-**상태:** PLANNED (신 D208-3 완료 후)  
+**상태:** PLANNED (신 D209-3 완료 후)  
 **목적:** LIVE 아키텍처, allowlist, 증거 규격, DONE 판정 기준 명시
 
 **Acceptance Criteria:**
 - [ ] AC-1: LIVE 아키텍처 - `docs/v2/design/LIVE_ARCHITECTURE.md` 작성 (order_submit 실제 호출 시나리오)
-- [ ] AC-2: Allowlist 정의 - LIVE 진입 허용 조건 명시 (D208 완료, 수익성 증명, Gate 100% PASS)
+- [ ] AC-2: Allowlist 정의 - LIVE 진입 허용 조건 명시 (D209 완료, 수익성 증명, Gate 100% PASS)
 - [ ] AC-3: 증거 규격 - LIVE 실행 시 요구되는 Evidence 파일 목록 (manifest, kpi_summary, trade_log 등)
 - [ ] AC-4: DONE 판정 기준 - LIVE 단계 DONE 조건 명시 (실거래 20분, net_pnl > 0, 0 실패)
 - [ ] AC-5: 리스크 경고 - LIVE 리스크 시나리오 명시 (자금 손실, API 제한, 거래소 정책 변경 등)
@@ -6769,14 +6783,14 @@ enable_execution: false       # REQUIRED
 - 검토 로그: 문서 검토 기록 (GitHub PR 또는 별도 문서)
 
 **의존성:**
-- Depends on: 신 D208-3 (Fail-Fast 전파) ✅
-- Unblocks: 신 D209-2 (LIVE Gate 설계)
+- Depends on: 신 D209-3 (Fail-Fast 전파) ✅
+- Unblocks: 신 D210-2 (LIVE Gate 설계)
 
 ---
 
-#### 신 D209-2: LIVE Gate 설계
+#### 신 D210-2: LIVE Gate 설계
 
-**상태:** PLANNED (신 D209-1 완료 후)  
+**상태:** PLANNED (신 D210-1 완료 후)  
 **목적:** order_submit 잠금 메커니즘, ExitCode 강제, 증거 검증 규칙 설계
 
 **Acceptance Criteria:**
@@ -6792,14 +6806,14 @@ enable_execution: false       # REQUIRED
 - 테스트 시나리오: `docs/v2/LIVE_GATE_TEST_SCENARIOS.md`
 
 **의존성:**
-- Depends on: 신 D209-1 (LIVE 설계 문서) ✅
-- Unblocks: 신 D209-3 (LIVE 봉인 검증)
+- Depends on: 신 D210-1 (LIVE 설계 문서) ✅
+- Unblocks: 신 D210-3 (LIVE 봉인 검증)
 
 ---
 
-#### 신 D209-3: LIVE 봉인 검증
+#### 신 D210-3: LIVE 봉인 검증
 
-**상태:** PLANNED (신 D209-2 완료 후)  
+**상태:** PLANNED (신 D210-2 완료 후)  
 **목적:** LIVE 코드 실행 불가 증명, allowlist 외 진입 FAIL 검증
 
 **Acceptance Criteria:**
@@ -6808,14 +6822,14 @@ enable_execution: false       # REQUIRED
 - [ ] AC-3: 문서 일치 - LIVE_GATE_DESIGN.md와 실제 잠금 동작 일치 확인
 - [ ] AC-4: Gate 검증 - check_live_gate.py 실행 시 LIVE 미허가 상태 FAIL 확인
 - [ ] AC-5: 회귀 테스트 - Gate Doctor/Fast/Regression 100% PASS (LIVE 잠금 유지)
-- [ ] AC-6: 증거 문서 - `docs/v2/reports/D209/D209-3_LIVE_SEAL_VERIFICATION.md` 작성
+- [ ] AC-6: 증거 문서 - `docs/v2/reports/D210/D210-3_LIVE_SEAL_VERIFICATION.md` 작성
 
 **Evidence 경로:**
-- 테스트 결과: `tests/test_d209_3_live_seal.py`
-- 검증 보고: `docs/v2/reports/D209/D209-3_LIVE_SEAL_VERIFICATION.md`
+- 테스트 결과: `tests/test_d210_3_live_seal.py`
+- 검증 보고: `docs/v2/reports/D210/D210-3_LIVE_SEAL_VERIFICATION.md`
 
 **의존성:**
-- Depends on: 신 D209-2 (LIVE Gate 설계) ✅
+- Depends on: 신 D210-2 (LIVE Gate 설계) ✅
 - Unblocks: 없음 (LIVE 실제 구현은 별도 D-step에서 allowlist 해제 후)
 
 **DONE 판정 기준:**

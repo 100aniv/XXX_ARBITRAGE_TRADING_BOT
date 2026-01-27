@@ -47,6 +47,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     profit_core = ProfitCore(v2_config.profit_core)
     logger.info(f"[D206-1] ProfitCore loaded: default_price_krw={v2_config.profit_core.default_price_krw}")
 
+    # D207-5: run_meta defaults (config_path/symbols)
+    if getattr(config, "config_path", None) is None:
+        config.config_path = "config/v2/config.yml"
+    if getattr(config, "symbols", None) in (None, [], ()):  # 실제 사용 심볼 (현재 BTC/USDT 페어)
+        config.symbols = [("BTC/KRW", "BTC/USDT")]
+
     if getattr(config, "order_size_policy_mode", None) is None:
         config.order_size_policy_mode = v2_config.strategy.order_size_policy.mode
     if getattr(config, "fixed_quote", None) is None:

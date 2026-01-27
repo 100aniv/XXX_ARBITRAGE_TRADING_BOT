@@ -145,13 +145,54 @@ class EvidenceCollector:
         # 최근 max_samples개만 반환
         return trade_history[-max_samples:] if trade_history else []
     
+    def _edge_analysis_summary(self, edge_distribution: List[Dict[str, Any]]) -> Dict[str, Any]:
+        candidates: List[Dict[str, Any]] = []
+        for tick in edge_distribution:
+            tick_candidates = tick.get("candidates") or []
+            candidates.extend(tick_candidates)
+
+        def _quantile(values: List[float], q: float) -> Optional[float]:
+            if not values:
+                return None
+            sorted_vals = sorted(values)
+            idx = int(len(sorted_vals) * q)
+            idx = min(max(idx, 0), len(sorted_vals) - 1)
+            return round(sorted_vals[idx], 4)
+
+        spread_vals = [float(c.get("spread_bps", 0.0)) for c in candidates]
+        be_vals = [float(c.get("break_even_bps", 0.0)) for c in candidates]
+        edge_vals = [float(c.get("edge_bps", 0.0)) for c in candidates]
+        net_edge_vals = [float(c.get("net_edge_bps", 0.0)) for c in candidates]
+
+        summary = {
+            "total_ticks": len(edge_distribution),
+            "total_candidates": len(candidates),
+            "p50": {
+                "spread_bps": _quantile(spread_vals, 0.50),
+                "break_even_bps": _quantile(be_vals, 0.50),
+                "edge_bps": _quantile(edge_vals, 0.50),
+                "net_edge_bps": _quantile(net_edge_vals, 0.50),
+            },
+            "max_net_edge_bps": round(max(net_edge_vals), 4) if net_edge_vals else None,
+            "min_net_edge_bps": round(min(net_edge_vals), 4) if net_edge_vals else None,
+            "positive_net_edge_pct": round(
+                (sum(1 for v in net_edge_vals if v > 0) / len(net_edge_vals) * 100), 2
+            ) if net_edge_vals else 0.0,
+            "negative_net_edge_pct": round(
+                (sum(1 for v in net_edge_vals if v < 0) / len(net_edge_vals) * 100), 2
+            ) if net_edge_vals else 0.0,
+        }
+
+        return summary
+
     def save(
         self,
         metrics: Any,
         trade_history: List[Dict[str, Any]],
         edge_distribution: Optional[List[Dict[str, Any]]] = None,
         db_counts: Optional[Dict[str, int]] = None,
-        phase: str = "unknown"
+        phase: str = "unknown",
+        run_meta: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Evidence 파일 저장
@@ -192,6 +233,13 @@ class EvidenceCollector:
             logger.info(
                 f"[EvidenceCollector] Edge distribution saved: {edge_distribution_path} ({len(edge_distribution)} samples)"
             )
+
+            # 3-2. Edge Analysis Summary (D207-5)
+            edge_summary = self._edge_analysis_summary(edge_distribution)
+            edge_summary_path = self.output_dir / "edge_analysis_summary.json"
+            with open(edge_summary_path, "w", encoding="utf-8") as f:
+                json.dump(edge_summary, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Edge analysis summary saved: {edge_summary_path}")
             
             # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
             chain_summary = {
@@ -219,6 +267,7 @@ class EvidenceCollector:
                 "metrics_snapshot.json",
                 "decision_trace.json",
                 "edge_distribution.json",
+                "edge_analysis_summary.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"
             if run_log_path.exists():
@@ -253,6 +302,7 @@ class EvidenceCollector:
                 "winrate_pct": kpi_dict.get("winrate_pct"),
                 "net_pnl": kpi_dict.get("net_pnl"),
                 "marketdata_mode": kpi_dict.get("marketdata_mode"),
+                "run_meta": run_meta or {},
                 "files": files,
                 "file_meta": file_meta,
             }

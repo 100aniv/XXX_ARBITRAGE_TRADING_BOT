@@ -14,6 +14,14 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 def test_edge_distribution_artifact_saved(tmp_path):
     collector = EvidenceCollector(output_dir=str(tmp_path), run_id="test_edge_distribution")
     metrics = PaperMetrics()
+    run_meta = {
+        "run_id": "test_edge_distribution",
+        "git_sha": "dummy",
+        "branch": "test",
+        "config_path": "config/v2/config.yml",
+        "symbols": [("BTC/KRW", "BTC/USDT")],
+        "cli_args": {"duration": 1},
+    }
 
     edge_distribution = [
         {
@@ -53,6 +61,7 @@ def test_edge_distribution_artifact_saved(tmp_path):
         trade_history=[],
         edge_distribution=edge_distribution,
         phase="smoke",
+        run_meta=run_meta,
     )
 
     edge_path = tmp_path / "edge_distribution.json"
@@ -61,8 +70,17 @@ def test_edge_distribution_artifact_saved(tmp_path):
         saved = json.load(f)
     assert saved == edge_distribution
 
+    summary_path = tmp_path / "edge_analysis_summary.json"
+    assert summary_path.exists()
+    with open(summary_path, "r", encoding="utf-8") as f:
+        summary = json.load(f)
+    assert "p50" in summary
+    assert "min_net_edge_bps" in summary
+
     manifest_path = tmp_path / "manifest.json"
     assert manifest_path.exists()
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
     assert "edge_distribution.json" in manifest.get("files", [])
+    assert "edge_analysis_summary.json" in manifest.get("files", [])
+    assert manifest.get("run_meta", {}).get("run_id") == "test_edge_distribution"

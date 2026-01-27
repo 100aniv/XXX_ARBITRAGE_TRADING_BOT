@@ -79,18 +79,14 @@ def compute_execution_risk_per_leg(params: BreakEvenParams) -> float:
 
 def compute_execution_risk_round_trip(params: BreakEvenParams) -> float:
     """
-    D207-4 FIX: Execution Risk round-trip (왕복) 계산.
+    D205-9-2: Execution Risk round-trip (왕복) 계산.
     
-    D205-15-5d에서 "fill model = break_even 일치"라고 했으나,
-    fill_model.py에서는 per_leg만 적용 (BUY: +risk, SELL: -risk).
-    
-    따라서 break_even도 per_leg만 사용하여 일치시킴.
-    (2x 배수 제거 = Double-count 해소)
+    execution_risk_round_trip = 2 * (slippage_bps + latency_bps)
     
     Returns:
-        execution_risk_round_trip = slippage_bps + latency_bps (per_leg)
+        execution_risk_round_trip (round-trip)
     """
-    return compute_execution_risk_per_leg(params)
+    return compute_execution_risk_per_leg(params) * 2
 
 
 def compute_break_even_bps(params: BreakEvenParams) -> float:

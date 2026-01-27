@@ -283,13 +283,14 @@ class RealOpportunitySource(OpportunitySource):
 
             _set_edge_distribution(candidates)
 
+            # D207-5: Real tick successfully processed (candidate profitability와 무관)
+            self.kpi.real_ticks_ok_count += 1
+
             profitable_candidates = [c for c in candidates if c.profitable]
             candidate = max(profitable_candidates, key=lambda c: c.net_edge_bps) if profitable_candidates else None
 
             if not candidate:
                 return None
-
-            self.kpi.real_ticks_ok_count += 1
             return candidate
             
         except Exception as e:
