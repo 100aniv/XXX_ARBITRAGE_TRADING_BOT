@@ -42,6 +42,7 @@ class PaperRunnerConfig:
     symbols: Optional[List[Tuple[str, str]]] = None
     cli_args: Optional[Dict[str, Any]] = None
     symbols_top: int = 10
+    max_symbols_per_tick: Optional[int] = None
     db_connection_string: str = ""
     read_only: bool = True
     db_mode: str = "optional"
@@ -290,9 +291,15 @@ def main():
     """CLI 엔트리포인트"""
     parser = argparse.ArgumentParser(description="D205-18-2D Paper Runner (Thin Wrapper)")
     parser.add_argument("--duration", type=int, required=True, help="Duration in minutes")
-    parser.add_argument("--phase", default="smoke", choices=["smoke", "smoke_test", "baseline", "longrun", "test_1min"], help="Execution phase")
+    parser.add_argument(
+        "--phase",
+        default="smoke",
+        choices=["smoke", "smoke_test", "baseline", "longrun", "test_1min", "edge_survey"],
+        help="Execution phase",
+    )
     parser.add_argument("--output-dir", default="", help="Evidence output directory")
     parser.add_argument("--symbols-top", type=int, default=10, help="Top N symbols")
+    parser.add_argument("--max-symbols-per-tick", type=int, default=None, help="Max symbols per tick")
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="optional", choices=["strict", "optional", "off"], help="DB mode")
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema")
@@ -311,6 +318,7 @@ def main():
         phase=args.phase,
         output_dir=args.output_dir or "",
         symbols_top=args.symbols_top,
+        max_symbols_per_tick=args.max_symbols_per_tick,
         db_connection_string=args.db_connection_string or "",
         db_mode=args.db_mode,
         ensure_schema=args.ensure_schema,

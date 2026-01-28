@@ -133,6 +133,7 @@ universe:
   denylist:
     - "DOGE/KRW"
     - "SHIB/KRW"
+    - "MATIC/KRW"
 
 # Strategy (전략 파라미터)
 strategy:

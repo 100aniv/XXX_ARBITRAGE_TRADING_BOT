@@ -5,6 +5,7 @@ D206-1 CLOSEOUT: Preflight/Registry 요구사항 충족
 from typing import Optional
 import logging
 import os
+import yaml
 
 from arbitrage.v2.core.opportunity_source import (
     OpportunitySource,
@@ -26,6 +27,7 @@ from arbitrage.v2.core.config import load_config
 from arbitrage.v2.domain.break_even import BreakEvenParams
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
 from arbitrage.redis_client import RedisClient
+from arbitrage.v2.universe.builder import from_config_dict
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +52,36 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     # D207-5: run_meta defaults (config_path/symbols)
     if getattr(config, "config_path", None) is None:
         config.config_path = "config/v2/config.yml"
-    if getattr(config, "symbols", None) in (None, [], ()):  # 실제 사용 심볼 (현재 BTC/USDT 페어)
-        config.symbols = [("BTC/KRW", "BTC/USDT")]
+    if getattr(config, "symbols", None) in (None, [], ()):  # 실제 사용 심볼 (UniverseBuilder)
+        try:
+            with open(config.config_path, "r", encoding="utf-8") as f:
+                raw_config = yaml.safe_load(f) or {}
+            universe_cfg = raw_config.get("universe", {}) or {}
+
+            if not config.use_real_data:
+                universe_cfg = dict(universe_cfg)
+                universe_cfg["data_source"] = "mock"
+
+            if config.symbols_top:
+                universe_cfg["topn_count"] = config.symbols_top
+            elif "topn_count" not in universe_cfg:
+                universe_cfg["topn_count"] = v2_config.universe.symbols_top_n
+
+            builder = from_config_dict(universe_cfg)
+            symbols = builder.get_symbols()
+
+            allowlist = set(v2_config.universe.allowlist or [])
+            denylist = set(v2_config.universe.denylist or [])
+            if allowlist:
+                symbols = [pair for pair in symbols if pair[0] in allowlist]
+            if denylist:
+                symbols = [pair for pair in symbols if pair[0] not in denylist]
+
+            config.symbols = symbols
+            logger.info(f"[D207-6] Universe symbols loaded: {len(config.symbols)}")
+        except Exception as e:
+            logger.warning(f"[D207-6] Universe load failed, fallback to BTC only: {e}")
+            config.symbols = [("BTC/KRW", "BTC/USDT")]
 
     if getattr(config, "order_size_policy_mode", None) is None:
         config.order_size_policy_mode = v2_config.strategy.order_size_policy.mode
@@ -199,6 +229,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
             deterministic_drift_bps=config.deterministic_drift_bps,
+            symbols=getattr(config, "symbols", None),
+            max_symbols_per_tick=getattr(config, "max_symbols_per_tick", None),
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData)")
     else:

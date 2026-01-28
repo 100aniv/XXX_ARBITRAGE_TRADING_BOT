@@ -6653,6 +6653,66 @@ enable_execution: false       # REQUIRED
 
 ---
 
+#### 신 D207-5: Baseline Validity Guard + Evidence Hardening
+
+**상태:** ✅ COMPLETED (2026-01-27)
+**목적:** invalid-run guard + run_meta 기록 + edge_analysis_summary.json 생성
+
+**Acceptance Criteria:**
+- [x] AC-1: symbols 비어있음 → Exit 1 (INVALID_RUN_SYMBOLS_EMPTY)
+- [x] AC-2: REAL tick 0 → Exit 1 (INVALID_RUN_REAL_TICKS_ZERO)
+- [x] AC-3: run_meta 기록 (config_path, symbols, cli_args, git_sha, branch, run_id)
+- [x] AC-4: edge_analysis_summary.json 생성 + manifest 포함
+- [x] AC-5: Gate 3단 + DocOps PASS
+- [x] AC-6: REAL baseline 20분 실행 증거 확보
+
+**Evidence 경로:**
+- DocOps: `logs/evidence/d207_5_docops_gate_20260127_123633/`
+- REAL baseline: `logs/evidence/d205_18_2d_baseline_20260127_1047/`
+- 보고서: `docs/v2/reports/D207/D207-5_REPORT.md`
+
+---
+
+#### 신 D207-5-1: CTO Audit & Double-count Fix
+
+**상태:** ✅ COMPLETED (2026-01-26)
+**목적:** edge 분포 기반 0거래 원인 분석 + drift double-count 제거
+
+**Acceptance Criteria:**
+- [x] AC-1: edge_distribution 분석 + 원인 분해
+- [x] AC-2: drift double-count 제거
+- [x] AC-3: REAL 20분 baseline 증거 확보
+- [x] AC-4: Gate + DocOps + Git
+
+**Evidence 경로:**
+- Audit 분석: `logs/evidence/d207_2_longrun_60m_retry_20260126_0047/edge_distribution.json`
+- REAL baseline: `logs/evidence/d207_4_baseline_20m_20260126_1552/`
+- 보고서: `docs/v2/reports/D207/D207-5-1_REPORT.md`
+
+---
+
+#### 신 D207-6: Multi-Symbol Alpha Survey
+
+**상태:** ✅ COMPLETED (2026-01-28)
+**목적:** 멀티 심볼 샘플링 + INVALID_UNIVERSE 가드 + edge_survey_report.json 검증
+
+**Acceptance Criteria:**
+- [x] AC-1: round_robin + max_symbols_per_tick 샘플링
+- [x] AC-2: INVALID_UNIVERSE 가드 (symbols empty/REAL tick 0)
+- [x] AC-3: edge_survey_report.json 스키마 + sampling_policy 기록
+- [x] AC-4: stop_reason Truth Chain (TIME_REACHED)
+- [x] AC-5: REAL 20분 survey 증거
+- [x] AC-6: Gate 3단 PASS
+
+**Evidence 경로:**
+- Survey: `logs/evidence/d207_6_edge_survey_20260128_2030/`
+- Gate Doctor: `logs/evidence/20260128_211248_gate_doctor_a2269a9/`
+- Gate Fast: `logs/evidence/20260128_211800_gate_fast_a2269a9/`
+- Gate Regression: `logs/evidence/20260128_213534_gate_regression_a2269a9/`
+- 보고서: `docs/v2/reports/D207/D207-6_REPORT.md`
+
+---
+
 ### 신 D208: Structural Normalization (Plan)
 
 **상태:** PLANNED (D207-4 완료 후)  

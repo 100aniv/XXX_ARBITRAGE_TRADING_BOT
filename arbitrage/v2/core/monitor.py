@@ -185,6 +185,82 @@ class EvidenceCollector:
 
         return summary
 
+    def _edge_survey_report(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        run_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        def _quantile(values: List[float], q: float) -> Optional[float]:
+            if not values:
+                return None
+            sorted_vals = sorted(values)
+            idx = int(len(sorted_vals) * q)
+            idx = min(max(idx, 0), len(sorted_vals) - 1)
+            return round(sorted_vals[idx], 4)
+
+        per_symbol: Dict[str, Dict[str, Any]] = {}
+        total_candidates = 0
+        for tick in edge_distribution:
+            tick_candidates = tick.get("candidates") or []
+            for candidate in tick_candidates:
+                symbol = candidate.get("symbol") or "unknown"
+                entry = per_symbol.setdefault(
+                    symbol,
+                    {"spread_vals": [], "net_edge_vals": [], "opportunity_count": 0},
+                )
+                spread_val = candidate.get("spread_bps")
+                net_edge_val = candidate.get("net_edge_bps")
+                if spread_val is not None:
+                    entry["spread_vals"].append(float(spread_val))
+                if net_edge_val is not None:
+                    entry["net_edge_vals"].append(float(net_edge_val))
+                entry["opportunity_count"] += 1
+                total_candidates += 1
+
+        symbol_summary: Dict[str, Dict[str, Any]] = {}
+        for symbol, entry in per_symbol.items():
+            spread_vals = entry.get("spread_vals", [])
+            net_edge_vals = entry.get("net_edge_vals", [])
+            symbol_summary[symbol] = {
+                "opportunity_count": entry.get("opportunity_count", 0),
+                "max_spread_bps": round(max(spread_vals), 4) if spread_vals else None,
+                "p95_net_edge_bps": _quantile(net_edge_vals, 0.95),
+            }
+
+        sampling_entries = [
+            tick.get("sampling_policy")
+            for tick in edge_distribution
+            if tick.get("sampling_policy")
+        ]
+        sampling_summary = {
+            "mode": None,
+            "max_symbols_per_tick": None,
+            "universe_size": None,
+            "symbols_sampled": None,
+            "ticks_total": len(edge_distribution),
+            "ticks_sampled": len(sampling_entries),
+        }
+        if sampling_entries:
+            base = sampling_entries[0]
+            sampling_summary.update({
+                "mode": base.get("mode"),
+                "max_symbols_per_tick": base.get("max_symbols_per_tick"),
+                "universe_size": base.get("universe_size"),
+                "symbols_sampled": base.get("symbols_sampled"),
+            })
+
+        status = "PASS" if total_candidates > 0 else "FAIL"
+
+        return {
+            "status": status,
+            "total_ticks": len(edge_distribution),
+            "total_symbols": len(symbol_summary),
+            "total_candidates": total_candidates,
+            "sampling_policy": sampling_summary,
+            "symbols": symbol_summary,
+            "run_meta": run_meta or {},
+        }
+
     def save(
         self,
         metrics: Any,
@@ -240,6 +316,13 @@ class EvidenceCollector:
             with open(edge_summary_path, "w", encoding="utf-8") as f:
                 json.dump(edge_summary, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Edge analysis summary saved: {edge_summary_path}")
+
+            # 3-3. Edge Survey Report (D207-6)
+            edge_survey_report = self._edge_survey_report(edge_distribution, run_meta=run_meta)
+            edge_survey_path = self.output_dir / "edge_survey_report.json"
+            with open(edge_survey_path, "w", encoding="utf-8") as f:
+                json.dump(edge_survey_report, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Edge survey report saved: {edge_survey_path}")
             
             # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
             chain_summary = {
@@ -268,6 +351,7 @@ class EvidenceCollector:
                 "decision_trace.json",
                 "edge_distribution.json",
                 "edge_analysis_summary.json",
+                "edge_survey_report.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"
             if run_log_path.exists():

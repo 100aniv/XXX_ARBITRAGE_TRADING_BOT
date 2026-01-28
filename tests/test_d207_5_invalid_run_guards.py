@@ -105,3 +105,25 @@ def test_invalid_run_real_ticks_zero(tmp_path):
     exit_code = orch.run()
     assert exit_code == 1
     assert kpi.stop_reason == "INVALID_RUN_REAL_TICKS_ZERO"
+
+
+def test_invalid_run_symbols_invalid_format(tmp_path):
+    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path))
+    config.symbols = [("BTC/KRW",)]
+
+    kpi = PaperMetrics()
+    collector = EvidenceCollector(output_dir=str(tmp_path), run_id=config.run_id)
+
+    orch = PaperOrchestrator(
+        config=config,
+        opportunity_source=DummySource(),
+        executor=DummyExecutor(),
+        ledger_writer=DummyLedgerWriter(),
+        kpi=kpi,
+        evidence_collector=collector,
+        run_id=config.run_id,
+    )
+
+    exit_code = orch.run()
+    assert exit_code == 1
+    assert kpi.stop_reason == "INVALID_RUN_SYMBOLS_INVALID"

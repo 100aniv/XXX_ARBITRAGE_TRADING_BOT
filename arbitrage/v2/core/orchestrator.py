@@ -226,6 +226,25 @@ class PaperOrchestrator:
                 db_counts = self.ledger_writer.get_counts()
                 self.save_evidence(db_counts=db_counts)
                 return 1
+            invalid_pairs = [
+                idx for idx, pair in enumerate(symbols)
+                if not isinstance(pair, (list, tuple)) or len(pair) != 2
+                or not all(isinstance(item, str) and item for item in pair)
+            ]
+            if invalid_pairs:
+                msg = f"symbols invalid format: indices={invalid_pairs[:5]}"
+                logger.error(f"[D207-6 INVALID_UNIVERSE] FAIL: {msg}")
+                self.kpi.error_count += 1
+                self.kpi.errors.append("invalid_run:symbols_invalid")
+                self._state = OrchestratorState.ERROR
+                self._final_exit_code = 1
+                self._stop_reason = "INVALID_RUN_SYMBOLS_INVALID"
+                self._stop_message = msg
+                self.kpi.stop_reason = self._stop_reason
+                self.kpi.stop_message = self._stop_message
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
+                return 1
             duration_sec = self.config.duration_minutes * 60
             iteration = 0
             
@@ -628,9 +647,18 @@ class PaperOrchestrator:
                     f"errors={warn_counts['error_count']}"
                 )
                 self._state = OrchestratorState.ERROR
+                self._final_exit_code = 1
+                self._stop_reason = "WARN_FAIL"
+                self._stop_message = (
+                    f"warnings={warn_counts['warning_count']}, errors={warn_counts['error_count']}"
+                )
                 # Evidence에 warning_counts 저장
                 self.kpi.warning_count = warn_counts["warning_count"]
                 self.kpi.error_count = warn_counts["error_count"]
+                self.kpi.stop_reason = self._stop_reason
+                self.kpi.stop_message = self._stop_message
+                db_counts = self.ledger_writer.get_counts()
+                self.save_evidence(db_counts=db_counts)
                 return 1
             
             # D207-1-5: 정상 종료 시 TIME_REACHED
@@ -642,6 +670,9 @@ class PaperOrchestrator:
             # KPI에도 동일하게 기록 (Truth Chain)
             self.kpi.stop_reason = self._stop_reason
             self.kpi.stop_message = self._stop_message
+
+            db_counts = self.ledger_writer.get_counts()
+            self.save_evidence(db_counts=db_counts)
             
             return 0
             
@@ -740,7 +771,7 @@ class PaperOrchestrator:
         from pathlib import Path
         evidence_root = str(Path(self.config.output_dir).parent)
         phase = getattr(self.config, "phase", "")
-        early_stop_enabled = phase not in ["baseline", "longrun"]
+        early_stop_enabled = phase not in ["baseline", "longrun", "edge_survey"]
         watcher_config = WatcherConfig(
             heartbeat_sec=60,
             early_stop_enabled=early_stop_enabled,
