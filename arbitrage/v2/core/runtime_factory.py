@@ -231,8 +231,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             deterministic_drift_bps=config.deterministic_drift_bps,
             symbols=getattr(config, "symbols", None),
             max_symbols_per_tick=getattr(config, "max_symbols_per_tick", None),
+            survey_mode=getattr(config, "survey_mode", False),
         )
-        logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData)")
+        logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:
         opportunity_source = MockOpportunitySource(
             fx_provider=fx_provider,

@@ -808,6 +808,7 @@ class PaperOrchestrator:
             "config_path": getattr(self.config, "config_path", None),
             "symbols": getattr(self.config, "symbols", None),
             "cli_args": getattr(self.config, "cli_args", None),
+            "metrics": self.kpi.to_dict(),
         }
         self.evidence_collector.save(
             metrics=self.kpi,

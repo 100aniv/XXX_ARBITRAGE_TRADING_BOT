@@ -6713,6 +6713,41 @@ enable_execution: false       # REQUIRED
 
 ---
 
+#### 신 D207-7: Top100/Top200 Tail Hunt Survey
+
+**상태:** ✅ COMPLETED (2026-01-29)
+**목적:** Survey Mode 구현 + edge_survey_report 스키마 확장 + Top100/Top200 실제 서베이 실행
+
+**Acceptance Criteria:**
+- [x] AC-1: Survey Mode 구현 (--survey-mode CLI flag, profitable=False reject 기록)
+- [x] AC-2: edge_survey_report.json 스키마 확장 (reject_total, reject_by_reason, tail_stats)
+- [x] AC-3: 테스트 커버리지 (test_d207_7_edge_survey_extended.py)
+- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression)
+- [x] AC-5: REAL survey 2회 실행 (Top100/Top200)
+- [x] AC-6: DocOps 검증 (check_ssot_docs.py ExitCode=0)
+
+**핵심 발견:**
+- **positive_net_edge_pct: 0.0%** (Top100, Top200 모두)
+- 모든 candidate가 profitable=False (현재 break-even 파라미터로는 수익성 없음)
+- reject_by_reason: profitable_false=540, candidate_none=27
+- tail_stats: max_spread_bps=23.58~37.23, max_net_edge_bps=-40.77~-54.42
+
+**Evidence 경로:**
+- Top100 Survey: `logs/evidence/d207_7_survey_top100_v2/`
+- Top200 Survey: `logs/evidence/d207_7_survey_top200/`
+- 테스트: `tests/test_d207_7_edge_survey_extended.py`
+- 보고서: `docs/v2/reports/D207/D207-7_REPORT.md`
+
+**수정 파일:**
+- `arbitrage/v2/harness/paper_runner.py` (+3)
+- `arbitrage/v2/core/runtime_factory.py` (+3, -1)
+- `arbitrage/v2/core/opportunity_source.py` (+8)
+- `arbitrage/v2/core/monitor.py` (+34)
+- `arbitrage/v2/core/orchestrator.py` (+1)
+- `tests/test_d207_7_edge_survey_extended.py` (new, +204)
+
+---
+
 ### 신 D208: Structural Normalization (Plan)
 
 **상태:** PLANNED (D207-4 완료 후)  

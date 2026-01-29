@@ -20,6 +20,10 @@
 - **Healthcheck 연동:** Docker/compose 헬스체크 전략
 - **장애 대응:** SIGTERM/Graceful Shutdown + Recovery
 
+### 1.1.1 Atomic Evidence Flush (증거 원자적 기록)
+- **원칙:** 엔진이 예외(Exception)나 SIGTERM으로 중단되더라도, `finally` 블록을 통해 그 시점까지의 `engine_report.json`과 `logs`를 물리적으로 기록(Flush)해야 한다.
+- **판정:** 증거 없는 종료는 '사고 은폐'로 간주하며, 해당 Run은 무효(FAIL) 처리한다.
+
 ### 1.2 Scope
 - **대상:** arbitrage/v2/** 모든 실행 모드 (Paper/Live/Smoke/Baseline/Longrun)
 - **환경:** 로컬 PC, Docker/compose, CI/CD
@@ -439,6 +443,9 @@ signal.signal(signal.SIGTERM, sigterm_handler)
 - **FAIL 1건도 허용 안 함**
 - **WARNING은 조사 필요 (잠재적 FAIL)**
 - **SKIP은 사유 명시 필수**
+
+### 9.4 Fast/Regression Gate 강화
+- **Zero-Tolerance:** `pytest` 실행 시 `SKIP`이나 `WARNING`이 1건이라도 존재하면 ExitCode=1로 간주한다. (테스트는 '완벽'하거나 '실패'하거나 둘 중 하나다.)
 
 ---
 

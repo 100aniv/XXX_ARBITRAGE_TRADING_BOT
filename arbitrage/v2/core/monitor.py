@@ -200,6 +200,9 @@ class EvidenceCollector:
 
         per_symbol: Dict[str, Dict[str, Any]] = {}
         total_candidates = 0
+        all_spread_vals: List[float] = []
+        all_net_edge_vals: List[float] = []
+        
         for tick in edge_distribution:
             tick_candidates = tick.get("candidates") or []
             for candidate in tick_candidates:
@@ -212,8 +215,10 @@ class EvidenceCollector:
                 net_edge_val = candidate.get("net_edge_bps")
                 if spread_val is not None:
                     entry["spread_vals"].append(float(spread_val))
+                    all_spread_vals.append(float(spread_val))
                 if net_edge_val is not None:
                     entry["net_edge_vals"].append(float(net_edge_val))
+                    all_net_edge_vals.append(float(net_edge_val))
                 entry["opportunity_count"] += 1
                 total_candidates += 1
 
@@ -225,6 +230,9 @@ class EvidenceCollector:
                 "opportunity_count": entry.get("opportunity_count", 0),
                 "max_spread_bps": round(max(spread_vals), 4) if spread_vals else None,
                 "p95_net_edge_bps": _quantile(net_edge_vals, 0.95),
+                "p99_net_edge_bps": _quantile(net_edge_vals, 0.99),
+                "min_net_edge_bps": round(min(net_edge_vals), 4) if net_edge_vals else None,
+                "max_net_edge_bps": round(max(net_edge_vals), 4) if net_edge_vals else None,
             }
 
         sampling_entries = [
@@ -250,12 +258,38 @@ class EvidenceCollector:
             })
 
         status = "PASS" if total_candidates > 0 else "FAIL"
+        
+        # D207-7: Extract reject reasons from run_meta
+        reject_total = 0
+        reject_by_reason: Dict[str, int] = {}
+        if run_meta and "metrics" in run_meta:
+            metrics_dict = run_meta["metrics"]
+            if "reject_reasons" in metrics_dict:
+                reject_by_reason = dict(metrics_dict["reject_reasons"])
+                reject_total = sum(reject_by_reason.values())
+        
+        # D207-7: Global tail statistics
+        tail_stats = {
+            "max_spread_bps": round(max(all_spread_vals), 4) if all_spread_vals else None,
+            "p95_spread_bps": _quantile(all_spread_vals, 0.95),
+            "p99_spread_bps": _quantile(all_spread_vals, 0.99),
+            "max_net_edge_bps": round(max(all_net_edge_vals), 4) if all_net_edge_vals else None,
+            "min_net_edge_bps": round(min(all_net_edge_vals), 4) if all_net_edge_vals else None,
+            "p95_net_edge_bps": _quantile(all_net_edge_vals, 0.95),
+            "p99_net_edge_bps": _quantile(all_net_edge_vals, 0.99),
+            "positive_net_edge_pct": round(
+                (sum(1 for v in all_net_edge_vals if v > 0) / len(all_net_edge_vals) * 100), 2
+            ) if all_net_edge_vals else 0.0,
+        }
 
         return {
             "status": status,
             "total_ticks": len(edge_distribution),
             "total_symbols": len(symbol_summary),
             "total_candidates": total_candidates,
+            "reject_total": reject_total,
+            "reject_by_reason": reject_by_reason,
+            "tail_stats": tail_stats,
             "sampling_policy": sampling_summary,
             "symbols": symbol_summary,
             "run_meta": run_meta or {},

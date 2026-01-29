@@ -65,6 +65,7 @@ class RealOpportunitySource(OpportunitySource):
         deterministic_drift_bps: float = 0.0,
         symbols: Optional[List[Tuple[str, str]]] = None,
         max_symbols_per_tick: Optional[int] = None,
+        survey_mode: bool = False,
     ):
         self.upbit_provider = upbit_provider
         self.binance_provider = binance_provider
@@ -77,6 +78,7 @@ class RealOpportunitySource(OpportunitySource):
         self.deterministic_drift_bps = deterministic_drift_bps
         self.symbols = list(symbols) if symbols else None
         self.max_symbols_per_tick = max_symbols_per_tick
+        self.survey_mode = survey_mode
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
         self._symbol_pair_idx = 0
 
@@ -389,6 +391,12 @@ class RealOpportunitySource(OpportunitySource):
             # D207-5: Real tick successfully processed (candidate profitability와 무관)
             if tick_processed:
                 self.kpi.real_ticks_ok_count += 1
+
+            # D207-7: Survey Mode - profitable=False인 candidate에 대한 reject reason 기록
+            if self.survey_mode:
+                for c in candidates_all:
+                    if not c.profitable:
+                        self.kpi.bump_reject("profitable_false")
 
             profitable_candidates = [c for c in candidates_all if c.profitable]
             candidate = max(profitable_candidates, key=lambda c: c.net_edge_bps) if profitable_candidates else None
