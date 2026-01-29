@@ -81,6 +81,9 @@ class OpportunityCandidate:
     fx_rate_degraded: Optional[bool] = None
     deterministic_drift_bps: float = 0.0
     net_edge_bps: float = 0.0
+    maker_mode: bool = False
+    fill_probability: Optional[float] = None
+    maker_net_edge_bps: Optional[float] = None
 
 
 def detect_candidates(
@@ -91,6 +94,7 @@ def detect_candidates(
     price_b: float,
     params: BreakEvenParams,
     deterministic_drift_bps: float = 0.0,
+    maker_mode: bool = False,
 ) -> Optional[OpportunityCandidate]:
     """
     단일 심볼에 대한 기회 탐지
@@ -148,6 +152,34 @@ def detect_candidates(
     # 5. Profitable 여부 (deterministic drift 반영)
     profitable = net_edge_bps > 0
     
+    # D_ALPHA-1: Maker mode 처리
+    fill_prob = None
+    maker_net_edge = None
+    if maker_mode:
+        from arbitrage.v2.domain.fill_probability import (
+            estimate_fill_probability,
+            estimate_maker_net_edge_bps,
+        )
+        from decimal import Decimal
+        
+        # Fill probability 추정 (보수적 기본값)
+        fill_prob = float(estimate_fill_probability())
+        
+        # Maker fee 추출 (FeeModel에서)
+        maker_fee_bps = Decimal(str(params.fee_model.fee_a.maker_fee_bps))
+        
+        # Maker net edge 계산
+        maker_net_edge = float(estimate_maker_net_edge_bps(
+            spread_bps=spread_bps,
+            maker_fee_bps=maker_fee_bps,
+            slippage_bps=params.slippage_bps,
+            latency_bps=params.latency_bps,
+            fill_probability=Decimal(str(fill_prob)),
+        ))
+        
+        # Maker mode에서는 maker_net_edge로 profitable 판정
+        profitable = maker_net_edge > 0
+    
     return OpportunityCandidate(
         symbol=symbol,
         exchange_a=exchange_a,
@@ -161,6 +193,9 @@ def detect_candidates(
         profitable=profitable,
         deterministic_drift_bps=deterministic_drift_bps,
         net_edge_bps=net_edge_bps,
+        maker_mode=maker_mode,
+        fill_probability=fill_prob,
+        maker_net_edge_bps=maker_net_edge,
     )
 
 

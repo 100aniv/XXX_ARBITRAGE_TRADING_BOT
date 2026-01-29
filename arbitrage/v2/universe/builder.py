@@ -155,6 +155,8 @@ class UniverseBuilder:
             {
                 "mode": "static" | "topn",
                 "symbols": [...],
+                "universe_requested_top_n": <int>,
+                "universe_loaded_count": <int>,
                 "config": {...},
                 "timestamp": <float>,
             }
@@ -166,6 +168,8 @@ class UniverseBuilder:
         return {
             "mode": self.config.mode.value,
             "symbols": symbols,
+            "universe_requested_top_n": self.config.topn_count,
+            "universe_loaded_count": len(symbols),
             "config": {
                 "topn_count": self.config.topn_count,
                 "data_source": self.config.data_source,

@@ -49,6 +49,7 @@ class PaperRunnerConfig:
     ensure_schema: bool = True
     use_real_data: bool = False
     survey_mode: bool = False
+    maker_mode: bool = False
     min_hold_ms: Optional[int] = None
     cooldown_after_loss_seconds: Optional[int] = None
     fx_krw_per_usdt: float = 1450.0
@@ -306,6 +307,7 @@ def main():
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema")
     parser.add_argument("--use-real-data", action="store_true", help="Use Real MarketData")
     parser.add_argument("--survey-mode", action="store_true", help="Survey mode: collect raw spread data before filtering")
+    parser.add_argument("--maker-mode", action="store_true", help="D_ALPHA-1: Maker-Taker hybrid mode with fill probability")
     args = parser.parse_args()
     
     # D207-1 REAL 강제 가드: baseline/longrun은 REAL MarketData 필수
@@ -326,6 +328,7 @@ def main():
         ensure_schema=args.ensure_schema,
         use_real_data=args.use_real_data,
         survey_mode=args.survey_mode,
+        maker_mode=args.maker_mode,
     )
 
     config.cli_args = vars(args)

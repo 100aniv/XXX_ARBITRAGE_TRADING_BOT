@@ -78,7 +78,19 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
                 symbols = [pair for pair in symbols if pair[0] not in denylist]
 
             config.symbols = symbols
-            logger.info(f"[D207-6] Universe symbols loaded: {len(config.symbols)}")
+            
+            # D_ALPHA-0: Universe metadata 저장
+            universe_snapshot = builder.get_snapshot()
+            config.universe_metadata = {
+                "universe_requested_top_n": universe_snapshot.get("universe_requested_top_n"),
+                "universe_loaded_count": len(symbols),  # allowlist/denylist 적용 후 실제 개수
+                "mode": universe_snapshot.get("mode"),
+            }
+            
+            logger.info(
+                f"[D_ALPHA-0] Universe loaded: requested={config.universe_metadata['universe_requested_top_n']}, "
+                f"loaded={config.universe_metadata['universe_loaded_count']}, mode={config.universe_metadata['mode']}"
+            )
         except Exception as e:
             logger.warning(f"[D207-6] Universe load failed, fallback to BTC only: {e}")
             config.symbols = [("BTC/KRW", "BTC/USDT")]

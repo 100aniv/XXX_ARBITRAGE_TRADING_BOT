@@ -256,6 +256,15 @@ class EvidenceCollector:
                 "universe_size": base.get("universe_size"),
                 "symbols_sampled": base.get("symbols_sampled"),
             })
+        
+        # D_ALPHA-0: Extract universe metadata from run_meta
+        unique_symbols_evaluated = len(per_symbol)
+        universe_metadata = {}
+        if run_meta and "universe_metadata" in run_meta:
+            universe_metadata = dict(run_meta["universe_metadata"])
+            # Override universe_size in sampling_summary if available
+            if universe_metadata.get("universe_loaded_count") is not None:
+                sampling_summary["universe_size"] = universe_metadata["universe_loaded_count"]
 
         status = "PASS" if total_candidates > 0 else "FAIL"
         
@@ -287,10 +296,12 @@ class EvidenceCollector:
             "total_ticks": len(edge_distribution),
             "total_symbols": len(symbol_summary),
             "total_candidates": total_candidates,
+            "unique_symbols_evaluated": unique_symbols_evaluated,
             "reject_total": reject_total,
             "reject_by_reason": reject_by_reason,
             "tail_stats": tail_stats,
             "sampling_policy": sampling_summary,
+            "universe_metadata": universe_metadata,
             "symbols": symbol_summary,
             "run_meta": run_meta or {},
         }
