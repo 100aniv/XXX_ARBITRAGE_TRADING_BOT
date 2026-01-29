@@ -6748,6 +6748,104 @@ enable_execution: false       # REQUIRED
 
 ---
 
+| 신 D_ALPHA | **Alpha Engine Track (Profit Pivot)** | **마찰 역전(메이커/리베이트), OBI/Inventory 지능 주입으로 “수익 로직”을 전진**. D207은 관측/실증, D208은 정규화. 그 사이에서 “돈 버는 칼날”만 만든다. |
+
+---
+
+### D_ALPHA — Alpha Engine Track (Profit Pivot)
+
+**목표:** “시장에 기회가 없다”가 아니라, **현재 마찰 모델을 역전시키는 알파(메이커/리베이트/OBI/Inventory)**를 주입해
+**Positive net edge(>=0) 샘플을 실제로 만들어내는 단계**.
+
+**원칙(강제):**
+- 엔진 중심: `arbitrage/v2/core/**`, `arbitrage/v2/domain/**`에만 알파 로직을 둔다.
+- 하네스/스크립트는 전원 버튼. `paper_runner.py`는 CLI wiring 외 로직 이식 금지.
+- “검증 장치 추가”는 최소화: 알파에 직결된 지표/아티팩트만 추가.
+
+---
+
+#### D_ALPHA-0: Universe Truth (TopN 실제 동작 확정)
+
+**상태:** PLANNED  
+**목적:** “Top100 서베이”가 실제로 Top100을 스캔하는지 확정. (Top10으로 줄어드는 버그 차단)
+
+**Acceptance Criteria:**
+- [ ] AC-1: universe(top=100)가 로딩되면 **universe_size=100**이 아티팩트에 기록된다.
+- [ ] AC-2: survey 실행 중 “실제 평가된 unique symbols 수”가 **>=80**(20분 기준)임을 증명한다.
+- [ ] AC-3: `symbols_top=100`인데 `symbols`가 10개만 들어가는 경로가 있으면 제거/수정한다.
+- [ ] AC-4: 테스트로 보장한다(TopN 로딩/샘플링/기록).
+
+**Evidence 경로:**
+- `logs/evidence/d_alpha_0_universe_truth_*/edge_survey_report.json`
+- 테스트: `tests/test_d_alpha_0_universe_truth.py`
+
+**의존성:**
+- Depends on: D207-8 (survey/계측 신뢰성 정리)
+- Unblocks: D_ALPHA-1 (Maker Pivot)
+
+---
+
+#### D_ALPHA-1: Maker Pivot MVP (Friction Inversion)
+
+**상태:** PLANNED  
+**목적:** taker-taker의 “물리적 사형선고”를 벗어나기 위한 **메이커/리베이트 기반** 손익모델 MVP 주입.
+
+**Acceptance Criteria:**
+- [ ] AC-1: fee 모델이 maker/taker 조합을 지원(리베이트 포함 가능).
+- [ ] AC-2: 동일 데이터에서 **maker-taker net_edge_bps**를 계산하여 아티팩트로 남긴다.
+- [ ] AC-3: Top100 서베이 재실행 시 **체결 확률 모델(Fill Probability)**이 적용된 net_edge_bps를 산출하며, positive_net_edge_pct > 0을 증명한다.
+- [ ] AC-4: 돈 로직 변경은 엔진(core/domain)에만 존재한다(하네스 오염 금지).
+
+**Evidence 경로:**
+- `logs/evidence/d_alpha_1_maker_pivot_*/edge_survey_report.json`
+- `docs/v2/reports/D_ALPHA/D_ALPHA-1_REPORT.md`
+
+**의존성:**
+- Depends on: D_ALPHA-0
+- Unblocks: D_ALPHA-2 (OBI Filter)
+
+---
+
+#### D_ALPHA-2: OBI Filter & Ranking (HFT Intelligence v1)
+
+**상태:** PLANNED  
+**목적:** “아무 기회나”가 아니라 **OBI로 유리한 순간만** 골라 메이커 진입을 보조.
+
+**Acceptance Criteria:**
+- [ ] AC-1: OBI 계산 표준화 및 **수익 구간 진입을 위한 동적 임계치(Dynamic Threshold)**가 엔진에 내장된다.
+- [ ] AC-2: TopN 후보를 OBI로 랭킹하고 “왜 선택했는지”를 아티팩트로 남긴다.
+- [ ] AC-3: 최소 1회 이상 positive net edge 샘플을 확보하거나, 실패 원인이 ‘시장구조/수수료/체결확률’로 분해된다.
+
+**Evidence 경로:**
+- `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
+- 테스트: `tests/test_d_alpha_2_obi_filter.py`
+
+**의존성:**
+- Depends on: D_ALPHA-1
+- Unblocks: D_ALPHA-3 (Inventory)
+
+---
+
+#### D_ALPHA-3: Inventory Risk (Avellaneda-lite)
+
+**상태:** PLANNED  
+**목적:** “조단위”로 커질 때 생기는 재고 리스크를 알파로 전환(quote skew/position penalty).
+
+**Acceptance Criteria:**
+- [ ] AC-1: inventory_penalty / quote_skew 파라미터가 엔진에 내장된다.
+- [ ] AC-2: inventory 상태 변화가 KPI/아티팩트로 기록된다.
+- [ ] AC-3: RiskGuard와 충돌 없이(또는 연계하여) 동작한다.
+
+**Evidence 경로:**
+- `docs/v2/reports/D_ALPHA/D_ALPHA-3_REPORT.md`
+- 테스트: `tests/test_d_alpha_3_inventory_risk.py`
+
+**의존성:**
+- Depends on: D_ALPHA-2
+- Unblocks: D208 (Structural Normalization)
+
+---
+
 ### 신 D208: Structural Normalization (Plan)
 
 **상태:** PLANNED (D207-4 완료 후)  
