@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
 
 from arbitrage.v2.opportunity import BreakEvenParams
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.domain.fee_model import FeeModel, FeeStructure
 
 logging.basicConfig(
@@ -55,6 +56,7 @@ class PaperRunnerConfig:
     fx_krw_per_usdt: float = 1450.0
     fx_provider_mode: Optional[str] = None
     break_even_params: Optional[BreakEvenParams] = None
+    fill_probability_params: Optional[FillProbabilityParams] = None
     order_size_policy_mode: Optional[str] = None
     fixed_quote: Optional[dict] = None
     default_quote_amount: float = 100000.0

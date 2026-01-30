@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Any
 import yaml
 import logging
 
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
+
 logger = logging.getLogger(__name__)
 
 
@@ -188,6 +190,7 @@ class V2Config:
     exchanges: Dict[str, ExchangeConfig]
     universe: UniverseConfig
     strategy: StrategyConfig
+    fill_probability: FillProbabilityParams
     cycle_interval_seconds: float  # Legacy (moved from execution block)
     max_concurrent_orders: int  # Legacy
     dry_run: bool  # Legacy
@@ -381,6 +384,17 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         order_size_policy=order_size_policy,
         deterministic_drift_bps=float(strategy_raw.get('deterministic_drift_bps', 0.0)),
     )
+
+    fill_probability_raw = strategy_raw.get("fill_probability") or raw_config.get("fill_probability") or {}
+    fill_probability = FillProbabilityParams(
+        base_fill_probability=float(fill_probability_raw.get("base_fill_probability", 0.7)),
+        queue_position_penalty=float(fill_probability_raw.get("queue_position_penalty", 0.1)),
+        volatility_penalty=float(fill_probability_raw.get("volatility_penalty", 0.05)),
+        min_fill_probability=float(fill_probability_raw.get("min_fill_probability", 0.3)),
+        max_fill_probability=float(fill_probability_raw.get("max_fill_probability", 0.95)),
+        wait_time_seconds=float(fill_probability_raw.get("wait_time_seconds", 5.0)),
+        slippage_per_second_bps=float(fill_probability_raw.get("slippage_per_second_bps", 0.2)),
+    )
     
     # Execution 파싱 (선택적 필드, 기본값 사용)
     exec_raw = raw_config.get('execution', {})
@@ -490,6 +504,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         exchanges=exchanges,
         universe=universe,
         strategy=strategy,
+        fill_probability=fill_probability,
         cycle_interval_seconds=exec_data.get('cycle_interval_seconds', 10.0),
         max_concurrent_orders=exec_data.get('max_concurrent_orders', 5),
         dry_run=exec_data.get('dry_run', True),

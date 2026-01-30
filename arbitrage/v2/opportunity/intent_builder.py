@@ -18,6 +18,7 @@ from arbitrage.v2.opportunity.detector import (
     detect_candidates,
 )
 from arbitrage.v2.domain.break_even import BreakEvenParams
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 
 
 def build_candidate(
@@ -29,6 +30,7 @@ def build_candidate(
     params: BreakEvenParams,
     deterministic_drift_bps: float = 0.0,
     maker_mode: bool = False,
+    fill_probability_params: Optional[FillProbabilityParams] = None,
 ) -> Optional[OpportunityCandidate]:
     """
     Build OpportunityCandidate from 2 exchange prices.
@@ -56,6 +58,7 @@ def build_candidate(
         params=params,
         deterministic_drift_bps=deterministic_drift_bps,
         maker_mode=maker_mode,
+        fill_probability_params=fill_probability_params,
     )
 
 
@@ -194,6 +197,7 @@ def build_and_convert(
     order_type: OrderType = OrderType.MARKET,
     deterministic_drift_bps: float = 0.0,
     maker_mode: bool = False,
+    fill_probability_params: Optional[FillProbabilityParams] = None,
 ) -> List[OrderIntent]:
     """
     Convenience function: build_candidate() + candidate_to_order_intents().
@@ -221,6 +225,7 @@ def build_and_convert(
         params=params,
         deterministic_drift_bps=deterministic_drift_bps,
         maker_mode=maker_mode,
+        fill_probability_params=fill_probability_params,
     )
     
     if not candidate:

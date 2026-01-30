@@ -16,6 +16,7 @@ from arbitrage.v2.domain.fill_probability import (
     estimate_fill_probability,
     estimate_maker_net_edge_bps,
     calculate_opportunity_cost_bps,
+    FillProbabilityParams,
 )
 from arbitrage.v2.opportunity.detector import detect_candidates
 from arbitrage.v2.domain.break_even import BreakEvenParams
@@ -185,6 +186,47 @@ def test_detect_candidates_maker_mode():
     
     # Maker net edge가 계산됨
     assert isinstance(candidate_maker.maker_net_edge_bps, float)
+
+
+def test_detect_candidates_with_custom_fill_params():
+    """fill_probability_params 주입 시 maker net edge 계산 반영"""
+    params = BreakEvenParams(
+        fee_model=FeeModel(fee_a=UPBIT_FEE, fee_b=BINANCE_FEE),
+        slippage_bps=5.0,
+        latency_bps=2.0,
+        buffer_bps=3.0,
+    )
+    fill_params = FillProbabilityParams(
+        base_fill_probability=0.6,
+        wait_time_seconds=8.0,
+        slippage_per_second_bps=0.4,
+    )
+
+    candidate = detect_candidates(
+        symbol="BTC/KRW",
+        exchange_a="upbit",
+        exchange_b="binance",
+        price_a=100000.0,
+        price_b=100500.0,
+        params=params,
+        maker_mode=True,
+        fill_probability_params=fill_params,
+    )
+
+    assert candidate is not None
+    assert candidate.maker_net_edge_bps is not None
+
+    expected_fill_prob = estimate_fill_probability(params=fill_params)
+    expected_net_edge = estimate_maker_net_edge_bps(
+        spread_bps=candidate.spread_bps,
+        maker_fee_bps=Decimal(str(params.fee_model.fee_a.maker_fee_bps)),
+        slippage_bps=params.slippage_bps,
+        latency_bps=params.latency_bps,
+        fill_probability=expected_fill_prob,
+        wait_time_seconds=fill_params.wait_time_seconds,
+        slippage_per_second_bps=fill_params.slippage_per_second_bps,
+    )
+    assert candidate.maker_net_edge_bps == float(expected_net_edge)
 
 
 def test_maker_mode_positive_net_edge():

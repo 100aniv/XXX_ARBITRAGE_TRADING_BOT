@@ -24,12 +24,16 @@ class FillProbabilityParams:
     - base_fill_probability: 0.7 (70% 체결 확률)
     - queue_position_penalty: 0.1 (queue 위치당 -10%)
     - volatility_penalty: 0.05 (변동성 증가 시 -5%)
+    - wait_time_seconds: 5.0 (미체결 대기 시간)
+    - slippage_per_second_bps: 0.2 (초당 슬리피지)
     """
     base_fill_probability: float = 0.7
     queue_position_penalty: float = 0.1
     volatility_penalty: float = 0.05
     min_fill_probability: float = 0.3
     max_fill_probability: float = 0.95
+    wait_time_seconds: float = 5.0
+    slippage_per_second_bps: float = 0.2
 
 
 def estimate_fill_probability(

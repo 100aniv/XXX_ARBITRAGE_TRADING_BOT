@@ -21,6 +21,7 @@ from arbitrage.v2.domain.break_even import (
     compute_break_even_bps,
     compute_edge_bps,
 )
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ def detect_candidates(
     params: BreakEvenParams,
     deterministic_drift_bps: float = 0.0,
     maker_mode: bool = False,
+    fill_probability_params: Optional[FillProbabilityParams] = None,
 ) -> Optional[OpportunityCandidate]:
     """
     단일 심볼에 대한 기회 탐지
@@ -163,7 +165,9 @@ def detect_candidates(
         from decimal import Decimal
         
         # Fill probability 추정 (보수적 기본값)
-        fill_prob = float(estimate_fill_probability())
+        fill_params = fill_probability_params or FillProbabilityParams()
+        fill_prob_decimal = estimate_fill_probability(params=fill_params)
+        fill_prob = float(fill_prob_decimal)
         
         # Maker fee 추출 (FeeModel에서)
         maker_fee_bps = Decimal(str(params.fee_model.fee_a.maker_fee_bps))
@@ -174,7 +178,9 @@ def detect_candidates(
             maker_fee_bps=maker_fee_bps,
             slippage_bps=params.slippage_bps,
             latency_bps=params.latency_bps,
-            fill_probability=Decimal(str(fill_prob)),
+            fill_probability=fill_prob_decimal,
+            wait_time_seconds=fill_params.wait_time_seconds,
+            slippage_per_second_bps=fill_params.slippage_per_second_bps,
         ))
         
         # Maker mode에서는 maker_net_edge로 profitable 판정

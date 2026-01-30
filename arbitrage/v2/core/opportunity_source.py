@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
 from arbitrage.v2.domain.break_even import BreakEvenParams
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_mismatch
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,8 @@ class RealOpportunitySource(OpportunitySource):
         symbols: Optional[List[Tuple[str, str]]] = None,
         max_symbols_per_tick: Optional[int] = None,
         survey_mode: bool = False,
+        maker_mode: bool = False,
+        fill_probability_params: Optional[FillProbabilityParams] = None,
     ):
         self.upbit_provider = upbit_provider
         self.binance_provider = binance_provider
@@ -79,6 +82,8 @@ class RealOpportunitySource(OpportunitySource):
         self.symbols = list(symbols) if symbols else None
         self.max_symbols_per_tick = max_symbols_per_tick
         self.survey_mode = survey_mode
+        self.maker_mode = maker_mode
+        self.fill_probability_params = fill_probability_params
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
         self._symbol_pair_idx = 0
 
@@ -337,6 +342,8 @@ class RealOpportunitySource(OpportunitySource):
                     price_b=binance_bid_krw,
                     params=self.break_even_params,
                     deterministic_drift_bps=self.deterministic_drift_bps,
+                    maker_mode=self.maker_mode,
+                    fill_probability_params=self.fill_probability_params,
                 )
 
                 candidate_b = build_candidate(
@@ -347,6 +354,8 @@ class RealOpportunitySource(OpportunitySource):
                     price_b=binance_ask_krw,
                     params=self.break_even_params,
                     deterministic_drift_bps=self.deterministic_drift_bps,
+                    maker_mode=self.maker_mode,
+                    fill_probability_params=self.fill_probability_params,
                 )
 
                 candidates = [c for c in [candidate_a, candidate_b] if c]
@@ -434,6 +443,8 @@ class MockOpportunitySource(OpportunitySource):
         kpi,
         profit_core: "ProfitCore",
         deterministic_drift_bps: float = 0.0,
+        maker_mode: bool = False,
+        fill_probability_params: Optional[FillProbabilityParams] = None,
     ):
         """Args:
             profit_core: ProfitCore (REQUIRED - 기본 가격)
@@ -449,6 +460,8 @@ class MockOpportunitySource(OpportunitySource):
         self.kpi = kpi
         self.profit_core = profit_core
         self.deterministic_drift_bps = deterministic_drift_bps
+        self.maker_mode = maker_mode
+        self.fill_probability_params = fill_probability_params
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
@@ -479,6 +492,8 @@ class MockOpportunitySource(OpportunitySource):
                 price_b=price_b,
                 params=self.break_even_params,
                 deterministic_drift_bps=self.deterministic_drift_bps,
+                maker_mode=self.maker_mode,
+                fill_probability_params=self.fill_probability_params,
             )
             if candidate:
                 candidate.exchange_a_bid = price_a

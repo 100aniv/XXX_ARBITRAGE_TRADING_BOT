@@ -14,6 +14,7 @@ from arbitrage.v2.harness.paper_runner import (
     PaperRunner,
     PaperRunnerConfig,
 )
+from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.v2.core.metrics import PaperMetrics  # D205-18-2: Harness Purge
 from arbitrage.v2.core import OrderIntent, OrderSide, OrderType
 
@@ -47,17 +48,24 @@ class TestPaperRunnerConfig:
         Verify:
             - 커스텀 값 우선 적용
         """
+        fill_params = FillProbabilityParams(
+            base_fill_probability=0.65,
+            wait_time_seconds=8.0,
+            slippage_per_second_bps=0.4,
+        )
         config = PaperRunnerConfig(
             duration_minutes=60,
             phase="baseline",
             run_id="custom_run_id",
             output_dir="custom_output",
             symbols_top=20,
+            fill_probability_params=fill_params,
         )
         
         assert config.run_id == "custom_run_id"
         assert config.output_dir == "custom_output"
         assert config.symbols_top == 20
+        assert config.fill_probability_params is fill_params
 
 
 class TestPaperMetrics:

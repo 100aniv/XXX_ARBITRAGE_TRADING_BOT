@@ -126,6 +126,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         )
         config.break_even_params_auto = False
 
+    if getattr(config, "fill_probability_params", None) is None:
+        config.fill_probability_params = v2_config.fill_probability
+
     if getattr(config, "min_hold_ms", None) is None:
         config.min_hold_ms = v2_config.safety.min_hold_ms
     if getattr(config, "cooldown_after_loss_seconds", None) is None:
@@ -238,21 +241,25 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             rate_limiter_binance=rate_limiter_binance,
             fx_provider=fx_provider,
             break_even_params=config.break_even_params,
+            fill_probability_params=getattr(config, "fill_probability_params", None),
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
             deterministic_drift_bps=config.deterministic_drift_bps,
             symbols=getattr(config, "symbols", None),
             max_symbols_per_tick=getattr(config, "max_symbols_per_tick", None),
             survey_mode=getattr(config, "survey_mode", False),
+            maker_mode=getattr(config, "maker_mode", False),
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:
         opportunity_source = MockOpportunitySource(
             fx_provider=fx_provider,
             break_even_params=config.break_even_params,
+            fill_probability_params=getattr(config, "fill_probability_params", None),
             kpi=kpi,
             profit_core=profit_core,  # D206-1 FIXPACK
             deterministic_drift_bps=config.deterministic_drift_bps,
+            maker_mode=getattr(config, "maker_mode", False),
         )
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     
