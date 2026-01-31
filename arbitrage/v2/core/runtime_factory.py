@@ -56,16 +56,20 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         try:
             with open(config.config_path, "r", encoding="utf-8") as f:
                 raw_config = yaml.safe_load(f) or {}
-            universe_cfg = raw_config.get("universe", {}) or {}
+            universe_cfg = dict(raw_config.get("universe", {}) or {})
 
-            if not config.use_real_data:
-                universe_cfg = dict(universe_cfg)
+            if config.use_real_data:
+                universe_cfg["data_source"] = "real"
+            else:
                 universe_cfg["data_source"] = "mock"
 
-            if config.symbols_top:
-                universe_cfg["topn_count"] = config.symbols_top
-            elif "topn_count" not in universe_cfg:
-                universe_cfg["topn_count"] = v2_config.universe.symbols_top_n
+            requested_topn = v2_config.universe.symbols_top_n
+            symbols_top = getattr(config, "symbols_top", None)
+            if isinstance(symbols_top, int) and symbols_top > 0:
+                requested_topn = symbols_top
+
+            universe_cfg["mode"] = "topn"
+            universe_cfg["topn_count"] = requested_topn
 
             builder = from_config_dict(universe_cfg)
             symbols = builder.get_symbols()
@@ -275,9 +279,16 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
                 connection_string=config.db_connection_string,
                 ensure_schema=config.ensure_schema,
             )
-    
+
+    if config.db_mode == "strict":
+        if not storage:
+            raise RuntimeError("DB strict mode requires initialized storage")
+        missing_tables = storage.verify_schema(["v2_orders", "v2_fills", "v2_trades"])
+        if missing_tables:
+            raise RuntimeError(f"DB strict mode missing tables: {missing_tables}")
+
     ledger_writer = LedgerWriter(storage=storage, config=config)
-    
+
     # 6-1. Redis (D206-1 CLOSEOUT: OPS Gate 필수)
     redis_client = None
     if config.db_mode != "off":
@@ -289,12 +300,20 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
                 "health_ttl_seconds": 60
             }
             redis_client = RedisClient(redis_config)
-            if redis_client.available:
+            redis_available = bool(redis_client.available and redis_client.ping())
+            kpi.redis_ok = redis_available
+            if redis_available:
                 logger.info(f"[D206-1] Redis initialized: {redis_config['url']}")
             else:
-                logger.warning(f"[D206-1] Redis unavailable (graceful fallback)")
+                logger.critical("[D_ALPHA-1U] Redis unavailable: fail-fast")
+                raise SystemExit(1)
+        except SystemExit:
+            kpi.redis_ok = False
+            raise
         except Exception as e:
-            logger.warning(f"[D206-1] Redis init failed: {e}")
+            kpi.redis_ok = False
+            logger.critical(f"[D_ALPHA-1U] Redis init failed: {e}")
+            raise SystemExit(1)
     
     # 7. Orchestrator 조립 (D206-1 CLOSEOUT: redis_client 전달)
     orchestrator = PaperOrchestrator(

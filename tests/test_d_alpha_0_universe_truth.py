@@ -8,6 +8,8 @@ D_ALPHA-0: Universe Truth 테스트
 - monitor가 edge_survey_report에 unique_symbols_evaluated 포함
 """
 
+import json
+import hashlib
 import pytest
 from unittest.mock import MagicMock, patch
 from arbitrage.v2.universe.builder import UniverseBuilder, UniverseBuilderConfig, UniverseMode
@@ -81,6 +83,12 @@ def test_edge_survey_report_includes_unique_symbols_evaluated():
     # 필수 필드 검증
     assert "unique_symbols_evaluated" in report
     assert report["unique_symbols_evaluated"] == 2  # BTC/KRW, ETH/KRW
+    assert report["coverage_ratio"] == pytest.approx(2 / 100, rel=1e-6)
+
+    expected_hash = hashlib.sha256(
+        json.dumps(["BTC/KRW", "ETH/KRW"], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    assert report["universe_symbols_hash"] == expected_hash
     
     # universe_metadata 검증
     assert "universe_metadata" in report
@@ -129,3 +137,8 @@ def test_universe_metadata_end_to_end():
     
     assert report["unique_symbols_evaluated"] == 2
     assert report["universe_metadata"]["universe_requested_top_n"] == 10
+    assert report["coverage_ratio"] == pytest.approx(2 / 10, rel=1e-6)
+    expected_hash = hashlib.sha256(
+        json.dumps(["BTC/KRW", "ETH/KRW"], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    assert report["universe_symbols_hash"] == expected_hash

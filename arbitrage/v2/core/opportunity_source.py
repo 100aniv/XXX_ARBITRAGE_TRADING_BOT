@@ -25,6 +25,8 @@ class OpportunitySource(ABC):
 
 
 def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
+    obi_score = getattr(candidate, "obi_score", None)
+    depth_imbalance = getattr(candidate, "depth_imbalance", None)
     return {
         "symbol": candidate.symbol,
         "exchange_a": candidate.exchange_a,
@@ -47,7 +49,45 @@ def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
         "fx_rate_age_sec": candidate.fx_rate_age_sec,
         "fx_rate_timestamp": candidate.fx_rate_timestamp,
         "fx_rate_degraded": candidate.fx_rate_degraded,
+        "obi_score": round(float(obi_score), 6) if obi_score is not None else None,
+        "depth_imbalance": round(float(depth_imbalance), 6) if depth_imbalance is not None else None,
     }
+
+
+def _compute_orderbook_obi(orderbook: Optional[Any], depth: int = 5) -> tuple[Optional[float], Optional[float]]:
+    if not orderbook:
+        return None, None
+
+    bids = getattr(orderbook, "bids", None)
+    asks = getattr(orderbook, "asks", None)
+    if not isinstance(bids, (list, tuple)) or not isinstance(asks, (list, tuple)):
+        return None, None
+
+    bids = bids[:depth]
+    asks = asks[:depth]
+    bid_depth = sum(
+        float(level.quantity)
+        for level in bids
+        if level is not None and getattr(level, "quantity", None) is not None
+    )
+    ask_depth = sum(
+        float(level.quantity)
+        for level in asks
+        if level is not None and getattr(level, "quantity", None) is not None
+    )
+    if bid_depth <= 0 or ask_depth <= 0:
+        return None, None
+
+    depth_imbalance = bid_depth / ask_depth
+    obi_score = (bid_depth - ask_depth) / (bid_depth + ask_depth)
+    return obi_score, depth_imbalance
+
+
+def _merge_metric(first: Optional[float], second: Optional[float]) -> Optional[float]:
+    values = [value for value in (first, second) if value is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
 
 
 class RealOpportunitySource(OpportunitySource):
@@ -321,6 +361,13 @@ class RealOpportunitySource(OpportunitySource):
                     _record_failure("binance_price_suspicious")
                     continue
 
+                orderbook_upbit = self.upbit_provider.get_orderbook(symbol_a, depth=5)
+                orderbook_binance = self.binance_provider.get_orderbook(symbol_b, depth=5)
+                obi_upbit, depth_upbit = _compute_orderbook_obi(orderbook_upbit, depth=5)
+                obi_binance, depth_binance = _compute_orderbook_obi(orderbook_binance, depth=5)
+                obi_score = _merge_metric(obi_upbit, obi_binance)
+                depth_imbalance = _merge_metric(depth_upbit, depth_binance)
+
                 tick_processed = True
 
                 if iteration == 1:
@@ -378,6 +425,8 @@ class RealOpportunitySource(OpportunitySource):
                     candidate.fx_rate_age_sec = self.kpi.fx_rate_age_sec
                     candidate.fx_rate_timestamp = self.kpi.fx_rate_timestamp
                     candidate.fx_rate_degraded = self.kpi.fx_rate_degraded
+                    candidate.obi_score = obi_score
+                    candidate.depth_imbalance = depth_imbalance
                     candidates_all.append(candidate)
 
             if iteration == 1:

@@ -102,14 +102,17 @@ class FeatureGuard:
             if self.phase in ["smoke", "baseline", "longrun", "smoke_test", "live"]:
                 # Ops phase에서는 Redis 검증
                 if not redis_client:
-                    logger.warning(
-                        f"[FeatureGuard] ⚠️  Redis: Not initialized (continuing, but dedup/cache disabled)"
+                    logger.error(
+                        f"[FeatureGuard] Redis unavailable: client not initialized in phase='{self.phase}'"
                     )
-                    return True  # Redis는 critical하지만 없어도 진행 가능 (degraded mode)
-                
+                    return False
+
                 # Ping 테스트
-                redis_client.ping()
-                logger.info(f"[FeatureGuard] ✅ Redis: OK (ping successful)")
+                if not redis_client.ping():
+                    logger.error("[FeatureGuard] Redis ping failed")
+                    return False
+
+                logger.info("[FeatureGuard] Redis: OK (ping successful)")
                 return True
             
             else:
@@ -118,8 +121,8 @@ class FeatureGuard:
                 return True
         
         except Exception as e:
-            logger.warning(f"[FeatureGuard] ⚠️  Redis: Ping failed ({e}), continuing in degraded mode")
-            return True  # Redis 실패는 warning으로 처리
+            logger.error(f"[FeatureGuard] Redis ping failed: {e}")
+            return False
     
     def verify_real_marketdata(self, use_real_data: bool, providers: Dict[str, Any]) -> bool:
         """

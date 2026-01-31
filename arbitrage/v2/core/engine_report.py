@@ -161,6 +161,9 @@ def generate_engine_report(
     inserts_ok = db_counts.get('total_inserts', 0) if db_counts else kpi.db_inserts_ok
     inserts_failed = db_counts.get('failed_inserts', 0) if db_counts else kpi.db_inserts_failed
     expected_inserts = kpi.closed_trades * 5  # D207-1-4 AV: 2 orders + 2 fills + 1 trade
+
+    # Redis status
+    redis_ok = bool(getattr(kpi, "redis_ok", False))
     
     # Status
     status = "PASS" if exit_code == 0 else "FAIL"
@@ -216,6 +219,10 @@ def generate_engine_report(
             "closed_trades": kpi.closed_trades,
             "enabled": inserts_ok > 0 or inserts_failed > 0,  # D207-1-4: DB 사용 여부 명시
             "reason": "DB mode active" if (inserts_ok > 0 or inserts_failed > 0) else "Paper mode (no DB)"
+        },
+
+        "redis": {
+            "ok": redis_ok,
         },
         
         # D207-1-5: StopReason Single Truth Chain (SSOT)

@@ -259,12 +259,23 @@ class EvidenceCollector:
         
         # D_ALPHA-0: Extract universe metadata from run_meta
         unique_symbols_evaluated = len(per_symbol)
+        evaluated_symbols = sorted(per_symbol.keys())
+        evaluated_symbols_hash = hashlib.sha256(
+            json.dumps(evaluated_symbols, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         universe_metadata = {}
         if run_meta and "universe_metadata" in run_meta:
             universe_metadata = dict(run_meta["universe_metadata"])
             # Override universe_size in sampling_summary if available
             if universe_metadata.get("universe_loaded_count") is not None:
                 sampling_summary["universe_size"] = universe_metadata["universe_loaded_count"]
+
+        requested_count = universe_metadata.get("universe_requested_top_n")
+        if requested_count is None:
+            requested_count = sampling_summary.get("universe_size")
+        coverage_ratio = None
+        if isinstance(requested_count, int) and requested_count > 0:
+            coverage_ratio = round(unique_symbols_evaluated / requested_count, 6)
 
         status = "PASS" if total_candidates > 0 else "FAIL"
         
@@ -297,6 +308,8 @@ class EvidenceCollector:
             "total_symbols": len(symbol_summary),
             "total_candidates": total_candidates,
             "unique_symbols_evaluated": unique_symbols_evaluated,
+            "coverage_ratio": coverage_ratio,
+            "universe_symbols_hash": evaluated_symbols_hash,
             "reject_total": reject_total,
             "reject_by_reason": reject_by_reason,
             "tail_stats": tail_stats,

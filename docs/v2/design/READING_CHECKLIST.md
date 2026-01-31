@@ -29,3 +29,18 @@
 - D_ROADMAP.md — 확인: D_ALPHA-2 목표/AC/의존성 및 D_ALPHA-3 종속성 재확인.
 - docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence SSOT 위치 재확인.
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: edge_survey_report.json 및 evidence 필수 산출물 규칙 재확인.
+
+## Step 0 Reading (D_ALPHA-1U)
+
+- D_ROADMAP.md — 확인: D_ALPHA-0/1/2 정의와 D_ALPHA-1U 삽입 위치 정합성 점검.
+- docs/v2/SSOT_RULES.md — 확인: D 번호 불변, Gate 3단, DocOps 규칙 준수.
+- docs/v2/design/SSOT_MAP.md — 확인: Evidence/Config/Redis/DB SSOT 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: evidence 필수 산출물 및 engine_report.json 규칙 재확인.
+- docs/v2/design/SSOT_DATA_ARCHITECTURE.md — 확인: DB/Redis 모두 Required 원칙 재확인.
+- docs/v2/design/REDIS_KEYSPACE.md — 확인: Redis key prefix/TTL 규칙 재확인.
+- docs/v2/V2_ARCHITECTURE.md — 확인: Engine-Centric/Infra Parity 원칙 재확인.
+- docs/v2/design/CONFIG_SCHEMA.md — 확인: config 키/Zero-Fallback/Decimal 규칙 재확인.
+- docs/v2/design/V2_COMPONENT_REGISTRY.json — 확인: ops_critical/required 컴포넌트 기준 재확인.
+- docs/v2/design/SSOT_SYNC_AUDIT.md — 확인: Redis/DB Required 문구 정합성 재확인.
+- docs/v2/design/INFRA_REUSE_INVENTORY.md — 확인: V1/V2 재사용 정책 재확인.
+- docs/v2/design/CLEANUP_CANDIDATES.md — 확인: 즉시 삭제 금지 원칙 재확인.
