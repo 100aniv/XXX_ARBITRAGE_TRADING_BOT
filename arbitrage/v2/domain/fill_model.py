@@ -14,7 +14,7 @@ Date: 2026-01-10
 """
 
 from typing import Literal, Optional
-from arbitrage.v2.opportunity import BreakEvenParams
+from arbitrage.v2.domain.break_even import BreakEvenParams
 from dataclasses import dataclass
 from decimal import Decimal
 import random

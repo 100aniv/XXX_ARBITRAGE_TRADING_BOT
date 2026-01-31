@@ -23,3 +23,9 @@
 - docs/v2/SSOT_RULES.md — 확인: Gate 3단, DocOps, Report 규칙 재확인.
 - docs/v2/design/SSOT_MAP.md — 확인: Config SSOT와 Evidence SSOT 위치 매핑 재확인.
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: evidence 산출물 필수 목록 및 gate.log 요구사항 재확인.
+
+## Step 0 Reading (D_ALPHA-2)
+
+- D_ROADMAP.md — 확인: D_ALPHA-2 목표/AC/의존성 및 D_ALPHA-3 종속성 재확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence SSOT 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: edge_survey_report.json 및 evidence 필수 산출물 규칙 재확인.
