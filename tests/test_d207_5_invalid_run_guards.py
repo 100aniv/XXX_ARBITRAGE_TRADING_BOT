@@ -64,7 +64,7 @@ class DummyLedgerWriter:
 
 
 def test_invalid_run_symbols_empty(tmp_path):
-    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path))
+    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path), db_mode="off")
     config.symbols = []
 
     kpi = PaperMetrics()
@@ -86,7 +86,7 @@ def test_invalid_run_symbols_empty(tmp_path):
 
 
 def test_invalid_run_real_ticks_zero(tmp_path):
-    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path))
+    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path), db_mode="off")
     config.symbols = [("BTC/KRW", "BTC/USDT")]
 
     kpi = PaperMetrics()
@@ -108,7 +108,7 @@ def test_invalid_run_real_ticks_zero(tmp_path):
 
 
 def test_invalid_run_symbols_invalid_format(tmp_path):
-    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path))
+    config = PaperRunnerConfig(duration_minutes=0, phase="smoke", output_dir=str(tmp_path), db_mode="off")
     config.symbols = [("BTC/KRW",)]
 
     kpi = PaperMetrics()

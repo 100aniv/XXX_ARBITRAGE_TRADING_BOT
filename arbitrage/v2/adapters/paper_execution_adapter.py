@@ -94,6 +94,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
         """
         self.exchange_name = exchange_name
         self._partial_fill_configured = False
+        self._fee_rates = dict(self.FEE_RATES)
         
         # D205-18-1: Config SSOT 우선
         if config and "mock_adapter" in config:
@@ -119,6 +120,9 @@ class PaperExecutionAdapter(ExchangeAdapter):
             self.pessimistic_drift_bps_max = mock_cfg.get(
                 "pessimistic_drift_bps_max", self.PESSIMISTIC_DRIFT_BPS_MAX
             )
+            fee_rates = config.get("fee_rates") if isinstance(config, dict) else None
+            if isinstance(fee_rates, dict):
+                self._fee_rates.update({str(k).lower(): float(v) for k, v in fee_rates.items()})
         else:
             # 명시적 파라미터 또는 기본값
             self._partial_fill_configured = partial_fill_probability is not None
@@ -152,6 +156,10 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 if pessimistic_drift_bps_max is not None
                 else self.PESSIMISTIC_DRIFT_BPS_MAX
             )
+            if config and isinstance(config, dict):
+                fee_rates = config.get("fee_rates")
+                if isinstance(fee_rates, dict):
+                    self._fee_rates.update({str(k).lower(): float(v) for k, v in fee_rates.items()})
     
     def translate_intent(self, intent: OrderIntent) -> Dict[str, Any]:
         """
@@ -350,7 +358,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             exchange = response.get("exchange", "mock").lower()
             
             # 거래소별 수수료율 (bps)
-            fee_rate_bps = self.FEE_RATES.get(exchange, self.FEE_RATES["mock"])
+            fee_rate_bps = self._fee_rates.get(exchange, self._fee_rates["mock"])
             fee_rate = fee_rate_bps / 10000.0  # bps -> ratio
             
             # 수수료 = 거래 금액 * 수수료율

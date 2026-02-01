@@ -32,6 +32,40 @@ from arbitrage.v2.universe.builder import from_config_dict
 logger = logging.getLogger(__name__)
 
 
+def _build_fee_model_from_v2_config(v2_config) -> FeeModel:
+    use_exchange_fees = v2_config.strategy.threshold.use_exchange_fees
+    upbit_cfg = v2_config.exchanges.get("upbit")
+    binance_cfg = v2_config.exchanges.get("binance")
+    if use_exchange_fees and upbit_cfg and binance_cfg:
+        fee_a = FeeStructure(
+            exchange_name="upbit",
+            maker_fee_bps=upbit_cfg.maker_fee_bps,
+            taker_fee_bps=upbit_cfg.taker_fee_bps,
+        )
+        fee_b = FeeStructure(
+            exchange_name="binance",
+            maker_fee_bps=binance_cfg.maker_fee_bps,
+            taker_fee_bps=binance_cfg.taker_fee_bps,
+        )
+    else:
+        fee_a = FeeStructure(exchange_name="upbit", maker_fee_bps=0.0, taker_fee_bps=0.0)
+        fee_b = FeeStructure(exchange_name="binance", maker_fee_bps=0.0, taker_fee_bps=0.0)
+    return FeeModel(fee_a=fee_a, fee_b=fee_b)
+
+
+def build_break_even_params_from_v2_config(v2_config) -> BreakEvenParams:
+    fee_model = _build_fee_model_from_v2_config(v2_config)
+    return BreakEvenParams.from_threshold_config(
+        fee_model=fee_model,
+        threshold_config=v2_config.strategy.threshold,
+    )
+
+
+def build_break_even_params_from_config_path(config_path: str = "config/v2/config.yml") -> BreakEvenParams:
+    v2_config = load_config(config_path)
+    return build_break_even_params_from_v2_config(v2_config)
+
+
 def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     """Paper Runtime 조립 (Factory Pattern)
     
@@ -43,6 +77,14 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         PaperOrchestrator (모든 의존성 주입 완료)
     """
     logger.info(f"[D207-1] Building Paper Runtime...")
+
+    if getattr(config, "db_mode", "") == "strict":
+        if not os.getenv("POSTGRES_CONNECTION_STRING"):
+            logger.critical("[D_ALPHA-1U] DB strict requires POSTGRES_CONNECTION_STRING")
+            raise SystemExit(1)
+        if not os.getenv("REDIS_URL"):
+            logger.critical("[D_ALPHA-1U] DB strict requires REDIS_URL")
+            raise SystemExit(1)
     
     # 0. D206-1 CLOSEOUT: ProfitCore (config.yml 기반)
     v2_config = load_config("config/v2/config.yml")
@@ -105,30 +147,17 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         config.fixed_quote = v2_config.strategy.order_size_policy.fixed_quote
 
     if getattr(config, "break_even_params", None) is None or getattr(config, "break_even_params_auto", False):
-        use_exchange_fees = v2_config.strategy.threshold.use_exchange_fees
-        upbit_cfg = v2_config.exchanges.get("upbit")
-        binance_cfg = v2_config.exchanges.get("binance")
-        if use_exchange_fees and upbit_cfg and binance_cfg:
-            fee_a = FeeStructure(
-                exchange_name="upbit",
-                maker_fee_bps=upbit_cfg.maker_fee_bps,
-                taker_fee_bps=upbit_cfg.taker_fee_bps,
-            )
-            fee_b = FeeStructure(
-                exchange_name="binance",
-                maker_fee_bps=binance_cfg.maker_fee_bps,
-                taker_fee_bps=binance_cfg.taker_fee_bps,
-            )
-        else:
-            fee_a = FeeStructure(exchange_name="upbit", maker_fee_bps=0.0, taker_fee_bps=0.0)
-            fee_b = FeeStructure(exchange_name="binance", maker_fee_bps=0.0, taker_fee_bps=0.0)
-
-        fee_model = FeeModel(fee_a=fee_a, fee_b=fee_b)
-        config.break_even_params = BreakEvenParams.from_threshold_config(
-            fee_model=fee_model,
-            threshold_config=v2_config.strategy.threshold,
-        )
+        config.break_even_params = build_break_even_params_from_v2_config(v2_config)
         config.break_even_params_auto = False
+
+    fee_rates = None
+    if getattr(config, "break_even_params", None) is not None:
+        fee_model = getattr(config.break_even_params, "fee_model", None)
+        if fee_model and getattr(fee_model, "fee_a", None) and getattr(fee_model, "fee_b", None):
+            fee_rates = {
+                str(getattr(fee_model.fee_a, "exchange_name", "upbit")).lower(): fee_model.fee_a.taker_fee_bps,
+                str(getattr(fee_model.fee_b, "exchange_name", "binance")).lower(): fee_model.fee_b.taker_fee_bps,
+            }
 
     if getattr(config, "fill_probability_params", None) is None:
         config.fill_probability_params = v2_config.fill_probability
@@ -268,7 +297,19 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     
     # 5. PaperExecutor (주문 실행 + Balance) - D206-1 FIXPACK: profit_core 주입
-    adapter_config = {"mock_adapter": v2_config.mock_adapter} if v2_config.mock_adapter else None
+    adapter_config = {"mock_adapter": dict(v2_config.mock_adapter)} if v2_config.mock_adapter else {}
+    if getattr(config, "break_even_params", None) is not None and "mock_adapter" in adapter_config:
+        mock_cfg = adapter_config["mock_adapter"]
+        if getattr(config.break_even_params, "slippage_bps", None) is not None:
+            mock_cfg["slippage_bps_min"] = float(config.break_even_params.slippage_bps)
+            mock_cfg["slippage_bps_max"] = float(config.break_even_params.slippage_bps)
+        if getattr(config.break_even_params, "latency_bps", None) is not None:
+            mock_cfg["pessimistic_drift_bps_min"] = float(config.break_even_params.latency_bps)
+            mock_cfg["pessimistic_drift_bps_max"] = float(config.break_even_params.latency_bps)
+    if fee_rates:
+        adapter_config["fee_rates"] = fee_rates
+    if not adapter_config:
+        adapter_config = None
     executor = PaperExecutor(profit_core, adapter_config=adapter_config)  # D206-1 FIXPACK
     
     # 6. LedgerWriter (DB 기록)

@@ -1,6 +1,14 @@
 # READING_CHECKLIST
 
-**Date:** 2026-01-27
+**Date:** 2026-02-01
+
+## Step 0 Reading (D205-10-1-1 THINWRAP)
+
+- D_ROADMAP.md — 확인: D205-10 브랜치/AC 상태와 문서/증거 요구사항 재확인.
+- docs/v2/SSOT_RULES.md — 확인: Gate 3단, DocOps, Report 규칙 재확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence SSOT 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: evidence 필수 산출물 및 watch_summary 규칙 재확인.
+- docs/v2/V2_ARCHITECTURE.md — 확인: Thin Wrapper/One True Loop 원칙 재확인.
 
 ## Step 0 Reading (D207-5)
 
@@ -53,3 +61,13 @@
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: engine_report.json 및 evidence 필수 산출물 규칙 재확인.
 - docs/v2/V2_ARCHITECTURE.md — 확인: Engine-Centric, Infra Parity 원칙 재확인.
 - docs/v2/design/D201-1_BINANCE_MARKET_SEMANTICS.md — 확인: Binance 심볼/마켓 의미론 재확인.
+
+## Step 0 Reading (D_ALPHA-1U-FIX-2)
+
+- D_ROADMAP.md — 확인: D_ALPHA-1U 남은 FIX-2/3 상태와 선기입 필요성 재확인.
+- docs/v2/SSOT_RULES.md — 확인: Roadmap-first, Gate 3단, WARN=FAIL 원칙 재확인.
+- docs/v2/OPS_PROTOCOL.md — 확인: Invariant(heartbeat≤65s, DB=closed_trades*3±2, Evidence Minimum Set) 재확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층/증거 위치/Config 우선순위 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: Evidence Minimum Set 및 Atomic Flush 규칙 재확인.
+- docs/v2/design/V2_ARCHITECTURE.md — 확인: Engine-Centric + Adapter 계약 재확인.
+- docs/v2/design/CONFIG_SCHEMA.md — 확인: Zero-Fallback + Decimal 규칙 재확인.

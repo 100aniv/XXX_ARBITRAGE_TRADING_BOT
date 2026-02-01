@@ -13,7 +13,7 @@ def test_f5_sigterm_handler_registration():
     from arbitrage.v2.harness.paper_runner import PaperRunnerConfig
     
     # Mock 객체
-    config = PaperRunnerConfig(duration_minutes=1)
+    config = PaperRunnerConfig(duration_minutes=1, db_mode="off")
     kpi = PaperMetrics()
     evidence_dir = Path("logs/evidence/test_f5_sigterm")
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -65,7 +65,7 @@ def test_f5_sigterm_flag_set():
     from arbitrage.v2.core.monitor import EvidenceCollector
     from arbitrage.v2.harness.paper_runner import PaperRunnerConfig
     
-    config = PaperRunnerConfig(duration_minutes=1)
+    config = PaperRunnerConfig(duration_minutes=1, db_mode="off")
     kpi = PaperMetrics()
     evidence_dir = Path("logs/evidence/test_f5_sigterm_flag")
     evidence_dir.mkdir(parents=True, exist_ok=True)

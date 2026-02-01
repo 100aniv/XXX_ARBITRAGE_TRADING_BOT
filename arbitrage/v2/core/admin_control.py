@@ -15,6 +15,7 @@ D205-12: Admin Control Engine (엔진 내부 제어 상태 관리)
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from enum import Enum
@@ -120,6 +121,9 @@ class AdminControl:
         self.audit_log_path = audit_log_path or Path("logs/admin_audit.jsonl")
         
         self.state_key = f"v2:{env}:{run_id}:control:state"
+        self._last_state: Optional[ControlState] = None
+        self._missing_state_warned = False
+        self._local_override_until = 0.0
         
         # 초기화: RUNNING 상태로 시작
         initial_state = ControlState(
@@ -128,6 +132,7 @@ class AdminControl:
             reason="Initial state",
         )
         self._save_state(initial_state)
+        self._last_state = initial_state
         logger.info(f"[D205-12 AdminControl] Initialized: {self.state_key}")
     
     def _save_state(self, state: ControlState):
@@ -137,13 +142,45 @@ class AdminControl:
             3600,  # TTL 1h (REDIS_KEYSPACE.md state domain 기준)
             json.dumps(state.to_dict()),
         )
+        self._last_state = state
+
+    def _activate_local_override(self, ttl_seconds: float = 120.0) -> None:
+        """로컬 명령 직후, 일정 시간 로컬 상태 우선"""
+        self._local_override_until = time.time() + ttl_seconds
+
+    def _get_effective_state(self) -> ControlState:
+        if self._last_state is not None and time.time() < self._local_override_until:
+            return self._last_state
+        return self._load_state()
     
     def _load_state(self) -> ControlState:
         """Redis에서 ControlState 읽기"""
         data = self.redis.get(self.state_key)
         if not data:
+            if self._last_state is not None:
+                if not self._missing_state_warned:
+                    logger.warning(
+                        f"[D205-12 AdminControl] State key not found, restoring cached state: {self.state_key}"
+                    )
+                    self._missing_state_warned = True
+                try:
+                    self._save_state(self._last_state)
+                except Exception:
+                    pass
+                return self._last_state
             raise RuntimeError(f"[D205-12 AdminControl] State key not found: {self.state_key}")
-        return ControlState.from_dict(json.loads(data))
+        self._missing_state_warned = False
+        state = ControlState.from_dict(json.loads(data))
+        if self._last_state is not None:
+            try:
+                cached_ts = datetime.fromisoformat(self._last_state.updated_at_utc)
+                redis_ts = datetime.fromisoformat(state.updated_at_utc)
+                if cached_ts > redis_ts:
+                    return self._last_state
+            except Exception:
+                pass
+        self._last_state = state
+        return state
     
     def _append_audit_log(self, entry: AuditLogEntry):
         """Audit log 기록 (NDJSON append-only)"""
@@ -158,7 +195,7 @@ class AdminControl:
         Returns:
             {"status": "ok", "before": {...}, "after": {...}}
         """
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         if before_state.mode == ControlMode.PANIC:
             return {
@@ -174,6 +211,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -195,7 +233,7 @@ class AdminControl:
     
     def resume(self, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """엔진 재개 (PAUSED → RUNNING)"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         if before_state.mode != ControlMode.PAUSED:
             return {
@@ -211,6 +249,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -232,7 +271,7 @@ class AdminControl:
     
     def stop(self, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """엔진 정지 (graceful shutdown, 신규 주문 금지)"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         after_state = ControlState(
             mode=ControlMode.STOPPING,
@@ -242,6 +281,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -263,7 +303,7 @@ class AdminControl:
     
     def panic(self, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """긴급 중단 (즉시 주문 금지 + 포지션 초기화)"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         after_state = ControlState(
             mode=ControlMode.PANIC,
@@ -273,6 +313,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -294,7 +335,7 @@ class AdminControl:
     
     def emergency_close(self, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """긴급 포지션 청산 (paper: 포지션 초기화)"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         after_state = ControlState(
             mode=ControlMode.EMERGENCY_CLOSE,
@@ -304,6 +345,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -325,7 +367,7 @@ class AdminControl:
     
     def blacklist_add(self, symbol: str, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """심볼 블랙리스트 추가 (즉시 거래 중단)"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         after_blacklist = before_state.symbol_blacklist.copy()
         after_blacklist.add(symbol)
@@ -338,6 +380,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -359,7 +402,7 @@ class AdminControl:
     
     def blacklist_remove(self, symbol: str, reason: str, actor: str = "admin") -> Dict[str, Any]:
         """심볼 블랙리스트 제거"""
-        before_state = self._load_state()
+        before_state = self._get_effective_state()
         
         after_blacklist = before_state.symbol_blacklist.copy()
         if symbol in after_blacklist:
@@ -373,6 +416,7 @@ class AdminControl:
         )
         
         self._save_state(after_state)
+        self._activate_local_override()
         
         audit_entry = AuditLogEntry(
             timestamp_utc=datetime.now(timezone.utc).isoformat(),
@@ -394,7 +438,7 @@ class AdminControl:
     
     def status(self) -> Dict[str, Any]:
         """현재 제어 상태 조회"""
-        state = self._load_state()
+        state = self._get_effective_state()
         return {
             "mode": state.mode.value,
             "symbol_blacklist": list(state.symbol_blacklist),
@@ -405,10 +449,10 @@ class AdminControl:
     
     def should_process_tick(self) -> bool:
         """엔진 루프에서 호출: tick 처리 허용 여부"""
-        state = self._load_state()
+        state = self._get_effective_state()
         return state.mode in [ControlMode.RUNNING]
     
     def is_symbol_blacklisted(self, symbol: str) -> bool:
         """엔진 루프에서 호출: 심볼 블랙리스트 체크"""
-        state = self._load_state()
+        state = self._get_effective_state()
         return symbol in state.symbol_blacklist

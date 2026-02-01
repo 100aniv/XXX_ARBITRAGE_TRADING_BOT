@@ -14,6 +14,9 @@ python scripts/run_d205_10_2_wait_harness_v2.py \
 import argparse
 import logging
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from arbitrage.v2.harness.wait_harness_v2 import WaitHarnessV2, WaitHarnessV2Config
 

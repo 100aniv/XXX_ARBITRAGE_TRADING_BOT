@@ -23,7 +23,6 @@ from typing import Optional, List, Tuple, Dict, Any
 
 from arbitrage.v2.opportunity import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
-from arbitrage.domain.fee_model import FeeModel, FeeStructure
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,7 +45,7 @@ class PaperRunnerConfig:
     max_symbols_per_tick: Optional[int] = None
     db_connection_string: str = ""
     read_only: bool = True
-    db_mode: str = "optional"
+    db_mode: str = "strict"
     ensure_schema: bool = True
     use_real_data: bool = False
     survey_mode: bool = False
@@ -75,26 +74,17 @@ class PaperRunnerConfig:
             self.output_dir = f"logs/evidence/{self.run_id}"
         
         if not self.db_connection_string:
-            self.db_connection_string = os.getenv(
-                "POSTGRES_CONNECTION_STRING",
-                "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
-            )
+            env_conn = os.getenv("POSTGRES_CONNECTION_STRING")
+            if self.db_mode == "strict":
+                if not env_conn:
+                    raise SystemExit(1)
+                self.db_connection_string = env_conn
+            else:
+                self.db_connection_string = env_conn or "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
         
         if self.db_mode == "strict":
             self.ensure_schema = True
         
-        if not self.break_even_params:
-            self.break_even_params = BreakEvenParams(
-                fee_model=FeeModel(
-                    fee_a=FeeStructure(exchange_name="upbit", maker_fee_bps=5.0, taker_fee_bps=5.0),
-                    fee_b=FeeStructure(exchange_name="binance", maker_fee_bps=10.0, taker_fee_bps=10.0),
-                ),
-                slippage_bps=5.0,
-                latency_bps=2.0,
-                buffer_bps=3.0,
-            )
-            self.break_even_params_auto = True
-
         if not self.fx_provider_mode:
             self.fx_provider_mode = "live" if self.use_real_data else "fixed"
 
@@ -305,7 +295,7 @@ def main():
     parser.add_argument("--symbols-top", type=int, default=100, help="Top N symbols")
     parser.add_argument("--max-symbols-per-tick", type=int, default=None, help="Max symbols per tick")
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
-    parser.add_argument("--db-mode", default="optional", choices=["strict", "optional", "off"], help="DB mode")
+    parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode")
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema")
     parser.add_argument("--use-real-data", action="store_true", help="Use Real MarketData")
     parser.add_argument("--survey-mode", action="store_true", help="Survey mode: collect raw spread data before filtering")

@@ -33,6 +33,7 @@ class TestPaperRunnerConfig:
         config = PaperRunnerConfig(
             duration_minutes=20,
             phase="smoke",
+            db_mode="off",
         )
         
         assert config.duration_minutes == 20
@@ -60,6 +61,7 @@ class TestPaperRunnerConfig:
             output_dir="custom_output",
             symbols_top=20,
             fill_probability_params=fill_params,
+            db_mode="off",
         )
         
         assert config.run_id == "custom_run_id"
@@ -126,6 +128,7 @@ class TestPaperRunner:
         config = PaperRunnerConfig(
             duration_minutes=1,
             phase="test",
+            db_mode="off",
         )
         
         runner = PaperRunner(config, admin_control=None)
@@ -159,7 +162,99 @@ class TestPaperRunnerCLI:
         config = PaperRunnerConfig(
             duration_minutes=1,
             phase="test",
+            db_mode="off",
         )
         
         assert config.duration_minutes == 1
         assert config.phase == "test"
+
+
+class TestPaperRunnerStrictEnv:
+    """DB strict fail-fast (env)"""
+
+    def test_config_strict_missing_env_fails(self, monkeypatch):
+        monkeypatch.delenv("POSTGRES_CONNECTION_STRING", raising=False)
+        with pytest.raises(SystemExit):
+            PaperRunnerConfig(duration_minutes=1, db_mode="strict")
+
+    def test_runtime_factory_strict_env_fails(self, tmp_path, monkeypatch):
+        from arbitrage.v2.core.runtime_factory import build_paper_runtime
+
+        monkeypatch.delenv("POSTGRES_CONNECTION_STRING", raising=False)
+        monkeypatch.delenv("REDIS_URL", raising=False)
+
+        config = PaperRunnerConfig(
+            duration_minutes=1,
+            phase="test",
+            run_id="test_strict_env",
+            output_dir=str(tmp_path),
+            db_mode="strict",
+            db_connection_string="postgresql://arbitrage:arbitrage@localhost:5432/arbitrage",
+            use_real_data=False,
+            symbols=[("BTC/KRW", "BTC/USDT")],
+        )
+
+        with pytest.raises(SystemExit):
+            build_paper_runtime(config)
+
+
+class TestBreakEvenAdapterWiring:
+    """Break-even params가 PaperExecutionAdapter로 전달되는지 검증"""
+
+    def test_break_even_wiring_to_adapter(self, tmp_path):
+        from arbitrage.v2.core.runtime_factory import build_paper_runtime
+        from arbitrage.v2.domain.break_even import BreakEvenParams
+        from arbitrage.domain.fee_model import FeeModel, FeeStructure
+        from arbitrage.v2.core.order_intent import OrderIntent, OrderSide, OrderType
+
+        fee_model = FeeModel(
+            fee_a=FeeStructure(exchange_name="upbit", maker_fee_bps=5.0, taker_fee_bps=7.0),
+            fee_b=FeeStructure(exchange_name="binance", maker_fee_bps=4.0, taker_fee_bps=9.0),
+        )
+        params = BreakEvenParams(
+            fee_model=fee_model,
+            slippage_bps=12.0,
+            latency_bps=8.0,
+            buffer_bps=0.0,
+        )
+
+        config = PaperRunnerConfig(
+            duration_minutes=1,
+            phase="test",
+            run_id="test_break_even_wiring",
+            output_dir=str(tmp_path),
+            db_mode="off",
+            use_real_data=False,
+            symbols=[("BTC/KRW", "BTC/USDT")],
+            break_even_params=params,
+        )
+
+        orchestrator = build_paper_runtime(config)
+        adapter = orchestrator.executor.adapter
+
+        assert adapter.slippage_bps_min == pytest.approx(params.slippage_bps)
+        assert adapter.slippage_bps_max == pytest.approx(params.slippage_bps)
+        assert adapter.pessimistic_drift_bps_min == pytest.approx(params.latency_bps)
+        assert adapter.pessimistic_drift_bps_max == pytest.approx(params.latency_bps)
+
+        intent = OrderIntent(
+            exchange="upbit",
+            symbol="BTC/KRW",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quote_amount=10000.0,
+        )
+        payload = adapter.translate_intent(intent)
+        payload["ref_price"] = 100.0
+
+        response = {
+            "order_id": "test",
+            "status": "filled",
+            "filled_qty": 1.0,
+            "filled_price": 100.0,
+            "ref_price": 100.0,
+            "exchange": "upbit",
+        }
+        result = adapter.parse_response(response)
+
+        assert result.fee > 0

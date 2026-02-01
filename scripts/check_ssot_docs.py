@@ -104,8 +104,9 @@ CCI_BAD_MARKERS = [
 # - Dxxx_REPORT.md
 # - Dxxx-y_REPORT.md
 # - Dxxx-y-z_REPORT.md
-# - (allow up to 3 hyphen segments after Dxxx)
-REPORT_NAME_RE = re.compile(r"^D\d{3}(?:-\d+){0,3}_REPORT\.md$")
+# - DALPHA-x_REPORT.md (Alpha track)
+# - (allow up to 3 hyphen segments after Dxxx/DALPHA)
+REPORT_NAME_RE = re.compile(r"^(?:D\d{3}(?:-\d+){0,3}|DALPHA(?:-[0-9A-Z]+){0,3})_REPORT\.md$")
 
 # Known semantic conflict rules (minimal but effective)
 # If these match -> FAIL.

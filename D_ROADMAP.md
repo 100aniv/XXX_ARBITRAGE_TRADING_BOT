@@ -3613,6 +3613,36 @@ Rationale:
 - [~] **D205-10-1-5:** 20m smoke PASS (best buffer_bps) — ⏭️ SKIP (No best_buffer selected)
 - [x] **D205-10-1-6:** Evidence 생성 (sweep_summary.json, manifest.json) — ✅ PASS
 
+#### D205-10-1-1: Thin Wrapper Refactor (Harness/Run Scripts)
+**상태:** COMPLETED (2026-02-01)  
+**목적:** D205 하네스 및 run 스크립트를 Thin Wrapper로 정리하고 core 모듈 SSOT 위임만 유지.
+
+**변경 요약:**
+- harness: d205_10_1_wait_harness.py, wait_harness_v2.py → core re-export
+- scripts: run_d205_* thin wrapper 정리
+- AdminControl 안정화 (state cache + local override)로 Gate 안정화
+- DocOps: D_ALPHA 보고서 네이밍 규칙 반영(check_ssot_docs.py)
+
+**테스트:**
+- `python -m pytest tests/test_wait_harness_v2_wallclock.py`
+- `python -m pytest tests/test_d204_2_paper_runner.py`
+- `python -m pytest tests/test_d205_12_1_engine_integration.py`
+- `python -m pytest tests/test_admin_control.py::test_pause_resume -q`
+
+**Gate 결과:**
+- Doctor: `logs/evidence/20260201_191338_gate_doctor_a5b81ec/`
+- Fast: `logs/evidence/20260201_194943_gate_fast_a5b81ec/`
+- Regression: `logs/evidence/20260201_195645_gate_regression_a5b81ec/`
+
+**DocOps:**
+- `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/ssot_docs_check_raw.txt`
+- `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/ssot_docs_check_exitcode.txt`
+
+**Evidence:**
+- `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/`
+
+**보고서:** `docs/v2/reports/D205/D205-10-1-1_REPORT.md`
+
 **Market Constraint (2026-01-04):** 실제 시장 스프레드(~0.2%) < break_even threshold(~1.5%) → 수익성 기회 없음. Infrastructure/Logic 검증 완료.
 
 **Wait Harness 구현 (2026-01-04):**
@@ -6824,7 +6854,7 @@ enable_execution: false       # REQUIRED
 
 #### D_ALPHA-1U: Universe Unblock & Persistence Hardening (Commercial Master)
 
-**상태:** PARTIAL COMPLETION (2026-01-31 / commit 0e699b5 / CRITICAL BLOCKER 발견)  
+**상태:** FIX-1 COMPLETED (2026-02-01 / commit ebca7af / 2 CRITICAL BLOCKERS 남음)  
 **목적:** Top100 Universe 로딩 강제, Redis/DB persistence 검증, OBI 데이터 수집, RunWatcher 100% winrate guard 검증.
 
 **Acceptance Criteria:**
@@ -6832,25 +6862,49 @@ enable_execution: false       # REQUIRED
 - [x] AC-2: Redis 연결 실패 시 SystemExit(1) fail-fast 로직. *(arbitrage/v2/core/runtime_factory.py, arbitrage/v2/core/feature_guard.py)*
 - [x] AC-3: engine_report.json에 redis_ok 상태 포함. *(arbitrage/v2/core/engine_report.py)*
 - [x] AC-4: OBI (Order Book Imbalance) 데이터 수집 (obi_score, depth_imbalance). *(arbitrage/v2/core/opportunity_source.py)*
-- [ ] AC-5: Top100 요청 시 unique_symbols_evaluated ≥ 95 (REAL survey 20분). *(BLOCKER: 42개만 로드됨, Universe Loader 수정 필요)*
+- [x] AC-5: Top100 요청 시 unique_symbols_evaluated ≥ 95 (REAL survey 20분). *(FIX-1 완료: 100/100 로드, coverage_ratio=1.00, wallclock=51s)*
 - [ ] AC-6: DB strict 모드에서 db_inserts_ok > 0 검증. *(BLOCKER: db_mode=optional로 실행, 환경 변수 미설정)*
 - [ ] AC-7: 20분 Survey 완료 (winrate < 100%). *(BLOCKER: RunWatcher가 100% winrate 탐지하여 6분 13초에 조기 종료)*
 
 **Evidence 경로:**
 - Maker OFF Survey (조기 종료): `logs/evidence/d_alpha_1u_survey_off_20260131_233706/`
-- Gate Doctor: `logs/evidence/20260131_153906_gate_doctor_0e699b5/`
-- Gate Fast: `logs/evidence/20260131_154117_gate_fast_0e699b5/`
-- Gate Regression: `logs/evidence/20260131_154513_gate_regression_0e699b5/`
+- **FIX-1 (Universe Loader):** `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_20260201_085049/`
+- Gate Doctor: `logs/evidence/20260131_153906_gate_doctor_0e699b5/` + `20260201_090149_gate_doctor_ebca7af/`
+- Gate Fast: `logs/evidence/20260131_154117_gate_fast_0e699b5/` + `20260201_120507_gate_fast_ebca7af/`
+- Gate Regression: `logs/evidence/20260131_154513_gate_regression_0e699b5/` + `20260201_120923_gate_regression_ebca7af/`
 - 보고서: `docs/v2/reports/DALPHA/DALPHA-1U_REPORT.md`
 
 **핵심 발견 (CRITICAL BLOCKERS):**
-1. **Universe Loader:** Top100 요청 → 42개만 로드 (Binance API 400 에러 + 공통 심볼 부족)
+1. ~~**Universe Loader:** Top100 요청 → 42개만 로드 (Binance API 400 에러 + 공통 심볼 부족)~~ **[FIXED]**
 2. **Paper Execution:** 100% winrate (22 trades, 0 losses) → RunWatcher FAIL_WINRATE_100
 3. **DB Persistence:** db_inserts_ok=0 (db_mode=optional, 환경 변수 미설정)
 
-**다음 액션 (Required for COMPLETION):**
-- **D_ALPHA-1U-FIX-1:** Universe Loader 수정 (Top100 → ≥95 로드)
-- **D_ALPHA-1U-FIX-2:** Paper Execution 현실성 강화 (winrate < 100%, losses ≥ 1)
+**완료된 액션:**
+- **✅ D_ALPHA-1U-FIX-1:** Universe Loader 수정 완료
+  - TopNProvider candidate pool 확장 (50 → 150+ fetch limit)
+  - Binance Futures exchangeInfo API 통합 (544 bases, PERPETUAL contracts)
+  - 결과: 100/100 symbols loaded, coverage_ratio=1.00, wallclock=51.08s
+  - 파일: `arbitrage/domain/topn_provider.py`, `arbitrage/exchanges/binance_public_data.py`, `arbitrage/v2/universe/builder.py`
+  - 테스트: `tests/test_binance_futures_filter.py`, `tests/test_d77_0_topn_arbitrage_paper.py`, `tests/test_d_alpha_0_universe_truth.py`
+- **ALPHA 병행 기록:** D205-10-1-1 Thin Wrapper 정리 완료 (Evidence: `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/`)
+
+**D_ALPHA-1U-FIX-2: Reality Welding & Persistence Lock (Roadmap Pre-entry)**
+
+**상태:** IN PROGRESS (2026-02-01 / Roadmap-First)  
+**목표:** Paper Execution 현실성 강화 + DB/Redis strict fail-fast + Core 중심 재사용 고정.
+
+**Acceptance Criteria:**
+- [ ] AC-1: D203 BreakEven/Execution Risk 기반 슬리피지/레이턴시가 실행 체결에 반영되고 PnL/fees_total에 영향을 준다.
+- [ ] AC-2: 승률 100% 발생 시 RunWatcher가 FAIL로 종료하고 Evidence에 stop_reason_snapshot 저장된다.
+- [ ] AC-3: db_mode=strict + 필수 env 미설정 시 즉시 SystemExit(1) 발생 (DB/Redis 모두).
+- [ ] AC-4: scripts/** 및 harness는 CLI 파싱만, 비즈니스 로직 0개 유지.
+- [ ] AC-5: Evidence Minimum Set (chain_summary/heartbeat/kpi/manifest/engine_report) Non-empty + Atomic Flush 보장.
+
+**Evidence 경로:**
+- `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_*/`
+
+**남은 액션 (Required for COMPLETION):**
+- **D_ALPHA-1U-FIX-2:** Paper Execution 현실성 강화 + DB/Redis strict (IN PROGRESS)
 - **D_ALPHA-1U-FIX-3:** DB Persistence 검증 (db_mode=strict + 환경 변수)
 
 **의존성:**
@@ -6860,8 +6914,8 @@ enable_execution: false       # REQUIRED
 
 **Git 상태:**
 - Branch: rescue/d207_6_multi_symbol_alpha_survey
-- Commit: 0e699b5f15564ae61a2c4dbd5cdedfefa973bfe9
-- Gate Results: Doctor/Fast/Regression 100% PASS
+- Commit: ebca7af (FIX-1 완료)
+- Gate Results: Doctor/Fast/Regression 100% PASS (2026-02-01)
 
 ---
 
