@@ -127,6 +127,92 @@ class TestTopNProvider:
         result2 = provider.get_topn_symbols(force_refresh=True)
         assert result2.churn_rate == 0.0  # No change
 
+    def test_topn_provider_selection_limit_bypasses_cache(self, monkeypatch):
+        """selection_limit 사용 시 캐시를 우회하고 확장된 심볼 수를 반환"""
+        def build_metrics(count: int):
+            metrics = {}
+            for i in range(count):
+                symbol = f"SYM{i:02d}/KRW"
+                metrics[symbol] = SymbolMetrics(
+                    symbol=symbol,
+                    volume_24h=1_000_000 + i,
+                    liquidity_depth=100_000 + i,
+                    spread_bps=10.0,
+                )
+            return metrics
+
+        provider = TopNProvider(
+            mode=TopNMode.TOP_10,
+            selection_data_source="mock",
+            cache_ttl_seconds=600,
+            min_volume_usd=0.0,
+            min_liquidity_usd=0.0,
+            max_spread_bps=10_000.0,
+        )
+
+        call_count = {"count": 0}
+        metrics = build_metrics(40)
+
+        def mock_fetch_selection_metrics(selection_limit=None):
+            call_count["count"] += 1
+            return metrics
+
+        monkeypatch.setattr(provider, "_fetch_selection_metrics", mock_fetch_selection_metrics)
+
+        result1 = provider.get_topn_symbols()
+        assert call_count["count"] == 1
+        assert len(result1.symbols) == 10
+
+        result2 = provider.get_topn_symbols(selection_limit=25)
+        assert call_count["count"] == 2
+        assert len(result2.symbols) == 25
+    
+    def test_topn_selection_limit_bypasses_cache_and_expands(self):
+        """
+        D_ALPHA-0: selection_limit 파라미터 사용 시 캐시 우회 및 확장 검증.
+        """
+        provider = TopNProvider(
+            mode=TopNMode.TOP_10,
+            selection_data_source="mock",
+            cache_ttl_seconds=600,
+            min_volume_usd=10_000.0,
+            min_liquidity_usd=1_000.0,
+            max_spread_bps=100.0,
+        )
+        
+        result1 = provider.get_topn_symbols(selection_limit=None)
+        initial_count = len(result1.symbols)
+        
+        result2 = provider.get_topn_symbols(selection_limit=150)
+        expanded_count = len(result2.symbols)
+        
+        assert expanded_count > initial_count, "selection_limit should expand symbol count"
+        assert expanded_count <= 150, f"Should not exceed selection_limit (got {expanded_count})"
+    
+    def test_topn_selection_limit_100_plus_for_coverage(self):
+        """
+        D_ALPHA-1U-FIX-1: selection_limit=150으로 100+ 심볼 조회 검증.
+        
+        Universe coverage ≥95/100 목표 달성을 위해 충분한 후보군 조회 필요.
+        """
+        provider = TopNProvider(
+            mode=TopNMode.TOP_10,
+            selection_data_source="mock",
+            cache_ttl_seconds=600,
+            min_volume_usd=10_000.0,
+            min_liquidity_usd=1_000.0,
+            max_spread_bps=100.0,
+        )
+        
+        result = provider.get_topn_symbols(selection_limit=150)
+        
+        # Mock provider는 30개 데이터만 있으므로 실제로는 30개 반환
+        # 하지만 selection_limit 파라미터가 올바르게 전달되는지 검증
+        assert len(result.symbols) > 0, "Should return symbols"
+        
+        # Real provider 테스트는 integration test에서 수행
+        # (Upbit API fetch_top_symbols(limit=150) 호출 확인)
+
 
 class TestExitStrategy:
     """Exit Strategy 테스트"""

@@ -11,7 +11,7 @@ Design:
 """
 
 import logging
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
 
@@ -62,6 +62,8 @@ class UniverseBuilder:
         """
         self.config = config
         self._provider = None  # Lazy init
+        self._binance_supported_bases: Optional[Set[str]] = None
+        self._binance_supported_bases_ts: float = 0.0
         
         logger.info(
             f"[UNIVERSE_BUILDER] Initialized: mode={config.mode.value}, "
@@ -137,15 +139,82 @@ class UniverseBuilder:
                 f"data_source={self.config.data_source}"
             )
         
-        # Get TopN symbols
-        result = self._provider.get_topn_symbols()
+        # Get TopN symbols (expand selection for coverage)
+        selection_limit = max(self.config.topn_count * 2, self.config.topn_count + 50)
+        result = self._provider.get_topn_symbols(selection_limit=selection_limit)
+        symbols = result.symbols
+
+        # Filter by Binance supported symbols (REAL data only)
+        if self.config.data_source == "real":
+            supported_bases = self._get_binance_supported_bases()
+            if supported_bases:
+                filtered_symbols = []
+                unsupported_bases = []
+                for symbol_a, symbol_b in symbols:
+                    base = symbol_a.split("/")[0]
+                    if base in supported_bases:
+                        filtered_symbols.append((symbol_a, symbol_b))
+                    else:
+                        unsupported_bases.append(base)
+                if unsupported_bases:
+                    logger.info(
+                        f"[UNIVERSE_BUILDER] Binance unsupported filtered: {len(unsupported_bases)}"
+                    )
+                symbols = filtered_symbols
+            else:
+                logger.warning("[UNIVERSE_BUILDER] Binance supported list empty, skip filter")
+
+        if len(symbols) > self.config.topn_count:
+            symbols = symbols[:self.config.topn_count]
+
+        coverage_ratio = 0.0
+        if self.config.topn_count > 0:
+            coverage_ratio = len(symbols) / float(self.config.topn_count)
+        if self.config.topn_count > 0 and coverage_ratio < 0.95:
+            logger.warning(
+                f"[UNIVERSE_BUILDER] Coverage below target: loaded={len(symbols)}, "
+                f"requested={self.config.topn_count}, ratio={coverage_ratio:.2%}"
+            )
         
         logger.info(
-            f"[UNIVERSE_BUILDER] TopN mode: {len(result.symbols)} symbols, "
-            f"churn_rate={result.churn_rate:.2%}"
+            f"[UNIVERSE_BUILDER] TopN mode: {len(symbols)} symbols, "
+            f"requested={self.config.topn_count}, churn_rate={result.churn_rate:.2%}"
         )
         
-        return result.symbols
+        return symbols
+
+    def _get_binance_supported_bases(self) -> Set[str]:
+        """
+        D_ALPHA-1U-FIX-1: Binance Futures USDT 마켓 지원 베이스 심볼 목록.
+        
+        Spot API → Futures exchangeInfo 전환:
+        - 더 많은 USDT 페어 지원 (PEPE 등)
+        - PERPETUAL 계약만 필터링
+        - SSOT API naming rules 준수 (Section L)
+        """
+        import time
+
+        if self._binance_supported_bases:
+            cache_age = time.time() - self._binance_supported_bases_ts
+            if cache_age < self.config.cache_ttl_seconds:
+                return self._binance_supported_bases
+
+        try:
+            from arbitrage.exchanges.binance_public_data import BinancePublicDataClient
+            client = BinancePublicDataClient()
+            try:
+                # D_ALPHA-1U-FIX-1: Futures exchangeInfo 기반 조회
+                bases = client.fetch_futures_supported_bases(quote_asset="USDT")
+            finally:
+                client.close()
+        except Exception as exc:
+            logger.warning(f"[UNIVERSE_BUILDER] Binance futures symbol fetch failed: {exc}")
+            return set()
+
+        self._binance_supported_bases = bases
+        self._binance_supported_bases_ts = time.time()
+        logger.info(f"[UNIVERSE_BUILDER] Cached {len(bases)} Binance futures-supported bases")
+        return bases
     
     def get_snapshot(self) -> Dict[str, Any]:
         """

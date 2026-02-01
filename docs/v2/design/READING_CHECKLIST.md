@@ -44,3 +44,12 @@
 - docs/v2/design/SSOT_SYNC_AUDIT.md — 확인: Redis/DB Required 문구 정합성 재확인.
 - docs/v2/design/INFRA_REUSE_INVENTORY.md — 확인: V1/V2 재사용 정책 재확인.
 - docs/v2/design/CLEANUP_CANDIDATES.md — 확인: 즉시 삭제 금지 원칙 재확인.
+
+## Step 0 Reading (D_ALPHA-1U-FIX)
+
+- D_ROADMAP.md — 확인: D_ALPHA-1U 추가 블록과 D_ALPHA-2 수정 금지 규칙 재확인.
+- docs/v2/SSOT_RULES.md — 확인: Gate 3단 강제, DocOps, Report 규칙 재확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence/Config 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: engine_report.json 및 evidence 필수 산출물 규칙 재확인.
+- docs/v2/V2_ARCHITECTURE.md — 확인: Engine-Centric, Infra Parity 원칙 재확인.
+- docs/v2/design/D201-1_BINANCE_MARKET_SEMANTICS.md — 확인: Binance 심볼/마켓 의미론 재확인.

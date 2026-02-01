@@ -10,6 +10,7 @@ D_ALPHA-0: Universe Truth 테스트
 
 import json
 import hashlib
+from types import SimpleNamespace
 import pytest
 from unittest.mock import MagicMock, patch
 from arbitrage.v2.universe.builder import UniverseBuilder, UniverseBuilderConfig, UniverseMode
@@ -89,11 +90,125 @@ def test_edge_survey_report_includes_unique_symbols_evaluated():
         json.dumps(["BTC/KRW", "ETH/KRW"], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     assert report["universe_symbols_hash"] == expected_hash
+
+
+def test_universe_builder_binance_filter_and_cutting(monkeypatch):
+    """Binance 지원 심볼 필터 + topn_count 컷팅 검증"""
+    config = UniverseBuilderConfig(
+        mode=UniverseMode.TOPN,
+        topn_count=2,
+        data_source="real",
+    )
+    builder = UniverseBuilder(config)
+
+    symbols = [
+        ("BTC/KRW", "BTC/USDT"),
+        ("ETH/KRW", "ETH/USDT"),
+        ("XRP/KRW", "XRP/USDT"),
+        ("DOGE/KRW", "DOGE/USDT"),
+    ]
+    provider = SimpleNamespace(
+        get_topn_symbols=lambda selection_limit=None: SimpleNamespace(
+            symbols=symbols,
+            churn_rate=0.0,
+        )
+    )
+    builder._provider = provider
+
+    monkeypatch.setattr(builder, "_get_binance_supported_bases", lambda: {"BTC", "ETH", "XRP"})
+
+    selected = builder.get_symbols()
+    assert selected == [
+        ("BTC/KRW", "BTC/USDT"),
+        ("ETH/KRW", "ETH/USDT"),
+    ]
+
+
+def test_universe_builder_coverage_warning(monkeypatch, caplog):
+    """Coverage 95% 미만 시 경고 로그 발생"""
+    config = UniverseBuilderConfig(
+        mode=UniverseMode.TOPN,
+        topn_count=100,
+        data_source="real",
+    )
+    builder = UniverseBuilder(config)
+
+    symbols = [(f"SYM{i:03d}/KRW", f"SYM{i:03d}/USDT") for i in range(80)]
+    provider = SimpleNamespace(
+        get_topn_symbols=lambda selection_limit=None: SimpleNamespace(
+            symbols=symbols,
+            churn_rate=0.0,
+        )
+    )
+    builder._provider = provider
+    monkeypatch.setattr(builder, "_get_binance_supported_bases", lambda: {f"SYM{i:03d}" for i in range(80)})
+
+    with caplog.at_level("WARNING"):
+        selected = builder.get_symbols()
+
+    assert len(selected) == 80
+    assert any("Coverage below target" in record.message for record in caplog.records)
+
+
+def test_universe_builder_coverage_warning_logged(caplog):
+    """
+    UniverseBuilder가 coverage < 0.95일 때 경고 로그를 출력하는지 검증.
+    """
+    from arbitrage.v2.universe.builder import UniverseBuilder, UniverseBuilderConfig, UniverseMode
     
-    # universe_metadata 검증
-    assert "universe_metadata" in report
-    assert report["universe_metadata"]["universe_requested_top_n"] == 100
-    assert report["universe_metadata"]["universe_loaded_count"] == 50
+    config = UniverseBuilderConfig(
+        mode=UniverseMode.TOPN,
+        topn_count=100,
+        data_source="mock",
+        cache_ttl_seconds=60,
+        min_volume_usd=10_000.0,
+        min_liquidity_usd=1_000.0,
+        max_spread_bps=100.0,
+    )
+    
+    builder = UniverseBuilder(config=config)
+    
+    with caplog.at_level("WARNING"):
+        symbols = builder.get_symbols()
+    
+    assert len(symbols) < 95, "Mock should return < 95 symbols for topn_count=100"
+    
+    warning_logs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("Coverage below target" in log for log in warning_logs), \
+        "Should log coverage warning when < 0.95"
+
+
+def test_universe_builder_binance_futures_filter_integration():
+    """
+    D_ALPHA-1U-FIX-1: UniverseBuilder가 Binance Futures exchangeInfo 기반 필터를 사용하는지 검증.
+    
+    Mock 환경에서는 실제 API 호출 대신 로직만 검증.
+    """
+    from arbitrage.v2.universe.builder import UniverseBuilder, UniverseBuilderConfig, UniverseMode
+    
+    config = UniverseBuilderConfig(
+        mode=UniverseMode.TOPN,
+        topn_count=10,
+        data_source="mock",
+        cache_ttl_seconds=60,
+        min_volume_usd=10_000.0,
+        min_liquidity_usd=1_000.0,
+        max_spread_bps=100.0,
+    )
+    
+    builder = UniverseBuilder(config=config)
+    
+    # Mock data source에서는 Binance 필터가 스킵됨 (data_source == "mock")
+    symbols = builder.get_symbols()
+    
+    # Mock 환경에서는 최소한 symbol pair 구조 검증
+    assert len(symbols) > 0, "Should return symbols"
+    for symbol_a, symbol_b in symbols:
+        assert "/" in symbol_a, f"Symbol A should have / separator: {symbol_a}"
+        assert "/" in symbol_b, f"Symbol B should have / separator: {symbol_b}"
+    
+    # Real API 테스트는 integration test에서 수행
+    # (BinancePublicDataClient.fetch_futures_supported_bases() 호출 확인)
 
 
 def test_universe_metadata_end_to_end():

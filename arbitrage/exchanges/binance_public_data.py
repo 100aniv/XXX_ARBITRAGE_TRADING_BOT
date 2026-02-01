@@ -210,6 +210,66 @@ class BinancePublicDataClient:
             logger.error(f"[BINANCE_PUBLIC] Failed to fetch top symbols: {e}")
             return []
     
+    def fetch_futures_supported_bases(self, quote_asset: str = "USDT") -> set:
+        """
+        D_ALPHA-1U-FIX-1: Binance Futures exchangeInfo 기반 지원 base 심볼 조회
+        
+        Args:
+            quote_asset: Quote currency (default: USDT)
+            
+        Returns:
+            Set of supported base assets (e.g., {"BTC", "ETH", "BNB", ...})
+            
+        Example:
+            >>> client = BinancePublicDataClient()
+            >>> bases = client.fetch_futures_supported_bases("USDT")
+            >>> "BTC" in bases
+            True
+        """
+        try:
+            # Binance Futures API: /fapi/v1/exchangeInfo
+            url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+            
+            response = self._request_with_retry(
+                url=url,
+                params=None,
+                operation_name="futures_exchange_info",
+            )
+            
+            if response is None or response.status_code != 200:
+                logger.error(
+                    f"[BINANCE_PUBLIC] Futures exchangeInfo failed: "
+                    f"status={response.status_code if response else 'None'}"
+                )
+                return set()
+            
+            data = response.json()
+            symbols = data.get("symbols", [])
+            
+            # Filter: TRADING status + PERPETUAL contract + quote_asset match
+            supported_bases = set()
+            for s in symbols:
+                if (s.get("status") == "TRADING" and
+                    s.get("contractType") == "PERPETUAL" and
+                    s.get("quoteAsset") == quote_asset):
+                    # Extract base asset (e.g., BTCUSDT -> BTC)
+                    symbol_name = s.get("symbol", "")
+                    if symbol_name.endswith(quote_asset):
+                        base = symbol_name[:-len(quote_asset)]
+                        if base:
+                            supported_bases.add(base)
+            
+            logger.info(
+                f"[BINANCE_PUBLIC] Fetched {len(supported_bases)} futures-supported "
+                f"bases for {quote_asset} (PERPETUAL contracts)"
+            )
+            
+            return supported_bases
+        
+        except Exception as e:
+            logger.error(f"[BINANCE_PUBLIC] Failed to fetch futures supported bases: {e}")
+            return set()
+    
     def close(self):
         """Close session"""
         self.session.close()

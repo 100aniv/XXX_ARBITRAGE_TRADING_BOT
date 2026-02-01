@@ -187,6 +187,7 @@ class TopNProvider:
     def get_topn_symbols(
         self,
         force_refresh: bool = False,
+        selection_limit: Optional[int] = None,
     ) -> TopNResult:
         """
         D82-2: TopN selection with hybrid mode and cache.
@@ -202,7 +203,8 @@ class TopNProvider:
         """
         # D82-2: Check selection cache first
         now = time.time()
-        if not force_refresh and self._selection_cache is not None:
+        use_cache = selection_limit is None
+        if use_cache and not force_refresh and self._selection_cache is not None:
             cache_age = now - self._selection_cache_ts
             if cache_age < self.cache_ttl_seconds:
                 logger.info(
@@ -211,8 +213,9 @@ class TopNProvider:
                 return self._selection_cache
         
         # D82-2: Fetch new selection (uses selection_data_source)
+        # D_ALPHA-1U-FIX-1: selection_limit 전달하여 확장된 후보군 조회
         logger.info(f"[TOPN_PROVIDER] Refreshing TopN selection (source: {self.selection_data_source})")
-        metrics = self._fetch_selection_metrics()
+        metrics = self._fetch_selection_metrics(selection_limit=selection_limit)
         
         # Filter by thresholds
         filtered = self._filter_by_thresholds(metrics)
@@ -227,8 +230,11 @@ class TopNProvider:
             reverse=True,
         )
         
-        # Select TopN
-        topn_metrics = sorted_metrics[:self.mode.value]
+        # Select TopN (or expanded selection_limit)
+        limit = self.mode.value
+        if isinstance(selection_limit, int) and selection_limit > 0:
+            limit = selection_limit
+        topn_metrics = sorted_metrics[:min(limit, len(sorted_metrics))]
         
         # Create symbol pairs (Upbit KRW ↔ Binance USDT)
         symbols: List[Tuple[str, str]] = []
@@ -253,10 +259,11 @@ class TopNProvider:
             churn_rate=churn_rate,
         )
         
-        # D82-2: Update selection cache
-        self._selection_cache = result
-        self._selection_cache_ts = now
-        self._previous_symbols = symbols
+        # D82-2: Update selection cache (default selection only)
+        if use_cache:
+            self._selection_cache = result
+            self._selection_cache_ts = now
+            self._previous_symbols = symbols
         
         logger.info(
             f"[TOPN_PROVIDER] TopN selection refreshed: {len(symbols)} symbols, "
@@ -265,11 +272,13 @@ class TopNProvider:
         
         return result
     
-    def _fetch_selection_metrics(self) -> Dict[str, SymbolMetrics]:
+    def _fetch_selection_metrics(self, selection_limit: Optional[int] = None) -> Dict[str, SymbolMetrics]:
         """
         D82-2/D82-3: Fetch metrics for TopN selection.
         
         Uses `selection_data_source` to determine data source.
+        
+        D_ALPHA-1U-FIX-1: selection_limit 파라미터 전달 체인 추가
         
         Returns:
             {symbol: SymbolMetrics}
@@ -279,7 +288,7 @@ class TopNProvider:
             return self._fetch_mock_metrics()
         elif self.selection_data_source == "real":
             logger.info("[TOPN_PROVIDER] Using REAL data for TopN selection (Rate-Limited)")
-            return self._fetch_real_metrics_safe()
+            return self._fetch_real_metrics_safe(selection_limit=selection_limit)
         else:
             logger.warning(
                 f"[TOPN_PROVIDER] Unknown selection_data_source: {self.selection_data_source}, using mock"
@@ -313,9 +322,13 @@ class TopNProvider:
         
         return metrics
     
-    def _fetch_real_metrics(self) -> Dict[str, SymbolMetrics]:
+    def _fetch_real_metrics(self, selection_limit: Optional[int] = None) -> Dict[str, SymbolMetrics]:
         """
         D77-0-RM: Real market metrics from Upbit/Binance Public APIs.
+        
+        D_ALPHA-1U-FIX-1: selection_limit 지원 추가
+        - selection_limit이 제공되면 더 많은 후보군 조회 (100+)
+        - 기본값 150으로 충분한 후보군 확보
         """
         # Lazy init clients
         if self._upbit_client is None:
@@ -326,10 +339,13 @@ class TopNProvider:
             from arbitrage.exchanges.binance_public_data import BinancePublicDataClient
             self._binance_client = BinancePublicDataClient()
         
+        # D_ALPHA-1U-FIX-1: 확장된 후보군 조회 (selection_limit 기반)
+        fetch_limit = selection_limit if selection_limit is not None else 150
+        
         # Fetch top symbols from Upbit (KRW market)
         upbit_symbols = self._upbit_client.fetch_top_symbols(
             market="KRW",
-            limit=50,  # Fetch top 50, we'll filter later
+            limit=fetch_limit,
             sort_by="acc_trade_price_24h",
         )
         
@@ -386,7 +402,7 @@ class TopNProvider:
         logger.info(f"[TOPN_PROVIDER] Successfully fetched {len(metrics)} symbol metrics")
         return metrics
     
-    def _fetch_real_metrics_safe(self) -> Dict[str, SymbolMetrics]:
+    def _fetch_real_metrics_safe(self, selection_limit: Optional[int] = None) -> Dict[str, SymbolMetrics]:
         """
         D82-3: Rate-Limit-Safe Real TopN Selection.
         
@@ -400,6 +416,8 @@ class TopNProvider:
         - Delay between batches to avoid rate limits
         - Use RateLimiter to enforce limits
         - Fallback to mock if all symbols fail
+        
+        D_ALPHA-1U-FIX-1: selection_limit 지원 추가
         
         Returns:
             {symbol: SymbolMetrics}
@@ -418,11 +436,15 @@ class TopNProvider:
             )
             logger.info("[TOPN_PROVIDER] RateLimiter initialized for Real Selection")
         
+        # D_ALPHA-1U-FIX-1: 확장된 후보군 조회
+        fetch_limit = selection_limit if selection_limit is not None else max(self.max_symbols * 2, 150)
+        fetch_limit = min(fetch_limit, 500)  # 상한 500
+        
         # 1) 후보 심볼 리스트 가져오기 (이미 Upbit API 1회 호출)
         try:
             candidate_symbols = self._upbit_client.fetch_top_symbols(
                 market="KRW",
-                limit=min(self.max_symbols * 2, 100),  # 충분한 후보 확보
+                limit=fetch_limit,
                 sort_by="acc_trade_price_24h",
             )
             logger.info(f"[TOPN_PROVIDER] Real Selection: {len(candidate_symbols)} candidate symbols")
