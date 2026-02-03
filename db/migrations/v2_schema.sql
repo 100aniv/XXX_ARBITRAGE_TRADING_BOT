@@ -189,18 +189,20 @@ CREATE TABLE IF NOT EXISTS v2_pnl_daily (
     date DATE NOT NULL UNIQUE,                     -- 집계 날짜
     
     -- 손익
-    total_pnl NUMERIC(20, 8) NOT NULL DEFAULT 0,   -- 총 손익
-    realized_pnl NUMERIC(20, 8) NOT NULL DEFAULT 0,-- 실현 손익
-    unrealized_pnl NUMERIC(20, 8) NOT NULL DEFAULT 0, -- 미실현 손익
+    gross_pnl NUMERIC(20, 8) NOT NULL DEFAULT 0,   -- 총 손익 (수수료 전)
+    net_pnl NUMERIC(20, 8) NOT NULL DEFAULT 0,     -- 순 손익 (수수료 후)
+    fees NUMERIC(20, 8) NOT NULL DEFAULT 0,        -- 총 수수료
+    volume NUMERIC(20, 8) NOT NULL DEFAULT 0,      -- 거래량
     
     -- 거래 통계
-    num_trades INT NOT NULL DEFAULT 0,             -- 거래 수
-    num_wins INT NOT NULL DEFAULT 0,               -- 수익 거래 수
-    num_losses INT NOT NULL DEFAULT 0,             -- 손실 거래 수
+    trades_count INT NOT NULL DEFAULT 0,           -- 거래 수
+    wins INT NOT NULL DEFAULT 0,                   -- 수익 거래 수
+    losses INT NOT NULL DEFAULT 0,                 -- 손실 거래 수
     winrate_pct NUMERIC(5, 2),                     -- 승률 (%)
     
     -- 리스크 지표
-    max_drawdown_pct NUMERIC(5, 2),                -- 최대 낙폭 (%)
+    avg_spread NUMERIC(10, 4),                     -- 평균 스프레드
+    max_drawdown NUMERIC(10, 4),                   -- 최대 낙폭
     sharpe_ratio NUMERIC(10, 4),                   -- 샤프 비율
     
     -- 타임스탬프
@@ -215,6 +217,46 @@ CREATE INDEX IF NOT EXISTS idx_v2_pnl_daily_date ON v2_pnl_daily(date DESC);
 COMMENT ON TABLE v2_pnl_daily IS 'V2 일별 PnL 집계 (리포팅용)';
 COMMENT ON COLUMN v2_pnl_daily.winrate_pct IS '승률 = (num_wins / num_trades) * 100';
 COMMENT ON COLUMN v2_pnl_daily.sharpe_ratio IS '샤프 비율 (annualized)';
+
+-- ============================================================================
+-- 6. v2_ops_daily (일별 운영 지표)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS v2_ops_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,                     -- 집계 날짜
+    
+    -- 주문/체결 통계
+    orders_count INT NOT NULL DEFAULT 0,           -- 주문 수
+    fills_count INT NOT NULL DEFAULT 0,            -- 체결 수
+    rejects_count INT NOT NULL DEFAULT 0,          -- 거부 수
+    fill_rate_pct NUMERIC(5, 2),                   -- 체결률 (%)
+    
+    -- 실행 품질
+    avg_slippage_bps NUMERIC(10, 4),               -- 평균 슬리피지 (bps)
+    latency_p50_ms NUMERIC(10, 2),                 -- 중앙값 레이턴시 (ms)
+    latency_p95_ms NUMERIC(10, 2),                 -- 95분위 레이턴시 (ms)
+    
+    -- 시스템 안정성
+    api_errors INT NOT NULL DEFAULT 0,             -- API 에러 수
+    rate_limit_hits INT NOT NULL DEFAULT 0,        -- Rate limit 히트 수
+    reconnects INT NOT NULL DEFAULT 0,             -- 재연결 수
+    
+    -- 리소스 사용
+    avg_cpu_pct NUMERIC(5, 2),                     -- 평균 CPU (%)
+    avg_memory_mb NUMERIC(10, 2),                  -- 평균 메모리 (MB)
+    
+    -- 타임스탬프
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 인덱스
+CREATE INDEX IF NOT EXISTS idx_v2_ops_daily_date ON v2_ops_daily(date DESC);
+
+-- 주석
+COMMENT ON TABLE v2_ops_daily IS 'V2 일별 운영 지표 (모니터링용)';
+COMMENT ON COLUMN v2_ops_daily.fill_rate_pct IS '체결률 = (fills_count / orders_count) * 100';
 
 -- ============================================================================
 -- 뷰 (Views)
