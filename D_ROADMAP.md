@@ -6854,7 +6854,7 @@ enable_execution: false       # REQUIRED
 
 #### D_ALPHA-1U: Universe Unblock & Persistence Hardening (Commercial Master)
 
-**상태:** FIX-1 COMPLETED (2026-02-01 / commit ebca7af / 2 CRITICAL BLOCKERS 남음)  
+**상태:** COMPLETED (2026-02-03 / commit TBD / AC 7/7 100% PASS)  
 **목적:** Top100 Universe 로딩 강제, Redis/DB persistence 검증, OBI 데이터 수집, RunWatcher 100% winrate guard 검증.
 
 **Acceptance Criteria:**
@@ -6863,8 +6863,8 @@ enable_execution: false       # REQUIRED
 - [x] AC-3: engine_report.json에 redis_ok 상태 포함. *(arbitrage/v2/core/engine_report.py)*
 - [x] AC-4: OBI (Order Book Imbalance) 데이터 수집 (obi_score, depth_imbalance). *(arbitrage/v2/core/opportunity_source.py)*
 - [x] AC-5: Top100 요청 시 unique_symbols_evaluated ≥ 95 (REAL survey 20분). *(FIX-1 완료: 100/100 로드, coverage_ratio=1.00, wallclock=51s)*
-- [ ] AC-6: DB strict 모드에서 db_inserts_ok > 0 검증. *(BLOCKER: db_mode=optional로 실행, 환경 변수 미설정)*
-- [ ] AC-7: 20분 Survey 완료 (winrate < 100%). *(BLOCKER: RunWatcher가 100% winrate 탐지하여 6분 13초에 조기 종료)*
+- [x] AC-6: DB strict 모드에서 db_inserts_ok > 0 검증. *(Evidence: logs/evidence/d_alpha_1u_closeout_20m_20260203_121456/engine_report.json, inserts_ok=20)*
+- [x] AC-7: 20분 Survey 완료 (winrate < 100%). *(Evidence: logs/evidence/d_alpha_1u_closeout_20m_20260203_121456/engine_report.json, winrate=0%, stop_reason=TIME_REACHED)*
 
 **Evidence 경로:**
 - Maker OFF Survey (조기 종료): `logs/evidence/d_alpha_1u_survey_off_20260131_233706/`
