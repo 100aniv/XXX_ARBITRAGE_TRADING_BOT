@@ -63,6 +63,10 @@ class PaperExecutor:
         - fallback 제거 (WARN=FAIL)
         - config.yml 기반 가격만 사용
         """
+        if not order_result or not getattr(order_result, "success", False):
+            return
+        if not order_result.filled_qty or not order_result.filled_price:
+            return
         # profit_core는 __init__에서 필수 검증됨
         default_price_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
         default_price_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")

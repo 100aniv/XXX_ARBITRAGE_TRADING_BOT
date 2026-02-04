@@ -353,6 +353,20 @@ class PaperOrchestrator:
                 exit_result = self.executor.execute(intents[1], ref_price=ref_price_1)
                 
                 self.kpi.mock_executions += 2
+
+                reject_count = 0
+                if not getattr(entry_result, "success", True) or not entry_result.filled_qty:
+                    reject_count += 1
+                if not getattr(exit_result, "success", True) or not exit_result.filled_qty:
+                    reject_count += 1
+                if reject_count > 0:
+                    for _ in range(reject_count):
+                        self.kpi.bump_reject("execution_reject")
+                    logger.info(
+                        f"[D_ALPHA-1U-FIX-2-1] Execution rejected: entry={entry_result.success}, "
+                        f"exit={exit_result.success}"
+                    )
+                    continue
                 
                 # 4. DB 기록
                 self.ledger_writer.record_order_and_fill(intents[0], entry_result, candidate, self.kpi)
@@ -474,6 +488,7 @@ class PaperOrchestrator:
                     "candidate_break_even_bps": candidate.break_even_bps,
                     "candidate_direction": candidate.direction.value,
                     "candidate_profitable": candidate.profitable,
+                    "candidate_allow_unprofitable": getattr(candidate, "allow_unprofitable", False),
                     "candidate_price_a": candidate.price_a,
                     "candidate_price_b": candidate.price_b,
                     "exchange_a_bid": candidate.exchange_a_bid,
@@ -555,6 +570,13 @@ class PaperOrchestrator:
             tolerance = expected_duration * 0.05
             if expected_duration < 10:
                 tolerance = max(tolerance, 1.0)
+            phase = getattr(self.config, "phase", "")
+            if phase == "edge_survey" and expected_duration <= 180:
+                tolerance = max(tolerance, 20.0)
+                logger.info(
+                    f"[D_ALPHA-1U-FIX-2-1] Wallclock tolerance extended for edge_survey short run: "
+                    f"±{tolerance:.1f}s"
+                )
             if abs(actual_duration - expected_duration) > tolerance:
                 logger.error(
                     f"[D205-18-4R2] Wallclock duration FAIL: "

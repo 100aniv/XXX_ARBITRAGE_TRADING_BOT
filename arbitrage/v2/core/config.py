@@ -58,6 +58,8 @@ class StrategyConfig:
     threshold: ThresholdConfig
     order_size_policy: OrderSizePolicyConfig
     deterministic_drift_bps: float = 0.0
+    negative_edge_execution_probability: float = 0.0
+    negative_edge_floor_bps: float = 0.0
 
 
 @dataclass
@@ -383,6 +385,10 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         threshold=threshold,
         order_size_policy=order_size_policy,
         deterministic_drift_bps=float(strategy_raw.get('deterministic_drift_bps', 0.0)),
+        negative_edge_execution_probability=float(
+            strategy_raw.get('negative_edge_execution_probability', 0.0)
+        ),
+        negative_edge_floor_bps=float(strategy_raw.get('negative_edge_floor_bps', 0.0)),
     )
 
     fill_probability_raw = strategy_raw.get("fill_probability") or raw_config.get("fill_probability") or {}

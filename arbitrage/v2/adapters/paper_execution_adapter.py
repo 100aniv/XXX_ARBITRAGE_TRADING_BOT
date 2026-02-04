@@ -62,6 +62,10 @@ class PaperExecutionAdapter(ExchangeAdapter):
     PARTIAL_FILL_RATIO_MAX = 0.9
     PESSIMISTIC_DRIFT_BPS_MIN = 10.0
     PESSIMISTIC_DRIFT_BPS_MAX = 10.0
+    ADVERSE_SLIPPAGE_PROBABILITY = 0.0
+    ADVERSE_SLIPPAGE_BPS_MIN = 10.0
+    ADVERSE_SLIPPAGE_BPS_MAX = 20.0
+    FILL_REJECT_PROBABILITY = 0.0
     
     def __init__(
         self, 
@@ -76,7 +80,12 @@ class PaperExecutionAdapter(ExchangeAdapter):
         partial_fill_ratio_min: Optional[float] = None,
         partial_fill_ratio_max: Optional[float] = None,
         pessimistic_drift_bps_min: Optional[float] = None,
-        pessimistic_drift_bps_max: Optional[float] = None
+        pessimistic_drift_bps_max: Optional[float] = None,
+        adverse_slippage_probability: Optional[float] = None,
+        adverse_slippage_bps_min: Optional[float] = None,
+        adverse_slippage_bps_max: Optional[float] = None,
+        fill_reject_probability: Optional[float] = None,
+        rng: Optional[random.Random] = None
     ):
         """
         Initialize mock adapter.
@@ -95,10 +104,15 @@ class PaperExecutionAdapter(ExchangeAdapter):
         self.exchange_name = exchange_name
         self._partial_fill_configured = False
         self._fee_rates = dict(self.FEE_RATES)
+        self._rng = rng or random
         
         # D205-18-1: Config SSOT 우선
         if config and "mock_adapter" in config:
             mock_cfg = config["mock_adapter"]
+            if rng is None:
+                seed = mock_cfg.get("random_seed")
+                if seed is not None:
+                    self._rng = random.Random(int(seed))
             self._partial_fill_configured = "partial_fill_probability" in mock_cfg
             self.enable_slippage = mock_cfg.get("enable_slippage", True)
             self.slippage_bps_min = mock_cfg.get("slippage_bps_min", 20.0)
@@ -119,6 +133,18 @@ class PaperExecutionAdapter(ExchangeAdapter):
             )
             self.pessimistic_drift_bps_max = mock_cfg.get(
                 "pessimistic_drift_bps_max", self.PESSIMISTIC_DRIFT_BPS_MAX
+            )
+            self.adverse_slippage_probability = mock_cfg.get(
+                "adverse_slippage_probability", self.ADVERSE_SLIPPAGE_PROBABILITY
+            )
+            self.adverse_slippage_bps_min = mock_cfg.get(
+                "adverse_slippage_bps_min", self.ADVERSE_SLIPPAGE_BPS_MIN
+            )
+            self.adverse_slippage_bps_max = mock_cfg.get(
+                "adverse_slippage_bps_max", self.ADVERSE_SLIPPAGE_BPS_MAX
+            )
+            self.fill_reject_probability = mock_cfg.get(
+                "fill_reject_probability", self.FILL_REJECT_PROBABILITY
             )
             fee_rates = config.get("fee_rates") if isinstance(config, dict) else None
             if isinstance(fee_rates, dict):
@@ -155,6 +181,26 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 pessimistic_drift_bps_max
                 if pessimistic_drift_bps_max is not None
                 else self.PESSIMISTIC_DRIFT_BPS_MAX
+            )
+            self.adverse_slippage_probability = (
+                adverse_slippage_probability
+                if adverse_slippage_probability is not None
+                else self.ADVERSE_SLIPPAGE_PROBABILITY
+            )
+            self.adverse_slippage_bps_min = (
+                adverse_slippage_bps_min
+                if adverse_slippage_bps_min is not None
+                else self.ADVERSE_SLIPPAGE_BPS_MIN
+            )
+            self.adverse_slippage_bps_max = (
+                adverse_slippage_bps_max
+                if adverse_slippage_bps_max is not None
+                else self.ADVERSE_SLIPPAGE_BPS_MAX
+            )
+            self.fill_reject_probability = (
+                fill_reject_probability
+                if fill_reject_probability is not None
+                else self.FILL_REJECT_PROBABILITY
             )
             if config and isinstance(config, dict):
                 fee_rates = config.get("fee_rates")
@@ -215,7 +261,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
         # D207-1-6: Realism Pack v1 - latency with exponential tail
         latency_ms = float(self.latency_base_ms)
         if self.latency_jitter_ms > 0:
-            latency_ms += random.expovariate(1.0 / float(self.latency_jitter_ms))
+            latency_ms += self._rng.expovariate(1.0 / float(self.latency_jitter_ms))
         time.sleep(latency_ms / 1000.0)
 
         order_id = f"mock-{uuid.uuid4().hex[:8]}"
@@ -235,14 +281,44 @@ class PaperExecutionAdapter(ExchangeAdapter):
         
         side = payload.get("side", "").upper()
 
+        reject_probability = float(self.fill_reject_probability or 0.0)
+        if reject_probability > 0 and self._rng.random() < reject_probability:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"[D_ALPHA-1U-FIX-2-1 Reject] {side} reject_prob={reject_probability:.2f}"
+            )
+            return {
+                "order_id": order_id,
+                "status": "rejected",
+                "filled_qty": 0.0,
+                "filled_price": 0.0,
+                "ref_price": base_price,
+                "slippage_bps": 0.0,
+                "pessimistic_drift_bps": 0.0,
+                "latency_ms": latency_ms,
+                "exchange": payload.get("exchange"),
+                "symbol": payload.get("symbol"),
+                "partial_fill_ratio": 0.0,
+                "adverse_slippage_bps": 0.0,
+                "error_message": "fill_rejected",
+            }
+
         # D205-17: Realism Injection - Slippage 적용
         # D207-1-6: Realism Pack v1 - randomized bps within config range
         filled_price = base_price
         slippage_bps = 0.0
+        adverse_slippage_bps = 0.0
         if self.enable_slippage:
             min_bps = min(self.slippage_bps_min, self.slippage_bps_max)
             max_bps = max(self.slippage_bps_min, self.slippage_bps_max)
-            slippage_bps = min_bps if min_bps == max_bps else random.uniform(min_bps, max_bps)
+            slippage_bps = min_bps if min_bps == max_bps else self._rng.uniform(min_bps, max_bps)
+            adverse_prob = float(self.adverse_slippage_probability or 0.0)
+            if adverse_prob > 0 and self._rng.random() < adverse_prob:
+                adv_min = min(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
+                adv_max = max(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
+                adverse_slippage_bps = adv_min if adv_min == adv_max else self._rng.uniform(adv_min, adv_max)
+                slippage_bps += adverse_slippage_bps
             slippage_ratio = slippage_bps / 10000.0
             
             if side == "BUY":
@@ -259,11 +335,15 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 f"[D205-17 Slippage] {side} base={base_price:.2f}, "
                 f"slippage={slippage_bps:.2f}bps, filled={filled_price:.2f}"
             )
+            if adverse_slippage_bps > 0:
+                logger.info(
+                    f"[D_ALPHA-1U-FIX-2-1 Adverse] {side} adverse_slippage={adverse_slippage_bps:.2f}bps"
+                )
 
         # D207-3: Pessimistic Drift (physical price contamination)
         drift_bps_min = min(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
         drift_bps_max = max(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
-        drift_bps = drift_bps_min if drift_bps_min == drift_bps_max else random.uniform(drift_bps_min, drift_bps_max)
+        drift_bps = drift_bps_min if drift_bps_min == drift_bps_max else self._rng.uniform(drift_bps_min, drift_bps_max)
         drift_ratio = drift_bps / 10000.0
         if drift_ratio > 0:
             if side == "BUY":
@@ -310,10 +390,10 @@ class PaperExecutionAdapter(ExchangeAdapter):
         partial_fill_probability = self.partial_fill_probability
         if not self.enable_slippage and not self._partial_fill_configured:
             partial_fill_probability = 0.0
-        if partial_fill_probability > 0 and random.random() < partial_fill_probability:
+        if partial_fill_probability > 0 and self._rng.random() < partial_fill_probability:
             ratio_min = min(self.partial_fill_ratio_min, self.partial_fill_ratio_max)
             ratio_max = max(self.partial_fill_ratio_min, self.partial_fill_ratio_max)
-            partial_fill_ratio = max(0.01, min(1.0, random.uniform(ratio_min, ratio_max)))
+            partial_fill_ratio = max(0.01, min(1.0, self._rng.uniform(ratio_min, ratio_max)))
             status = "partial"
             filled_qty *= partial_fill_ratio
 
@@ -329,6 +409,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             "exchange": payload.get("exchange"),
             "symbol": payload.get("symbol"),
             "partial_fill_ratio": partial_fill_ratio,
+            "adverse_slippage_bps": adverse_slippage_bps,
         }
         
         return response

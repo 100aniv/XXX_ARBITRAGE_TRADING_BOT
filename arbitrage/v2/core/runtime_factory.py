@@ -167,6 +167,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     if getattr(config, "cooldown_after_loss_seconds", None) is None:
         config.cooldown_after_loss_seconds = v2_config.safety.cooldown_after_loss_seconds
     deterministic_drift_bps = float(getattr(v2_config.strategy, "deterministic_drift_bps", 0.0))
+    negative_edge_execution_probability = float(
+        getattr(v2_config.strategy, "negative_edge_execution_probability", 0.0)
+    )
+    negative_edge_floor_bps = float(
+        getattr(v2_config.strategy, "negative_edge_floor_bps", 0.0)
+    )
     if getattr(config, "deterministic_drift_bps", None) is None:
         config.deterministic_drift_bps = deterministic_drift_bps
     if config.use_real_data and getattr(config, "cycle_interval_seconds", None) is None:
@@ -282,6 +288,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             max_symbols_per_tick=getattr(config, "max_symbols_per_tick", None),
             survey_mode=getattr(config, "survey_mode", False),
             maker_mode=getattr(config, "maker_mode", False),
+            negative_edge_execution_probability=negative_edge_execution_probability,
+            negative_edge_floor_bps=negative_edge_floor_bps,
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:
@@ -293,6 +301,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             profit_core=profit_core,  # D206-1 FIXPACK
             deterministic_drift_bps=config.deterministic_drift_bps,
             maker_mode=getattr(config, "maker_mode", False),
+            negative_edge_execution_probability=negative_edge_execution_probability,
+            negative_edge_floor_bps=negative_edge_floor_bps,
         )
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     

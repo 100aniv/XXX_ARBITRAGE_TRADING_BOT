@@ -140,6 +140,8 @@ strategy:
   # Edge Guard (D207-1-1: Economic Truth)
   min_net_edge_bps: 5.0  # 음수/제로 edge 거래 차단 (최소 순수익 마진)
   deterministic_drift_bps: 10.0  # D207-3: 탐지 단계 고정 드리프트 패널티
+  negative_edge_execution_probability: 0.15  # D_ALPHA-1U-FIX-2-1: 음수 edge 일부 허용 확률
+  negative_edge_floor_bps: -10.0  # D_ALPHA-1U-FIX-2-1: 허용 음수 edge 하한
 
   # Maker Fill Probability (D_ALPHA-1)
   fill_probability:
@@ -207,6 +209,11 @@ mock_adapter:
   # D207-3: Physical price contamination guard
   pessimistic_drift_bps_min: 10.0
   pessimistic_drift_bps_max: 10.0
+  adverse_slippage_probability: 0.15
+  adverse_slippage_bps_min: 10.0
+  adverse_slippage_bps_max: 25.0
+  fill_reject_probability: 0.05
+  random_seed: 20260204
 
 # Safety (안전 장치)
 safety:

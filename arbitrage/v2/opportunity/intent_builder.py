@@ -75,6 +75,7 @@ def candidate_to_order_intents(
     
     Policy (SSOT):
         - unprofitable (edge_bps <= 0) → 빈 리스트 (주문 생성 금지)
+        - 단, allow_unprofitable=True이면 음수 edge라도 허용
         - direction == NONE → 빈 리스트
         - direction == BUY_A_SELL_B → [BUY(A), SELL(B)]
         - direction == BUY_B_SELL_A → [BUY(B), SELL(A)]
@@ -100,8 +101,8 @@ def candidate_to_order_intents(
         - For MARKET orders: BUY requires quote_amount, SELL requires base_qty
         - For LIMIT orders: both require limit_price
     """
-    # Policy: unprofitable → 빈 리스트
-    if not candidate.profitable:
+    # Policy: unprofitable → 빈 리스트 (allow_unprofitable 제외)
+    if not candidate.profitable and not getattr(candidate, "allow_unprofitable", False):
         return []
     
     # Policy: direction NONE → 빈 리스트

@@ -6928,6 +6928,42 @@ enable_execution: false       # REQUIRED
 - Compare: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/e2ee257..e6f20a6
 - Gate Results: Doctor/Fast/Regression/DocOps 100% PASS (2026-02-04)
 
+**D_ALPHA-1U-FIX-2-1: Reality Welding Add-on (Winrate 현실화)**
+
+**상태:** COMPLETED (2026-02-04)  
+**목표:** PaperExecution 현실성 강화(불리 슬리피지/미체결/Negative Edge 실행)로 winrate 100% 탈출 + 손실 발생 증거 확보.
+
+**Acceptance Criteria:**
+- [x] AC-1: adverse slippage 확률(>=10%) 주입으로 동일 입력에서 손실 케이스 발생 가능(결정론 seed 증거 포함).
+  - Evidence: manifest.json.run_meta.metrics.slippage_cost=0.1639 (2m smoke), 0.8662 (20m survey)
+  - PaperExecutionAdapter: 15bps base + 10bps drift per fill
+  - Config: rng_seed field in config.v2.config.yml
+- [x] AC-2: fill 실패(미체결) 발생 시 closed_trades 감소 또는 reject_count 증가가 KPI/engine_report에 기록됨.
+  - Evidence: execution_reject=1 (2m smoke), 6 (20m survey)
+  - KPI recorded in manifest.json.run_meta.metrics.reject_reasons.execution_reject
+- [x] AC-3: Negative edge 일부 체결 허용으로 20m Survey에서 losses ≥ 1 & winrate < 100% 증거 확보.
+  - Evidence: losses=2, winrate_pct=92.59 (20m survey d_alpha_1u_fix_2_1_20m_20260204_1436)
+  - Condition met: losses >= 1 AND winrate < 100%
+- [x] AC-4: latency_cost(가격 영향) vs latency_total(ms 합계) 단위 분리 유지 (FACT_CHECK_SUMMARY.txt 수치 증명).
+  - Evidence: latency_cost=0.1015 USD (2m), 0.5228 USD (20m) vs latency_total=3795.2028 ms (2m), 19986.6163 ms (20m)
+  - FACT_CHECK_SUMMARY.txt: unit separation verified
+- [x] AC-5: Evidence Minimum Set + FACT_CHECK_SUMMARY.txt 포함 (원자적 패키지).
+  - Evidence: manifest.json (9 core files) + FACT_CHECK_SUMMARY.txt + engine_report.json + watch_summary.json
+  - Note: stop_reason_snapshot.json not generated (conditional per OPS_PROTOCOL); FACT_CHECK_SUMMARY.txt replaces requirement
+
+**Evidence 경로:**
+- `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/`
+- `logs/evidence/d_alpha_1u_fix_2_1_smoke_20260204_1436/` (2m smoke: TIME_REACHED, wallclock_drift_pct=4.62%)
+- `logs/evidence/d_alpha_1u_fix_2_1_20m_20260204_1436/` (20m survey: TIME_REACHED, wallclock_drift_pct=0.27%)
+
+**의존성:**
+- Depends on: D_ALPHA-1 (Maker Pivot MVP)
+- Blocks: D_ALPHA-2 (OBI Filter & Ranking)
+- Related: D207-3 (RunWatcher 100% winrate guard - 정상 동작 확인)
+
+**주의:**
+- FIX-3 (DB strict/persistence)는 별도 D_ALPHA-1U-FIX-3로 유지, 선행 완료 금지.
+
 ---
 
 #### D_ALPHA-2: OBI Filter & Ranking (HFT Intelligence v1)

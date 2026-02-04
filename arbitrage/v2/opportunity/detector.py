@@ -85,6 +85,7 @@ class OpportunityCandidate:
     maker_mode: bool = False
     fill_probability: Optional[float] = None
     maker_net_edge_bps: Optional[float] = None
+    allow_unprofitable: bool = False
 
 
 def detect_candidates(

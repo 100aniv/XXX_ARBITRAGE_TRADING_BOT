@@ -71,3 +71,27 @@
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: Evidence Minimum Set 및 Atomic Flush 규칙 재확인.
 - docs/v2/design/V2_ARCHITECTURE.md — 확인: Engine-Centric + Adapter 계약 재확인.
 - docs/v2/design/CONFIG_SCHEMA.md — 확인: Zero-Fallback + Decimal 규칙 재확인.
+
+## Step 0 Reading (D_ALPHA-1U-FIX-2-1)
+
+- D_ROADMAP.md — 확인: D_ALPHA-1U-FIX-2 완료 상태 유지 및 FIX-2-1 브랜치 선기입 필요.
+- docs/v2/SSOT_RULES.md — 확인: Roadmap-first, Gate 3단, WARN=FAIL, DocOps 규칙.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence/Config 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: Evidence Minimum Set 및 engine_report.json 규칙 재확인.
+- docs/v2/V2_ARCHITECTURE.md — 확인: Engine-Centric/Thin Wrapper/One True Loop 원칙 재확인.
+- .windsurf/rules/arbitrage-workspace-rule.md — 확인: SSOT 2-기둥 구조 및 AC 추가만 허용 원칙.
+- .windsurf/workflows/workflows-arbitrage-workspace.md — 확인: /0_bootstrap_v2, /1_gate_fast_v2, /2_gate_regression_v2, /6_doc_commit_push_v2 흐름.
+- docs/v2/design/SSOT_DOCOPS.md — 미존재 확인 (파일 없음, 규칙 충돌 기록).
+
+### Reuse Summary (D_ALPHA-1U-FIX-2-1)
+
+- arbitrage/v2/adapters/paper_execution_adapter.py: 슬리피지/드리프트/부분체결/지연 모델 재사용.
+- arbitrage/v2/core/orchestrator.py: KPI 분해 및 latency_cost/latency_total 분리 로직 재사용.
+- arbitrage/v2/opportunity/detector.py: edge_bps/dir/profitable 판정 재사용.
+- arbitrage/v2/opportunity/intent_builder.py: OrderIntent 생성 규약 재사용.
+- arbitrage/v2/core/opportunity_source.py: RealOpportunitySource 흐름 재사용.
+- arbitrage/v2/domain/fill_probability.py: fill 확률/기회비용 모델 재사용.
+- arbitrage/v2/core/runtime_factory.py: mock_adapter 설정 주입 경로 재사용.
+- arbitrage/v2/core/ledger_writer.py: DB 기록/strict 모드 실패 처리 재사용.
+- arbitrage/v2/core/monitor.py: EvidenceCollector 및 metrics snapshot 재사용.
+- arbitrage/v2/core/metrics.py: KPI 필드(slippage_cost, latency_cost, partial_fill_penalty) 재사용.

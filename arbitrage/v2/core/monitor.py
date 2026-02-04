@@ -265,7 +265,9 @@ class EvidenceCollector:
         ).hexdigest()
         universe_metadata = {}
         if run_meta and "universe_metadata" in run_meta:
-            universe_metadata = dict(run_meta["universe_metadata"])
+            raw_universe_metadata = run_meta.get("universe_metadata")
+            if raw_universe_metadata is not None:
+                universe_metadata = dict(raw_universe_metadata)
             # Override universe_size in sampling_summary if available
             if universe_metadata.get("universe_loaded_count") is not None:
                 sampling_summary["universe_size"] = universe_metadata["universe_loaded_count"]

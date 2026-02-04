@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, Tuple
 import logging
+import random
 from datetime import datetime, timezone
 
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
@@ -51,6 +52,7 @@ def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
         "fx_rate_degraded": candidate.fx_rate_degraded,
         "obi_score": round(float(obi_score), 6) if obi_score is not None else None,
         "depth_imbalance": round(float(depth_imbalance), 6) if depth_imbalance is not None else None,
+        "allow_unprofitable": getattr(candidate, "allow_unprofitable", False),
     }
 
 
@@ -109,6 +111,9 @@ class RealOpportunitySource(OpportunitySource):
         survey_mode: bool = False,
         maker_mode: bool = False,
         fill_probability_params: Optional[FillProbabilityParams] = None,
+        negative_edge_execution_probability: float = 0.0,
+        negative_edge_floor_bps: float = 0.0,
+        rng: Optional[random.Random] = None,
     ):
         self.upbit_provider = upbit_provider
         self.binance_provider = binance_provider
@@ -124,6 +129,9 @@ class RealOpportunitySource(OpportunitySource):
         self.survey_mode = survey_mode
         self.maker_mode = maker_mode
         self.fill_probability_params = fill_probability_params
+        self.negative_edge_execution_probability = float(negative_edge_execution_probability or 0.0)
+        self.negative_edge_floor_bps = float(negative_edge_floor_bps or 0.0)
+        self._rng = rng or random
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
         self._symbol_pair_idx = 0
 
@@ -456,8 +464,20 @@ class RealOpportunitySource(OpportunitySource):
                     if not c.profitable:
                         self.kpi.bump_reject("profitable_false")
 
-            profitable_candidates = [c for c in candidates_all if c.profitable]
-            candidate = max(profitable_candidates, key=lambda c: c.net_edge_bps) if profitable_candidates else None
+            negative_prob = max(0.0, min(1.0, self.negative_edge_execution_probability))
+            negative_floor = float(self.negative_edge_floor_bps)
+            negative_candidates = [
+                c for c in candidates_all
+                if c.net_edge_bps < 0 and c.net_edge_bps >= negative_floor
+            ]
+
+            candidate = None
+            if negative_prob > 0 and negative_candidates and self._rng.random() < negative_prob:
+                candidate = max(negative_candidates, key=lambda c: c.net_edge_bps)
+                candidate.allow_unprofitable = True
+            else:
+                profitable_candidates = [c for c in candidates_all if c.profitable]
+                candidate = max(profitable_candidates, key=lambda c: c.net_edge_bps) if profitable_candidates else None
 
             if not candidate:
                 return None
@@ -494,6 +514,9 @@ class MockOpportunitySource(OpportunitySource):
         deterministic_drift_bps: float = 0.0,
         maker_mode: bool = False,
         fill_probability_params: Optional[FillProbabilityParams] = None,
+        negative_edge_execution_probability: float = 0.0,
+        negative_edge_floor_bps: float = 0.0,
+        rng: Optional[random.Random] = None,
     ):
         """Args:
             profit_core: ProfitCore (REQUIRED - 기본 가격)
@@ -511,6 +534,9 @@ class MockOpportunitySource(OpportunitySource):
         self.deterministic_drift_bps = deterministic_drift_bps
         self.maker_mode = maker_mode
         self.fill_probability_params = fill_probability_params
+        self.negative_edge_execution_probability = float(negative_edge_execution_probability or 0.0)
+        self.negative_edge_floor_bps = float(negative_edge_floor_bps or 0.0)
+        self._rng = rng or random
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
@@ -545,6 +571,15 @@ class MockOpportunitySource(OpportunitySource):
                 fill_probability_params=self.fill_probability_params,
             )
             if candidate:
+                if not candidate.profitable:
+                    negative_prob = max(0.0, min(1.0, self.negative_edge_execution_probability))
+                    negative_floor = float(self.negative_edge_floor_bps)
+                    if (
+                        negative_prob > 0
+                        and candidate.net_edge_bps >= negative_floor
+                        and self._rng.random() < negative_prob
+                    ):
+                        candidate.allow_unprofitable = True
                 candidate.exchange_a_bid = price_a
                 candidate.exchange_a_ask = price_a
                 candidate.exchange_b_bid = price_b
