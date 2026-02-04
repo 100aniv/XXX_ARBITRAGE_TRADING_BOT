@@ -6902,6 +6902,7 @@ enable_execution: false       # REQUIRED
 
 **Evidence 경로:**
 - `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_*/`
+- `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_20260203_175929/`
 
 **남은 액션 (Required for COMPLETION):**
 - **D_ALPHA-1U-FIX-2:** Paper Execution 현실성 강화 + DB/Redis strict (IN PROGRESS)

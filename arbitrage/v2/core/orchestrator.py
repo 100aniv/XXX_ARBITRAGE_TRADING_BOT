@@ -366,9 +366,29 @@ class PaperOrchestrator:
                 def _calc_slippage_cost(result) -> float:
                     if not result:
                         return 0.0
-                    if result.ref_price is None or result.filled_price is None or result.filled_qty is None:
+                    if result.ref_price is None or result.filled_qty is None:
                         return 0.0
-                    return abs(result.filled_price - result.ref_price) * result.filled_qty
+                    slippage_bps = getattr(result, "slippage_bps", None)
+                    if slippage_bps is None:
+                        if result.filled_price is None:
+                            return 0.0
+                        return abs(result.filled_price - result.ref_price) * result.filled_qty
+                    slippage_ratio = abs(float(slippage_bps)) / 10000.0
+                    return abs(float(result.ref_price)) * slippage_ratio * float(result.filled_qty)
+
+                def _calc_latency_cost(result) -> float:
+                    if not result:
+                        return 0.0
+                    if result.ref_price is None or result.filled_qty is None:
+                        return 0.0
+                    drift_bps = getattr(result, "pessimistic_drift_bps", None)
+                    if drift_bps is None:
+                        return 0.0
+                    slippage_bps = getattr(result, "slippage_bps", 0.0) or 0.0
+                    slippage_ratio = abs(float(slippage_bps)) / 10000.0
+                    drift_ratio = abs(float(drift_bps)) / 10000.0
+                    base_price = float(result.ref_price)
+                    return abs(base_price * (1 + slippage_ratio) * drift_ratio * float(result.filled_qty))
 
                 def _calc_latency_ms(result) -> float:
                     if not result or result.latency_ms is None:
@@ -386,7 +406,8 @@ class PaperOrchestrator:
                     return 1.0 if getattr(result, "reject_flag", False) else 0.0
 
                 slippage_cost = _calc_slippage_cost(entry_result) + _calc_slippage_cost(exit_result)
-                latency_cost = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
+                latency_cost = _calc_latency_cost(entry_result) + _calc_latency_cost(exit_result)
+                latency_total_ms = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
                 partial_penalty = _calc_partial_penalty(entry_result) + _calc_partial_penalty(exit_result)
                 reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
                 
@@ -424,7 +445,7 @@ class PaperOrchestrator:
                 self.kpi.partial_fill_penalty += partial_penalty
                 # D207-1-6: Realism Pack v1 totals
                 self.kpi.slippage_total += slippage_cost
-                self.kpi.latency_total += latency_cost
+                self.kpi.latency_total += latency_total_ms
                 self.kpi.partial_fill_total += partial_penalty
                 if reject_count:
                     for _ in range(int(reject_count)):
