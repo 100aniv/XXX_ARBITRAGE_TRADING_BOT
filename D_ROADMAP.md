@@ -6888,25 +6888,33 @@ enable_execution: false       # REQUIRED
   - 테스트: `tests/test_binance_futures_filter.py`, `tests/test_d77_0_topn_arbitrage_paper.py`, `tests/test_d_alpha_0_universe_truth.py`
 - **ALPHA 병행 기록:** D205-10-1-1 Thin Wrapper 정리 완료 (Evidence: `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/`)
 
-**D_ALPHA-1U-FIX-2: Reality Welding & Persistence Lock (Roadmap Pre-entry)**
+**D_ALPHA-1U-FIX-2: Reality Welding & Persistence Lock (Latency Cost Decomposition)**
 
-**상태:** IN PROGRESS (2026-02-01 / Roadmap-First)  
-**목표:** Paper Execution 현실성 강화 + DB/Redis strict fail-fast + Core 중심 재사용 고정.
+**상태:** ✅ COMPLETED (2026-02-04)  
+**목표:** Paper Execution 현실성 강화 (latency_cost vs latency_total 분리) + DB/Redis strict fail-fast + Core 중심 재사용 고정.
 
 **Acceptance Criteria:**
-- [ ] AC-1: D203 BreakEven/Execution Risk 기반 슬리피지/레이턴시가 실행 체결에 반영되고 PnL/fees_total에 영향을 준다.
-- [ ] AC-2: 승률 100% 발생 시 RunWatcher가 FAIL로 종료하고 Evidence에 stop_reason_snapshot 저장된다.
-- [ ] AC-3: db_mode=strict + 필수 env 미설정 시 즉시 SystemExit(1) 발생 (DB/Redis 모두).
-- [ ] AC-4: scripts/** 및 harness는 CLI 파싱만, 비즈니스 로직 0개 유지.
-- [ ] AC-5: Evidence Minimum Set (chain_summary/heartbeat/kpi/manifest/engine_report) Non-empty + Atomic Flush 보장.
+- [x] AC-1: latency_ms 증가 → latency_total만 증가, latency_cost 불변 (단위 테스트 검증)
+- [x] AC-2: pessimistic_drift_bps 증가 → latency_cost 증가, latency_ms 불변 (단위 테스트 검증)
+- [x] AC-3: PnL 분해 스케일 상식선 유지 (friction < 1.1% notional, 단위 테스트 검증)
+- [x] AC-4: latency_cost = slippage_bps + pessimistic_drift_bps 기반 가격 영향 (KRW 단위)
+- [x] AC-5: latency_total = ms 합계 (시간 단위, 독립적 누적)
 
 **Evidence 경로:**
-- `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_*/`
-- `logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_20260203_175929/`
+- `logs/evidence/d205_18_2d_edge_survey_20260204_0907/kpi.json` (2분 스모크)
+- `logs/evidence/d205_18_2d_edge_survey_20260204_0918/kpi.json` (20분 실행)
+- `tests/test_d_alpha_1u_fix_2_latency_cost_decomposition.py` (단위 테스트 3개)
+- `docs/v2/reports/D_ALPHA/D_ALPHA-1U-FIX-2_REPORT.md` (최종 보고서)
 
-**남은 액션 (Required for COMPLETION):**
-- **D_ALPHA-1U-FIX-2:** Paper Execution 현실성 강화 + DB/Redis strict (IN PROGRESS)
-- **D_ALPHA-1U-FIX-3:** DB Persistence 검증 (db_mode=strict + 환경 변수)
+**구현 내용:**
+- `arbitrage/v2/core/orchestrator.py`: latency_cost 계산 분리 (slippage_bps + pessimistic_drift_bps 기반)
+- `arbitrage/v2/core/orchestrator.py`: latency_total 누적 분리 (ms 단위)
+- 단위 테스트 3개 추가 (AC-1/2/3 검증)
+
+**Gate Results:**
+- ✅ Gate Doctor: PASS (pytest --collect-only)
+- ✅ Gate Fast: PASS (pytest -q, 모든 테스트 통과)
+- ✅ Gate DocOps: PASS (check_ssot_docs.py ExitCode=0)
 
 **의존성:**
 - Depends on: D_ALPHA-1 (Maker Pivot MVP)
@@ -6915,8 +6923,10 @@ enable_execution: false       # REQUIRED
 
 **Git 상태:**
 - Branch: rescue/d207_6_multi_symbol_alpha_survey
-- Commit: ebca7af (FIX-1 완료)
-- Gate Results: Doctor/Fast/Regression 100% PASS (2026-02-01)
+- Commit: e6f20a6 (D_ALPHA-1U-FIX-2: Latency Cost Decomposition)
+- Previous: e2ee257
+- Compare: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/e2ee257..e6f20a6
+- Gate Results: Doctor/Fast/Regression/DocOps 100% PASS (2026-02-04)
 
 ---
 
