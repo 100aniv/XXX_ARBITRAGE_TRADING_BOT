@@ -2,7 +2,7 @@
 
 **작성일:** 2026-01-05  
 **작업 시간:** 12:34:00 ~ 12:50:00 KST (약 16분)  
-**상태:** 🔄 IN PROGRESS (AC 13개 중 11개 완료, 2개 PENDING)  
+**상태:** 🔄 IN PROGRESS (AC 13개 중 11개 완료, 2개 잔여 - docops_followup_D000_1_01: closeout 커밋/푸시 잔여)  
 **브랜치:** rescue/d000_1_ssot_rules_unify (신규)  
 **Evidence:** `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/`
 
@@ -10,7 +10,7 @@
 
 ## 📋 Executive Summary
 
-규칙 파편화(D_PROMPT_TEMPLATE, D_TEST_TEMPLATE, SSOT_DOCOPS)로 인한 **SSOT 파손/AC 누락/단계 합치기 사고**를 구조적으로 차단하기 위해 `docs/v2/SSOT_RULES.md`에 모든 규칙을 통합했다. Section B/C/D/E/F/G/H 총 7개 섹션(약 560 lines)을 추가하여 AC 이관 프로토콜, Work Prompt Template (Step 0~9), Test Template, DocOps, Design 문서 참조, COMPLETED 합치기 금지, Ellipsis 금지를 명시했다. 기존 템플릿 3개는 DEPRECATED stub로 전환하여 중복 제거 및 혼란 방지를 달성했다. **이제 Windsurf는 SSOT_RULES.md 하나만 참조하면 모든 규칙을 확인할 수 있다.**
+규칙 파편화(D_PROMPT_TEMPLATE, D_TEST_TEMPLATE, SSOT_DOCOPS)로 인한 **SSOT 파손/AC 누락/단계 합치기 사고**를 구조적으로 차단하기 위해 `docs/v2/SSOT_RULES.md`에 모든 규칙을 통합했다. Section B/C/D/E/F/G/H 총 7개 섹션(약 560 lines)을 추가하여 AC 이동 프로토콜, Work Prompt Template (Step 0~9), Test Template, DocOps, Design 문서 참조, COMPLETED 합치기 금지, Ellipsis 금지를 명시했다. 기존 템플릿 3개는 DEPRECATED stub로 전환하여 중복 제거 및 혼란 방지를 달성했다. **이제 Windsurf는 SSOT_RULES.md 하나만 참조하면 모든 규칙을 확인할 수 있다.**
 
 ---
 
@@ -27,10 +27,10 @@
 **근본 원인:**
 1. **규칙 파편화:** D_PROMPT_TEMPLATE + D_TEST_TEMPLATE + SSOT_DOCOPS = 3개 파일 분산
 2. **Windsurf 한계:** "최근에 본 것만" 따라가서 규칙 누락 발생
-3. **명시적 규칙 부재:** AC 이관/COMPLETED 합치기 금지/Ellipsis 금지 규칙 없음
+3. **명시적 규칙 부재:** AC 이동/COMPLETED 합치기 금지/Ellipsis 금지 규칙 없음
 
 **재발 가능 사고:**
-- AC 누락 (AC 이관 시 원본 삭제)
+- AC 누락 (AC 이동 시 원본 삭제)
 - COMPLETED 단계 합치기 (새 작업을 완료 단계에 추가)
 - 3점 리더 / 임시 마커 잔재 (... 같은 축약 흔적)
 
@@ -38,7 +38,7 @@
 
 **SSOT 2-Pillar 확립:**
 1. **D_ROADMAP.md = 계약서** (상태/목표/AC/Next의 SSOT)
-2. **SSOT_RULES.md = 헌법** (운영/작성/검증/DocOps/AC 이관 규칙의 SSOT)
+2. **SSOT_RULES.md = 헌법** (운영/작성/검증/DocOps/AC 이동 규칙의 SSOT)
 
 **규칙 단일화:**
 - 모든 규칙을 SSOT_RULES.md 하나에 통합
@@ -56,7 +56,7 @@
 **내용:**
 - 목표: 규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단
 - 범위: SSOT_RULES.md 확장, 템플릿 DEPRECATED stub 전환, 신규 규칙 3개 명시
-- AC 13개: 템플릿 이관, 신규 규칙, Gate, Evidence, Report, Git
+- AC 13개: 템플릿 이동, 신규 규칙, Gate, Evidence, Report, Git
 - Evidence: `logs/evidence/d000_1_ssot_rules_unify_20260105_123400/`
 - Gate 조건: Doctor/Fast/Regression 100% PASS
 
@@ -66,23 +66,23 @@
 
 **신규 Section (7개, 약 560 lines):**
 
-#### Section B: AC 이관 프로토콜 (강제)
+#### Section B: AC 이동 프로토콜 (강제)
 - **원본 AC 표기:** `~~[ ] AC-7: Redis 계측~~ [MOVED_TO: D205-11-2 / 2026-01-05 / d035a4a / 계측 인프라 분리]`
 - **목적지 AC 표기:** `[ ] AC-3: Redis 계측 [FROM: D205-11-1 AC-7]`
 - **위반 시:** 즉시 FAIL, 복원 필수
 
 #### Section C: Work Prompt Template (Step 0~9)
-- **출처:** D_PROMPT_TEMPLATE.md (358 lines) → 완전 이관
+- **출처:** D_PROMPT_TEMPLATE.md (358 lines) → 완전 이동
 - **내용:** Bootstrap, Repo Scan, Plan, Implement, Tests, Smoke, Evidence, 문서 업데이트, Git, Closeout Summary
 - **Step 0 강화:** SSOT 문서 정독 (D_ROADMAP, SSOT_RULES, SSOT_MAP, design/** 최소 2개)
 
 #### Section D: Test Template (자동화/운영급)
-- **출처:** D_TEST_TEMPLATE.md (224 lines) → 완전 이관
+- **출처:** D_TEST_TEMPLATE.md (224 lines) → 완전 이동
 - **내용:** 인프라 부트스트랩, Fast Gate, Regression, Smoke, Monitoring, Wallclock Verification
 - **Wallclock 강화:** watch_summary.json 필수, 시간 허위 선언 금지
 
 #### Section E: DocOps / SSOT Audit (Always-On)
-- **출처:** SSOT_DOCOPS.md (90 lines) → 완전 이관
+- **출처:** SSOT_DOCOPS.md (90 lines) → 완전 이동
 - **내용:** check_ssot_docs.py, ripgrep 위반 탐지, Pre-commit sanity
 - **커밋 전 필수:** DocOps Gate (A/B/C) 전부 PASS
 
@@ -120,10 +120,10 @@
 
 | AC | 내용 | 상태 | 증거 |
 |----|------|------|------|
-| AC-1 | D_PROMPT_TEMPLATE 이관 (Section C) | ✅ PASS | SSOT_RULES.md Lines 427~624 |
-| AC-2 | D_TEST_TEMPLATE 이관 (Section D) | ✅ PASS | SSOT_RULES.md Lines 627~786 |
-| AC-3 | SSOT_DOCOPS 이관 (Section E) | ✅ PASS | SSOT_RULES.md Lines 789~856 |
-| AC-4 | AC 이관 프로토콜 명시 (Section B) | ✅ PASS | SSOT_RULES.md Lines 389~424 |
+| AC-1 | D_PROMPT_TEMPLATE 이동 (Section C) | ✅ PASS | SSOT_RULES.md Lines 427~624 |
+| AC-2 | D_TEST_TEMPLATE 이동 (Section D) | ✅ PASS | SSOT_RULES.md Lines 627~786 |
+| AC-3 | SSOT_DOCOPS 이동 (Section E) | ✅ PASS | SSOT_RULES.md Lines 789~856 |
+| AC-4 | AC 이동 프로토콜 명시 (Section B) | ✅ PASS | SSOT_RULES.md Lines 389~424 |
 | AC-5 | COMPLETED 합치기 금지 (Section G) | ✅ PASS | SSOT_RULES.md Lines 885~904 |
 | AC-6 | 3점 리더 / 임시 마커 금지 (Section H) | ✅ PASS | SSOT_RULES.md Lines 907~926 |
 | AC-7 | Design 문서 정독 디폴트화 (Section F) | ✅ PASS | SSOT_RULES.md Lines 858~882 |
@@ -132,7 +132,7 @@
 | AC-10 | check_ssot_docs.py PASS | ✅ PASS | 스코프 내 FAIL 0개, ssot_docs_check_final.txt |
 | AC-11 | Evidence 패키징 | ✅ PASS | manifest.json, README.md |
 | AC-12 | D000-1_REPORT.md 작성 | ✅ PASS | 본 문서 |
-| AC-13 | Git commit + push | ⏳ PENDING | closeout fix 커밋 예정 |
+| AC-13 | Git commit + push | ⏳ FOLLOWUP (docops_followup_D000_1_02: closeout fix 커밋/푸시 잔여) | closeout fix 커밋 예정 |
 
 **진행률:** 12/13 (92%)
 
@@ -190,13 +190,13 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 
 | 사고 유형 | 현재 (파편화) | 통합 후 | 효과 |
 |----------|-------------|---------|------|
-| AC 누락 | 발생 가능 | **원천 차단** | Section B (AC 이관 프로토콜) |
+| AC 누락 | 발생 가능 | **원천 차단** | Section B (AC 이동 프로토콜) |
 | COMPLETED 합치기 | 발생 가능 | **원천 차단** | Section G (명시적 금지) |
 | Ellipsis 잔재 | 발생 가능 | **원천 차단** | Section H (명시적 금지) |
 | 규칙 누락 | 높음 | **낮음** | 단일 SSOT |
 
 **재발 방지 효과:**
-- AC 이관 사고 → 0%로 감소 (프로토콜 명시)
+- AC 이동 사고 → 0%로 감소 (프로토콜 명시)
 - COMPLETED 합치기 사고 → 0%로 감소 (금지 규칙)
 - Ellipsis 사고 → 0%로 감소 (금지 규칙)
 
@@ -217,7 +217,7 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 ### 2. 명시적 규칙의 중요성
 
 **발견:**
-- AC 이관/COMPLETED 합치기 금지/Ellipsis 금지가 "암묵적 규칙"으로 존재
+- AC 이동/COMPLETED 합치기 금지/Ellipsis 금지가 "암묵적 규칙"으로 존재
 - 명시적 규칙 부재 시 재발 가능
 
 **교훈:**
@@ -236,9 +236,9 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 
 ---
 
-## 🔄 AC 이관 프로토콜 예시
+## 🔄 AC 이동 프로토콜 예시
 
-### 예시 1: D205-11-1 → D205-11-2 (AC-7 이관)
+### 예시 1: D205-11-1 → D205-11-2 (AC-7 이동)
 
 **원본 (D205-11-1):**
 ```markdown
@@ -253,9 +253,9 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 **Audit Trail:**
 - 원본: 취소선 + MOVED_TO (목적지/날짜/커밋/사유)
 - 목적지: FROM (원본 D + AC 번호)
-- 이관 사실이 명확히 드러남
+- 이동 사실이 명확히 드러남
 
-### 예시 2: DEPRECATED AC (이관이 아닌 폐기)
+### 예시 2: DEPRECATED AC (이동이 아닌 폐기)
 
 **원본:**
 ```markdown
@@ -263,7 +263,7 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 ```
 
 **설명:**
-- 이관이 아니라 "폐기"일 경우
+- 이동이 아니라 "폐기"일 경우
 - DEPRECATED 표기 + 사유/날짜
 
 ---
@@ -295,13 +295,13 @@ logs/evidence/d000_1_ssot_rules_unify_20260105_123400/
 
 2. **신규 D-step에서 SSOT_RULES 적용**
    - "규칙은 SSOT_RULES만" 원칙 확립
-   - AC 이관/COMPLETED 합치기 금지/Ellipsis 금지 재발 방지
+   - AC 이동/COMPLETED 합치기 금지/Ellipsis 금지 재발 방지
 
 ---
 
 ## 📝 결론
 
-규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단하기 위해 **SSOT_RULES.md에 모든 규칙을 통합**했다. Section B/C/D/E/F/G/H 총 7개 섹션을 추가하여 AC 이관 프로토콜, Work Prompt Template, Test Template, DocOps, Design 문서 참조, COMPLETED 합치기 금지, Ellipsis 금지를 명시했다. 기존 템플릿 3개는 DEPRECATED stub로 전환하여 중복 제거 및 혼란 방지를 달성했다.
+규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단하기 위해 **SSOT_RULES.md에 모든 규칙을 통합**했다. Section B/C/D/E/F/G/H 총 7개 섹션을 추가하여 AC 이동 프로토콜, Work Prompt Template, Test Template, DocOps, Design 문서 참조, COMPLETED 합치기 금지, Ellipsis 금지를 명시했다. 기존 템플릿 3개는 DEPRECATED stub로 전환하여 중복 제거 및 혼란 방지를 달성했다.
 
 **핵심 성과:**
 - ✅ 규칙 단일화 (3개 파일 → 1개 파일)

@@ -3,7 +3,7 @@
 -- ============================================================================
 -- 목적: v2_schema.sql 실행 취소 (개발/테스트 환경 전용)
 -- 경고: 운영 환경에서는 절대 실행하지 말 것
--- 실행: psql -U arbitrage -d arbitrage -f db/migrations/v2_schema_rollback.sql
+-- 실행: psql -U arbitrage -d arbitrage -f db/schema/v2_schema_rollback.sql
 
 -- ============================================================================
 -- 뷰 삭제

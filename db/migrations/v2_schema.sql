@@ -3,8 +3,8 @@
 -- ============================================================================
 -- 목적: V2 Paper/LIVE 실행 시 주문/체결/거래 기록
 -- 원칙: V1 테이블 직접 수정 금지, V2 전용 스키마 사용
--- 실행: psql -U arbitrage -d arbitrage -f db/migrations/v2_schema.sql
--- Rollback: psql -U arbitrage -d arbitrage -f db/migrations/v2_schema_rollback.sql
+-- 실행: psql -U arbitrage -d arbitrage -f db/schema/v2_schema.sql
+-- Rollback: psql -U arbitrage -d arbitrage -f db/schema/v2_schema_rollback.sql
 
 -- ============================================================================
 -- 1. v2_orders (주문 기록)

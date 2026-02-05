@@ -2,7 +2,7 @@
 --
 -- Purpose: Daily PnL and Operational metrics for V2 Paper/LIVE execution
 -- SSOT: D_ROADMAP.md (D205-1)
--- Pattern: db/migrations/v2_schema.sql (idempotent, indexed, granted)
+-- Pattern: db/schema/v2_schema.sql (idempotent, indexed, granted)
 --
 -- Author: arbitrage-lite V2
 -- Date: 2025-12-30

@@ -234,8 +234,8 @@ python scripts/admin_control_cli.py --run-id d205_12_demo --env test resume --re
 
 ## Known Constraints
 
-### 1. Engine Loop Integration Pending
-- **Status:** AdminControl module implemented, engine loop integration pending
+### 1. Engine Loop Integration Followup
+- **Status:** AdminControl module implemented, engine loop integration followup (docops_followup_D205_12_01: 엔진 훅 미연결)
 - **Required Work:** Add should_process_tick hook to ArbitrageEngine
 - **Location:** arbitrage/v2/core/engine.py tick method
 - **Example Code:**
@@ -247,8 +247,8 @@ def tick(self):
     # existing logic
 ```
 
-### 2. Paper Runner Integration Pending
-- **Status:** AdminControl CLI tested, Paper Runner integration pending
+### 2. Paper Runner Integration Followup
+- **Status:** AdminControl CLI tested, Paper Runner integration followup (docops_followup_D205_12_02: PaperRunner 주입 미해결)
 - **Required Work:** Inject AdminControl into PaperRunner
 - **Location:** arbitrage/v2/harness/paper_runner.py init method
 

@@ -30,7 +30,7 @@
 
 ### 1. D 번호 의미는 불변 (Immutable D-number Semantics)
 - ❌ **금지:** 기존 D 번호의 의미를 다른 작업으로 변경
-- ❌ **금지:** AC를 다른 D로 "이관"하여 기존 D의 스코프 축소
+- ❌ **금지:** AC를 다른 D로 이동하여 기존 D의 스코프 축소
 - ❌ **금지:** D 번호를 재사용하여 다른 작업 수행
 - ✅ **허용:** D 번호는 최초 정의된 의미로 고정
 - ✅ **허용:** 추가 작업은 브랜치(Dxxx-y-z)로만 확장
@@ -949,7 +949,7 @@
 **상태:** PASS
 **문서:** `docs\D92\D92_POST_MOVE_HARDEN_REPORT.md`
 
-> **일시:** 2025-12-15   **작업자:** Windsurf AI   **목적:** C:\work 이관 후 SSOT/Preflight/인프라 강제 복구
+> **일시:** 2025-12-15   **작업자:** Windsurf AI   **목적:** C:\work 이동 후 SSOT/Preflight/인프라 강제 복구
 
 ### D92: D92 POST-MOVE-HARDEN v2 변경 파일 목록
 
@@ -1079,7 +1079,7 @@ python scripts/run_d93_gate_reproducibility.py
 
 **Result**: ✅ **PASS** (Critical 전부 통과)
 - **안정성 Gate (D94)**: exit_code=0 ✅, ERROR=0 ✅, duration OK ✅, kill_switch=false ✅
-- **성능 지표 (D95로 이관)**: win_rate=0%, PnL=$-0.35 (INFO만)
+- **성능 지표 (D95로 이동)**: win_rate=0%, PnL=$-0.35 (INFO만)
 
 **D94 vs D95 분리 (SSOT)**:
 - **D94**: Crash-free, Error-free, Duration 충족 → **PASS**
@@ -1577,12 +1577,12 @@ Layer 3 (D98-2): Live API - @enforce_readonly (HTTP 레벨 최종 방어선)
 - 환경변수 보강 (conftest.py) (예상 -10 FAIL)
 - 목표: 54 → 40 이하 (-14개)
 
-### D99-18 (P17): Async Migration + Singleton Reset (2025-12-26) ✅ COMPLETE
+### D99-18 (P17): Async Transition + Singleton Reset (2025-12-26) ✅ COMPLETE
 - **목표:** Full Regression FAIL 감소 + 테스트 격리 개선
 - **Solution:**
   - Singleton reset AFTER test (Settings, readonly_guard)
   - Alert system 기본 격리 (router, dispatcher)
-  - Async migration 완료 (run_once deprecated)
+  - Async 전환 완료 (run_once deprecated)
 - **Result:**
   - Core Regression: 44/44 PASS ✅
   - Full Regression: 2510 PASS, 5 FAIL (99.80%)
@@ -2428,7 +2428,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 **목표:**
 - 규칙 파편화로 인한 SSOT 파손/AC 누락/단계 합치기 사고를 구조적으로 차단
 - D_PROMPT_TEMPLATE + D_TEST_TEMPLATE + SSOT_DOCOPS를 SSOT_RULES 하나로 통합
-- AC 이관/COMPLETED 합치기 금지/Ellipsis 금지 규칙 명시화
+- AC 이동/COMPLETED 합치기 금지/Ellipsis 금지 규칙 명시화
 - Design 문서 정독을 디폴트 규칙으로 확립
 
 **범위 (Do/Don't):**
@@ -2436,10 +2436,10 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - ❌ Don't: 트레이딩 로직/엔진 변경, 인프라 확장, COMPLETED 단계에 합치기
 
 **AC (증거 기반 검증):**
-- [x] **AC-1:** SSOT_RULES.md에 D_PROMPT_TEMPLATE (Step 0~9) 완전 이관 ✅ Section C
-- [x] **AC-2:** SSOT_RULES.md에 D_TEST_TEMPLATE (Gate/Wallclock) 완전 이관 ✅ Section D
-- [x] **AC-3:** SSOT_RULES.md에 SSOT_DOCOPS (DocOps Gate) 완전 이관 ✅ Section E
-- [x] **AC-4:** AC 이관 프로토콜 명시 (원본: ~~취소선~~ + MOVED_TO, 대상: FROM)
+- [x] **AC-1:** SSOT_RULES.md에 D_PROMPT_TEMPLATE (Step 0~9) 완전 통합 ✅ Section C
+- [x] **AC-2:** SSOT_RULES.md에 D_TEST_TEMPLATE (Gate/Wallclock) 완전 통합 ✅ Section D
+- [x] **AC-3:** SSOT_RULES.md에 SSOT_DOCOPS (DocOps Gate) 완전 통합 ✅ Section E
+- [x] **AC-4:** AC 이동 프로토콜 명시 (원본: ~~취소선~~ + MOVED_TO, 대상: FROM)
 - [x] **AC-5:** COMPLETED 단계 합치기 금지 명시 (무조건 새 D/새 브랜치)
 - [x] **AC-6:** Ellipsis 및 임시 마커 금지 명시
 - [x] **AC-7:** Design 문서 정독 디폴트화 (docs/v2/design 최소 2개 요약)
@@ -2447,7 +2447,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - [x] **AC-9:** Gate Doctor/Fast/Regression 100% PASS
 - [x] **AC-10:** check_ssot_docs.py PASS (스코프 내 FAIL 0개, 증거: ssot_docs_check_final.txt)
 - [x] **AC-11:** Evidence 패키징 (manifest.json, gate_results.txt, SCAN_REUSE_SUMMARY.md, DOCS_READING_CHECKLIST.md, PROBLEM_STATEMENT.md)
-- [x] **AC-12:** D000-1_REPORT.md 작성 (변경 이유, 통합 결과, AC 이관 규칙 예시, Gate 결과, Evidence)
+- [x] **AC-12:** D000-1_REPORT.md 작성 (변경 이유, 통합 결과, AC 이동 규칙 예시, Gate 결과, Evidence)
 - [x] **AC-13:** Git commit + push (Commit 42f854c, Push 완료)
 
 **Evidence 요구사항:**
@@ -2491,7 +2491,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 **범위 (Do/Don't):**
 - ✅ Do: 삭제된 파일 복구+rename, SSOT_RULES 패치, D000-2_REPORT 작성, ExitCode=0 진짜 달성
-- ❌ Don't: 트레이딩 로직/엔진 변경, Gate 회피 (워딩 꼼수/파일 삭제), AC PENDING인데 DONE 표기
+- ❌ Don't: 트레이딩 로직/엔진 변경, Gate 회피 (워딩 꼼수/파일 삭제), AC 미충족인데 DONE 표기
 
 **AC (증거 기반 검증):**
 - [x] **AC-1:** SSOT_RULES Section J (Gate 회피 금지) 추가 ✅
@@ -2523,7 +2523,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 **PASS/FAIL 판단:**
 - PASS: AC 11개 전부 달성 + ExitCode=0 물리적 증거 + Evidence 완비
-- FAIL: AC PENDING인데 DONE 표기 (데이터 조작), Gate 회피 발견 시 즉시 FAIL
+- FAIL: AC 미충족인데 DONE 표기 (데이터 조작), Gate 회피 발견 시 즉시 FAIL
 
 **다음 단계 (완료 후):**
 - D205-11-3 작업 복귀 (check_ssot_docs.py 100% CLEAN + Gate 회피 재발 방지 장치 완비)
@@ -2564,7 +2564,7 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 **날짜:** 2025-12-29 (착수), 2026-01-01 (Closeout)
 **커밋:** 29a61fd
 **브랜치:** rescue/d99_15_fullreg_zero_fail
-**문서:** `docs/v2/design/SSOT_MAP.md`, `docs/v2/design/CLEANUP_CANDIDATES.md`, `db/migrations/v2_schema.sql`
+**문서:** `docs/v2/design/SSOT_MAP.md`, `docs/v2/design/CLEANUP_CANDIDATES.md`, DB 스키마 SQL (v2_schema.sql)
 **Evidence:** `logs/evidence/D200_1_closeout_20260101_0055/`
 
 **목표:**
@@ -2876,7 +2876,7 @@ threshold_bps = config.exchanges.upbit.taker_fee_bps + \
 - D203 Hygiene 마감 (SSOT 정합 + 입력값 가드) ✅
 
 **AC:**
-- [x] DB 스키마: `db/migrations/v2_schema.sql` (이미 존재, 재사용)
+- [x] DB 스키마: `v2_schema.sql` (이미 존재, 재사용)
 - [x] V2LedgerStorage 클래스 구현 (arbitrage/v2/storage/ledger_storage.py)
 - [x] Orders/Fills/Trades DAO 메서드 (insert, get, update)
 - [x] test_d204_1_ledger_storage.py 11/11 PASS
@@ -4033,7 +4033,7 @@ Rationale:
 
 #### D205-12-2: Engine Unification (Single Engine Loop)
 **상태:** PARTIAL (2026-01-06) - AC 4/9 완료
-**커밋:** 91d35bd (D206-0 PARTIAL → D205-12-2 이관)
+**커밋:** 91d35bd (D206-0 PARTIAL → D205-12-2 이동)
 **테스트:** Doctor/Fast PASS, Regression 차기
 **문서:** `docs/v2/reports/D205/D205-12-2_REPORT.md` (차기)
 **Evidence:** `logs/evidence/d205_12_2_engine_unification_20260106_004100/`
@@ -4312,7 +4312,7 @@ Rationale:
 - ✅ Do: 테스트 추가 (test_d205_14_2_autotune.py)
 - ✅ Do: D_ROADMAP 임시 토큰 제거
 - ❌ Don't: sweep.py 로직 수정 (코드 정상 확인)
-- ❌ Don't: 신규 시장 데이터 수집 (D205-14-3로 이관)
+- ❌ Don't: 신규 시장 데이터 수집 (D205-14-3로 이동)
 
 **Acceptance Criteria:**
 - [x] AC-1: 입력 데이터 200줄 확보 ✅
@@ -4374,7 +4374,7 @@ Rationale:
 - ✅ Do: REST ticker API로 10분 recording (1050 ticks)
 - ✅ Do: market_diversity_analyzer.py 추가 (품질 분석)
 - ✅ Do: test_d205_14_3_diversity.py (synthetic 데이터로 코드 정상성 증명)
-- ❌ Don't: WebSocket orderbook 수집 (D205-14-4로 이관)
+- ❌ Don't: WebSocket orderbook 수집 (D205-14-4로 이동)
 - ❌ Don't: sweep.py 로직 수정 (코드 정상 확인)
 
 **Acceptance Criteria:**
@@ -5105,9 +5105,9 @@ logs/evidence/d205_15_3_profit_realism_<timestamp>/
   - 테스트: `tests/test_d205_15_4_fx_live.py::TestValidateFxProviderForMode`
 - [x] AC-4: Evidence에 FX 메타 기록 (fx_rate, fx_source, fx_timestamp, degraded) ✅
   - FxRateInfo.to_dict() 구현
-- [x] AC-5: 상수 후보 탐지 및 config 이관 (ADD-ON #2) ✅
+- [x] AC-5: 상수 후보 탐지 및 config 반영 (ADD-ON #2) ✅
   - 탐지 완료: 대부분 기본값/문서로 허용
-  - quote_normalizer.py 상수는 별도 D에서 config 이관 권장
+  - quote_normalizer.py 상수는 별도 D에서 config 반영 권장
 - [x] AC-6: 중복 모듈 탐지 및 통합 (ADD-ON #3) ✅
   - FX/Funding 경로 중복 없음
   - UniverseConfig 중복 발견 (별도 D에서 통합 권장)
@@ -5133,7 +5133,7 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
 ├── constant_audit/
 │   ├── before_rg.txt
 │   ├── after_rg.txt
-│   └── migration_log.md
+│   └── transition_log.md
 ├── gate_results/
 │   ├── doctor_gate.txt
 │   ├── fast_gate.txt
@@ -5267,7 +5267,7 @@ logs/evidence/d205_15_5_paper_6h_<timestamp>/
 - **"시장 vs 로직" 판정 체계**: wins=0 현상이 시장 문제인지 로직 버그인지 데이터로 판정
 - **Self-Monitor (RunWatcher)**: 사람 개입 없이 FAIL-fast 자동 중단 (wins=0 연속, edge<0 지속)
 - **Evidence Decomposition**: predicted_edge vs realized_pnl 분해 지표 저장
-- **Config SSOT화**: break_even 파라미터 config.yml 이관, 하드코딩 제거
+- **Config SSOT화**: break_even 파라미터 config.yml 반영, 하드코딩 제거
 
 **범위 (Do):**
 - ✅ RunWatcher 엔진화 (60초 heartbeat, FAIL 조건 자동 감지)
@@ -5402,7 +5402,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
   - AC-2: ✅ run_paper_with_watchdog.ps1에 --use-real-data 전달 (커밋 198484e)
   - AC-3: ✅ paper_runner.py baseline/longrun에서 use_real_data=False 감지 시 FAIL (커밋 d208274)
   - AC-4: ✅ FeatureGuard baseline/longrun Mock opportunity 경로 탐지 시 FAIL (커밋 d208274)
-  - AC-5: ✅ MockAdapter 슬리피지 파라미터를 config.yml로 이관 (커밋 198484e)
+  - AC-5: ✅ MockAdapter 슬리피지 파라미터를 config.yml로 반영 (커밋 198484e)
   - AC-6: ✅ Gate Doctor/Fast/Regression 100% PASS (커밋 98d1077)
   - 상태: ✅ COMPLETED (2026-01-11)
   - 증거: logs/evidence/d205_18_1_gate_recovery_20260111_201309/
@@ -5418,8 +5418,8 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - Gate Fast 100% PASS (Zero-Skip Policy)
 
 **Acceptance Criteria:**
-- AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이관
-- AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이관
+- AC-1: ✅ v2/core/metrics.py 생성, KPI 집계 로직 이동
+- AC-2: ✅ v2/core/monitor.py 생성, Evidence 수집 로직 이동
 - AC-3: ✅ Orchestrator + RuntimeFactory 생성, PaperRunner 149 LOC 달성
 - AC-4: ✅ Core 모듈 6개 생성 (OpportunitySource, PaperExecutor, LedgerWriter, RuntimeFactory, Orchestrator, Metrics/Monitor)
 - AC-5: ✅ DIP 달성 (Core는 Harness를 모른다)
@@ -5439,7 +5439,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - D205-18-2F: `logs/evidence/d205_18_2f_integrity_recovery_20260111_233100/`
 
 **Commits:**
-- 6771366: D205-18-2 Initial (Metrics/Monitor 이관)
+- 6771366: D205-18-2 Initial (Metrics/Monitor 이동)
 - 75fa0bf: D205-18-2D (Orchestrator 생성, PaperRunner 149 LOC)
 - b930710: D205-18-2E (Gate Repair, SKIP 8→2)
 - [current]: D205-18-2F (Zero-Skip 달성, SKIP 2→0)
@@ -6124,7 +6124,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - [x] AC-2: OrderBookSnapshot 통합 - `_detect_single_opportunity()` 인자를 OrderBookSnapshot 지원 (backward compatible)
 - [x] AC-3: ArbitrageOpportunity 통합 - `_detect_single_opportunity()` 반환값을 ArbitrageOpportunity dataclass로 변경
 - [x] AC-4: ArbitrageTrade 통합 - Engine 내부 `_open_trades: List[ArbitrageTrade]` 전환 완료
-- [ ] AC-5: ArbRoute 통합 - V1 ArbRoute 의사결정 로직 (D206-2로 이관: FeeModel/MarketSpec 통합 필요)
+- [ ] AC-5: ArbRoute 통합 - V1 ArbRoute 의사결정 로직 (D206-2로 이동: FeeModel/MarketSpec 통합 필요)
 - [x] AC-6: 타입 안정성 검증 - Doctor Gate PASS (python -m compileall), 17/17 tests PASS
 
 **Evidence 경로:**
@@ -6181,7 +6181,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 **Evidence 경로:**
 - 이식 보고: `docs/v2/reports/D206/D206-2_REPORT.md`
 - Parity 테스트: `tests/test_d206_2_v1_v2_parity.py` (8/8 PASS, D206-2-1에서 완성)
-- Evidence: `logs/evidence/d206_2_strategy_migration_20260116_224103/`
+- Evidence: `logs/evidence/d206_2_strategy_transition_20260116_224103/`
 - Doctor Gate: `python -m compileall arbitrage/v2 -q` (Exit 0)
 - Fast Gate: `pytest tests/test_d206_1_domain_models.py` (17/17 PASS)
 - Compare URL: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/7aac6b8..38f07bc
@@ -6523,7 +6523,7 @@ enable_execution: false       # REQUIRED
 ```
 구 D206-2: 자동 파라미터 튜너 (Bayesian Optimization) - PLANNED (미수행)
 - Rebase 사유: "시기상조 (쓰레기 최적화)"
-- Phase 2 (D207) BASELINE 수익성 증명 후로 이관
+- Phase 2 (D207) BASELINE 수익성 증명 후로 이동
 - 원본: LEGACY_D206_D209_ARCHIVE.md Line 124-136
 ```
 
@@ -6570,7 +6570,7 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-3: 승률 100% 방지
 
-**상태:** ⚠️ PARTIAL (2026-01-21, D207-1 dependency pending)  
+**상태:** ⚠️ PARTIAL (2026-01-21, D207-1 dependency 미해결, docops_followup_D207_3_roadmap_01: D207-1 BASELINE 증거 필요)  
 **진행:**
 - ✅ WIN_RATE_100_SUSPICIOUS kill-switch 구현 + RunWatcher 연동
 - ✅ deterministic_drift_bps(10bps) 탐지 경로 적용 + runtime_factory 주입
@@ -6632,7 +6632,7 @@ enable_execution: false       # REQUIRED
 **Tag:** [CORE] (수익성 증명 후 필수 수행 - 지능적 전략 최적화)
 
 **배경:**
-- LEGACY_D206_D209_ARCHIVE.md의 구 D206-2 "자동 파라미터 튜너 (Bayesian Optimization)"를 Phase 2로 이관
+- LEGACY_D206_D209_ARCHIVE.md의 구 D206-2 "자동 파라미터 튜너 (Bayesian Optimization)"를 Phase 2로 이동
 - D205-14 AutoTuner는 "execution_quality 튜닝" (slippage_alpha, partial_fill_penalty 등)
 - D207-4는 "strategy parameter 튜닝" (Entry/Exit 임계치: min_spread_bps, take_profit_bps, stop_loss_bps 등)
 - **목적 차이 명확화:** D205-14 (실행 품질) vs D207-4 (전략 파라미터)
@@ -6677,7 +6677,7 @@ enable_execution: false       # REQUIRED
 ```
 구 D206-2: 자동 파라미터 튜너 (Bayesian Optimization) - PLANNED (미수행)
 - Rebase 사유: "시기상조 (쓰레기 최적화)"
-- Phase 2 (D207) BASELINE 수익성 증명 후로 이관
+- Phase 2 (D207) BASELINE 수익성 증명 후로 이동
 - 원본: LEGACY_D206_D209_ARCHIVE.md Line 124-136
 ```
 
@@ -6801,8 +6801,8 @@ enable_execution: false       # REQUIRED
 
 **Acceptance Criteria:**
 - [x] AC-1: universe(top=100)가 로딩되면 **universe_size=100**이 아티팩트에 기록된다. *(tests/test_d_alpha_0_universe_truth.py)*
-- [ ] AC-2: survey 실행 중 “실제 평가된 unique symbols 수”가 **>=80**(20분 기준)임을 증명한다. *(Top100 REAL survey pending)*
-- [ ] AC-3: `symbols_top=100`인데 `symbols`가 10개만 들어가는 경로가 있으면 제거/수정한다. *(runtime validation pending)*
+- [ ] AC-2: survey 실행 중 “실제 평가된 unique symbols 수”가 **>=80**(20분 기준)임을 증명한다. *(Top100 REAL survey docops_followup_D_ALPHA_0_01: 20분 REAL survey 증거 필요)*
+- [ ] AC-3: `symbols_top=100`인데 `symbols`가 10개만 들어가는 경로가 있으면 제거/수정한다. *(runtime validation docops_followup_D_ALPHA_0_02: 런타임 검증 미해결)*
 - [x] AC-4: 테스트로 보장한다(TopN 로딩/샘플링/기록). *(tests/test_d_alpha_0_universe_truth.py)*
 
 **Evidence 경로:**
@@ -6968,7 +6968,7 @@ enable_execution: false       # REQUIRED
 
 #### D_ALPHA-2: OBI Filter & Ranking (HFT Intelligence v1)
 
-**상태:** PLANNED  
+**상태:** IN PROGRESS (2026-02-04)  
 **목적:** “아무 기회나”가 아니라 **OBI로 유리한 순간만** 골라 메이커 진입을 보조.
 
 **Acceptance Criteria:**
@@ -6976,8 +6976,22 @@ enable_execution: false       # REQUIRED
 - [ ] AC-2: TopN 후보를 OBI로 랭킹하고 “왜 선택했는지”를 아티팩트로 남긴다.
 - [ ] AC-3: 최소 1회 이상 positive net edge 샘플을 확보하거나, 실패 원인이 ‘시장구조/수수료/체결확률’로 분해된다.
 
+**Gate 결과 (2026-02-05):**
+- Doctor: `logs/evidence/20260205_203818_gate_doctor_486553f/`
+- Fast: `logs/evidence/20260205_203839_gate_fast_486553f/`
+- Regression: `logs/evidence/20260205_204500_gate_regression_486553f/`
+
+**OBI OFF 20m smoke (조기 종료, 2026-02-05):**
+- Evidence: `logs/evidence/d_alpha_2_obi_off_smoke_20m_20260205_005828/`
+- watch_summary: planned_total_hours=0.3333333333333333, monotonic_elapsed_sec=124.11746644973755, completeness_ratio=0.10343122204144796, stop_reason=MODEL_ANOMALY
+- kpi: duration_seconds=123.79, duration_minutes=2.06, expected_duration_sec=1200, wallclock_drift_pct=89.7, opportunities_generated=20, intents_created=40, closed_trades=19, winrate_pct=100.0, gross_pnl=4.26, net_pnl=4.08, fees=0.18, db_inserts_ok=0, error_count=0
+- FACT_CHECK_SUMMARY: pnl.gross_pnl=4.26, pnl.fees_total=0.1808, pnl.slippage_total=1.2921, pnl.latency_cost=0.3629, pnl.net_pnl=4.08, pnl.net_pnl_recomputed=2.4242, obi_stats.total_candidates=400, obi_stats.obi_samples=400, obi_stats.obi_mean=-0.001465, obi_stats.obi_p50=-0.028696, obi_stats.obi_p95=0.414613, obi_stats.obi_abs_mean=0.157279, obi_stats.obi_abs_p95=0.449881, obi_stats.filter.levels=5, obi_stats.filter.threshold=0.02, obi_stats.filter.top_k=2, obi_stats.filter_pass=0, obi_stats.filter_drop=0
+- OBI ON 20m survey: docops_followup_D_ALPHA_2_OBI_ON_01: OBI enabled 20m survey 증거 추가 필요
+
 **Evidence 경로:**
 - `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
+- `logs/evidence/d_alpha_2_obi_off_*/` (OBI disabled: 2m smoke + 20m survey)
+- `logs/evidence/d_alpha_2_obi_on_*/` (OBI enabled: 2m smoke + 20m survey)
 - 테스트: `tests/test_d_alpha_2_obi_filter.py`
 
 **의존성:**

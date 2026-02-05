@@ -87,7 +87,7 @@ pip install -r requirements.txt
 | **1** | **Process** | [`D_ROADMAP.md`](D_ROADMAP.md) | 프로젝트 로드맵, D 단계 정의 |
 | **2** | **Runtime Config** | [`config/v2/config.yml`](config/v2/config.yml) | 거래소/전략/안전 설정 |
 | **3** | **Secrets** | [`.env.v2.example`](.env.v2.example) | API Keys 템플릿 (실제: `.env.v2`) |
-| **4** | **Data (DB)** | [`db/migrations/v2_schema.sql`](db/migrations/v2_schema.sql) | PostgreSQL 스키마 |
+| **4** | **Data (DB)** | [`db/schema/v2_schema.sql`](db/schema/v2_schema.sql) | PostgreSQL 스키마 |
 | **5** | **Cache/Locks (Redis)** | [`docs/v2/design/REDIS_KEYSPACE.md`](docs/v2/design/REDIS_KEYSPACE.md) | Redis 키 네이밍 규칙 |
 | **6** | **Monitoring** | [`monitoring/prometheus/prometheus.v2.yml`](monitoring/prometheus/prometheus.v2.yml) | Prometheus/Grafana 설정 |
 | **7** | **Evidence** | [`docs/v2/design/EVIDENCE_FORMAT.md`](docs/v2/design/EVIDENCE_FORMAT.md) | 실행 증거 저장 포맷 |

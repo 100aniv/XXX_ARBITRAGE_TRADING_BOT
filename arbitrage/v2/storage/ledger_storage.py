@@ -1,7 +1,7 @@
 """
 D204-1: V2 Ledger Storage (PostgreSQL DAO Layer)
 
-SSOT: db/migrations/v2_schema.sql
+SSOT: db/schema/v2_schema.sql
 Pattern: arbitrage/alerting/storage/postgres_storage.py (연결/쿼리 패턴)
 
 목적:
@@ -67,7 +67,7 @@ class V2LedgerStorage:
     """
     V2 Ledger Storage (PostgreSQL DAO)
     
-    SSOT: db/migrations/v2_schema.sql
+    SSOT: db/schema/v2_schema.sql
     - v2_orders: 주문 기록
     - v2_fills: 체결 기록
     - v2_trades: 차익거래 기록
@@ -101,7 +101,7 @@ class V2LedgerStorage:
         """
         Check if v2_schema.sql tables exist
         
-        Note: 실제 테이블 생성은 db/migrations/v2_schema.sql로 수동 실행
+        Note: 실제 테이블 생성은 db/schema/v2_schema.sql로 수동 실행
         이 메서드는 테이블 존재 여부만 확인 (마이그레이션 체크)
         """
         check_sql = """
@@ -117,11 +117,11 @@ class V2LedgerStorage:
                     tables = [row[0] for row in cur.fetchall()]
                     
                     if 'v2_orders' not in tables:
-                        logger.warning("v2_orders table not found. Run: psql -f db/migrations/v2_schema.sql")
+                        logger.warning("v2_orders table not found. Run: psql -f db/schema/v2_schema.sql")
                     if 'v2_fills' not in tables:
-                        logger.warning("v2_fills table not found. Run: psql -f db/migrations/v2_schema.sql")
+                        logger.warning("v2_fills table not found. Run: psql -f db/schema/v2_schema.sql")
                     if 'v2_trades' not in tables:
-                        logger.warning("v2_trades table not found. Run: psql -f db/migrations/v2_schema.sql")
+                        logger.warning("v2_trades table not found. Run: psql -f db/schema/v2_schema.sql")
         except Exception as e:
             logger.warning(f"Schema check failed: {e}")
     
