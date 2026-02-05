@@ -6977,16 +6977,20 @@ enable_execution: false       # REQUIRED
 - [ ] AC-3: 최소 1회 이상 positive net edge 샘플을 확보하거나, 실패 원인이 ‘시장구조/수수료/체결확률’로 분해된다.
 
 **Gate 결과 (2026-02-05):**
-- Doctor: `logs/evidence/20260205_203818_gate_doctor_486553f/`
-- Fast: `logs/evidence/20260205_203839_gate_fast_486553f/`
-- Regression: `logs/evidence/20260205_204500_gate_regression_486553f/`
+- DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
+- Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)
+- Fast: `logs/evidence/20260205_230950_gate_fast_final/` (exitcode.txt=0)
+- Regression: **FAIL** — `logs/evidence/20260205_230950_gate_regression_final/` (gate.log: 2910 passed, 43 skipped ▶ Infinity-Supreme zero-skip 위반, exitcode.txt=0이지만 스킵 해소 필요)
 
-**OBI OFF 20m smoke (조기 종료, 2026-02-05):**
+**Follow-up:** D_ALPHA-2-ZERO-SKIP — Regression 스킵 43건 해소 플랜 수립 (tests/test_d41_k8s_tuning_session_runner.py 등)
+
+**OBI OFF 20m smoke (조기 종료, 2026-02-05) — FAIL:**
 - Evidence: `logs/evidence/d_alpha_2_obi_off_smoke_20m_20260205_005828/`
-- watch_summary: planned_total_hours=0.3333333333333333, monotonic_elapsed_sec=124.11746644973755, completeness_ratio=0.10343122204144796, stop_reason=MODEL_ANOMALY
-- kpi: duration_seconds=123.79, duration_minutes=2.06, expected_duration_sec=1200, wallclock_drift_pct=89.7, opportunities_generated=20, intents_created=40, closed_trades=19, winrate_pct=100.0, gross_pnl=4.26, net_pnl=4.08, fees=0.18, db_inserts_ok=0, error_count=0
-- FACT_CHECK_SUMMARY: pnl.gross_pnl=4.26, pnl.fees_total=0.1808, pnl.slippage_total=1.2921, pnl.latency_cost=0.3629, pnl.net_pnl=4.08, pnl.net_pnl_recomputed=2.4242, obi_stats.total_candidates=400, obi_stats.obi_samples=400, obi_stats.obi_mean=-0.001465, obi_stats.obi_p50=-0.028696, obi_stats.obi_p95=0.414613, obi_stats.obi_abs_mean=0.157279, obi_stats.obi_abs_p95=0.449881, obi_stats.filter.levels=5, obi_stats.filter.threshold=0.02, obi_stats.filter.top_k=2, obi_stats.filter_pass=0, obi_stats.filter_drop=0
-- OBI ON 20m survey: docops_followup_D_ALPHA_2_OBI_ON_01: OBI enabled 20m survey 증거 추가 필요
+- watch_summary.json @ 로그: planned_total_hours=0.3333333333333333, monotonic_elapsed_sec=124.11746644973755, completeness_ratio=0.10343122204144796, stop_reason=MODEL_ANOMALY
+- kpi.json @ 로그: duration_seconds=123.79, expected_duration_sec=1200, wallclock_drift_pct=89.7, opportunities_generated=20, intents_created=40, closed_trades=19, winrate_pct=100.0, net_pnl=4.08, db_inserts_ok=0, error_count=0
+- FACT_CHECK_SUMMARY.txt @ 로그: obi_stats.filter_pass=0, obi_stats.filter_drop=0, obi_stats.obi_mean=-0.001465, obi_stats.obi_p95=0.414613, pnl.net_pnl_recomputed=2.4242, latency_cost=0.3629
+- 결론: FAIL — Time Truth 위반 (duration_seconds 123.79s vs expected 1200s, drift 89.7%) + stop_reason=MODEL_ANOMALY
+- Follow-up: `docops_followup_D_ALPHA_2_OBI_ON_01` (OBI enabled 20m survey 증거 확보 및 모델 이상 원인 규명)
 
 **Evidence 경로:**
 - `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
