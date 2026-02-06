@@ -21,10 +21,16 @@ from arbitrage.v2.harness.paper_runner import PaperRunner, PaperRunnerConfig
 @pytest.fixture
 def redis_client():
     """Redis 클라이언트 (DB 1, 테스트 전용)"""
-    client = redis.Redis(host='localhost', port=6379, db=1, decode_responses=True)
+    client = redis.Redis(host='localhost', port=6379, db=1, decode_responses=True, socket_timeout=3)
+    try:
+        client.ping()
+    except redis.ConnectionError:
+        pytest.skip("Redis not available")
     yield client
-    # 테스트 후 flush (오염 방지)
-    client.flushdb()
+    try:
+        client.flushdb()
+    except redis.ConnectionError:
+        pass
 
 
 @pytest.fixture

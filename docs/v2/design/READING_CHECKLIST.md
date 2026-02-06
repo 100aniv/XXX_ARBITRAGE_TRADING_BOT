@@ -72,6 +72,16 @@
 - docs/v2/design/V2_ARCHITECTURE.md — 확인: Engine-Centric + Adapter 계약 재확인.
 - docs/v2/design/CONFIG_SCHEMA.md — 확인: Zero-Fallback + Decimal 규칙 재확인.
 
+## Step 0 Reading (D_ALPHA-2_DOCOPS_TO_PROFIT)
+
+- D_ROADMAP.md — 확인: D_ALPHA-2 AC 추가(Zero-Skip/OBI 20m/분해) 및 증거 경로/FAIL 기록 기준 재확인.
+- docs/v2/SSOT_RULES.md — 확인: Gate 3단, Roadmap-first, Zero-Stop, Report 규칙 재확인.
+- docs/v2/OPS_PROTOCOL.md — 확인: Invariant(Wallclock/Heartbeat/DB/Evidence) + RunWatcher stop_reason 규칙 재확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층, DB/Redis Required, Evidence SSOT 위치 재확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: evidence 필수 산출물 및 gate.log/manifest 규칙 재확인.
+- .windsurf/rules/arbitrage-workspace-rule.md — 확인: SSOT 2-기둥 구조 + DocOps Always-On 규칙 재확인.
+- .windsurf/workflows/workflows-arbitrage-workspace.md — 확인: /0_bootstrap_v2, /1_gate_fast_v2, /2_gate_regression_v2, /6_doc_commit_push_v2 흐름 재확인.
+
 ## Step 0 Reading (D_ALPHA-1U-FIX-2-1)
 
 - D_ROADMAP.md — 확인: D_ALPHA-1U-FIX-2 완료 상태 유지 및 FIX-2-1 브랜치 선기입 필요.

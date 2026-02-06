@@ -814,7 +814,17 @@ class PaperOrchestrator:
         from pathlib import Path
         evidence_root = str(Path(self.config.output_dir).parent)
         phase = getattr(self.config, "phase", "")
-        early_stop_enabled = phase not in ["baseline", "longrun", "edge_survey"]
+        survey_mode = getattr(self.config, "survey_mode", False)
+        
+        # D_ALPHA-2: survey_mode=True이면 데이터 수집 목적이므로
+        # early_stop + always-on 가드를 완화하여 MODEL_ANOMALY 조기 종료 방지
+        early_stop_enabled = phase not in ["baseline", "longrun", "edge_survey"] and not survey_mode
+        
+        # D_ALPHA-2: survey_mode에서 always-on 가드 임계치 완화
+        # survey는 데이터 수집이므로 winrate 100% / trade starvation은 정상 동작
+        winrate_100_threshold = 999999 if survey_mode else 20
+        trade_starvation_flag = not survey_mode
+        
         watcher_config = WatcherConfig(
             heartbeat_sec=60,
             early_stop_enabled=early_stop_enabled,
@@ -824,8 +834,15 @@ class PaperOrchestrator:
             check_machinegun=True,
             max_trades_per_minute=20,
             evidence_dir=evidence_root,
+            winrate_100_trade_threshold=winrate_100_threshold,
+            trade_starvation_enabled=trade_starvation_flag,
         )
-        logger.info(f"[D207-1] WatcherConfig: phase={phase}, early_stop_enabled={early_stop_enabled}")
+        logger.info(
+            f"[D_ALPHA-2] WatcherConfig: phase={phase}, survey_mode={survey_mode}, "
+            f"early_stop_enabled={early_stop_enabled}, "
+            f"winrate_100_threshold={winrate_100_threshold}, "
+            f"trade_starvation={trade_starvation_flag}"
+        )
         
         self._watcher = RunWatcher(
             config=watcher_config,

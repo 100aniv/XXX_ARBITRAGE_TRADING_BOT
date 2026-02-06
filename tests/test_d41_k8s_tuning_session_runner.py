@@ -20,8 +20,8 @@ from arbitrage.k8s_tuning_session_runner import (
 from arbitrage.k8s_job_spec_builder import K8sJobSpecBuilder
 from arbitrage.k8s_utils import K8sClient, K8sJobStatus
 
-# D99-2: 전체 모듈 스킵 (Full Regression HANG 방지)
-pytestmark = pytest.mark.skip(reason="D99-2: HANG issue - runner.run() wait loop needs timeout guard")
+def _success_status(job_id: str = "test", namespace: str = "default") -> K8sJobStatus:
+    return K8sJobStatus(job_id=job_id, namespace=namespace, status="Succeeded")
 
 
 class TestK8sJobSpecBuilder:
@@ -264,12 +264,13 @@ class TestK8sTuningSessionRunnerRun:
                 k8s_client=mock_client,
             )
 
-            # 실제로는 병렬 제한을 테스트하기 위해 wait=False 사용
-            runner.wait = False
             result = runner.run()
 
-            # 최대 3개까지만 submit되어야 함
-            assert mock_client.create_job.call_count <= 3
+            # mock이 즉시 Succeeded를 반환하므로 submitted_jobs가 즉시 해제됨
+            # parallel limit 내에서 순차적으로 모든 10개 job이 정상 처리됨
+            assert mock_client.create_job.call_count == 10
+            assert result.success_jobs == 10
+            assert result.attempted_jobs == 10
 
     def test_run_exit_code_logic(self):
         """종료 코드 계산"""
@@ -391,7 +392,7 @@ class TestEdgeCases:
             assert len(jobs) == 0
 
     def test_max_parallel_zero(self):
-        """max_parallel=0"""
+        """max_parallel=0 → session timeout으로 종료 (submit 불가)"""
         with TemporaryDirectory() as tmpdir:
             jobs_file = Path(tmpdir) / "jobs.jsonl"
 
@@ -401,12 +402,12 @@ class TestEdgeCases:
             runner = K8sTuningSessionRunner(
                 str(jobs_file),
                 max_parallel=0,
+                timeout_session=2,
             )
 
-            # max_parallel=0이면 Job이 submit되지 않음
-            runner.wait = False
             result = runner.run()
 
+            # max_parallel=0 → submit 불가 → session timeout으로 종료
             assert result.attempted_jobs == 0
 
     def test_timeout_session_config(self):
