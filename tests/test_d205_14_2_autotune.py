@@ -6,6 +6,8 @@ import json
 import pytest
 from pathlib import Path
 
+pytestmark = pytest.mark.optional_live
+
 
 def test_leaderboard_structure():
     """

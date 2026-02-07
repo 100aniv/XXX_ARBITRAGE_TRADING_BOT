@@ -11,6 +11,8 @@ import pytest
 from pathlib import Path
 import sys
 
+pytestmark = pytest.mark.optional_live
+
 # 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

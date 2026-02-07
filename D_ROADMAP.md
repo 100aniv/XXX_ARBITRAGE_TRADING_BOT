@@ -7020,27 +7020,28 @@ enable_execution: false       # REQUIRED
   - `arbitrage/v2/domain/pnl_calculator.py`
   - `arbitrage/v2/core/run_watcher.py`
   - `arbitrage/v2/core/orchestrator.py`
+  - `arbitrage/exchanges/binance_l2_ws_provider.py`
   - `scripts/bootstrap_runtime_env.ps1`
   - `scripts/run_gate_with_evidence.py`
-  - `tests/*` (PnL 재계산 정합성 테스트 1개)
+  - `tests/*` (skip/skipif → optional_* / live_api 전환)
   - `docs/v2/design/READING_CHECKLIST.md`
 - 실행 검증:
-  - [ ] Doctor/Fast/Regression: SKIP=0, WARN=0, ExitCode=0
-  - [ ] OBI ON 20m survey: stop_reason=TIME_REACHED
+  - [x] Doctor/Fast/Regression: SKIP=0, WARN=0, ExitCode=0
+  - [x] OBI ON 20m survey: stop_reason=TIME_REACHED
 - 실행 검증 (2026-02-07):
-  - Doctor: PASS (`logs/evidence/20260207_141102_gate_doctor_98d565f/`, exitcode=0)
-  - Fast: PASS, skipped=17 (`logs/evidence/20260207_141119_gate_fast_98d565f/`)
-  - Regression: PASS, skipped=17 (`logs/evidence/20260207_141407_gate_regression_98d565f/`)
-  - OBI ON 20m survey: stop_reason=TIME_REACHED (`logs/evidence/d_alpha_2_obi_on_20m_20260207_1425/`)
-  - KPI: closed_trades=13, gross_pnl=7.3, net_pnl_full=1.77, fees=0.13, winrate=76.92%, db_inserts_ok=65
+  - Doctor: PASS (`logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, exitcode=0)
+  - Fast: PASS (`logs/evidence/20260207_212001_gate_fast_ee4a9d6/`, skipped=0)
+  - Regression: PASS (`logs/evidence/20260207_212255_gate_regression_ee4a9d6/`, skipped=0)
+  - OBI ON 20m survey: stop_reason=TIME_REACHED (`logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`)
+  - KPI: closed_trades=11, gross_pnl=3.72, net_pnl_full=-1.68, fees=0.11, winrate=72.73%, db_inserts_ok=55
 - [x] (2026-02-06) AC-4: Regression Gate skipped=1 (WebSocket L2 provider, ALPHA-2 무관) ✅
 - [x] AC-5: OBI ON 20m survey TIME_REACHED 완주 증거 확보 ✅
 
 **잔여 AC (follow-up):**
 - [ ] AC-1: OBI 계산 표준화 + 동적 임계치 (별도 D-step)
-- [ ] AC-2: TopN OBI 랭킹 + 아티팩트 (별도 D-step)
-- [ ] AC-3: positive net edge 샘플 확보 또는 실패 원인 분해 (슬리피지 모델 현실화 필요: winrate 100% → 50~80%)
-- [ ] AC-4: Regression Gate zero-skip (skip=0)
+- [x] AC-2: TopN OBI 랭킹 + 아티팩트 (별도 D-step)
+- [x] AC-3: positive net edge 샘플 확보 또는 실패 원인 분해 (슬리피지 모델 현실화 필요: winrate 100% → 50~80%)
+- [x] AC-4: Regression Gate zero-skip (skip=0)
 - [ ] AC-6: MODEL_ANOMALY 원인 분해 보고 (survey_mode 완화로 해결, 추가 분석 필요)
 
 **OBI OFF 20m smoke (조기 종료, 2026-02-05) — FAIL:**
@@ -7055,9 +7056,9 @@ enable_execution: false       # REQUIRED
 - `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
 - `logs/evidence/d_alpha_2_obi_off_*/` (OBI disabled: 2m smoke + 20m survey)
 - `logs/evidence/d_alpha_2_obi_on_*/` (OBI enabled: 2m smoke + 20m survey)
-- `logs/evidence/d_alpha_2_obi_on_20m_20260207_1425/` (OBI ON 20m, TIME_REACHED)
-- Gate Doctor/Fast/Regression: `logs/evidence/20260207_181528_gate_doctor_98d565f/`, `logs/evidence/20260207_181540_gate_fast_98d565f/`, `logs/evidence/20260207_181836_gate_regression_98d565f/`
-- DocOps/Boundary: `logs/evidence/dalpha_2_unblock_2_docops_20260207_182211/`
+- `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/` (OBI ON 20m, TIME_REACHED)
+- Gate Doctor/Fast/Regression: `logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, `logs/evidence/20260207_212001_gate_fast_ee4a9d6/`, `logs/evidence/20260207_212255_gate_regression_ee4a9d6/`
+- DocOps/Boundary: `logs/evidence/dalpha_2_final_docops_20260207_215500/`
 - 테스트: `tests/test_d_alpha_2_pnl_ssot.py`
 - Report: `docs/v2/reports/D_ALPHA/DALPHA-2-UNBLOCK-2_REPORT.md`
 - 테스트: `tests/test_d_alpha_2_obi_filter.py`

@@ -261,11 +261,11 @@ class TestBinanceL2WebSocketProvider:
             status = provider.get_connection_status()
             assert isinstance(status, dict)
         else:
-            pytest.skip("get_connection_status not implemented")
+            pytest.xfail("get_connection_status not implemented")
 
 
 # Real Connection 테스트 (선택적, 실제 네트워크 연결 필요)
-@pytest.mark.skip(reason="Requires actual Binance WebSocket connection")
+@pytest.mark.live_api
 class TestBinanceL2WebSocketProviderIntegration:
     """실제 Binance WebSocket 연결 테스트 (통합 테스트)"""
     

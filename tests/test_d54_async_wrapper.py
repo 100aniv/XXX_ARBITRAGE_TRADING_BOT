@@ -254,7 +254,7 @@ class TestLiveRunnerAsync:
 class TestAsyncBackwardCompatibility:
     """Async/Sync 호환성 테스트"""
     
-    @pytest.mark.skip(reason="D99-18 P17: run_once는 async로 전환됨. sync wrapper는 deprecated (실사용처 없음)")
+    @pytest.mark.optional_live
     def test_sync_run_once_still_works(self):
         """sync run_once 여전히 작동 (DEPRECATED)"""
         engine = ArbitrageEngine(

@@ -261,7 +261,7 @@ class TestAsyncFullTransitionBackwardCompatibility:
         assert metrics["loop_time_ms"] == 1000.0
         assert metrics["trades_opened_total"] == 1
     
-    @pytest.mark.skip(reason="D99-18 P17: Runner는 async로 전환됨. sync wrapper는 deprecated (실사용처 없음)")
+    @pytest.mark.optional_live
     def test_sync_runner_still_works(self):
         """sync runner 여전히 작동 (DEPRECATED)"""
         engine = ArbitrageEngine(

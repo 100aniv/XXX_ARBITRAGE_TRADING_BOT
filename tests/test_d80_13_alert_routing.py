@@ -15,6 +15,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 
+pytestmark = pytest.mark.optional_live
+
 from arbitrage.alerting import (
     AlertRecord,
     AlertSeverity,

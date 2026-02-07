@@ -199,7 +199,7 @@ class TestBinancePublicDataClient:
 class TestPublicDataIntegration:
     """Public Data Clients 통합 테스트 (선택적)"""
     
-    @pytest.mark.skip(reason="Real network call - run manually if needed")
+    @pytest.mark.live_api
     def test_upbit_real_fetch_ticker(self):
         """실제 Upbit API 호출 (수동 실행)"""
         client = UpbitPublicDataClient()
@@ -211,7 +211,7 @@ class TestPublicDataIntegration:
         
         client.close()
     
-    @pytest.mark.skip(reason="Real network call - run manually if needed")
+    @pytest.mark.live_api
     def test_binance_real_fetch_ticker(self):
         """실제 Binance API 호출 (수동 실행)"""
         client = BinancePublicDataClient()

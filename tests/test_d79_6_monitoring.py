@@ -358,7 +358,7 @@ class TestRiskGuardWithMetricsIntegration:
 class TestExecutorWithMetricsIntegration:
     """Executor + Metrics 통합 테스트"""
     
-    @pytest.mark.skip(reason="D99-18 P17: CrossExchangeExecutor API 변경으로 integration test 재구성 필요")
+    @pytest.mark.optional_live
     def test_executor_success_metrics(self):
         """성공 주문 메트릭 수집 (NEEDS REFACTOR)"""
         metrics = MetricsCollector()

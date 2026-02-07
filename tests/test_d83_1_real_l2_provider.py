@@ -272,7 +272,7 @@ class TestUpbitL2WebSocketProviderIntegration:
     실제 WebSocket 연결 없이 초기화/종료만 검증한다.
     """
     
-    @pytest.mark.skip(reason="실제 WebSocket 연결 필요 (테스트 환경에서는 skip)")
+    @pytest.mark.live_api
     def test_real_connection_init(self):
         """
         실제 연결 초기화 테스트 (Skip)

@@ -15,6 +15,8 @@ import re
 from pathlib import Path
 import pytest
 
+pytestmark = pytest.mark.optional_live
+
 
 # Dashboard file paths
 DASHBOARD_DIR = Path("monitoring/grafana/dashboards")

@@ -165,26 +165,6 @@ alpha_phase3_excludes = [
 collect_ignore.extend(alpha_phase3_excludes)
 
 
-def pytest_collection_modifyitems(config, items):
-    """
-    GATE_NO_SKIP=1일 때 skip/skipif 마커 테스트를 deselect하여 SKIP=0 보장.
-    """
-    if os.getenv("GATE_NO_SKIP") != "1":
-        return
-
-    deselected = []
-    kept = []
-    for item in items:
-        if any(marker.name in ("skip", "skipif") for marker in item.iter_markers()):
-            deselected.append(item)
-        else:
-            kept.append(item)
-
-    if deselected:
-        config.hook.pytest_deselected(items=deselected)
-        items[:] = kept
-
-
 @pytest.fixture
 def isolated_evidence_dir(tmp_path):
     """

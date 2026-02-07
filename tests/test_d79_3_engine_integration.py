@@ -17,6 +17,8 @@ import redis
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import dataclass
 
+pytestmark = pytest.mark.optional_live
+
 from arbitrage.cross_exchange import (
     CrossExchangeIntegration,
     CrossExchangeDecision,

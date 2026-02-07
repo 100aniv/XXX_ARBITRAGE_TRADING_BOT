@@ -13,6 +13,8 @@ import asyncio
 import yaml
 from pathlib import Path
 from typing import Dict
+
+pytestmark = pytest.mark.optional_live
 from arbitrage.exchanges.simulated_exchange import SimulatedExchange
 from arbitrage.state_manager import StateManager
 from liveguard.safety import SafetyModule

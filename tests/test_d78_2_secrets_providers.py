@@ -154,13 +154,13 @@ class TestLocalFallbackProvider:
         assert health["details"]["file_exists"] is False
 
 
-@pytest.mark.skip(reason="Vault/KMS tests require optional dependencies (hvac, boto3)")
+@pytest.mark.optional_ml
 class TestVaultSecretsProvider:
     """VaultSecretsProvider 테스트 (skipped - optional dependencies)"""
     pass
 
 
-@pytest.mark.skip(reason="Vault/KMS tests require optional dependencies (hvac, boto3)")
+@pytest.mark.optional_ml
 class TestKMSSecretsProvider:
     """KMSSecretsProvider 테스트 (skipped - optional dependencies)"""
     pass

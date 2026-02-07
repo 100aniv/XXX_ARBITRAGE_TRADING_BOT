@@ -68,10 +68,7 @@ def test_fetch_futures_supported_bases_handles_empty_response():
     pass
 
 
-@pytest.mark.skipif(
-    True,  # 실제 API 호출 비용 절약
-    reason="Real API call - enable only for full integration tests"
-)
+@pytest.mark.live_api
 def test_fetch_futures_supported_bases_real_api():
     """실제 Binance Futures API 호출 검증 (통합 테스트용)"""
     client = BinancePublicDataClient()

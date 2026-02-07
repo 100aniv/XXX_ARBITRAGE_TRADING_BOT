@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 
 from arbitrage.monitoring.metrics_collector import MetricsCollector
 
+pytestmark = pytest.mark.optional_ml
+
 # FastAPI 선택적 임포트
 try:
     from arbitrage.monitoring.metrics_server import MetricsServer
@@ -17,7 +19,6 @@ except ImportError:
     HAS_FASTAPI = False
 
 
-@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 class TestD50MetricsServerBasics:
     """D50 MetricsServer 기본 테스트 (D99-17: AsyncClient 기반 정석 async 전환 완료)"""
     
@@ -104,7 +105,6 @@ class TestD50MetricsServerBasics:
             assert "arbitrage_spread_bps" in text
 
 
-@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 class TestD50MetricsServerPrometheus:
     """D50 MetricsServer Prometheus 형식 테스트"""
     
@@ -139,7 +139,6 @@ class TestD50MetricsServerPrometheus:
         assert 'source="ws"' in prometheus_text
 
 
-@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 class TestD50MetricsServerJSON:
     """D50 MetricsServer JSON 형식 테스트"""
     
@@ -177,7 +176,6 @@ class TestD50MetricsServerJSON:
                 assert field in data
 
 
-@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 class TestD50MetricsServerEdgeCases:
     """D50 MetricsServer 엣지 케이스"""
     
@@ -242,7 +240,6 @@ class TestD50MetricsServerEdgeCases:
             assert data["ws_reconnect_count"] == 0
 
 
-@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 class TestD50MetricsServerLifecycle:
     """D50 MetricsServer 라이프사이클 테스트"""
     

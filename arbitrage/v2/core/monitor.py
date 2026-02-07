@@ -17,6 +17,7 @@ import os
 import json
 import logging
 import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -322,6 +323,148 @@ class EvidenceCollector:
             "run_meta": run_meta or {},
         }
 
+    def _obi_topn_snapshot(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        top_n: int = 20,
+    ) -> Dict[str, Any]:
+        candidates: List[Dict[str, Any]] = []
+        for tick in edge_distribution:
+            timestamp = tick.get("timestamp_utc")
+            for candidate in tick.get("candidates") or []:
+                entry = {
+                    "ts": timestamp,
+                    "symbol": candidate.get("symbol"),
+                    "obi_score": candidate.get("obi_score"),
+                    "spread_bps": candidate.get("spread_bps"),
+                    "fx_rate": candidate.get("fx_rate"),
+                    "expected_edge_gross": candidate.get("edge_bps"),
+                    "expected_edge_net_full": candidate.get("net_edge_bps"),
+                }
+                candidates.append(entry)
+
+        ranked = [
+            c for c in candidates
+            if c.get("obi_score") is not None
+        ]
+        ranked.sort(key=lambda c: float(c.get("obi_score", -1)), reverse=True)
+        top_n = max(1, int(top_n)) if isinstance(top_n, int) else 20
+
+        return {
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "top_n": top_n,
+            "total_candidates": len(candidates),
+            "total_with_obi": len(ranked),
+            "topn": ranked[:top_n],
+        }
+
+    def _obi_filter_counters(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        run_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        candidates: List[Dict[str, Any]] = []
+        sample_reasons: Dict[str, int] = {}
+        for tick in edge_distribution:
+            reason = tick.get("reason")
+            if reason:
+                sample_reasons[reason] = sample_reasons.get(reason, 0) + 1
+            candidates.extend(tick.get("candidates") or [])
+
+        considered = len(candidates)
+        passed_obi = sum(1 for c in candidates if c.get("obi_score") is not None)
+        passed_spread = sum(1 for c in candidates if (c.get("net_edge_bps") or 0) > 0)
+
+        intents_created = 0
+        reject_reasons: Dict[str, int] = {}
+        if run_meta and "metrics" in run_meta:
+            metrics_dict = run_meta["metrics"]
+            intents_created = int(metrics_dict.get("intents_created", 0) or 0)
+            reject_reasons = dict(metrics_dict.get("reject_reasons") or {})
+
+        return {
+            "considered": considered,
+            "passed_obi": passed_obi,
+            "passed_spread": passed_spread,
+            "execution_attempt": intents_created,
+            "drop_reasons": {
+                "reject_reasons": reject_reasons,
+                "edge_sample_reasons": sample_reasons,
+            },
+        }
+
+    def _edge_decomposition(
+        self,
+        trade_history: List[Dict[str, Any]],
+        metrics: Any,
+    ) -> Dict[str, Any]:
+        positive_trades = [
+            t for t in trade_history
+            if (t.get("net_pnl_full") or 0) > 0
+        ]
+        if positive_trades:
+            best_trade = max(positive_trades, key=lambda t: t.get("net_pnl_full") or 0)
+            return {
+                "status": "POSITIVE_SAMPLE",
+                "sample": {
+                    "trade_id": best_trade.get("trade_id"),
+                    "timestamp_utc": best_trade.get("timestamp_utc"),
+                    "net_pnl_full": best_trade.get("net_pnl_full"),
+                    "gross_pnl": best_trade.get("gross_pnl"),
+                    "fee_total": best_trade.get("fee_total"),
+                    "slippage_cost": best_trade.get("slippage_cost"),
+                    "latency_cost": best_trade.get("latency_cost"),
+                    "partial_fill_penalty": best_trade.get("partial_fill_penalty"),
+                    "exec_cost_total": best_trade.get("exec_cost_total"),
+                },
+            }
+
+        fees_total = float(getattr(metrics, "fees_total", 0.0) or 0.0)
+        slippage_cost = float(getattr(metrics, "slippage_cost", 0.0) or 0.0)
+        latency_cost = float(getattr(metrics, "latency_cost", 0.0) or 0.0)
+        partial_penalty = float(getattr(metrics, "partial_fill_penalty", 0.0) or 0.0)
+        exec_cost_total = float(getattr(metrics, "exec_cost_total", 0.0) or 0.0)
+        if exec_cost_total == 0.0:
+            exec_cost_total = fees_total + slippage_cost + latency_cost + partial_penalty
+
+        costs = {
+            "fees_total": fees_total,
+            "slippage_cost": slippage_cost,
+            "latency_cost": latency_cost,
+            "partial_fill_penalty": partial_penalty,
+        }
+        dominant_name = max(costs, key=costs.get) if costs else "fees_total"
+        dominant_value = costs.get(dominant_name, 0.0)
+
+        net_pnl_full = float(getattr(metrics, "net_pnl_full", 0.0) or 0.0)
+        gross_pnl = float(getattr(metrics, "gross_pnl", 0.0) or 0.0)
+        required_reduction_value = abs(net_pnl_full) if net_pnl_full < 0 else 0.0
+        required_reduction_pct = None
+        if dominant_value > 0 and required_reduction_value > 0:
+            required_reduction_pct = round((required_reduction_value / dominant_value) * 100, 2)
+
+        share_pct = {}
+        if exec_cost_total > 0:
+            for name, value in costs.items():
+                share_pct[name] = round((value / exec_cost_total) * 100, 2)
+
+        return {
+            "status": "NEGATIVE_DECOMPOSITION",
+            "net_pnl_full": net_pnl_full,
+            "gross_pnl": gross_pnl,
+            "exec_cost_total": exec_cost_total,
+            "costs": costs,
+            "cost_share_pct": share_pct,
+            "dominant_cost": {
+                "name": dominant_name,
+                "value": dominant_value,
+            },
+            "threshold_analysis": {
+                "required_reduction_value": required_reduction_value,
+                "required_reduction_pct_of_dominant": required_reduction_pct,
+            },
+        }
+
     def save(
         self,
         metrics: Any,
@@ -393,6 +536,27 @@ class EvidenceCollector:
             with open(edge_survey_path, "w", encoding="utf-8") as f:
                 json.dump(edge_survey_report, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Edge survey report saved: {edge_survey_path}")
+
+            # 3-4. OBI TopN Snapshot (AC-2)
+            obi_topn = self._obi_topn_snapshot(edge_distribution)
+            obi_topn_path = self.output_dir / "obi_topn.json"
+            with open(obi_topn_path, "w", encoding="utf-8") as f:
+                json.dump(obi_topn, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] OBI TopN saved: {obi_topn_path}")
+
+            # 3-5. OBI Filter Counters (AC-2)
+            obi_counters = self._obi_filter_counters(edge_distribution, run_meta=run_meta)
+            obi_counters_path = self.output_dir / "obi_filter_counters.json"
+            with open(obi_counters_path, "w", encoding="utf-8") as f:
+                json.dump(obi_counters, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] OBI filter counters saved: {obi_counters_path}")
+
+            # 3-6. Edge Decomposition (AC-3)
+            edge_decomposition = self._edge_decomposition(trade_history, metrics)
+            edge_decomposition_path = self.output_dir / "edge_decomposition.json"
+            with open(edge_decomposition_path, "w", encoding="utf-8") as f:
+                json.dump(edge_decomposition, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] Edge decomposition saved: {edge_decomposition_path}")
             
             # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
             chain_summary = {
@@ -424,6 +588,9 @@ class EvidenceCollector:
                 "edge_distribution.json",
                 "edge_analysis_summary.json",
                 "edge_survey_report.json",
+                "obi_topn.json",
+                "obi_filter_counters.json",
+                "edge_decomposition.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"
             if run_log_path.exists():

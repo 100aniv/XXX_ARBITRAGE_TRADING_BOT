@@ -283,15 +283,47 @@ class BinanceL2WebSocketProvider(MarketDataProvider):
                     logger.error(
                         f"[D83-2_L2] Max reconnect attempts ({self.max_reconnect_attempts}) reached"
                     )
-                    self._is_running = False
-                    break
-    
+                    self._reconnect_count += 1
+                
+                    if self._reconnect_count < self.max_reconnect_attempts:
+                        # Exponential backoff
+                        backoff_time = min(
+                            self.reconnect_backoff ** self._reconnect_count,
+                            30.0,
+                        )
+                        logger.info(
+                            f"[D83-2_L2] Reconnecting in {backoff_time:.1f}s... "
+                            f"({self._reconnect_count}/{self.max_reconnect_attempts})"
+                        )
+                        await asyncio.sleep(backoff_time)
+                    else:
+                        logger.error(
+                            f"[D83-2_L2] Max reconnect attempts ({self.max_reconnect_attempts}) reached"
+                        )
+                        self._is_running = False
+                        break
+
     async def _stop_websocket(self) -> None:
         """
         WebSocket 연결 종료 (asyncio 태스크)
         """
         try:
-            await self.ws_adapter.disconnect()
-            logger.info("[D83-2_L2] WebSocket disconnected")
+            if hasattr(self.ws_adapter, 'disconnect'):
+                await self.ws_adapter.disconnect()
         except Exception as e:
             logger.warning(f"[D83-2_L2] Disconnect error: {e}")
+
+    def get_connection_status(self) -> Dict[str, any]:
+        """
+        연결 상태 정보 반환 (디버깅/모니터링용)
+
+        Returns:
+            {is_running, reconnect_count, symbols_count, ...} dict
+        """
+        return {
+            "is_running": self._is_running,
+            "reconnect_count": self._reconnect_count,
+            "symbols": self.symbols,
+            "snapshots_count": len(self.latest_snapshots),
+            "thread_alive": self._thread.is_alive() if self._thread else False,
+        }

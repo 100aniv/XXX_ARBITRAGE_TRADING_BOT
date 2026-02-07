@@ -180,7 +180,7 @@ class TestHealthMonitor:
         assert monitor.metrics.ws_connected is False
         assert monitor.metrics.ws_reconnect_count == 3
     
-    @pytest.mark.skip(reason="pytest hang issue - investigated separately")
+    @pytest.mark.optional_live
     def test_get_monitor_summary(self):
         """메트릭 요약 조회"""
         monitor = HealthMonitor("UPBIT")

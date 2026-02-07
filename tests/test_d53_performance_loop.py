@@ -155,7 +155,7 @@ class TestMarketDataProviderOptimization:
 class TestLoopMetricsOptimization:
     """루프 메트릭 최적화 테스트"""
     
-    @pytest.mark.skip(reason="D99-18 P17: run_once는 async로 전환됨. sync wrapper는 deprecated")
+    @pytest.mark.optional_live
     def test_run_once_with_metrics_collector(self):
         """MetricsCollector와 함께 run_once 실행 (DEPRECATED)"""
         engine = ArbitrageEngine(

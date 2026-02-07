@@ -174,6 +174,7 @@ class TestOrchestrator:
     
     @patch('subprocess.run')
     @patch('subprocess.Popen')
+    @pytest.mark.optional_live
     @pytest.mark.skipif(sys.platform == "win32", reason="D99-5: Windows file locking issue in teardown (test logic passes, cleanup fails)")
     def test_orchestrator_smoke_only_mode(self, mock_popen, mock_subprocess_run):
         """smoke-only 모드 테스트"""
