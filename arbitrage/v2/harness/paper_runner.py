@@ -64,6 +64,9 @@ class PaperRunnerConfig:
     
     def __post_init__(self):
         """자동 생성: run_id, output_dir"""
+        if not os.getenv("BOOTSTRAP_FLAG"):
+            logger.error("[BOOTSTRAP GUARD] FAIL: BOOTSTRAP_FLAG missing. Run bootstrap_runtime_env.ps1 first.")
+            raise SystemExit(1)
         if self.output_dir and not self.run_id:
             self.run_id = Path(self.output_dir).name
         elif not self.run_id:

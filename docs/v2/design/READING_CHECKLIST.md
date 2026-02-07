@@ -1,6 +1,6 @@
 # READING_CHECKLIST
 
-**Date:** 2026-02-01
+**Date:** 2026-02-07
 
 ## Step 0 Reading (D205-10-1-1 THINWRAP)
 
@@ -105,3 +105,10 @@
 - arbitrage/v2/core/ledger_writer.py: DB 기록/strict 모드 실패 처리 재사용.
 - arbitrage/v2/core/monitor.py: EvidenceCollector 및 metrics snapshot 재사용.
 - arbitrage/v2/core/metrics.py: KPI 필드(slippage_cost, latency_cost, partial_fill_penalty) 재사용.
+
+## Step 0 Reading (D_ALPHA-2-UNBLOCK-2)
+
+- D_ROADMAP.md — 확인: D_ALPHA-2-UNBLOCK-2 범위/증거/검증 항목 재확인.
+- docs/v2/OPS_PROTOCOL.md — 확인: 운영 불변조건(heartbeat, DB invariant, graceful shutdown) 재확인.
+- docs/v2/design/SSOT_DATA_ARCHITECTURE.md — 확인: DB/Redis Required 및 Truth/Required 구분 재확인.
+- docs/v2/design/INFRA_REUSE_INVENTORY.md — 확인: infra SSOT 재사용 정책(Compose 경로) 재확인.

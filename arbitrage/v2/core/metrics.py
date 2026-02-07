@@ -18,7 +18,7 @@ Date: 2026-01-11
 import time
 import psutil
 from dataclasses import dataclass, field
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 
@@ -130,17 +130,26 @@ class PaperMetrics:
         else:
             self.reject_reasons["other"] += 1
     
-    def record_trade(self, realized_pnl: float, fee: float, is_win: bool) -> None:
+    def record_trade(
+        self,
+        realized_pnl: float,
+        fee: float,
+        is_win: bool,
+        net_pnl_full: Optional[float] = None
+    ) -> None:
         """
-        Trade 완료 시 PnL 기록
+        Trade 완료 시 PnL 기록 (net_pnl_full SSOT)
         
         Args:
             realized_pnl: 실현 PnL
             fee: 총 수수료
             is_win: 승/패 여부
+            net_pnl_full: 마찰 포함 순손익 (미지정 시 realized_pnl fallback)
         """
         self.closed_trades += 1
-        self.net_pnl += realized_pnl
+        pnl_full = net_pnl_full if net_pnl_full is not None else realized_pnl
+        self.net_pnl_full += pnl_full
+        self.net_pnl = self.net_pnl_full
         self.fees += fee
         
         if is_win:
@@ -197,7 +206,7 @@ class PaperMetrics:
             # D205-3: PnL 필드
             "closed_trades": self.closed_trades,
             "gross_pnl": round(self.gross_pnl, 2),
-            "net_pnl": round(self.net_pnl, 2),
+            "net_pnl": round(self.net_pnl_full, 2),
             "net_pnl_full": round(self.net_pnl_full, 2),
             "fees": round(self.fees, 2),
             "wins": self.wins,

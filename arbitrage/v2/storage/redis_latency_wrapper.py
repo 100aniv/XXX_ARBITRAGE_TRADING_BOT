@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Optional, Any, List
 from arbitrage.v2.observability.latency_profiler import LatencyProfiler, LatencyStage
 

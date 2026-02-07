@@ -5955,53 +5955,6 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 - OPS_PROTOCOL.md Section 2.5 (Graceful Shutdown Invariant)
 - V2_ARCHITECTURE.md Section 3 (One True Loop)
 
----
-
-#### D205-19: PnL Accounting Fix + Winrate Reality + No-Cheat Gate
-
-**Status:** 🔨 IN PROGRESS (2026-02-06)
-**목적:** net_pnl 회계를 마찰 포함으로 정규화하고 승률을 현실화하며 Gate 치팅을 제거
-
-**Acceptance Criteria:**
-- [ ] AC-1: net_pnl_full = gross - (fees + slippage + latency + partial) 수식 강제 (Decimal 기준)
-- [ ] AC-2: winrate는 net_pnl_full 기준으로 산출 (100% 즉시 가드)
-- [ ] AC-3: trades_ledger.jsonl (per-trade 비용 breakdown) 증거 생성
-- [ ] AC-4: engine_report.json의 net_pnl/exec_cost_total이 net_pnl_full 기준으로 동기화
-- [ ] AC-5: tests/conftest.py 치팅(deselect) 제거 + 허용 스킵은 allowlist+증거로만 처리
-- [ ] AC-6: test_d87_3_duration_guard.py subprocess 기반 hang 제거 (unit test 전환)
-- [x] AC-7: OBI ON 20m survey 재실행 (TIME_REACHED + winrate 50~80% 목표)
-  - Evidence: `logs/evidence/d_alpha_2_obi_on_20m_20260207_1050/`
-  - Result: stop_reason=TIME_REACHED, winrate_pct=71.43, net_pnl_full=-7.77
-- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
-  - Evidence:
-    - Doctor: `logs/evidence/20260207_104629_gate_doctor_503f5c1/`
-    - Fast: `logs/evidence/20260207_104630_gate_fast_503f5c1/`
-    - Regression: `logs/evidence/20260207_104633_gate_regression_503f5c1/`
-    - Step0 Bootstrap: `logs/evidence/STEP0_BOOTSTRAP_RUNTIME_ENV_20260207_105039/`
-
-**Evidence 경로:**
-- `logs/evidence/STEP0_BOOTSTRAP_D205_19_20260206_180704/`
-- `logs/evidence/d205_18_2d_edge_survey_20260206_1239/` (FACT_CHECK 예정)
-- `logs/evidence/STEP0_BOOTSTRAP_RUNTIME_ENV_20260207_105039/` (infra SSOT: docker compose + schema + env 주입)
-- `logs/evidence/d_alpha_2_obi_on_20m_20260207_1050/` (OBI ON 20m: TIME_REACHED, winrate 71.43%)
-- `logs/evidence/20260207_104629_gate_doctor_503f5c1/`
-- `logs/evidence/20260207_104630_gate_fast_503f5c1/`
-- `logs/evidence/20260207_104633_gate_regression_503f5c1/`
-
-**Scope(수정 대상):**
-- `arbitrage/v2/core/orchestrator.py`
-- `arbitrage/v2/core/metrics.py`
-- `arbitrage/v2/core/engine_report.py`
-- `arbitrage/v2/core/run_watcher.py`
-- `arbitrage/v2/core/monitor.py`
-- `arbitrage/v2/domain/pnl_calculator.py`
-- `arbitrage/v2/adapters/paper_execution_adapter.py`
-- `arbitrage/v2/core/paper_executor.py`
-- `tests/conftest.py`
-- `tests/test_d87_3_duration_guard.py`
-- `docs/v2/reports/D205/D205-19_REPORT.md`
-
----
 
 ## 🔄 REBASELOG (2026-01-16) - Roadmap Rebase: Profit-Logic First
 
@@ -7022,7 +6975,7 @@ enable_execution: false       # REQUIRED
 - [ ] AC-2: TopN 후보를 OBI로 랭킹하고 “왜 선택했는지”를 아티팩트로 남긴다.
 - [ ] AC-3: 최소 1회 이상 positive net edge 샘플을 확보하거나, 실패 원인이 ‘시장구조/수수료/체결확률’로 분해된다.
 - [ ] AC-4: Regression Gate **skipped=0** 달성 (Zero-Skip 준수, skip 사유 제거 또는 실행 가능화).
-- [ ] AC-5: OBI ON 20m survey **TIME_REACHED** 완주 증거 확보 (watch_summary/kpi/engine_report/FACT_CHECK).
+- [x] AC-5: OBI ON 20m survey **TIME_REACHED** 완주 증거 확보 (watch_summary/kpi/engine_report/FACT_CHECK).
 - [ ] AC-6: MODEL_ANOMALY 원인 분해 보고(시간진실/시장구조/수수료/체결확률) + 코드 경로 연결 증거.
 
 **Gate 결과 (2026-02-05):**
@@ -7059,14 +7012,35 @@ enable_execution: false       # REQUIRED
 - Evidence: `logs/evidence/d205_18_2d_edge_survey_20260206_1239/`
 - KPI: closed_trades=41, gross_pnl=14.12, fees=5.4, net_pnl=8.73, winrate=100%
 - 변경 파일: `tests/conftest.py`, `tests/test_d205_12_1_engine_integration.py`, `tests/test_d87_3_duration_guard.py`
-ㄱㄷㅅ
-- [x] AC-4: Regression Gate skipped=1 (WebSocket L2 provider, ALPHA-2 무관) ✅
+
+**D_ALPHA-2-UNBLOCK-2 (PnL SSOT + Bootstrap Enforcement, 2026-02-07):**
+- 목표: net_pnl_full SSOT 단일화, winrate/net_pnl 계산 기준 일치, bootstrap_runtime_env 강제 연결, OBI ON 20m TIME_REACHED
+- Scope(수정 대상):
+  - `arbitrage/v2/core/engine_report.py`
+  - `arbitrage/v2/domain/pnl_calculator.py`
+  - `arbitrage/v2/core/run_watcher.py`
+  - `arbitrage/v2/core/orchestrator.py`
+  - `scripts/bootstrap_runtime_env.ps1`
+  - `scripts/run_gate_with_evidence.py`
+  - `tests/*` (PnL 재계산 정합성 테스트 1개)
+  - `docs/v2/design/READING_CHECKLIST.md`
+- 실행 검증:
+  - [ ] Doctor/Fast/Regression: SKIP=0, WARN=0, ExitCode=0
+  - [ ] OBI ON 20m survey: stop_reason=TIME_REACHED
+- 실행 검증 (2026-02-07):
+  - Doctor: PASS (`logs/evidence/20260207_141102_gate_doctor_98d565f/`, exitcode=0)
+  - Fast: PASS, skipped=17 (`logs/evidence/20260207_141119_gate_fast_98d565f/`)
+  - Regression: PASS, skipped=17 (`logs/evidence/20260207_141407_gate_regression_98d565f/`)
+  - OBI ON 20m survey: stop_reason=TIME_REACHED (`logs/evidence/d_alpha_2_obi_on_20m_20260207_1425/`)
+  - KPI: closed_trades=13, gross_pnl=7.3, net_pnl_full=1.77, fees=0.13, winrate=76.92%, db_inserts_ok=65
+- [x] (2026-02-06) AC-4: Regression Gate skipped=1 (WebSocket L2 provider, ALPHA-2 무관) ✅
 - [x] AC-5: OBI ON 20m survey TIME_REACHED 완주 증거 확보 ✅
 
 **잔여 AC (follow-up):**
 - [ ] AC-1: OBI 계산 표준화 + 동적 임계치 (별도 D-step)
 - [ ] AC-2: TopN OBI 랭킹 + 아티팩트 (별도 D-step)
 - [ ] AC-3: positive net edge 샘플 확보 또는 실패 원인 분해 (슬리피지 모델 현실화 필요: winrate 100% → 50~80%)
+- [ ] AC-4: Regression Gate zero-skip (skip=0)
 - [ ] AC-6: MODEL_ANOMALY 원인 분해 보고 (survey_mode 완화로 해결, 추가 분석 필요)
 
 **OBI OFF 20m smoke (조기 종료, 2026-02-05) — FAIL:**
@@ -7081,6 +7055,11 @@ enable_execution: false       # REQUIRED
 - `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
 - `logs/evidence/d_alpha_2_obi_off_*/` (OBI disabled: 2m smoke + 20m survey)
 - `logs/evidence/d_alpha_2_obi_on_*/` (OBI enabled: 2m smoke + 20m survey)
+- `logs/evidence/d_alpha_2_obi_on_20m_20260207_1425/` (OBI ON 20m, TIME_REACHED)
+- Gate Doctor/Fast/Regression: `logs/evidence/20260207_181528_gate_doctor_98d565f/`, `logs/evidence/20260207_181540_gate_fast_98d565f/`, `logs/evidence/20260207_181836_gate_regression_98d565f/`
+- DocOps/Boundary: `logs/evidence/dalpha_2_unblock_2_docops_20260207_182211/`
+- 테스트: `tests/test_d_alpha_2_pnl_ssot.py`
+- Report: `docs/v2/reports/D_ALPHA/DALPHA-2-UNBLOCK-2_REPORT.md`
 - 테스트: `tests/test_d_alpha_2_obi_filter.py`
 
 **의존성:**

@@ -163,6 +163,7 @@ class RunWatcher:
         
         # KPI 가져오기
         kpi = self.kpi_getter()
+        net_pnl_full = getattr(kpi, "net_pnl_full", getattr(kpi, "net_pnl", 0.0))
         
         # D207-1-2: FX Staleness Kill-switch (Early-stop과 무관)
         if self.config.fx_stale_enabled:
@@ -276,7 +277,10 @@ class RunWatcher:
         # D207-1 Step 3: early_stop_enabled=False이면 일부 FAIL 조건 스킵 (always-on은 이미 검사됨)
         if not self.config.early_stop_enabled:
             self._save_heartbeat(kpi)
-            logger.debug(f"[RunWatcher] Heartbeat OK (early_stop_disabled) - trades={kpi.closed_trades}, pnl={kpi.net_pnl:.2f}")
+            logger.debug(
+                f"[RunWatcher] Heartbeat OK (early_stop_disabled) - "
+                f"trades={kpi.closed_trades}, pnl_full={net_pnl_full:.2f}"
+            )
             return
         
         # FAIL 조건 (A): wins=0 AND closed_trades >= N
@@ -294,7 +298,7 @@ class RunWatcher:
         
         # FAIL 조건 (B): realized_edge<0 연속 5분
         if kpi.closed_trades > 0:
-            avg_pnl_per_trade = kpi.net_pnl / kpi.closed_trades
+            avg_pnl_per_trade = net_pnl_full / kpi.closed_trades
             if avg_pnl_per_trade < 0:
                 if self._negative_edge_start is None:
                     self._negative_edge_start = now
@@ -314,16 +318,16 @@ class RunWatcher:
                 self._negative_edge_start = None
         
         # FAIL 조건 (D): Max Drawdown
-        if kpi.net_pnl > self._peak_pnl:
-            self._peak_pnl = kpi.net_pnl
+        if net_pnl_full > self._peak_pnl:
+            self._peak_pnl = net_pnl_full
         
         if self._peak_pnl > 0:
-            drawdown = ((self._peak_pnl - kpi.net_pnl) / self._peak_pnl) * 100
+            drawdown = ((self._peak_pnl - net_pnl_full) / self._peak_pnl) * 100
             if drawdown >= self.config.max_drawdown_pct:
                 self.stop_reason = "ERROR"
                 self.diagnosis = (
                     f"FAIL (D): Max Drawdown exceeded. "
-                    f"Peak PnL: {self._peak_pnl:.2f}, Current PnL: {kpi.net_pnl:.2f}, "
+                    f"Peak PnL: {self._peak_pnl:.2f}, Current PnL: {net_pnl_full:.2f}, "
                     f"Drawdown: {drawdown:.1f}% >= {self.config.max_drawdown_pct}%"
                 )
                 logger.error(f"[RunWatcher] {self.diagnosis}")
@@ -360,7 +364,8 @@ class RunWatcher:
         logger.debug(
             f"[RunWatcher] Heartbeat OK - "
             f"trades={kpi.closed_trades}, wins={kpi.wins}, losses={kpi.losses}, "
-            f"net_pnl={kpi.net_pnl:.2f}, drawdown={(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0):.1f}%"
+            f"net_pnl_full={net_pnl_full:.2f}, "
+            f"drawdown={(((self._peak_pnl - net_pnl_full) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0):.1f}%"
         )
     
     def _trigger_graceful_stop(self):
@@ -384,6 +389,7 @@ class RunWatcher:
     def _save_heartbeat(self, kpi):
         """Heartbeat를 파일에 기록 (JSONL 형식)"""
         try:
+            net_pnl_full = getattr(kpi, "net_pnl_full", getattr(kpi, "net_pnl", 0.0))
             heartbeat_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "epoch_time": time.time(),
@@ -391,7 +397,8 @@ class RunWatcher:
                     "closed_trades": kpi.closed_trades,
                     "wins": kpi.wins,
                     "losses": kpi.losses,
-                    "net_pnl": float(kpi.net_pnl),
+                    "net_pnl": float(net_pnl_full),
+                    "net_pnl_full": float(net_pnl_full),
                     "opportunities_generated": kpi.opportunities_generated,
                     "fx_rate": getattr(kpi, "fx_rate", 0.0),
                     "fx_rate_source": getattr(kpi, "fx_rate_source", ""),
@@ -400,7 +407,7 @@ class RunWatcher:
                 },
                 "guards": {
                     "peak_pnl": float(self._peak_pnl),
-                    "drawdown_pct": float(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
+                    "drawdown_pct": float(((self._peak_pnl - net_pnl_full) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
                     "consecutive_losses": self._consecutive_losses,
                 },
             }
@@ -413,6 +420,7 @@ class RunWatcher:
     def _save_stop_reason_snapshot(self, kpi, fail_code: str):
         """가드 트리거 시 현장 증거 저장"""
         try:
+            net_pnl_full = getattr(kpi, "net_pnl_full", getattr(kpi, "net_pnl", 0.0))
             snapshot_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "fail_code": fail_code,
@@ -423,7 +431,8 @@ class RunWatcher:
                     "wins": kpi.wins,
                     "losses": kpi.losses,
                     "winrate_pct": float(getattr(kpi, "winrate_pct", 0.0)),
-                    "net_pnl": float(kpi.net_pnl),
+                    "net_pnl": float(net_pnl_full),
+                    "net_pnl_full": float(net_pnl_full),
                     "opportunities_generated": kpi.opportunities_generated,
                     "intents_created": kpi.intents_created,
                     "fees_total": float(getattr(kpi, "fees_total", 0.0)),
@@ -434,7 +443,7 @@ class RunWatcher:
                 },
                 "guard_state": {
                     "peak_pnl": float(self._peak_pnl),
-                    "current_drawdown_pct": float(((self._peak_pnl - kpi.net_pnl) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
+                    "current_drawdown_pct": float(((self._peak_pnl - net_pnl_full) / self._peak_pnl * 100) if self._peak_pnl > 0 else 0),
                     "consecutive_losses": self._consecutive_losses,
                     "negative_edge_duration_sec": float(time.time() - self._negative_edge_start) if self._negative_edge_start else 0,
                 },

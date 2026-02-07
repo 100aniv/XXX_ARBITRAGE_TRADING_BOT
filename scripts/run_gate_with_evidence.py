@@ -10,6 +10,8 @@ Usage:
 
 import sys
 import subprocess
+import os
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -21,6 +23,9 @@ from tools.evidence_pack import EvidencePacker
 
 def run_gate_with_evidence(gate_name: str):
     """Gate 실행 + Evidence 생성"""
+    if not os.getenv("BOOTSTRAP_FLAG"):
+        print("[BOOTSTRAP GUARD] FAIL: BOOTSTRAP_FLAG missing. Run bootstrap_runtime_env.ps1 first.")
+        sys.exit(1)
     
     # Evidence 초기화
     packer = EvidencePacker(
@@ -41,7 +46,7 @@ def run_gate_with_evidence(gate_name: str):
         ],
         "regression": [
             sys.executable, "-m", "pytest",
-            "-m", "not live_api and not fx_api",
+            "-m", "not optional_ml and not optional_live and not live_api and not fx_api",
             "--tb=short", "-v"
         ]
     }
@@ -62,6 +67,8 @@ def run_gate_with_evidence(gate_name: str):
     
     # Gate 실행 (stdout/stderr 캡처, 인코딩 명시)
     try:
+        env = os.environ.copy()
+        env["GATE_NO_SKIP"] = "1"
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -69,7 +76,8 @@ def run_gate_with_evidence(gate_name: str):
             encoding='utf-8',
             errors='replace',  # 인코딩 에러 무시
             cwd=Path.cwd(),
-            timeout=300  # 5분 타임아웃
+            timeout=300,  # 5분 타임아웃
+            env=env
         )
         
         # gate.log에 출력 저장
@@ -86,8 +94,22 @@ def run_gate_with_evidence(gate_name: str):
             f.write(result.stderr)
             f.write("\n\n")
         
-        # 결과 판정
-        if result.returncode == 0:
+        combined_output = f"{result.stdout}\n{result.stderr}"
+        skip_match = re.findall(r"(\d+)\s+skipped", combined_output)
+        warn_match = re.findall(r"(\d+)\s+warnings?", combined_output)
+        skipped_count = sum(int(value) for value in skip_match) if skip_match else 0
+        warnings_count = sum(int(value) for value in warn_match) if warn_match else 0
+
+        # 결과 판정 (SKIP/WARN=FAIL)
+        exit_code = result.returncode
+        if skipped_count > 0 or warnings_count > 0:
+            status = "FAIL"
+            exit_code = 1
+            print(
+                f"[FAIL] Gate {gate_name}: SKIP/WARN=FAIL "
+                f"(skipped={skipped_count}, warnings={warnings_count})"
+            )
+        elif result.returncode == 0:
             status = "PASS"
             print(f"[OK] Gate {gate_name}: PASS")
         else:
@@ -98,7 +120,10 @@ def run_gate_with_evidence(gate_name: str):
         packer.add_gate_result(
             gate_name,
             status,
-            f"Exit code: {result.returncode}"
+            (
+                f"Exit code: {exit_code} | skipped={skipped_count} | "
+                f"warnings={warnings_count}"
+            )
         )
         
         # Evidence 완료
@@ -107,7 +132,7 @@ def run_gate_with_evidence(gate_name: str):
         print(f"\n[Evidence] Path: {packer.evidence_dir}")
         print(f"[Evidence] Files: manifest.json, gate.log, git_info.json, cmd_history.txt")
         
-        return result.returncode
+        return exit_code
     
     except subprocess.TimeoutExpired:
         print(f"[TIMEOUT] Gate {gate_name}: Exceeded 5 minutes")

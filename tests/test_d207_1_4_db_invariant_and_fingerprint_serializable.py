@@ -45,6 +45,7 @@ class TestDbInvariantAndFingerprint:
         kpi.closed_trades = 5
         kpi.db_inserts_ok = 25  # 5 * 5
         kpi.gross_pnl = 1000.0
+        kpi.net_pnl_full = 900.0
         kpi.net_pnl = 900.0
         kpi.fees = 100.0
         kpi.winrate_pct = 80.0

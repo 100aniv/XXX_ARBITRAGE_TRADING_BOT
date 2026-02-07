@@ -34,7 +34,7 @@ from arbitrage.v2.core.engine_report import generate_engine_report, get_git_sha,
 from arbitrage.v2.core.order_intent import OrderSide
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
+from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary, calculate_net_pnl_full
 
 logger = logging.getLogger(__name__)
 
@@ -445,8 +445,6 @@ class PaperOrchestrator:
                 partial_penalty = _calc_partial_penalty(entry_result) + _calc_partial_penalty(exit_result)
                 reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
 
-                exec_cost_total = total_fee + slippage_cost + latency_cost + partial_penalty
-                
                 # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
                 gross_pnl, realized_pnl, _ = calculate_pnl_summary(
                     entry_side=intents[0].side.value,
@@ -457,7 +455,14 @@ class PaperOrchestrator:
                     total_fee=float(total_fee),
                     return_decimal=True
                 )
-                net_pnl_full = _quantize(gross_pnl - exec_cost_total)
+                net_pnl_full, exec_cost_total = calculate_net_pnl_full(
+                    gross_pnl=gross_pnl,
+                    total_fee=total_fee,
+                    slippage_cost=slippage_cost,
+                    latency_cost=latency_cost,
+                    partial_penalty=partial_penalty,
+                    return_decimal=True
+                )
                 is_win = net_pnl_full > Decimal("0")
                 
                 trade_id = str(uuid.uuid4())
@@ -475,8 +480,8 @@ class PaperOrchestrator:
                 self.kpi.closed_trades += 1
                 self.kpi.gross_pnl += float(gross_pnl)
                 self.kpi.fees += float(total_fee)
-                self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
                 self.kpi.net_pnl_full += float(net_pnl_full)
+                self.kpi.net_pnl = self.kpi.net_pnl_full
                 
                 # D207-1-3: Friction costs 누적 (AT: Active Failure Detection)
                 self.kpi.fees_total += float(total_fee)

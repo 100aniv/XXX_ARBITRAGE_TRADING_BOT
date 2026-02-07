@@ -36,6 +36,7 @@ class TestRunWatcherHeartbeat:
         kpi.closed_trades = 5
         kpi.wins = 3
         kpi.losses = 2
+        kpi.net_pnl_full = 100.0
         kpi.net_pnl = 100.0
         kpi.fees_total = 10.0
         
@@ -91,7 +92,8 @@ class TestSafetyGuardMaxDrawdown:
         kpi.closed_trades = 10
         kpi.wins = 5
         kpi.losses = 5
-        kpi.net_pnl = 100.0  # Peak
+        kpi.net_pnl_full = 100.0  # Peak
+        kpi.net_pnl = 100.0
         kpi.fees_total = 10.0
         
         stop_called = False
@@ -112,7 +114,8 @@ class TestSafetyGuardMaxDrawdown:
         time.sleep(1.5)  # Peak 기록
         
         # Drawdown 발생
-        kpi.net_pnl = 79.0  # 21% drawdown
+        kpi.net_pnl_full = 79.0  # 21% drawdown
+        kpi.net_pnl = 79.0
         time.sleep(1.5)
         
         watcher.stop()

@@ -177,6 +177,8 @@ def generate_engine_report(
     # Status
     status = "PASS" if exit_code == 0 else "FAIL"
     
+    net_pnl_full_value = getattr(kpi, "net_pnl_full", kpi.net_pnl)
+
     report = {
         "schema_version": "1.0",
         "run_id": run_id,
@@ -201,8 +203,8 @@ def generate_engine_report(
             "count": kpi.closed_trades,
             "winrate": round(kpi.winrate_pct / 100.0, 3),
             "gross_pnl": round(kpi.gross_pnl, 2),
-            "net_pnl": round(kpi.net_pnl, 2),
-            "net_pnl_full": round(getattr(kpi, "net_pnl_full", kpi.net_pnl), 2),
+            "net_pnl": round(net_pnl_full_value, 2),
+            "net_pnl_full": round(net_pnl_full_value, 2),
             "fees": round(kpi.fees, 2)
         },
         

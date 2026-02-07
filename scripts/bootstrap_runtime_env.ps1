@@ -189,7 +189,9 @@ if ($EnsureSchema -ne 0) {
 
 $env:POSTGRES_CONNECTION_STRING = "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
 $env:REDIS_URL = "redis://localhost:6380/$RedisDb"
+$env:BOOTSTRAP_FLAG = "1"
 
 Write-Line "POSTGRES_CONNECTION_STRING=SET"
 Write-Line "REDIS_URL=SET"
+Write-Line "BOOTSTRAP_FLAG=SET"
 Write-Line "OK"

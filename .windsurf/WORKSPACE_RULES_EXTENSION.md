@@ -114,7 +114,7 @@ git diff
 @[D_PROMPT_TEMPLATE.md] 참조:
 
 ```bash
-python scripts/check_v1_v2_boundary.py
+python scripts/check_v2_boundary.py
 ```
 
 ---

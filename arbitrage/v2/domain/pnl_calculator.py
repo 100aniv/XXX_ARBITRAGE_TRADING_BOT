@@ -24,6 +24,12 @@ def _to_decimal(value: float) -> Decimal:
     return Decimal(str(value))
 
 
+def _ensure_decimal(value: Union[float, Decimal]) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    return _to_decimal(value)
+
+
 def _quantize(value: Decimal) -> Decimal:
     return value.quantize(DECIMAL_QUANTIZE, rounding=ROUND_HALF_UP)
 
@@ -103,6 +109,41 @@ def calculate_realized_pnl(
     """
     realized = _to_decimal(gross_pnl) - _to_decimal(total_fee)
     return float(_quantize(realized))
+
+
+def calculate_net_pnl_full(
+    gross_pnl: Union[float, Decimal],
+    total_fee: Union[float, Decimal],
+    slippage_cost: Union[float, Decimal],
+    latency_cost: Union[float, Decimal],
+    partial_penalty: Union[float, Decimal],
+    return_decimal: bool = False
+) -> Tuple[Union[float, Decimal], Union[float, Decimal]]:
+    """
+    net_pnl_full 계산 (SSOT)
+
+    Formula:
+        net_pnl_full = gross_pnl - (fees + slippage + latency + partial_fill_penalty)
+
+    Returns:
+        (net_pnl_full, exec_cost_total)
+    """
+    d_gross = _ensure_decimal(gross_pnl)
+    d_fee = _ensure_decimal(total_fee)
+    d_slippage = _ensure_decimal(slippage_cost)
+    d_latency = _ensure_decimal(latency_cost)
+    d_partial = _ensure_decimal(partial_penalty)
+
+    exec_cost_total = d_fee + d_slippage + d_latency + d_partial
+    net_pnl_full = d_gross - exec_cost_total
+
+    net_pnl_full_q = _quantize(net_pnl_full)
+    exec_cost_total_q = _quantize(exec_cost_total)
+
+    if return_decimal:
+        return net_pnl_full_q, exec_cost_total_q
+
+    return float(net_pnl_full_q), float(exec_cost_total_q)
 
 
 def is_win(realized_pnl: Union[float, Decimal]) -> bool:
