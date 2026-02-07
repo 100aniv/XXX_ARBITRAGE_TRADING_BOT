@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Any
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 
 from arbitrage.v2.core import OrderIntent, OrderSide
@@ -6,6 +7,19 @@ from arbitrage.v2.adapters import MockAdapter
 from arbitrage.v2.core.profit_core import ProfitCore
 
 logger = logging.getLogger(__name__)
+
+
+DECIMAL_QUANTIZE = Decimal("0.00000001")
+
+
+def _to_decimal(value: Optional[float]) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    return Decimal(str(value))
+
+
+def _quantize(value: Decimal) -> Decimal:
+    return value.quantize(DECIMAL_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 class PaperExecutor:
@@ -37,12 +51,13 @@ class PaperExecutor:
         
         self.profit_core = profit_core
         self.adapter = MockAdapter(config=adapter_config)
-        self.balance = initial_balance or {
+        base_balance = initial_balance or {
             "KRW": 10_000_000.0,
             "USDT": 10_000.0,
             "BTC": 0.1,
             "ETH": 1.0,
         }
+        self.balance = {k: _quantize(_to_decimal(v)) for k, v in base_balance.items()}
     
     def execute(self, intent: OrderIntent, ref_price: Optional[float] = None):
         """주문 실행 (MockAdapter)"""
@@ -68,20 +83,32 @@ class PaperExecutor:
         if not order_result.filled_qty or not order_result.filled_price:
             return
         # profit_core는 __init__에서 필수 검증됨
-        default_price_krw = self.profit_core.get_default_price("upbit", "BTC/KRW")
-        default_price_usdt = self.profit_core.get_default_price("binance", "BTC/USDT")
+        default_price_krw = _to_decimal(self.profit_core.get_default_price("upbit", "BTC/KRW"))
+        default_price_usdt = _to_decimal(self.profit_core.get_default_price("binance", "BTC/USDT"))
+        filled_qty = _quantize(_to_decimal(order_result.filled_qty))
+        filled_price = _quantize(_to_decimal(order_result.filled_price))
+        base_qty = _quantize(_to_decimal(intent.base_qty)) if intent.base_qty else Decimal("0")
+        fallback_qty = Decimal("0.01")
         
         if intent.side == OrderSide.BUY:
             if intent.exchange == "upbit":
-                self.balance["KRW"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_krw)
-                self.balance["BTC"] += (order_result.filled_qty or 0.01)
+                qty = filled_qty if filled_qty > 0 else fallback_qty
+                price = filled_price if filled_price > 0 else default_price_krw
+                self.balance["KRW"] = _quantize(self.balance["KRW"] - (qty * price))
+                self.balance["BTC"] = _quantize(self.balance["BTC"] + qty)
             else:
-                self.balance["USDT"] -= (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_usdt)
-                self.balance["BTC"] += (order_result.filled_qty or 0.01)
+                qty = filled_qty if filled_qty > 0 else fallback_qty
+                price = filled_price if filled_price > 0 else default_price_usdt
+                self.balance["USDT"] = _quantize(self.balance["USDT"] - (qty * price))
+                self.balance["BTC"] = _quantize(self.balance["BTC"] + qty)
         else:
             if intent.exchange == "upbit":
-                self.balance["BTC"] -= (intent.base_qty or 0.01)
-                self.balance["KRW"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_krw)
+                qty = base_qty if base_qty > 0 else fallback_qty
+                price = filled_price if filled_price > 0 else default_price_krw
+                self.balance["BTC"] = _quantize(self.balance["BTC"] - qty)
+                self.balance["KRW"] = _quantize(self.balance["KRW"] + (filled_qty if filled_qty > 0 else fallback_qty) * price)
             else:
-                self.balance["BTC"] -= (intent.base_qty or 0.01)
-                self.balance["USDT"] += (order_result.filled_qty or 0.01) * (order_result.filled_price or default_price_usdt)
+                qty = base_qty if base_qty > 0 else fallback_qty
+                price = filled_price if filled_price > 0 else default_price_usdt
+                self.balance["BTC"] = _quantize(self.balance["BTC"] - qty)
+                self.balance["USDT"] = _quantize(self.balance["USDT"] + (filled_qty if filled_qty > 0 else fallback_qty) * price)

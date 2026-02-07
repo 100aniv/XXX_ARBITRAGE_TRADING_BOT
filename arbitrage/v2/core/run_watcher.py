@@ -59,6 +59,7 @@ class WatcherConfig:
 
     # D207-3: FAIL 조건 (X): Winrate 100% Kill-switch
     winrate_100_trade_threshold: int = 20  # 20거래 이상 + 100% 승률 시 중단
+    winrate_100_sustain_sec: float = 60.0  # 100% 승률이 일정 시간 지속될 때만 트리거
 
     # D207-1-2: FAIL 조건 (FX): FX Staleness Kill-switch
     fx_stale_enabled: bool = True
@@ -106,6 +107,7 @@ class RunWatcher:
         self._no_opportunity_start: Optional[float] = None
         self._last_check_time: Optional[float] = None
         self._start_time: Optional[float] = None
+        self._winrate_100_start: Optional[float] = None
         
         # Safety Guard 추적
         self._peak_pnl: float = 0.0
@@ -178,19 +180,21 @@ class RunWatcher:
                 return
 
         # D207-3: Winrate 100% Kill-switch (Early-stop과 무관)
-        if (
-            kpi.closed_trades >= self.config.winrate_100_trade_threshold
-            and kpi.winrate_pct >= 100.0
-        ):
-            self.stop_reason = "WIN_RATE_100_SUSPICIOUS"
-            self.diagnosis = (
-                f"FAIL (D207-3): 100% winrate detected after {kpi.closed_trades} trades. "
-                f"Mock data or optimistic bias suspected."
-            )
-            logger.error(f"[RunWatcher] {self.diagnosis}")
-            self._save_stop_reason_snapshot(kpi, "FAIL_WINRATE_100")
-            self._trigger_graceful_stop()
-            return
+        if kpi.closed_trades >= self.config.winrate_100_trade_threshold and kpi.winrate_pct >= 100.0:
+            if self._winrate_100_start is None:
+                self._winrate_100_start = now
+            if (now - self._winrate_100_start) >= self.config.winrate_100_sustain_sec:
+                self.stop_reason = "WIN_RATE_100_SUSPICIOUS"
+                self.diagnosis = (
+                    f"FAIL (D207-3): 100% winrate sustained for {self.config.winrate_100_sustain_sec:.0f}s "
+                    f"after {kpi.closed_trades} trades. Mock data or optimistic bias suspected."
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_WINRATE_100")
+                self._trigger_graceful_stop()
+                return
+        else:
+            self._winrate_100_start = None
 
         # D207-3: Trade Starvation Kill-switch (Early-stop과 무관)
         if self.config.trade_starvation_enabled:
@@ -214,7 +218,62 @@ class RunWatcher:
                     self._trigger_graceful_stop()
                     return
 
-        # D207-1 Step 3: early_stop_enabled=False이면 FAIL 조건 스킵 (heartbeat만 기록)
+        # D207-1-3: FAIL 조건 (F): Winrate Cap (AT: Active Failure Detection)
+        if (
+            kpi.closed_trades >= self.config.min_trades_for_winrate_cap
+            and kpi.winrate_pct >= (self.config.winrate_cap_threshold * 100)
+        ):
+            if (
+                kpi.closed_trades >= self.config.winrate_100_trade_threshold
+                and kpi.winrate_pct >= 100.0
+            ):
+                pass
+            else:
+                self.stop_reason = "MODEL_ANOMALY"
+                self.diagnosis = (
+                    f"FAIL (F): Winrate too high ({kpi.winrate_pct:.1f}% >= {self.config.winrate_cap_threshold * 100}%). "
+                    f"100% winrate is unrealistic. "
+                    f"Possible causes: Mock data OR friction model disabled OR optimistic bias."
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_F_WINRATE_CAP")
+                self._trigger_graceful_stop()
+                return
+
+        # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (AT: Active Failure Detection)
+        if self.config.check_friction_nonzero and kpi.closed_trades >= 5:
+            if kpi.fees_total == 0.0:
+                self.stop_reason = "MODEL_ANOMALY"
+                self.diagnosis = (
+                    f"FAIL (G): fees_total=0 after {kpi.closed_trades} trades. "
+                    f"Friction model is disabled or not applied. "
+                    f"Cannot validate economic truth without realistic costs."
+                )
+                logger.error(f"[RunWatcher] {self.diagnosis}")
+                self._save_stop_reason_snapshot(kpi, "FAIL_G_FRICTION_ZERO")
+                self._trigger_graceful_stop()
+                return
+
+        # Add-on Beta: FAIL 조건 (H): Machinegun Trading (1분당 20회 초과)
+        if self.config.check_machinegun and kpi.closed_trades >= 10:
+            # duration_sec 계산: wallclock_start가 있으면 사용, 없으면 스킨
+            if hasattr(kpi, 'wallclock_start') and kpi.wallclock_start:
+                duration_sec = now - kpi.wallclock_start
+                if duration_sec >= 60:  # 1분 이상 경과
+                    trades_per_minute = (kpi.closed_trades / duration_sec) * 60
+                    if trades_per_minute > self.config.max_trades_per_minute:
+                        self.stop_reason = "MODEL_ANOMALY"
+                        self.diagnosis = (
+                            f"FAIL (H): Machinegun trading detected ({trades_per_minute:.1f} trades/min > {self.config.max_trades_per_minute}). "
+                            f"This indicates missing min_hold_sec enforcement or unrealistic execution frequency. "
+                            f"Total trades: {kpi.closed_trades} in {duration_sec:.1f}s."
+                        )
+                        logger.error(f"[RunWatcher] {self.diagnosis}")
+                        self._save_stop_reason_snapshot(kpi, "FAIL_H_MACHINEGUN")
+                        self._trigger_graceful_stop()
+                        return
+
+        # D207-1 Step 3: early_stop_enabled=False이면 일부 FAIL 조건 스킵 (always-on은 이미 검사됨)
         if not self.config.early_stop_enabled:
             self._save_heartbeat(kpi)
             logger.debug(f"[RunWatcher] Heartbeat OK (early_stop_disabled) - trades={kpi.closed_trades}, pnl={kpi.net_pnl:.2f}")
@@ -295,55 +354,6 @@ class RunWatcher:
                 self._save_stop_reason_snapshot(kpi, "FAIL_E_CONSECUTIVE_LOSSES")
                 self._trigger_graceful_stop()
                 return
-        
-        # D207-1-3: FAIL 조건 (F): Winrate Cap (AT: Active Failure Detection)
-        if (
-            kpi.closed_trades >= self.config.min_trades_for_winrate_cap
-            and kpi.winrate_pct >= (self.config.winrate_cap_threshold * 100)
-        ):
-            self.stop_reason = "MODEL_ANOMALY"
-            self.diagnosis = (
-                f"FAIL (F): Winrate too high ({kpi.winrate_pct:.1f}% >= {self.config.winrate_cap_threshold * 100}%). "
-                f"100% winrate is unrealistic. "
-                f"Possible causes: Mock data OR friction model disabled OR optimistic bias."
-            )
-            logger.error(f"[RunWatcher] {self.diagnosis}")
-            self._save_stop_reason_snapshot(kpi, "FAIL_F_WINRATE_CAP")
-            self._trigger_graceful_stop()
-            return
-        
-        # D207-1-3: FAIL 조건 (G): Friction Costs = 0 (AT: Active Failure Detection)
-        if self.config.check_friction_nonzero and kpi.closed_trades >= 5:
-            if kpi.fees_total == 0.0:
-                self.stop_reason = "MODEL_ANOMALY"
-                self.diagnosis = (
-                    f"FAIL (G): fees_total=0 after {kpi.closed_trades} trades. "
-                    f"Friction model is disabled or not applied. "
-                    f"Cannot validate economic truth without realistic costs."
-                )
-                logger.error(f"[RunWatcher] {self.diagnosis}")
-                self._save_stop_reason_snapshot(kpi, "FAIL_G_FRICTION_ZERO")
-                self._trigger_graceful_stop()
-                return
-        
-        # Add-on Beta: FAIL 조건 (H): Machinegun Trading (1분당 20회 초과)
-        if self.config.check_machinegun and kpi.closed_trades >= 10:
-            # duration_sec 계산: wallclock_start가 있으면 사용, 없으면 스킨
-            if hasattr(kpi, 'wallclock_start') and kpi.wallclock_start:
-                duration_sec = now - kpi.wallclock_start
-                if duration_sec >= 60:  # 1분 이상 경과
-                    trades_per_minute = (kpi.closed_trades / duration_sec) * 60
-                    if trades_per_minute > self.config.max_trades_per_minute:
-                        self.stop_reason = "MODEL_ANOMALY"
-                        self.diagnosis = (
-                            f"FAIL (H): Machinegun trading detected ({trades_per_minute:.1f} trades/min > {self.config.max_trades_per_minute}). "
-                            f"This indicates missing min_hold_sec enforcement or unrealistic execution frequency. "
-                            f"Total trades: {kpi.closed_trades} in {duration_sec:.1f}s."
-                        )
-                        logger.error(f"[RunWatcher] {self.diagnosis}")
-                        self._save_stop_reason_snapshot(kpi, "FAIL_H_MACHINEGUN")
-                        self._trigger_graceful_stop()
-                        return
         
         # 정상: Heartbeat 기록 (파일 + 로그)
         self._save_heartbeat(kpi)

@@ -18,11 +18,25 @@ D207-1-3 Add-on BF: Non-Zero Friction Value
 """
 
 from typing import Dict, Any, Optional
+from decimal import Decimal, ROUND_HALF_UP
 import uuid
 import random
 import time
 
 from arbitrage.v2.core import ExchangeAdapter, OrderIntent, OrderResult, OrderSide, OrderType
+
+
+DECIMAL_QUANTIZE = Decimal("0.00000001")
+
+
+def _to_decimal(value: Optional[float]) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    return Decimal(str(value))
+
+
+def _quantize(value: Decimal) -> Decimal:
+    return value.quantize(DECIMAL_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 class PaperExecutionAdapter(ExchangeAdapter):
@@ -280,6 +294,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             )
         
         side = payload.get("side", "").upper()
+        base_price_decimal = _to_decimal(base_price)
 
         reject_probability = float(self.fill_reject_probability or 0.0)
         if reject_probability > 0 and self._rng.random() < reject_probability:
@@ -306,7 +321,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
 
         # D205-17: Realism Injection - Slippage 적용
         # D207-1-6: Realism Pack v1 - randomized bps within config range
-        filled_price = base_price
+        filled_price = base_price_decimal
         slippage_bps = 0.0
         adverse_slippage_bps = 0.0
         if self.enable_slippage:
@@ -319,21 +334,21 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 adv_max = max(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
                 adverse_slippage_bps = adv_min if adv_min == adv_max else self._rng.uniform(adv_min, adv_max)
                 slippage_bps += adverse_slippage_bps
-            slippage_ratio = slippage_bps / 10000.0
+            slippage_ratio = _to_decimal(slippage_bps) / Decimal("10000")
             
             if side == "BUY":
                 # BUY: 불리하게 (더 높은 가격에 체결)
-                filled_price = base_price * (1 + slippage_ratio)
+                filled_price = base_price_decimal * (Decimal("1") + slippage_ratio)
             elif side == "SELL":
                 # SELL: 불리하게 (더 낮은 가격에 체결)
-                filled_price = base_price * (1 - slippage_ratio)
+                filled_price = base_price_decimal * (Decimal("1") - slippage_ratio)
             
             # 슬리피지 적용 로그 (검증용)
             import logging
             logger = logging.getLogger(__name__)
             logger.info(
-                f"[D205-17 Slippage] {side} base={base_price:.2f}, "
-                f"slippage={slippage_bps:.2f}bps, filled={filled_price:.2f}"
+                f"[D205-17 Slippage] {side} base={float(base_price_decimal):.2f}, "
+                f"slippage={slippage_bps:.2f}bps, filled={float(filled_price):.2f}"
             )
             if adverse_slippage_bps > 0:
                 logger.info(
@@ -344,24 +359,26 @@ class PaperExecutionAdapter(ExchangeAdapter):
         drift_bps_min = min(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
         drift_bps_max = max(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
         drift_bps = drift_bps_min if drift_bps_min == drift_bps_max else self._rng.uniform(drift_bps_min, drift_bps_max)
-        drift_ratio = drift_bps / 10000.0
+        drift_ratio = _to_decimal(drift_bps) / Decimal("10000")
         if drift_ratio > 0:
             if side == "BUY":
-                filled_price = filled_price * (1 + drift_ratio)
+                filled_price = filled_price * (Decimal("1") + drift_ratio)
             elif side == "SELL":
-                filled_price = filled_price * (1 - drift_ratio)
+                filled_price = filled_price * (Decimal("1") - drift_ratio)
 
         if drift_bps > 0:
             import logging
             logger = logging.getLogger(__name__)
             logger.info(
-                f"[D207-3 Drift] {side} drift={drift_bps:.2f}bps, filled={filled_price:.2f}"
+                f"[D207-3 Drift] {side} drift={drift_bps:.2f}bps, filled={float(filled_price):.2f}"
             )
         
         # D205-15-6b: MARKET BUY filled_qty 계약 고정 (V2_ARCHITECTURE invariant)
         order_type = payload.get("order_type", "").upper()
         side = payload.get("side", "").upper()
         
+        filled_price = _quantize(filled_price)
+
         if order_type == "MARKET" and side == "BUY":
             # MARKET BUY: filled_qty = quote_amount / filled_price
             quote_amount = payload.get("quote_amount")
@@ -370,20 +387,21 @@ class PaperExecutionAdapter(ExchangeAdapter):
                     f"[D205-15-6b] MockAdapter: MARKET BUY requires positive quote_amount. "
                     f"Got: {quote_amount}, payload: {payload}"
                 )
-            if not filled_price or filled_price <= 0:
+            if filled_price <= 0:
                 raise RuntimeError(
                     f"[D205-15-6b] MockAdapter: MARKET BUY requires positive filled_price. "
                     f"Got: {filled_price}, payload: {payload}"
                 )
-            filled_qty = quote_amount / filled_price
+            filled_qty = _quantize(_to_decimal(quote_amount) / filled_price)
         else:
             # MARKET SELL or LIMIT: base_qty 직접 사용
-            filled_qty = payload.get("base_qty")
-            if not filled_qty or filled_qty <= 0:
+            filled_qty = _to_decimal(payload.get("base_qty"))
+            if filled_qty <= 0:
                 raise RuntimeError(
                     f"[D205-15-6b] MockAdapter: filled_qty missing or invalid. "
                     f"order_type={order_type}, side={side}, base_qty={filled_qty}, payload: {payload}"
                 )
+            filled_qty = _quantize(filled_qty)
         
         partial_fill_ratio = 1.0
         status = "filled"
@@ -395,14 +413,14 @@ class PaperExecutionAdapter(ExchangeAdapter):
             ratio_max = max(self.partial_fill_ratio_min, self.partial_fill_ratio_max)
             partial_fill_ratio = max(0.01, min(1.0, self._rng.uniform(ratio_min, ratio_max)))
             status = "partial"
-            filled_qty *= partial_fill_ratio
+            filled_qty = _quantize(filled_qty * _to_decimal(partial_fill_ratio))
 
         response = {
             "order_id": order_id,
             "status": status,
-            "filled_qty": filled_qty,
-            "filled_price": filled_price,
-            "ref_price": base_price,
+            "filled_qty": float(filled_qty),
+            "filled_price": float(filled_price),
+            "ref_price": float(base_price_decimal),
             "slippage_bps": slippage_bps,
             "pessimistic_drift_bps": drift_bps,
             "latency_ms": latency_ms,
@@ -431,28 +449,31 @@ class PaperExecutionAdapter(ExchangeAdapter):
         status = response.get("status", "filled")
         success = status in ["filled", "partial"]
         
+        filled_qty_decimal = _to_decimal(response.get("filled_qty", 0.0))
+        filled_price_decimal = _to_decimal(response.get("filled_price", 0.0))
+        filled_qty_decimal = _quantize(filled_qty_decimal)
+        filled_price_decimal = _quantize(filled_price_decimal)
+        
         # D207-1-3 Add-on BF: 수수료 계산 (현실 마찰)
-        fee = 0.0
+        fee_decimal = Decimal("0")
         if success:
-            filled_qty = response.get("filled_qty", 0.0)
-            filled_price = response.get("filled_price", 0.0)
             exchange = response.get("exchange", "mock").lower()
             
             # 거래소별 수수료율 (bps)
-            fee_rate_bps = self._fee_rates.get(exchange, self._fee_rates["mock"])
-            fee_rate = fee_rate_bps / 10000.0  # bps -> ratio
+            fee_rate_bps = _to_decimal(self._fee_rates.get(exchange, self._fee_rates["mock"]))
+            fee_rate = fee_rate_bps / Decimal("10000")  # bps -> ratio
             
             # 수수료 = 거래 금액 * 수수료율
-            trade_value = filled_qty * filled_price
-            fee = trade_value * fee_rate
+            trade_value = filled_qty_decimal * filled_price_decimal
+            fee_decimal = _quantize(trade_value * fee_rate)
             
             # 검증 로그
             import logging
             logger = logging.getLogger(__name__)
             logger.info(
                 f"[D207-1-3 Add-on BF] Fee calculated: exchange={exchange}, "
-                f"qty={filled_qty:.6f}, price={filled_price:.2f}, "
-                f"fee_rate={fee_rate_bps}bps, fee={fee:.4f}"
+                f"qty={float(filled_qty_decimal):.6f}, price={float(filled_price_decimal):.2f}, "
+                f"fee_rate={float(fee_rate_bps):.2f}bps, fee={float(fee_decimal):.4f}"
             )
         
         partial_fill_ratio = response.get("partial_fill_ratio")
@@ -462,9 +483,9 @@ class PaperExecutionAdapter(ExchangeAdapter):
         return OrderResult(
             success=success,
             order_id=response["order_id"],
-            filled_qty=response.get("filled_qty") if success else 0.0,
-            filled_price=response.get("filled_price") if success else 0.0,
-            fee=fee,
+            filled_qty=float(filled_qty_decimal) if success else 0.0,
+            filled_price=float(filled_price_decimal) if success else 0.0,
+            fee=float(fee_decimal),
             ref_price=response.get("ref_price"),
             slippage_bps=response.get("slippage_bps"),
             pessimistic_drift_bps=response.get("pessimistic_drift_bps"),

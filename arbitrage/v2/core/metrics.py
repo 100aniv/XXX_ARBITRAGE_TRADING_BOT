@@ -58,6 +58,7 @@ class PaperMetrics:
     closed_trades: int = 0
     gross_pnl: float = 0.0
     net_pnl: float = 0.0
+    net_pnl_full: float = 0.0
     fees: float = 0.0
     wins: int = 0
     losses: int = 0
@@ -105,6 +106,7 @@ class PaperMetrics:
     slippage_cost: float = 0.0
     latency_cost: float = 0.0
     partial_fill_penalty: float = 0.0
+    exec_cost_total: float = 0.0
     # D207-1-6: Realism Pack v1 - explicit totals
     slippage_total: float = 0.0
     latency_total: float = 0.0
@@ -196,6 +198,7 @@ class PaperMetrics:
             "closed_trades": self.closed_trades,
             "gross_pnl": round(self.gross_pnl, 2),
             "net_pnl": round(self.net_pnl, 2),
+            "net_pnl_full": round(self.net_pnl_full, 2),
             "fees": round(self.fees, 2),
             "wins": self.wins,
             "losses": self.losses,
@@ -223,6 +226,7 @@ class PaperMetrics:
             "slippage_cost": round(self.slippage_cost, 4),
             "latency_cost": round(self.latency_cost, 4),
             "partial_fill_penalty": round(self.partial_fill_penalty, 4),
+            "exec_cost_total": round(self.exec_cost_total, 4),
             # D207-1-6: Realism Pack v1 totals
             "slippage_total": round(self.slippage_total, 4),
             "latency_total": round(self.latency_total, 4),

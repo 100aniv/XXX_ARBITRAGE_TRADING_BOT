@@ -5957,6 +5957,52 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 
 ---
 
+#### D205-19: PnL Accounting Fix + Winrate Reality + No-Cheat Gate
+
+**Status:** 🔨 IN PROGRESS (2026-02-06)
+**목적:** net_pnl 회계를 마찰 포함으로 정규화하고 승률을 현실화하며 Gate 치팅을 제거
+
+**Acceptance Criteria:**
+- [ ] AC-1: net_pnl_full = gross - (fees + slippage + latency + partial) 수식 강제 (Decimal 기준)
+- [ ] AC-2: winrate는 net_pnl_full 기준으로 산출 (100% 즉시 가드)
+- [ ] AC-3: trades_ledger.jsonl (per-trade 비용 breakdown) 증거 생성
+- [ ] AC-4: engine_report.json의 net_pnl/exec_cost_total이 net_pnl_full 기준으로 동기화
+- [ ] AC-5: tests/conftest.py 치팅(deselect) 제거 + 허용 스킵은 allowlist+증거로만 처리
+- [ ] AC-6: test_d87_3_duration_guard.py subprocess 기반 hang 제거 (unit test 전환)
+- [x] AC-7: OBI ON 20m survey 재실행 (TIME_REACHED + winrate 50~80% 목표)
+  - Evidence: `logs/evidence/d_alpha_2_obi_on_20m_20260207_1050/`
+  - Result: stop_reason=TIME_REACHED, winrate_pct=71.43, net_pnl_full=-7.77
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
+  - Evidence:
+    - Doctor: `logs/evidence/20260207_104629_gate_doctor_503f5c1/`
+    - Fast: `logs/evidence/20260207_104630_gate_fast_503f5c1/`
+    - Regression: `logs/evidence/20260207_104633_gate_regression_503f5c1/`
+    - Step0 Bootstrap: `logs/evidence/STEP0_BOOTSTRAP_RUNTIME_ENV_20260207_105039/`
+
+**Evidence 경로:**
+- `logs/evidence/STEP0_BOOTSTRAP_D205_19_20260206_180704/`
+- `logs/evidence/d205_18_2d_edge_survey_20260206_1239/` (FACT_CHECK 예정)
+- `logs/evidence/STEP0_BOOTSTRAP_RUNTIME_ENV_20260207_105039/` (infra SSOT: docker compose + schema + env 주입)
+- `logs/evidence/d_alpha_2_obi_on_20m_20260207_1050/` (OBI ON 20m: TIME_REACHED, winrate 71.43%)
+- `logs/evidence/20260207_104629_gate_doctor_503f5c1/`
+- `logs/evidence/20260207_104630_gate_fast_503f5c1/`
+- `logs/evidence/20260207_104633_gate_regression_503f5c1/`
+
+**Scope(수정 대상):**
+- `arbitrage/v2/core/orchestrator.py`
+- `arbitrage/v2/core/metrics.py`
+- `arbitrage/v2/core/engine_report.py`
+- `arbitrage/v2/core/run_watcher.py`
+- `arbitrage/v2/core/monitor.py`
+- `arbitrage/v2/domain/pnl_calculator.py`
+- `arbitrage/v2/adapters/paper_execution_adapter.py`
+- `arbitrage/v2/core/paper_executor.py`
+- `tests/conftest.py`
+- `tests/test_d87_3_duration_guard.py`
+- `docs/v2/reports/D205/D205-19_REPORT.md`
+
+---
+
 ## 🔄 REBASELOG (2026-01-16) - Roadmap Rebase: Profit-Logic First
 
 **Rebase Date:** 2026-01-16  
@@ -7013,8 +7059,7 @@ enable_execution: false       # REQUIRED
 - Evidence: `logs/evidence/d205_18_2d_edge_survey_20260206_1239/`
 - KPI: closed_trades=41, gross_pnl=14.12, fees=5.4, net_pnl=8.73, winrate=100%
 - 변경 파일: `tests/conftest.py`, `tests/test_d205_12_1_engine_integration.py`, `tests/test_d87_3_duration_guard.py`
-
-**AC 달성 현황:**
+ㄱㄷㅅ
 - [x] AC-4: Regression Gate skipped=1 (WebSocket L2 provider, ALPHA-2 무관) ✅
 - [x] AC-5: OBI ON 20m survey TIME_REACHED 완주 증거 확보 ✅
 

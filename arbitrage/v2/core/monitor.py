@@ -85,6 +85,7 @@ class EvidenceCollector:
                 "closed_trades": metrics.closed_trades,
                 "gross_pnl": round(metrics.gross_pnl, 2),
                 "net_pnl": round(metrics.net_pnl, 2),
+                "net_pnl_full": round(getattr(metrics, "net_pnl_full", metrics.net_pnl), 2),
                 "fees": round(metrics.fees, 2),
                 "wins": metrics.wins,
                 "losses": metrics.losses,
@@ -361,6 +362,15 @@ class EvidenceCollector:
                 json.dump(decision_trace, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Decision trace saved: {trace_path} ({len(decision_trace)} samples)")
 
+            # 3-0. Trades Ledger (AC-3: per-trade 비용 breakdown)
+            trades_ledger_path = self.output_dir / "trades_ledger.jsonl"
+            with open(trades_ledger_path, "w", encoding="utf-8") as f:
+                for trade in trade_history:
+                    f.write(json.dumps(trade, ensure_ascii=False) + "\n")
+            logger.info(
+                f"[EvidenceCollector] Trades ledger saved: {trades_ledger_path} ({len(trade_history)} rows)"
+            )
+
             # 3-1. Edge Distribution (D207-3)
             edge_distribution = edge_distribution or []
             edge_distribution_path = self.output_dir / "edge_distribution.json"
@@ -393,6 +403,7 @@ class EvidenceCollector:
                 "wins": kpi_dict.get("wins"),
                 "losses": kpi_dict.get("losses"),
                 "net_pnl": kpi_dict.get("net_pnl"),
+                "net_pnl_full": kpi_dict.get("net_pnl_full"),
                 "opportunities_generated": kpi_dict.get("opportunities_generated"),
                 "stop_reason": kpi_dict.get("stop_reason", "TIME_REACHED"),
             }
@@ -409,6 +420,7 @@ class EvidenceCollector:
                 "manifest.json",
                 "metrics_snapshot.json",
                 "decision_trace.json",
+                "trades_ledger.jsonl",
                 "edge_distribution.json",
                 "edge_analysis_summary.json",
                 "edge_survey_report.json",
@@ -445,6 +457,7 @@ class EvidenceCollector:
                 "closed_trades": kpi_dict.get("closed_trades"),
                 "winrate_pct": kpi_dict.get("winrate_pct"),
                 "net_pnl": kpi_dict.get("net_pnl"),
+                "net_pnl_full": kpi_dict.get("net_pnl_full"),
                 "marketdata_mode": kpi_dict.get("marketdata_mode"),
                 "run_meta": run_meta or {},
                 "files": files,

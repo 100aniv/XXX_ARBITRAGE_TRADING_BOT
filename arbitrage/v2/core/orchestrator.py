@@ -18,6 +18,7 @@ import logging
 import signal
 import sys
 import time
+from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timezone
@@ -374,45 +375,64 @@ class PaperOrchestrator:
                 
                 # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
                 # Add-on Alpha: Domain-Driven PnL (pnl_calculator.py SSOT)
-                total_fee = entry_result.fee + exit_result.fee
+                def _to_decimal(value: Optional[float]) -> Decimal:
+                    return Decimal(str(value if value is not None else 0))
+
+                def _quantize(value: Decimal) -> Decimal:
+                    return value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+
+                total_fee = _to_decimal(entry_result.fee) + _to_decimal(exit_result.fee)
 
                 # D207-1-6: Realism Pack v1 - friction totals (slippage/latency/partial/reject)
-                def _calc_slippage_cost(result) -> float:
+                def _calc_slippage_cost(result) -> Decimal:
                     if not result:
-                        return 0.0
+                        return Decimal("0")
                     if result.ref_price is None or result.filled_qty is None:
-                        return 0.0
+                        return Decimal("0")
                     slippage_bps = getattr(result, "slippage_bps", None)
                     if slippage_bps is None:
                         if result.filled_price is None:
-                            return 0.0
-                        return abs(result.filled_price - result.ref_price) * result.filled_qty
-                    slippage_ratio = abs(float(slippage_bps)) / 10000.0
-                    return abs(float(result.ref_price)) * slippage_ratio * float(result.filled_qty)
+                            return Decimal("0")
+                        diff = abs(_to_decimal(result.filled_price) - _to_decimal(result.ref_price))
+                        return _quantize(diff * _to_decimal(result.filled_qty))
+                    slippage_ratio = abs(_to_decimal(slippage_bps)) / Decimal("10000")
+                    return _quantize(
+                        abs(_to_decimal(result.ref_price)) * slippage_ratio * _to_decimal(result.filled_qty)
+                    )
 
-                def _calc_latency_cost(result) -> float:
+                def _calc_latency_cost(result) -> Decimal:
                     if not result:
-                        return 0.0
+                        return Decimal("0")
                     if result.ref_price is None or result.filled_qty is None:
-                        return 0.0
+                        return Decimal("0")
                     drift_bps = getattr(result, "pessimistic_drift_bps", None)
                     if drift_bps is None:
-                        return 0.0
+                        return Decimal("0")
                     slippage_bps = getattr(result, "slippage_bps", 0.0) or 0.0
-                    slippage_ratio = abs(float(slippage_bps)) / 10000.0
-                    drift_ratio = abs(float(drift_bps)) / 10000.0
-                    base_price = float(result.ref_price)
-                    return abs(base_price * (1 + slippage_ratio) * drift_ratio * float(result.filled_qty))
+                    slippage_ratio = abs(_to_decimal(slippage_bps)) / Decimal("10000")
+                    drift_ratio = abs(_to_decimal(drift_bps)) / Decimal("10000")
+                    base_price = _to_decimal(result.ref_price)
+                    return _quantize(
+                        abs(base_price * (Decimal("1") + slippage_ratio) * drift_ratio * _to_decimal(result.filled_qty))
+                    )
 
                 def _calc_latency_ms(result) -> float:
                     if not result or result.latency_ms is None:
                         return 0.0
                     return float(result.latency_ms)
 
-                def _calc_partial_penalty(result) -> float:
+                def _calc_partial_penalty(result) -> Decimal:
                     if not result or result.partial_fill_ratio is None:
-                        return 0.0
-                    return max(0.0, 1.0 - float(result.partial_fill_ratio))
+                        return Decimal("0")
+                    if result.ref_price is None or result.filled_qty is None:
+                        return Decimal("0")
+                    ratio = _to_decimal(result.partial_fill_ratio)
+                    if ratio <= 0 or ratio >= 1:
+                        return Decimal("0")
+                    filled_qty = _to_decimal(result.filled_qty)
+                    intended_qty = filled_qty / ratio
+                    missing_qty = intended_qty - filled_qty
+                    return _quantize(abs(_to_decimal(result.ref_price)) * missing_qty)
 
                 def _calc_reject(result) -> float:
                     if not result:
@@ -424,16 +444,21 @@ class PaperOrchestrator:
                 latency_total_ms = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
                 partial_penalty = _calc_partial_penalty(entry_result) + _calc_partial_penalty(exit_result)
                 reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
+
+                exec_cost_total = total_fee + slippage_cost + latency_cost + partial_penalty
                 
                 # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
-                gross_pnl, realized_pnl, is_win = calculate_pnl_summary(
+                gross_pnl, realized_pnl, _ = calculate_pnl_summary(
                     entry_side=intents[0].side.value,
                     exit_side=intents[1].side.value,
                     entry_price=entry_result.filled_price,
                     exit_price=exit_result.filled_price,
                     quantity=entry_result.filled_qty,
-                    total_fee=total_fee
+                    total_fee=float(total_fee),
+                    return_decimal=True
                 )
+                net_pnl_full = _quantize(gross_pnl - exec_cost_total)
+                is_win = net_pnl_full > Decimal("0")
                 
                 trade_id = str(uuid.uuid4())
                 self.ledger_writer.record_trade_complete(
@@ -442,25 +467,27 @@ class PaperOrchestrator:
                     intents=intents,
                     entry_result=entry_result,
                     exit_result=exit_result,
-                    realized_pnl=realized_pnl,
+                    realized_pnl=float(realized_pnl),
                     kpi=self.kpi,
                 )
                 
                 # 6. KPI 업데이트
                 self.kpi.closed_trades += 1
-                self.kpi.gross_pnl += gross_pnl
-                self.kpi.fees += total_fee
+                self.kpi.gross_pnl += float(gross_pnl)
+                self.kpi.fees += float(total_fee)
                 self.kpi.net_pnl = self.kpi.gross_pnl - self.kpi.fees
+                self.kpi.net_pnl_full += float(net_pnl_full)
                 
                 # D207-1-3: Friction costs 누적 (AT: Active Failure Detection)
-                self.kpi.fees_total += total_fee
-                self.kpi.slippage_cost += slippage_cost
-                self.kpi.latency_cost += latency_cost
-                self.kpi.partial_fill_penalty += partial_penalty
+                self.kpi.fees_total += float(total_fee)
+                self.kpi.slippage_cost += float(slippage_cost)
+                self.kpi.latency_cost += float(latency_cost)
+                self.kpi.partial_fill_penalty += float(partial_penalty)
+                self.kpi.exec_cost_total += float(exec_cost_total)
                 # D207-1-6: Realism Pack v1 totals
-                self.kpi.slippage_total += slippage_cost
+                self.kpi.slippage_total += float(slippage_cost)
                 self.kpi.latency_total += latency_total_ms
-                self.kpi.partial_fill_total += partial_penalty
+                self.kpi.partial_fill_total += float(partial_penalty)
                 if reject_count:
                     for _ in range(int(reject_count)):
                         self.kpi.bump_reject("execution_reject")
@@ -514,12 +541,22 @@ class PaperOrchestrator:
                     "exit_latency_ms": exit_result.latency_ms,
                     "entry_partial_fill_ratio": entry_result.partial_fill_ratio,
                     "exit_partial_fill_ratio": exit_result.partial_fill_ratio,
-                    "realized_pnl": realized_pnl,
+                    "gross_pnl": float(gross_pnl),
+                    "realized_pnl": float(realized_pnl),
+                    "net_pnl_full": float(net_pnl_full),
+                    "fee_total": float(total_fee),
+                    "slippage_cost": float(slippage_cost),
+                    "latency_cost": float(latency_cost),
+                    "partial_fill_penalty": float(partial_penalty),
+                    "exec_cost_total": float(exec_cost_total),
                 })
                 
                 # KPI 출력 (10 iteration마다)
                 if iteration % 10 == 0:
-                    logger.info(f"[D207-1 KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, closed={self.kpi.closed_trades}, pnl={self.kpi.net_pnl:.2f}")
+                    logger.info(
+                        f"[D207-1 KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, "
+                        f"closed={self.kpi.closed_trades}, pnl_full={self.kpi.net_pnl_full:.2f}"
+                    )
                 
                 if cycle_interval_sec > 0:
                     time.sleep(cycle_interval_sec)
@@ -822,7 +859,7 @@ class PaperOrchestrator:
         
         # D_ALPHA-2: survey_mode에서 always-on 가드 임계치 완화
         # survey는 데이터 수집이므로 winrate 100% / trade starvation은 정상 동작
-        winrate_100_threshold = 999999 if survey_mode else 20
+        winrate_100_threshold = 20
         trade_starvation_flag = not survey_mode
         
         watcher_config = WatcherConfig(

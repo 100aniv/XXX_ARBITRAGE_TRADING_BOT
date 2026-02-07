@@ -13,7 +13,19 @@ Author: arbitrage-lite V2
 Date: 2026-01-10
 """
 
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Union
+from decimal import Decimal, ROUND_HALF_UP
+
+
+DECIMAL_QUANTIZE = Decimal("0.00000001")
+
+
+def _to_decimal(value: float) -> Decimal:
+    return Decimal(str(value))
+
+
+def _quantize(value: Decimal) -> Decimal:
+    return value.quantize(DECIMAL_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 def calculate_gross_pnl(
@@ -47,15 +59,21 @@ def calculate_gross_pnl(
         >>> calculate_gross_pnl("SELL", "BUY", 102.0, 100.0, 0.1)
         0.2  # (102 - 100) * 0.1
     """
+    d_entry_price = _to_decimal(entry_price)
+    d_exit_price = _to_decimal(exit_price)
+    d_quantity = _to_decimal(quantity)
+
     if entry_side == "BUY" and exit_side == "SELL":
         # Normal arbitrage: BUY at entry_price, SELL at exit_price
         # profit = (SELL price - BUY price) * qty
-        return (exit_price - entry_price) * quantity
+        gross = (d_exit_price - d_entry_price) * d_quantity
+        return float(_quantize(gross))
     
     elif entry_side == "SELL" and exit_side == "BUY":
         # Reverse arbitrage: SELL at entry_price, BUY at exit_price
         # profit = (SELL price - BUY price) * qty
-        return (entry_price - exit_price) * quantity
+        gross = (d_entry_price - d_exit_price) * d_quantity
+        return float(_quantize(gross))
     
     else:
         # Unexpected: both BUY or both SELL
@@ -83,10 +101,11 @@ def calculate_realized_pnl(
         >>> calculate_realized_pnl(0.2, 0.05)
         0.15  # 0.2 - 0.05
     """
-    return gross_pnl - total_fee
+    realized = _to_decimal(gross_pnl) - _to_decimal(total_fee)
+    return float(_quantize(realized))
 
 
-def is_win(realized_pnl: float) -> bool:
+def is_win(realized_pnl: Union[float, Decimal]) -> bool:
     """
     Win/Loss 판정
     
@@ -102,6 +121,8 @@ def is_win(realized_pnl: float) -> bool:
         >>> is_win(-0.05)
         False
     """
+    if isinstance(realized_pnl, Decimal):
+        return realized_pnl > Decimal("0")
     return realized_pnl > 0
 
 
@@ -111,8 +132,9 @@ def calculate_pnl_summary(
     entry_price: float,
     exit_price: float,
     quantity: float,
-    total_fee: float
-) -> Tuple[float, float, bool]:
+    total_fee: float,
+    return_decimal: bool = False
+) -> Tuple[Union[float, Decimal], Union[float, Decimal], bool]:
     """
     PnL 계산 전체 (Gross, Realized, Win 판정)
     
@@ -131,8 +153,24 @@ def calculate_pnl_summary(
         >>> calculate_pnl_summary("BUY", "SELL", 100.0, 102.0, 0.1, 0.05)
         (0.2, 0.15, True)
     """
-    gross_pnl = calculate_gross_pnl(entry_side, exit_side, entry_price, exit_price, quantity)
-    realized_pnl = calculate_realized_pnl(gross_pnl, total_fee)
-    win = is_win(realized_pnl)
-    
-    return gross_pnl, realized_pnl, win
+    d_entry_price = _to_decimal(entry_price)
+    d_exit_price = _to_decimal(exit_price)
+    d_quantity = _to_decimal(quantity)
+
+    if entry_side == "BUY" and exit_side == "SELL":
+        d_gross = (d_exit_price - d_entry_price) * d_quantity
+    elif entry_side == "SELL" and exit_side == "BUY":
+        d_gross = (d_entry_price - d_exit_price) * d_quantity
+    else:
+        raise ValueError(
+            f"Invalid arbitrage side combination: entry={entry_side}, exit={exit_side}. "
+            "Expected (BUY, SELL) or (SELL, BUY)."
+        )
+
+    d_realized = d_gross - _to_decimal(total_fee)
+    win = is_win(d_realized)
+
+    if return_decimal:
+        return _quantize(d_gross), _quantize(d_realized), win
+
+    return float(_quantize(d_gross)), float(_quantize(d_realized)), win

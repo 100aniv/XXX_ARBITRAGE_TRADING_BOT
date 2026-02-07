@@ -17,6 +17,7 @@ class TestWinrate100KillSwitch:
             heartbeat_sec=1,
             early_stop_enabled=False,
             winrate_100_trade_threshold=20,
+            winrate_100_sustain_sec=0.0,
         )
 
         kpi = PaperMetrics()

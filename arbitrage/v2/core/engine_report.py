@@ -158,8 +158,17 @@ def generate_engine_report(
     max_gap_sec = getattr(kpi, 'max_heartbeat_gap_sec', 0)
     
     # DB integrity
-    inserts_ok = db_counts.get('total_inserts', 0) if db_counts else kpi.db_inserts_ok
-    inserts_failed = db_counts.get('failed_inserts', 0) if db_counts else kpi.db_inserts_failed
+    inserts_ok = kpi.db_inserts_ok
+    inserts_failed = kpi.db_inserts_failed
+    if db_counts and isinstance(db_counts, dict):
+        if "total_inserts" in db_counts or "failed_inserts" in db_counts:
+            inserts_ok = int(db_counts.get("total_inserts", inserts_ok) or 0)
+            inserts_failed = int(db_counts.get("failed_inserts", inserts_failed) or 0)
+        elif "v2_orders" in db_counts or "v2_fills" in db_counts or "v2_trades" in db_counts:
+            v2_orders = int(db_counts.get("v2_orders", 0) or 0)
+            v2_fills = int(db_counts.get("v2_fills", 0) or 0)
+            v2_trades = int(db_counts.get("v2_trades", 0) or 0)
+            inserts_ok = v2_orders + v2_fills + v2_trades
     expected_inserts = kpi.closed_trades * 5  # D207-1-4 AV: 2 orders + 2 fills + 1 trade
 
     # Redis status
@@ -193,6 +202,7 @@ def generate_engine_report(
             "winrate": round(kpi.winrate_pct / 100.0, 3),
             "gross_pnl": round(kpi.gross_pnl, 2),
             "net_pnl": round(kpi.net_pnl, 2),
+            "net_pnl_full": round(getattr(kpi, "net_pnl_full", kpi.net_pnl), 2),
             "fees": round(kpi.fees, 2)
         },
         
@@ -202,7 +212,7 @@ def generate_engine_report(
             "latency_total_ms": round(getattr(kpi, "latency_total", 0.0), 2),
             "partial_fill_total": round(getattr(kpi, "partial_fill_total", 0.0), 4),
             "reject_total": round(getattr(kpi, "reject_total", 0.0), 4),
-            "exec_cost_total": round(kpi.fees + getattr(kpi, "slippage_total", 0.0), 2)
+            "exec_cost_total": round(getattr(kpi, "exec_cost_total", kpi.fees + getattr(kpi, "slippage_total", 0.0)), 2)
         },
         
         "heartbeat_summary": {

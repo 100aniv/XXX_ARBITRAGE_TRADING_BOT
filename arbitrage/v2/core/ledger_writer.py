@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 import uuid
 
@@ -7,6 +8,19 @@ from arbitrage.v2.domain.order_intent import OrderIntent, OrderSide
 from arbitrage.v2.storage.ledger import V2LedgerStorage
 
 logger = logging.getLogger(__name__)
+
+
+DECIMAL_QUANTIZE = Decimal("0.00000001")
+
+
+def _to_decimal(value: Optional[float]) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    return Decimal(str(value))
+
+
+def _quantize(value: Decimal) -> Decimal:
+    return value.quantize(DECIMAL_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 class LedgerWriter:
@@ -50,6 +64,7 @@ class LedgerWriter:
             order_id = str(uuid.uuid4())
             timestamp = datetime.now(timezone.utc)
             
+            order_quantity = _quantize(_to_decimal(intent.base_qty)) if intent.base_qty else None
             self.storage.insert_order(
                 run_id=self.config.run_id,
                 order_id=order_id,
@@ -58,7 +73,7 @@ class LedgerWriter:
                 symbol=intent.symbol,
                 side=intent.side.value,
                 order_type=intent.order_type.value,
-                quantity=float(intent.base_qty) if intent.base_qty else None,
+                quantity=order_quantity,
                 price=None,
                 status="filled",
             )
@@ -67,6 +82,9 @@ class LedgerWriter:
             fill_id = str(uuid.uuid4())
             filled_at = datetime.now(timezone.utc)
             
+            filled_qty = _quantize(_to_decimal(order_result.filled_qty))
+            filled_price = _quantize(_to_decimal(order_result.filled_price))
+            fee = _quantize(_to_decimal(order_result.fee))
             self.storage.insert_fill(
                 run_id=self.config.run_id,
                 order_id=order_id,
@@ -75,9 +93,9 @@ class LedgerWriter:
                 exchange=intent.exchange,
                 symbol=intent.symbol,
                 side=intent.side.value,
-                filled_quantity=float(order_result.filled_qty),
-                filled_price=float(order_result.filled_price),
-                fee=float(order_result.fee),
+                filled_quantity=filled_qty,
+                filled_price=filled_price,
+                fee=fee,
                 fee_currency="KRW",
             )
             rows_inserted += 1
@@ -121,6 +139,12 @@ class LedgerWriter:
             entry_order_id = f"entry_{trade_id[:8]}"
             exit_order_id = f"exit_{trade_id[:8]}"
             
+            entry_qty = _quantize(_to_decimal(entry_result.filled_qty))
+            entry_price = _quantize(_to_decimal(entry_result.filled_price))
+            exit_qty = _quantize(_to_decimal(exit_result.filled_qty))
+            exit_price = _quantize(_to_decimal(exit_result.filled_price))
+            realized_pnl_decimal = _quantize(_to_decimal(realized_pnl))
+            total_fee = _quantize(_to_decimal(entry_result.fee) + _to_decimal(exit_result.fee))
             self.storage.insert_trade(
                 run_id=self.config.run_id,
                 trade_id=trade_id,
@@ -129,19 +153,19 @@ class LedgerWriter:
                 entry_symbol=candidate.symbol,
                 entry_side=entry_intent.side.value,
                 entry_order_id=entry_order_id,
-                entry_quantity=float(entry_result.filled_qty),
-                entry_price=float(entry_result.filled_price),
+                entry_quantity=entry_qty,
+                entry_price=entry_price,
                 entry_timestamp=timestamp,
                 status="closed",
                 exit_exchange=exit_intent.exchange,
                 exit_symbol=candidate.symbol,
                 exit_side=exit_intent.side.value,
                 exit_order_id=exit_order_id,
-                exit_quantity=float(exit_result.filled_qty),
-                exit_price=float(exit_result.filled_price),
+                exit_quantity=exit_qty,
+                exit_price=exit_price,
                 exit_timestamp=timestamp,
-                realized_pnl=float(realized_pnl),
-                total_fee=float(entry_result.fee + exit_result.fee),
+                realized_pnl=realized_pnl_decimal,
+                total_fee=total_fee,
             )
             rows_inserted += 1
             kpi.db_inserts_ok += rows_inserted
