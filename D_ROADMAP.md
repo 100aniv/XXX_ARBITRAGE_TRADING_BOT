@@ -7015,15 +7015,24 @@ enable_execution: false       # REQUIRED
 
 **D_ALPHA-2-UNBLOCK-2 (PnL SSOT + Bootstrap Enforcement, 2026-02-07):**
 - 목표: net_pnl_full SSOT 단일화, winrate/net_pnl 계산 기준 일치, bootstrap_runtime_env 강제 연결, OBI ON 20m TIME_REACHED
+- PLANNED(이번 턴):
+  - Warmup 3분 동안 net_edge_bps 분포 수집 → dynamic threshold 계산(80~90p + min pass 보장)
+  - threshold 고정 적용으로 candidate 필터링 일원화 + 통과/드롭 카운터 기록
+  - `obi_dynamic_threshold.json` 아티팩트 + survey 전 git clean guard + engine_report git 상태 기록
+  - 동적 임계치 유닛 테스트 추가(artifact 생성/통과율 0 방지)
+  - Gate 3단 + 20m Survey 재실행 후 evidence/doc 업데이트
 - Scope(수정 대상):
   - `arbitrage/v2/core/engine_report.py`
+  - `arbitrage/v2/core/opportunity_source.py`
+  - `arbitrage/v2/core/monitor.py`
+  - `arbitrage/v2/core/metrics.py`
   - `arbitrage/v2/domain/pnl_calculator.py`
   - `arbitrage/v2/core/run_watcher.py`
   - `arbitrage/v2/core/orchestrator.py`
   - `arbitrage/exchanges/binance_l2_ws_provider.py`
   - `scripts/bootstrap_runtime_env.ps1`
   - `scripts/run_gate_with_evidence.py`
-  - `tests/*` (skip/skipif → optional_* / live_api 전환)
+  - `tests/*` (skip/skipif → optional_* / live_api 전환, AC-1 동적 임계치 테스트 추가)
   - `docs/v2/design/READING_CHECKLIST.md`
 - 실행 검증:
   - [x] Doctor/Fast/Regression: SKIP=0, WARN=0, ExitCode=0

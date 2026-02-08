@@ -143,6 +143,21 @@ strategy:
   negative_edge_execution_probability: 0.15  # D_ALPHA-1U-FIX-2-1: 음수 edge 일부 허용 확률
   negative_edge_floor_bps: -10.0  # D_ALPHA-1U-FIX-2-1: 허용 음수 edge 하한
 
+  # OBI Filter (D_ALPHA-2)
+  obi_filter:
+    enabled: true
+    levels: 5
+    threshold: 0.02
+    top_k: 0
+
+  # OBI Dynamic Threshold (D_ALPHA-2)
+  obi_dynamic_threshold:
+    enabled: true
+    warmup_sec: 180
+    percentile: 0.9
+    min_pass_rate: 0.05
+    min_samples: 50
+
   # Maker Fill Probability (D_ALPHA-1)
   fill_probability:
     base_fill_probability: 0.7

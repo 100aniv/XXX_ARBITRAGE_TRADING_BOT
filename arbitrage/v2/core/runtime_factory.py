@@ -173,6 +173,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     negative_edge_floor_bps = float(
         getattr(v2_config.strategy, "negative_edge_floor_bps", 0.0)
     )
+    min_net_edge_bps = float(getattr(v2_config.strategy, "min_net_edge_bps", 0.0))
+    obi_filter_cfg = getattr(v2_config.strategy, "obi_filter", None)
+    obi_dynamic_cfg = getattr(v2_config.strategy, "obi_dynamic_threshold", None)
     if getattr(config, "deterministic_drift_bps", None) is None:
         config.deterministic_drift_bps = deterministic_drift_bps
     if config.use_real_data and getattr(config, "cycle_interval_seconds", None) is None:
@@ -290,6 +293,9 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             maker_mode=getattr(config, "maker_mode", False),
             negative_edge_execution_probability=negative_edge_execution_probability,
             negative_edge_floor_bps=negative_edge_floor_bps,
+            obi_filter=obi_filter_cfg,
+            obi_dynamic_threshold=obi_dynamic_cfg,
+            min_net_edge_bps=min_net_edge_bps,
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:

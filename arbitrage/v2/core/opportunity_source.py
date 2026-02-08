@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, Tuple
 import logging
 import random
+import time
 from datetime import datetime, timezone
 
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
 from arbitrage.v2.domain.break_even import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
+from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_mismatch
 
 logger = logging.getLogger(__name__)
@@ -24,10 +26,20 @@ class OpportunitySource(ABC):
         """최근 Tick의 Edge Distribution 샘플 반환"""
         return getattr(self, "_edge_distribution_sample", None)
 
+    def get_dynamic_threshold_state(self) -> Optional[Dict[str, Any]]:
+        """OBI 동적 임계치 상태 반환"""
+        return getattr(self, "_dynamic_threshold_state", None)
+
 
 def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
     obi_score = getattr(candidate, "obi_score", None)
     depth_imbalance = getattr(candidate, "depth_imbalance", None)
+    obi_filter_pass = getattr(candidate, "obi_filter_pass", None)
+    obi_filter_reason = getattr(candidate, "obi_filter_reason", None)
+    obi_rank_score = getattr(candidate, "obi_rank_score", None)
+    dynamic_threshold_pass = getattr(candidate, "dynamic_threshold_pass", None)
+    dynamic_threshold_reason = getattr(candidate, "dynamic_threshold_reason", None)
+    dynamic_threshold_value = getattr(candidate, "dynamic_threshold_value", None)
     return {
         "symbol": candidate.symbol,
         "exchange_a": candidate.exchange_a,
@@ -52,6 +64,12 @@ def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
         "fx_rate_degraded": candidate.fx_rate_degraded,
         "obi_score": round(float(obi_score), 6) if obi_score is not None else None,
         "depth_imbalance": round(float(depth_imbalance), 6) if depth_imbalance is not None else None,
+        "obi_rank_score": round(float(obi_rank_score), 6) if obi_rank_score is not None else None,
+        "obi_filter_pass": obi_filter_pass,
+        "obi_filter_reason": obi_filter_reason,
+        "dynamic_threshold_pass": dynamic_threshold_pass,
+        "dynamic_threshold_reason": dynamic_threshold_reason,
+        "dynamic_threshold_value": round(float(dynamic_threshold_value), 6) if dynamic_threshold_value is not None else None,
         "allow_unprofitable": getattr(candidate, "allow_unprofitable", False),
     }
 
@@ -92,6 +110,95 @@ def _merge_metric(first: Optional[float], second: Optional[float]) -> Optional[f
     return sum(values) / len(values)
 
 
+def _quantile(values: List[float], q: float) -> Optional[float]:
+    if not values:
+        return None
+    sorted_vals = sorted(values)
+    idx = int(len(sorted_vals) * q)
+    idx = min(max(idx, 0), len(sorted_vals) - 1)
+    return float(sorted_vals[idx])
+
+
+def _estimate_pass_rate(values: List[float], threshold: float) -> float:
+    if not values:
+        return 0.0
+    return sum(1 for v in values if v >= threshold) / len(values)
+
+
+def _compute_dynamic_threshold(
+    values: List[float],
+    percentile: float,
+    min_pass_rate: float,
+    min_samples: int,
+    min_net_edge_bps: float,
+) -> tuple[float, float, bool, str]:
+    if not values:
+        return float(min_net_edge_bps), 0.0, True, "no_samples"
+
+    sample_n = len(values)
+    percentile = max(0.0, min(1.0, float(percentile)))
+    min_pass_rate = max(0.0, min(1.0, float(min_pass_rate)))
+
+    base_threshold = _quantile(values, percentile)
+    threshold = float(base_threshold if base_threshold is not None else min(values))
+    threshold = max(threshold, float(min_net_edge_bps))
+    expected_pass_rate = _estimate_pass_rate(values, threshold)
+    fallback_used = False
+    reason = "percentile"
+
+    if sample_n < min_samples:
+        fallback_used = True
+        reason = "min_samples"
+
+    if expected_pass_rate < min_pass_rate:
+        fallback_used = True
+        fallback_quantile = 1.0 - min_pass_rate
+        fallback_threshold = _quantile(values, fallback_quantile)
+        if fallback_threshold is not None:
+            threshold = max(float(fallback_threshold), float(min_net_edge_bps))
+        expected_pass_rate = _estimate_pass_rate(values, threshold)
+        reason = "min_pass_rate"
+
+    if expected_pass_rate <= 0.0:
+        fallback_used = True
+        threshold = float(min(values))
+        expected_pass_rate = _estimate_pass_rate(values, threshold)
+        reason = "zero_pass_guard"
+
+    return float(threshold), float(expected_pass_rate), fallback_used, reason
+
+
+def _obi_rank_score(direction: Any, obi_score: Optional[float]) -> Optional[float]:
+    if obi_score is None:
+        return None
+    direction_value = getattr(direction, "value", direction)
+    if direction_value == "buy_a_sell_b":
+        return float(obi_score)
+    if direction_value == "buy_b_sell_a":
+        return float(-obi_score)
+    return None
+
+
+def _obi_direction_allowed(
+    direction: Any,
+    obi_score: Optional[float],
+    threshold: float,
+) -> tuple[bool, Optional[str]]:
+    if obi_score is None:
+        return False, "obi_missing"
+    direction_value = getattr(direction, "value", direction)
+    threshold = abs(float(threshold))
+    if direction_value == "buy_a_sell_b":
+        if obi_score < threshold:
+            return False, "obi_threshold"
+        return True, None
+    if direction_value == "buy_b_sell_a":
+        if obi_score > -threshold:
+            return False, "obi_threshold"
+        return True, None
+    return False, "direction_none"
+
+
 class RealOpportunitySource(OpportunitySource):
     """Real MarketData 기반 Opportunity 생성"""
     
@@ -113,6 +220,9 @@ class RealOpportunitySource(OpportunitySource):
         fill_probability_params: Optional[FillProbabilityParams] = None,
         negative_edge_execution_probability: float = 0.0,
         negative_edge_floor_bps: float = 0.0,
+        obi_filter: Optional[ObiFilterConfig] = None,
+        obi_dynamic_threshold: Optional[ObiDynamicThresholdConfig] = None,
+        min_net_edge_bps: float = 0.0,
         rng: Optional[random.Random] = None,
     ):
         self.upbit_provider = upbit_provider
@@ -131,6 +241,21 @@ class RealOpportunitySource(OpportunitySource):
         self.fill_probability_params = fill_probability_params
         self.negative_edge_execution_probability = float(negative_edge_execution_probability or 0.0)
         self.negative_edge_floor_bps = float(negative_edge_floor_bps or 0.0)
+        self.obi_filter_cfg = obi_filter or ObiFilterConfig()
+        self.obi_dynamic_cfg = obi_dynamic_threshold or ObiDynamicThresholdConfig()
+        self.min_net_edge_bps = float(min_net_edge_bps or 0.0)
+        self._dynamic_threshold_samples: List[float] = []
+        self._dynamic_threshold_started_at: Optional[float] = None
+        self._dynamic_threshold_value: Optional[float] = None
+        self._dynamic_threshold_expected_pass_rate: Optional[float] = None
+        self._dynamic_threshold_reason: str = "disabled"
+        self._dynamic_threshold_fallback: bool = False
+        self._dynamic_threshold_ready: bool = False
+        self._dynamic_threshold_state: Dict[str, Any] = {
+            "enabled": bool(self.obi_dynamic_cfg.enabled),
+            "status": "disabled" if not self.obi_dynamic_cfg.enabled else "warming_up",
+            "warmup_sec": int(self.obi_dynamic_cfg.warmup_sec),
+        }
         self._rng = rng or random
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
         self._symbol_pair_idx = 0
@@ -196,6 +321,82 @@ class RealOpportunitySource(OpportunitySource):
             "universe_size": universe_size,
             "symbols_sampled": len(selected),
         }
+
+    def _update_dynamic_threshold_state(
+        self,
+        candidates: List[OpportunityCandidate],
+        now_ts: float,
+    ) -> Dict[str, Any]:
+        cfg = self.obi_dynamic_cfg
+        if not cfg.enabled:
+            state = {
+                "enabled": False,
+                "status": "disabled",
+                "warmup_sec": int(cfg.warmup_sec),
+                "warmup_elapsed_sec": 0.0,
+                "warmup_remaining_sec": float(cfg.warmup_sec),
+                "sample_count": 0,
+                "percentile": float(cfg.percentile),
+                "min_pass_rate": float(cfg.min_pass_rate),
+                "min_samples": int(cfg.min_samples),
+                "min_net_edge_bps": float(self.min_net_edge_bps),
+                "threshold": None,
+                "expected_pass_rate": None,
+                "fallback_used": None,
+                "reason": "disabled",
+                "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "ready": False,
+            }
+            self._dynamic_threshold_state = state
+            return state
+
+        if self._dynamic_threshold_started_at is None:
+            self._dynamic_threshold_started_at = now_ts
+
+        elapsed = max(0.0, now_ts - self._dynamic_threshold_started_at)
+        if not self._dynamic_threshold_ready:
+            for candidate in candidates:
+                if candidate is None:
+                    continue
+                self._dynamic_threshold_samples.append(float(candidate.net_edge_bps))
+            if elapsed >= float(cfg.warmup_sec):
+                threshold, pass_rate, fallback_used, reason = _compute_dynamic_threshold(
+                    self._dynamic_threshold_samples,
+                    percentile=cfg.percentile,
+                    min_pass_rate=cfg.min_pass_rate,
+                    min_samples=cfg.min_samples,
+                    min_net_edge_bps=self.min_net_edge_bps,
+                )
+                self._dynamic_threshold_value = threshold
+                self._dynamic_threshold_expected_pass_rate = pass_rate
+                self._dynamic_threshold_reason = reason
+                self._dynamic_threshold_fallback = fallback_used
+                self._dynamic_threshold_ready = True
+
+        status = "ready" if self._dynamic_threshold_ready else "warming_up"
+        remaining = max(0.0, float(cfg.warmup_sec) - elapsed)
+        state = {
+            "enabled": True,
+            "status": status,
+            "warmup_sec": int(cfg.warmup_sec),
+            "warmup_elapsed_sec": round(elapsed, 2),
+            "warmup_remaining_sec": round(remaining, 2),
+            "sample_count": len(self._dynamic_threshold_samples),
+            "percentile": float(cfg.percentile),
+            "min_pass_rate": float(cfg.min_pass_rate),
+            "min_samples": int(cfg.min_samples),
+            "min_net_edge_bps": float(self.min_net_edge_bps),
+            "threshold": self._dynamic_threshold_value if self._dynamic_threshold_ready else None,
+            "expected_pass_rate": (
+                self._dynamic_threshold_expected_pass_rate if self._dynamic_threshold_ready else None
+            ),
+            "fallback_used": self._dynamic_threshold_fallback if self._dynamic_threshold_ready else None,
+            "reason": self._dynamic_threshold_reason if self._dynamic_threshold_ready else "warming_up",
+            "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "ready": self._dynamic_threshold_ready,
+        }
+        self._dynamic_threshold_state = state
+        return state
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
         """Real MarketData 기반 Opportunity 생성 (D205-9)"""
@@ -369,10 +570,13 @@ class RealOpportunitySource(OpportunitySource):
                     _record_failure("binance_price_suspicious")
                     continue
 
-                orderbook_upbit = self.upbit_provider.get_orderbook(symbol_a, depth=5)
-                orderbook_binance = self.binance_provider.get_orderbook(symbol_b, depth=5)
-                obi_upbit, depth_upbit = _compute_orderbook_obi(orderbook_upbit, depth=5)
-                obi_binance, depth_binance = _compute_orderbook_obi(orderbook_binance, depth=5)
+                obi_depth = int(self.obi_filter_cfg.levels) if self.obi_filter_cfg else 5
+                if obi_depth <= 0:
+                    obi_depth = 5
+                orderbook_upbit = self.upbit_provider.get_orderbook(symbol_a, depth=obi_depth)
+                orderbook_binance = self.binance_provider.get_orderbook(symbol_b, depth=obi_depth)
+                obi_upbit, depth_upbit = _compute_orderbook_obi(orderbook_upbit, depth=obi_depth)
+                obi_binance, depth_binance = _compute_orderbook_obi(orderbook_binance, depth=obi_depth)
                 obi_score = _merge_metric(obi_upbit, obi_binance)
                 depth_imbalance = _merge_metric(depth_upbit, depth_binance)
 
@@ -452,6 +656,64 @@ class RealOpportunitySource(OpportunitySource):
                 _set_edge_distribution([], reason=reason, sampling_policy=sampling_policy)
                 return None
 
+            now_ts = time.time()
+            dynamic_state = self._update_dynamic_threshold_state(candidates_all, now_ts)
+            obi_filter_enabled = bool(self.obi_filter_cfg and self.obi_filter_cfg.enabled)
+            dynamic_enabled = bool(dynamic_state.get("enabled"))
+            dynamic_ready = bool(dynamic_state.get("ready"))
+
+            for candidate in candidates_all:
+                obi_score_value = getattr(candidate, "obi_score", None)
+                candidate.obi_rank_score = _obi_rank_score(candidate.direction, obi_score_value)
+                if obi_filter_enabled:
+                    allowed, reason = _obi_direction_allowed(
+                        candidate.direction,
+                        obi_score_value,
+                        self.obi_filter_cfg.threshold,
+                    )
+                    if allowed and candidate.obi_rank_score is None:
+                        allowed = False
+                        reason = "obi_rank_missing"
+                    candidate.obi_filter_pass = allowed
+                    candidate.obi_filter_reason = reason
+                else:
+                    candidate.obi_filter_pass = None
+                    candidate.obi_filter_reason = "disabled"
+
+                if not dynamic_enabled:
+                    candidate.dynamic_threshold_pass = None
+                    candidate.dynamic_threshold_reason = "disabled"
+                    candidate.dynamic_threshold_value = None
+                elif not dynamic_ready:
+                    candidate.dynamic_threshold_pass = None
+                    candidate.dynamic_threshold_reason = "warmup"
+                    candidate.dynamic_threshold_value = None
+                else:
+                    threshold_value = dynamic_state.get("threshold")
+                    candidate.dynamic_threshold_value = threshold_value
+                    if threshold_value is None:
+                        candidate.dynamic_threshold_pass = None
+                        candidate.dynamic_threshold_reason = "threshold_missing"
+                    elif candidate.net_edge_bps >= float(threshold_value):
+                        candidate.dynamic_threshold_pass = True
+                        candidate.dynamic_threshold_reason = None
+                    else:
+                        candidate.dynamic_threshold_pass = False
+                        candidate.dynamic_threshold_reason = "below_threshold"
+
+            if obi_filter_enabled and self.obi_filter_cfg.top_k > 0:
+                ranked = [c for c in candidates_all if c.obi_filter_pass]
+                ranked.sort(
+                    key=lambda c: (
+                        c.obi_rank_score if c.obi_rank_score is not None else float("-inf")
+                    ),
+                    reverse=True,
+                )
+                for idx, candidate in enumerate(ranked):
+                    if idx >= self.obi_filter_cfg.top_k:
+                        candidate.obi_filter_pass = False
+                        candidate.obi_filter_reason = "obi_top_k"
+
             _set_edge_distribution(candidates_all, sampling_policy=sampling_policy)
 
             # D207-5: Real tick successfully processed (candidate profitability와 무관)
@@ -466,8 +728,21 @@ class RealOpportunitySource(OpportunitySource):
 
             negative_prob = max(0.0, min(1.0, self.negative_edge_execution_probability))
             negative_floor = float(self.negative_edge_floor_bps)
+            filtered_candidates = candidates_all
+            if obi_filter_enabled:
+                filtered_candidates = [c for c in filtered_candidates if c.obi_filter_pass]
+            if dynamic_enabled and dynamic_ready:
+                filtered_candidates = [c for c in filtered_candidates if c.dynamic_threshold_pass]
+
+            if not filtered_candidates:
+                if dynamic_enabled and dynamic_ready:
+                    self.kpi.bump_reject("dynamic_threshold_drop")
+                elif obi_filter_enabled:
+                    self.kpi.bump_reject("obi_filter_drop")
+                return None
+
             negative_candidates = [
-                c for c in candidates_all
+                c for c in filtered_candidates
                 if c.net_edge_bps < 0 and c.net_edge_bps >= negative_floor
             ]
 
@@ -476,7 +751,7 @@ class RealOpportunitySource(OpportunitySource):
                 candidate = max(negative_candidates, key=lambda c: c.net_edge_bps)
                 candidate.allow_unprofitable = True
             else:
-                profitable_candidates = [c for c in candidates_all if c.profitable]
+                profitable_candidates = [c for c in filtered_candidates if c.profitable]
                 candidate = max(profitable_candidates, key=lambda c: c.net_edge_bps) if profitable_candidates else None
 
             if not candidate:

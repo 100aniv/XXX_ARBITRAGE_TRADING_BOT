@@ -46,6 +46,43 @@ class ThresholdConfig:
 
 
 @dataclass
+class ObiFilterConfig:
+    """OBI 필터 설정"""
+    enabled: bool = False
+    levels: int = 5
+    threshold: float = 0.02
+    top_k: int = 0
+
+    def __post_init__(self):
+        if self.levels <= 0:
+            raise ValueError("obi_filter.levels는 1 이상이어야 합니다")
+        if self.top_k < 0:
+            raise ValueError("obi_filter.top_k는 0 이상이어야 합니다")
+        if self.threshold < 0 or self.threshold > 1:
+            raise ValueError("obi_filter.threshold는 0~1 범위여야 합니다")
+
+
+@dataclass
+class ObiDynamicThresholdConfig:
+    """OBI 동적 임계치 설정 (net_edge_bps 기반)"""
+    enabled: bool = False
+    warmup_sec: int = 180
+    percentile: float = 0.9
+    min_pass_rate: float = 0.05
+    min_samples: int = 50
+
+    def __post_init__(self):
+        if self.warmup_sec <= 0:
+            raise ValueError("obi_dynamic_threshold.warmup_sec는 1 이상이어야 합니다")
+        if not (0 < self.percentile < 1):
+            raise ValueError("obi_dynamic_threshold.percentile는 0~1 범위여야 합니다")
+        if not (0 < self.min_pass_rate <= 1):
+            raise ValueError("obi_dynamic_threshold.min_pass_rate는 0~1 범위여야 합니다")
+        if self.min_samples < 0:
+            raise ValueError("obi_dynamic_threshold.min_samples는 0 이상이어야 합니다")
+
+
+@dataclass
 class OrderSizePolicyConfig:
     """주문 크기 정책 설정"""
     mode: str  # "fixed_quote" or "risk_based"
@@ -57,9 +94,12 @@ class StrategyConfig:
     """전략 파라미터"""
     threshold: ThresholdConfig
     order_size_policy: OrderSizePolicyConfig
+    min_net_edge_bps: float = 0.0
     deterministic_drift_bps: float = 0.0
     negative_edge_execution_probability: float = 0.0
     negative_edge_floor_bps: float = 0.0
+    obi_filter: ObiFilterConfig = field(default_factory=ObiFilterConfig)
+    obi_dynamic_threshold: ObiDynamicThresholdConfig = field(default_factory=ObiDynamicThresholdConfig)
 
 
 @dataclass
@@ -380,15 +420,35 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         mode=strategy_raw['order_size_policy']['mode'],
         fixed_quote=strategy_raw['order_size_policy'].get('fixed_quote'),
     )
+
+    obi_filter_raw = strategy_raw.get('obi_filter') or {}
+    obi_filter = ObiFilterConfig(
+        enabled=bool(obi_filter_raw.get('enabled', False)),
+        levels=int(obi_filter_raw.get('levels', 5)),
+        threshold=float(obi_filter_raw.get('threshold', 0.02)),
+        top_k=int(obi_filter_raw.get('top_k', 0)),
+    )
+
+    obi_dynamic_raw = strategy_raw.get('obi_dynamic_threshold') or {}
+    obi_dynamic_threshold = ObiDynamicThresholdConfig(
+        enabled=bool(obi_dynamic_raw.get('enabled', False)),
+        warmup_sec=int(obi_dynamic_raw.get('warmup_sec', 180)),
+        percentile=float(obi_dynamic_raw.get('percentile', 0.9)),
+        min_pass_rate=float(obi_dynamic_raw.get('min_pass_rate', 0.05)),
+        min_samples=int(obi_dynamic_raw.get('min_samples', 50)),
+    )
     
     strategy = StrategyConfig(
         threshold=threshold,
         order_size_policy=order_size_policy,
+        min_net_edge_bps=float(strategy_raw.get('min_net_edge_bps', 0.0)),
         deterministic_drift_bps=float(strategy_raw.get('deterministic_drift_bps', 0.0)),
         negative_edge_execution_probability=float(
             strategy_raw.get('negative_edge_execution_probability', 0.0)
         ),
         negative_edge_floor_bps=float(strategy_raw.get('negative_edge_floor_bps', 0.0)),
+        obi_filter=obi_filter,
+        obi_dynamic_threshold=obi_dynamic_threshold,
     )
 
     fill_probability_raw = strategy_raw.get("fill_probability") or raw_config.get("fill_probability") or {}

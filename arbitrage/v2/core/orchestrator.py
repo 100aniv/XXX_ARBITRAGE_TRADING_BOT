@@ -30,7 +30,12 @@ from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
 from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.run_watcher import RunWatcher
-from arbitrage.v2.core.engine_report import generate_engine_report, get_git_sha, get_git_branch
+from arbitrage.v2.core.engine_report import (
+    generate_engine_report,
+    get_git_sha,
+    get_git_branch,
+    get_git_status_info,
+)
 from arbitrage.v2.core.order_intent import OrderSide
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
@@ -903,15 +908,20 @@ class PaperOrchestrator:
     
     def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
         """Evidence 저장"""
+        dynamic_state = None
+        if hasattr(self.opportunity_source, "get_dynamic_threshold_state"):
+            dynamic_state = self.opportunity_source.get_dynamic_threshold_state()
         run_meta = {
             "run_id": self.run_id,
             "git_sha": get_git_sha(),
             "branch": get_git_branch(),
+            "git_status": get_git_status_info(),
             "config_path": getattr(self.config, "config_path", None),
             "symbols": getattr(self.config, "symbols", None),
             "cli_args": getattr(self.config, "cli_args", None),
             "metrics": self.kpi.to_dict(),
             "universe_metadata": getattr(self.config, "universe_metadata", None),
+            "obi_dynamic_threshold_state": dynamic_state,
         }
         self.evidence_collector.save(
             metrics=self.kpi,

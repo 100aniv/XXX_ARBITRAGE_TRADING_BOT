@@ -54,6 +54,52 @@ def get_git_branch() -> str:
         return "unknown"
 
 
+def get_git_status_info() -> Dict[str, Any]:
+    """Get git status details (clean/dirty + modified/added files)"""
+    info: Dict[str, Any] = {
+        "status": "unknown",
+        "modified_files": [],
+        "added_files": [],
+        "deleted_files": [],
+        "untracked_files": [],
+    }
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return info
+        output = (result.stdout or "").splitlines()
+        if not output:
+            info["status"] = "clean"
+            return info
+        info["status"] = "dirty"
+
+        for line in output:
+            if not line:
+                continue
+            status_code = line[:2]
+            path = line[3:] if len(line) > 3 else ""
+            if " -> " in path:
+                path = path.split(" -> ")[-1]
+            if status_code == "??":
+                info["untracked_files"].append(path)
+                continue
+            if "A" in status_code:
+                info["added_files"].append(path)
+            if "D" in status_code:
+                info["deleted_files"].append(path)
+            if "M" in status_code or "R" in status_code or "C" in status_code:
+                info["modified_files"].append(path)
+    except Exception as e:
+        info["error"] = str(e)
+    return info
+
+
 def compute_config_fingerprint(config: Any, config_path: Optional[str] = None) -> str:
     """
     Compute config fingerprint (SHA256) - D206-3 AC-6
@@ -128,6 +174,7 @@ def generate_engine_report(
     
     # Git SHA
     git_sha = get_git_sha()
+    git_status = get_git_status_info()
     
     # Config fingerprint
     config_path = getattr(config, "config_path", None)
@@ -144,6 +191,7 @@ def generate_engine_report(
         "run_id": run_id,
         "git_sha": git_sha,
         "branch": get_git_branch(),
+        "git_status": git_status,
         "config_path": config_path,
         "symbols": symbols,
         "cli_args": getattr(config, "cli_args", None),
@@ -191,6 +239,7 @@ def generate_engine_report(
         "symbols": symbols,
         "config_fingerprint": config_fingerprint,
         "run_meta": run_meta,
+        "git_status": git_status,
         
         "gate_validation": {
             "warnings_count": warning_counts.get("warning_count", 0),

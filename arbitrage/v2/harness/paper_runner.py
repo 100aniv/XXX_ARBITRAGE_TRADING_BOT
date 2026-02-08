@@ -67,6 +67,18 @@ class PaperRunnerConfig:
         if not os.getenv("BOOTSTRAP_FLAG"):
             logger.error("[BOOTSTRAP GUARD] FAIL: BOOTSTRAP_FLAG missing. Run bootstrap_runtime_env.ps1 first.")
             raise SystemExit(1)
+        if self.survey_mode:
+            from arbitrage.v2.core.engine_report import get_git_status_info
+            status_info = get_git_status_info()
+            status = status_info.get("status")
+            if status != "clean":
+                logger.error(
+                    f"[D_ALPHA-2 GIT CLEAN GUARD] FAIL: status={status} (survey_mode requires clean git)"
+                )
+                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] modified={status_info.get('modified_files')}")
+                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] added={status_info.get('added_files')}")
+                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] untracked={status_info.get('untracked_files')}")
+                raise SystemExit(1)
         if self.output_dir and not self.run_id:
             self.run_id = Path(self.output_dir).name
         elif not self.run_id:

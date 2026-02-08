@@ -365,6 +365,7 @@ class EvidenceCollector:
     ) -> Dict[str, Any]:
         candidates: List[Dict[str, Any]] = []
         sample_reasons: Dict[str, int] = {}
+        dynamic_reasons: Dict[str, int] = {}
         for tick in edge_distribution:
             reason = tick.get("reason")
             if reason:
@@ -374,6 +375,13 @@ class EvidenceCollector:
         considered = len(candidates)
         passed_obi = sum(1 for c in candidates if c.get("obi_score") is not None)
         passed_spread = sum(1 for c in candidates if (c.get("net_edge_bps") or 0) > 0)
+        dynamic_pass = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is True)
+        dynamic_drop = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is False)
+        dynamic_warmup = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is None)
+        for candidate in candidates:
+            reason = candidate.get("dynamic_threshold_reason")
+            if reason:
+                dynamic_reasons[reason] = dynamic_reasons.get(reason, 0) + 1
 
         intents_created = 0
         reject_reasons: Dict[str, int] = {}
@@ -382,15 +390,71 @@ class EvidenceCollector:
             intents_created = int(metrics_dict.get("intents_created", 0) or 0)
             reject_reasons = dict(metrics_dict.get("reject_reasons") or {})
 
+        dynamic_state = {}
+        if run_meta and "obi_dynamic_threshold_state" in run_meta:
+            dynamic_state = dict(run_meta.get("obi_dynamic_threshold_state") or {})
+
         return {
             "considered": considered,
             "passed_obi": passed_obi,
             "passed_spread": passed_spread,
             "execution_attempt": intents_created,
+            "dynamic_threshold": {
+                "enabled": bool(dynamic_state.get("enabled")) if dynamic_state else False,
+                "ready": bool(dynamic_state.get("ready")) if dynamic_state else False,
+                "passed": dynamic_pass,
+                "dropped": dynamic_drop,
+                "warmup": dynamic_warmup,
+                "reason_counts": dynamic_reasons,
+            },
             "drop_reasons": {
                 "reject_reasons": reject_reasons,
                 "edge_sample_reasons": sample_reasons,
             },
+        }
+
+    def _obi_dynamic_threshold_snapshot(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        run_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        candidates: List[Dict[str, Any]] = []
+        reason_counts: Dict[str, int] = {}
+        threshold_values: List[float] = []
+        for tick in edge_distribution:
+            for candidate in tick.get("candidates") or []:
+                candidates.append(candidate)
+                reason = candidate.get("dynamic_threshold_reason")
+                if reason:
+                    reason_counts[reason] = reason_counts.get(reason, 0) + 1
+                threshold_value = candidate.get("dynamic_threshold_value")
+                if threshold_value is not None:
+                    threshold_values.append(float(threshold_value))
+
+        dynamic_state = {}
+        if run_meta and "obi_dynamic_threshold_state" in run_meta:
+            dynamic_state = dict(run_meta.get("obi_dynamic_threshold_state") or {})
+
+        pass_count = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is True)
+        drop_count = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is False)
+        warmup_count = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is None)
+
+        threshold_stats = {
+            "min": min(threshold_values) if threshold_values else None,
+            "max": max(threshold_values) if threshold_values else None,
+            "last": threshold_values[-1] if threshold_values else None,
+        }
+
+        return {
+            "state": dynamic_state,
+            "counts": {
+                "considered": len(candidates),
+                "passed": pass_count,
+                "dropped": drop_count,
+                "warmup": warmup_count,
+                "reason_counts": reason_counts,
+            },
+            "threshold_values": threshold_stats,
         }
 
     def _edge_decomposition(
@@ -551,6 +615,13 @@ class EvidenceCollector:
                 json.dump(obi_counters, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] OBI filter counters saved: {obi_counters_path}")
 
+            # 3-5-1. OBI Dynamic Threshold Snapshot (AC-1)
+            obi_dynamic = self._obi_dynamic_threshold_snapshot(edge_distribution, run_meta=run_meta)
+            obi_dynamic_path = self.output_dir / "obi_dynamic_threshold.json"
+            with open(obi_dynamic_path, "w", encoding="utf-8") as f:
+                json.dump(obi_dynamic, f, indent=2, ensure_ascii=False)
+            logger.info(f"[EvidenceCollector] OBI dynamic threshold saved: {obi_dynamic_path}")
+
             # 3-6. Edge Decomposition (AC-3)
             edge_decomposition = self._edge_decomposition(trade_history, metrics)
             edge_decomposition_path = self.output_dir / "edge_decomposition.json"
@@ -590,6 +661,7 @@ class EvidenceCollector:
                 "edge_survey_report.json",
                 "obi_topn.json",
                 "obi_filter_counters.json",
+                "obi_dynamic_threshold.json",
                 "edge_decomposition.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"
