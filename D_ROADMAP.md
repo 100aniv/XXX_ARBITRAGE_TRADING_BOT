@@ -7625,10 +7625,52 @@ enable_execution: false       # REQUIRED
 
 ---
 
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
+## D_ALPHA-2
 
-이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
-모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.
+### D_ALPHA-2: Dynamic OBI Threshold Implementation + Git Clean Guard + Survey Evidence
+
+**상태:** COMPLETED
+
+**문서:** `docs/v2/reports/D_ALPHA/DALPHA-2-UNBLOCK-2_REPORT.md`
+
+**Commit:** 11f6762 (DALPHA-2: obi dynamic threshold + artifacts + clean-guard + survey evidence)
+
+> **Date:** 2026-02-08   **Status:** ✅ **COMPLETED**   **Author:** Windsurf AI
+> 
+> **AC-1: Dynamic OBI Threshold Implementation**
+> - Warmup period edge distribution collection
+> - Percentile-based threshold calculation with zero-pass guard
+> - Dynamic threshold state recording in engine_report and run_meta
+> - Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/obi_dynamic_threshold.json`
+>
+> **AC-2: OBI Filter Artifacts**
+> - `obi_filter_counters.json`: filter decision counters
+> - `obi_topn.json`: top N opportunities
+> - Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/obi_filter_counters.json`
+>
+> **AC-3: Edge Distribution & Decomposition**
+> - `edge_distribution.json`: 58 samples collected during survey
+> - `edge_decomposition.json`: edge analysis summary
+> - Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/edge_distribution.json`
+>
+> **AC-4: Git Clean Guard**
+> - survey_mode requires clean git status
+> - git status recorded in engine_report
+> - Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/engine_report.json`
+>
+> **AC-5: 20-minute OBI ON Survey**
+> - TIME_REACHED completion (1206.2s)
+> - closed_trades=11, opportunities_generated=58
+> - Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/watch_summary.json`
+>
+> **Gate Results (Zero-Skip/Warn):**
+> - Doctor: PASS (exitcode=0)
+> - Fast: PASS (exitcode=0)
+> - Regression: PASS (exitcode=0)
+> - DocOps: PASS (check_ssot_docs.py exitcode=0)
+> - Boundary: PASS (check_v2_boundary.py exitcode=0)
+
+---
+
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

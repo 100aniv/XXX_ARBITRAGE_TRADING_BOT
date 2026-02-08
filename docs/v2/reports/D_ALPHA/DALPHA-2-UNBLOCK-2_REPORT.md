@@ -59,20 +59,28 @@
 
 ## 실행/검증 결과
 
-### Gate Doctor/Fast/Regression (2026-02-07)
+### Gate Doctor/Fast/Regression (2026-02-07 & 2026-02-08)
 - Doctor: PASS (`logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, exitcode=0)
 - Fast: PASS (`logs/evidence/20260207_212001_gate_fast_ee4a9d6/`)
 - Regression: PASS (`logs/evidence/20260207_212255_gate_regression_ee4a9d6/`)
+- Doctor (재실행): PASS (`logs/evidence/20260208_222745_gate_doctor_a080a15/`, exitcode=0)
+- Fast (재실행): PASS (`logs/evidence/20260208_222808_gate_fast_a080a15/`, exitcode=0)
+- Regression (재실행): PASS (`logs/evidence/20260208_223110_gate_regression_a080a15/`, exitcode=0)
 
 **판정:** GATE_NO_SKIP=1 + SKIP/WARN=FAIL 강제 하에 PASS (skip=0)
 
 ### OBI ON 20m Survey (TIME_REACHED)
-- Evidence: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`
+- Evidence: `logs/evidence/d205_18_2d_smoke_20260208_2249/`
 - watch_summary.json:
-  - monotonic_elapsed_sec=1204.84, completeness_ratio=1.0, stop_reason=TIME_REACHED
+  - monotonic_elapsed_sec=1206.2, completeness_ratio=1.0, stop_reason=TIME_REACHED
 - KPI 요약:
-  - closed_trades=11, gross_pnl=3.72, net_pnl_full=-1.68
-  - fees=0.11, winrate=72.73%, db_inserts_ok=55
+  - closed_trades=11, opportunities_generated=58, net_pnl_full=TBD
+  - db_inserts_ok=55, wallclock_duration=1206.2s
+- Dynamic OBI Threshold Artifacts:
+  - `obi_dynamic_threshold.json`: threshold calculation state
+  - `obi_filter_counters.json`: filter decision counters
+  - `edge_distribution.json`: 58 edge samples collected
+  - `engine_report.json`: git status + dynamic threshold metadata
 
 ### AC-2/AC-3 아티팩트
 - OBI TopN: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_topn.json`
