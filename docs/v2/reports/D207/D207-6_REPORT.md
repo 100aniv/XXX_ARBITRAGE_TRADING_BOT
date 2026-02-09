@@ -1,8 +1,8 @@
 # D207-6: Multi-Symbol Alpha Survey
 
-**Date:** 2026-01-28  
+**Date:** 2026-02-09  
 **Status:** ✅ COMPLETED  
-**Evidence:** `logs/evidence/d207_6_edge_survey_20260128_2030/`
+**Evidence:** `logs/evidence/d207_6_alpha_survey_20m/`
 
 ---
 
@@ -81,24 +81,33 @@ git diff > git_diff.txt
 
 ## REAL Survey (20분)
 
-**Run ID:** d207_6_edge_survey_20260128_2030  
-**Duration:** 1201.37s (20.02분)  
-**Symbols:** 10 (Top 30 기반, max_symbols_per_tick=6)
+**Run ID:** d207_6_alpha_survey_20m  
+**Duration:** 1204.5s (20.08분)  
+**Symbols:** 50 (Top 100 요청, 50개 로드)
 
 ### KPI 요약
-- real_ticks_ok_count: 876
-- opportunities_generated: 0
-- closed_trades: 0
-- reject_total: 876 (candidate_none=876)
+- real_ticks_ok_count: 68
+- real_ticks_fail_count: 0
+- opportunities_generated: 35
+- closed_trades: 8
+- winrate: 50.0% (4 wins / 4 losses)
+- net_pnl: -2.44
+- reject_total: 86
+- reject_reasons: units_mismatch=0, candidate_none=33, cooldown=26
 - stop_reason: TIME_REACHED
+- fx_rate: 1485.13 KRW/USDT (crypto_implied)
 
 ### Edge Survey 요약
-- total_ticks: 876
-- total_candidates: 10512
-- sampling_policy: round_robin, max_symbols_per_tick=6
-- p95_net_edge_bps: -50.6433 ~ -73.9328 (전 심볼 음수)
+- total_ticks: 68
+- total_candidates: 3400
+- unique_symbols_evaluated: 49
+- coverage_ratio: 0.49 (49/100)
+- p95_net_edge_bps: 35.37
+- p99_net_edge_bps: 91.40
+- max_net_edge_bps: 110.46
+- positive_net_edge_pct: 9.56%
 
-**해석:** 시장 스프레드가 break-even 대비 낮아 모든 기회가 음수로 판정됨.
+**해석:** 멀티심볼 survey 정상 동작, units_mismatch=0 확인, edge_survey_report.json 생성 완료.
 
 ---
 
@@ -118,16 +127,15 @@ git diff > git_diff.txt
 ## Evidence 경로
 
 ### Main Run
-- `logs/evidence/d207_6_edge_survey_20260128_2030/`
+- `logs/evidence/d207_6_alpha_survey_20m/`
   - kpi.json, engine_report.json, watch_summary.json, edge_survey_report.json, manifest.json
+  - edge_distribution.json, edge_analysis_summary.json
+  - decision_trace.json, trades_ledger.jsonl
 
-### Gate Results
-- `logs/evidence/20260128_211248_gate_doctor_a2269a9/`
-- `logs/evidence/20260128_211800_gate_fast_a2269a9/`
-- `logs/evidence/20260128_213534_gate_regression_a2269a9/`
-
-### DocOps Gate
-- `logs/evidence/d207_6_docops_gate_20260128_222059/`
+### Gate Results (Pre-flight)
+- Doctor: 21/21 PASS (2.6s)
+- Fast: 2316/2316 PASS (77s)
+- Regression (D207-6): 22/22 PASS (3s)
 
 ---
 

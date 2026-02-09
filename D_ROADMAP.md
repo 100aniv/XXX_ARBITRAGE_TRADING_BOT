@@ -6722,7 +6722,7 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-6: Multi-Symbol Alpha Survey
 
-**상태:** ✅ COMPLETED (2026-01-28)
+**상태:** ✅ COMPLETED (2026-02-09)
 **목적:** 멀티 심볼 샘플링 + INVALID_UNIVERSE 가드 + edge_survey_report.json 검증
 
 **Acceptance Criteria:**
@@ -6733,11 +6733,18 @@ enable_execution: false       # REQUIRED
 - [x] AC-5: REAL 20분 survey 증거
 - [x] AC-6: Gate 3단 PASS
 
+**핵심 KPI (2026-02-09 실행):**
+- Duration: 1204.5s (20.08분)
+- Symbols: 50 (Top100 요청, 50개 로드)
+- real_ticks_ok: 68 / real_ticks_fail: 0
+- units_mismatch: 0 ✅
+- unique_symbols_evaluated: 49
+- p95_net_edge_bps: 35.37
+- positive_net_edge_pct: 9.56%
+
 **Evidence 경로:**
-- Survey: `logs/evidence/d207_6_edge_survey_20260128_2030/`
-- Gate Doctor: `logs/evidence/20260128_211248_gate_doctor_a2269a9/`
-- Gate Fast: `logs/evidence/20260128_211800_gate_fast_a2269a9/`
-- Gate Regression: `logs/evidence/20260128_213534_gate_regression_a2269a9/`
+- Survey: `logs/evidence/d207_6_alpha_survey_20m/`
+- Pre-flight Gate: Doctor 21/21, Fast 2316/2316, Regression 22/22 PASS
 - 보고서: `docs/v2/reports/D207/D207-6_REPORT.md`
 
 ---
