@@ -6793,6 +6793,33 @@ enable_execution: false       # REQUIRED
 
 ---
 
+#### D_ALPHA-PIPELINE-0: One-Command Product Pipeline + Auto-Rail
+
+**상태:** IN PROGRESS (2026-02-09)
+**목적:** 단일 실행으로 Gate/DocOps/Boundary/Survey를 완주하고 증거를 일관 경로에 저장한다.
+
+**Acceptance Criteria:**
+- [ ] AC-1: Canonical entrypoint 실행 스크립트 존재 및 실행 기록 (`scripts/run_alpha_pipeline.py`)
+- [x] AC-2: Gate 3단 PASS (Doctor/Fast/Regression)
+- [x] AC-3: DocOps Gate 실행 (check_ssot_docs ExitCode=0 + rg 결과 저장)
+- [x] AC-4: V2 Boundary PASS
+- [x] AC-5: 20m Survey TIME_REACHED 증거 (watch_summary/kpi/engine_report/edge_survey_report)
+- [ ] AC-6: 파이프라인 요약 산출물 및 자동 레일 확인 (entrypoint 연결 필요)
+
+**Evidence 경로:**
+- Gate Doctor: `logs/evidence/20260209_105148_gate_doctor_66a6d64/`
+- Gate Fast: `logs/evidence/20260209_105214_gate_fast_66a6d64/`
+- Gate Regression: `logs/evidence/20260209_105512_gate_regression_66a6d64/`
+- DocOps: `logs/evidence/dalpha_pipeline_0_docops_20260209_112924/`
+- Boundary: `logs/evidence/dalpha_pipeline_0_boundary_20260209_105950/`
+- Survey: `logs/evidence/dalpha_pipeline_0_survey_20260209_110022/`
+- 보고서: `docs/v2/reports/D_ALPHA/DALPHA-PIPELINE-0_REPORT.md`
+
+**비고:**
+- entrypoint 경로 확인 필요: `scripts/run_alpha_pipeline.py` 경로 미확인
+
+---
+
 #### D_ALPHA-0: Universe Truth (TopN 실제 동작 확정)
 
 **상태:** COMPLETED (2026-01-30 / commit 5b482ef / Gate Doctor·Fast·Regression PASS)  
