@@ -1,8 +1,9 @@
 # D207-6: Multi-Symbol Alpha Survey
 
 **Date:** 2026-02-09  
-**Status:** ✅ COMPLETED  
+**Status:** 🔁 RERUN (Alpha2 보조 증거)  
 **Evidence:** `logs/evidence/d207_6_alpha_survey_20m/`
+**SSOT Note:** 본 실행은 D_ALPHA-2(Alpha2) 의사결정 보조 증거이며 신규 COMPLETED로 간주하지 않는다.
 
 ---
 

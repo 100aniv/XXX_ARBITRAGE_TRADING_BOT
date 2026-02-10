@@ -42,6 +42,35 @@
 - ✅ **필수:** AC + Evidence 일치 시에만 COMPLETED 선언
 - ✅ **필수:** Gate 100% PASS + 실제 실행 증거 존재
 
+
+#### 1.2.1 Network Access Authorization (NET-READ / NET-TRADE)
+
+**목적:** "승인 구걸"로 인한 실행 중단을 없애면서도, **거래/자산 영향 행위는 명시적 승인**으로 분리한다.
+
+- **NET-READ (사전 승인, 질문 금지)**
+  - 예: Ticker/Orderbook/ExchangeInfo 조회, 심볼 리스트 로드, 공개 환율 추정, 읽기 전용 메트릭 수집
+  - **규칙:** NET-READ에 해당하면 **대화형 승인(1) 실행 / 2) 중지 같은 UI)을 출력하며 멈추는 행위는 CRITICAL FAIL**이다.
+  - **절차:** `Pre-flight(Doctor/Fast/Regression)`를 끝까지 완주 → **최종 실행 커맨드를 제시**하고, 필요 시 바로 실행한다.
+  - **증거:** 실행 로그에 `net_mode=NET-READ`를 명시한다.
+
+- **NET-TRADE (명시적 "GO" 필요)**
+  - 예: 주문(spot/futures) 발행, 포지션 변경, 자산/잔고 조회(민감), 출금/전송, API 키/권한 변경
+  - **규칙:** NET-TRADE는 사용자로부터 정확히 **"GO"** 또는 동등한 명시적 승인 토큰을 받은 뒤에만 실행한다.
+  - **대체:** 승인 전에는 "준비 완료(Pre-flight + 리스크 리포트 + 실행 커맨드)"까지는 진행하되, **마지막 실행만 보류**한다.
+
+- **명시 규정 (가장 자주 헷갈리는 케이스)**
+  - `--use-real-data`가 **Ticker/Orderbook 등 읽기 전용 호출만 포함**하고, 주문 실행이 `dry_run=true` 또는 주문 코드 경로가 비활성이라면 **NET-READ**로 분류한다.
+  - 반대로, 주문/잔고/API키 관련 호출이 포함되면 **NET-TRADE**로 분류한다.
+
+> 요약: **READ는 묻지 말고 끝까지, TRADE는 GO 없으면 마지막 버튼만 보류.**
+
+### 1-3. Task ID Resolution & RERUN Policy (강제)
+- **Task ID 확정:** 이번 작업의 Task ID는 `D_ROADMAP.md`의 **IN PROGRESS** 섹션에서 1개를 확정해 사용한다.
+- **COMPLETED 재사용 금지:** 완료된 Task ID를 신규 완료로 재사용하지 않는다.
+- **RERUN 기록:** 재실행은 `RERUN`으로 표시하고, 기존 COMPLETED 상태는 유지한다.
+- **보조 증거 규칙:** 다른 D 단계의 보조 증거는 `RERUN` 또는 `참조`로 표기하며 신규 COMPLETED로 기록하지 않는다.
+
+
 ### 2. Report 파일명 규칙 (SSOT 우선순위: D_ROADMAP → Report → Evidence)
 **⚠️ 핵심 원칙: Report는 필수, Evidence README는 보조**
 
@@ -1076,9 +1105,8 @@ git diff --stat
 - `check_ssot_docs.py`에서 이미 일부 검증 중
 - 명시적 규칙화로 재발 방지 강화
 
----
 
-## � Section I: check_ssot_docs.py ExitCode=0 강제 (SSOT DocOps Gate)
+## Section I: check_ssot_docs.py ExitCode=0 강제 (SSOT DocOps Gate)
 
 **원칙:** "스코프 내 PASS" 같은 인간 판정 금지, 물리적 증거만 인정
 

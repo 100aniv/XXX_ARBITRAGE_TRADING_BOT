@@ -112,3 +112,11 @@
 - docs/v2/OPS_PROTOCOL.md — 확인: 운영 불변조건(heartbeat, DB invariant, graceful shutdown) 재확인.
 - docs/v2/design/SSOT_DATA_ARCHITECTURE.md — 확인: DB/Redis Required 및 Truth/Required 구분 재확인.
 - docs/v2/design/INFRA_REUSE_INVENTORY.md — 확인: infra SSOT 재사용 정책(Compose 경로) 재확인.
+
+## Step 0 Reading (D_ALPHA-2 ALIGNMENT)
+
+- D_ROADMAP.md — 확인: D_ALPHA-2 상태/AC, D207-6 RERUN 기록 정합성 확인.
+- docs/v2/SSOT_RULES.md — 확인: Task ID/RERUN 정책 및 DocOps Gate 규칙 확인.
+- docs/v2/OPS_PROTOCOL.md — 확인: 운영 기록 규칙(Task ID/RERUN) 적용 여부 확인.
+- docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 DocOps 업데이트 대상 문서 확인.
+- docs/v2/design/EVIDENCE_FORMAT.md — 확인: DocOps/Gate 증거 저장 규칙 재확인.

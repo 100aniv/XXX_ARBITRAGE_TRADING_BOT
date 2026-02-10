@@ -24,6 +24,27 @@
 - **원칙:** 엔진이 예외(Exception)나 SIGTERM으로 중단되더라도, `finally` 블록을 통해 그 시점까지의 `engine_report.json`과 `logs`를 물리적으로 기록(Flush)해야 한다.
 - **판정:** 증거 없는 종료는 '사고 은폐'로 간주하며, 해당 Run은 무효(FAIL) 처리한다.
 
+
+### 1.1.2 Network Access Authorization (NET-READ / NET-TRADE)
+
+- **NET-READ (사전 승인):** 공개 시세/호가/심볼 조회 등 *읽기 전용* 네트워크 호출은 사전 승인된 것으로 취급한다.  
+  - 이 경우, 에이전트는 "승인해 주세요" 같은 대화형 선택지를 출력하며 멈추지 않는다.  
+  - 대신 **Pre-flight(Doctor/Fast/Regression) → 리스크 리포트 → 실행 커맨드** 순서로 끝까지 준비하고, 즉시 실행한다.
+
+- **NET-TRADE (명시적 GO 필요):** 주문/포지션/잔고/출금/키 변경 등 *자산 영향* 네트워크 호출은 사용자로부터 **"GO"** 승인 토큰을 받은 뒤에만 실행한다.  
+  - 승인 전에는 준비 작업(Pre-flight, 리스크 리포트, 커맨드 생성)까지는 진행하되, **마지막 실행만 보류**한다.
+
+- **특례:** `--use-real-data`는 **Ticker/Orderbook READ-only**이며 주문 실행 경로가 비활성(dry_run)인 경우 NET-READ로 간주한다.
+
+### 1.1.3 Task ID & RERUN Policy (운영 기록)
+- **Task ID 확정:** 실행/리포트의 Task ID는 `D_ROADMAP.md`의 **IN PROGRESS** 섹션에서 1개를 확정한다.
+- **RERUN 기록:** COMPLETED Task의 재실행은 `RERUN`으로 표기하고 기존 COMPLETED 상태는 유지한다.
+- **보조 증거:** 다른 D 단계 실행 결과는 `참조` 또는 `RERUN`으로 기록한다.
+
+### 1.1.4 DocOps 업데이트 규칙 (운영 연동)
+- DocOps Gate는 `docs/v2/SSOT_RULES.md` Section E를 따른다.
+- `D_ROADMAP.md`, `docs/v2/SSOT_RULES.md`, `docs/v2/OPS_PROTOCOL.md` 변경 시 DocOps Gate 증거를 남긴다.
+
 ### 1.2 Scope
 - **대상:** arbitrage/v2/** 모든 실행 모드 (Paper/Live/Smoke/Baseline/Longrun)
 - **환경:** 로컬 PC, Docker/compose, CI/CD

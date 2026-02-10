@@ -6722,7 +6722,8 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-6: Multi-Symbol Alpha Survey
 
-**상태:** ✅ COMPLETED (2026-02-09)
+**상태:** 🔁 RERUN 기록 (2026-02-09, 원본 COMPLETED 유지)
+**SSOT 노트:** Alpha2 보조 증거 재실행. D207-6 신규 COMPLETED 아님.
 **목적:** 멀티 심볼 샘플링 + INVALID_UNIVERSE 가드 + edge_survey_report.json 검증
 
 **Acceptance Criteria:**
@@ -6733,7 +6734,7 @@ enable_execution: false       # REQUIRED
 - [x] AC-5: REAL 20분 survey 증거
 - [x] AC-6: Gate 3단 PASS
 
-**핵심 KPI (2026-02-09 실행):**
+**핵심 KPI (RERUN 2026-02-09):**
 - Duration: 1204.5s (20.08분)
 - Symbols: 50 (Top100 요청, 50개 로드)
 - real_ticks_ok: 68 / real_ticks_fail: 0
@@ -6743,7 +6744,7 @@ enable_execution: false       # REQUIRED
 - positive_net_edge_pct: 9.56%
 
 **Evidence 경로:**
-- Survey: `logs/evidence/d207_6_alpha_survey_20m/`
+- Survey: `logs/evidence/d207_6_alpha_survey_20m/` (RERUN)
 - Pre-flight Gate: Doctor 21/21, Fast 2316/2316, Regression 22/22 PASS
 - 보고서: `docs/v2/reports/D207/D207-6_REPORT.md`
 
@@ -7002,6 +7003,8 @@ enable_execution: false       # REQUIRED
 #### D_ALPHA-2: OBI Filter & Ranking (HFT Intelligence v1)
 
 **상태:** IN PROGRESS (2026-02-04)  
+**현재 진행 Task ID:** D_ALPHA-2 (Alpha2 진행 중 SSOT 기준)
+**RERUN 참고:** D207-6 REAL 20m (`logs/evidence/d207_6_alpha_survey_20m/`)은 Alpha2 보조 증거이며 신규 COMPLETED 아님.
 **목적:** “아무 기회나”가 아니라 **OBI로 유리한 순간만** 골라 메이커 진입을 보조.
 
 **Acceptance Criteria:**
@@ -7663,7 +7666,8 @@ enable_execution: false       # REQUIRED
 
 ### D_ALPHA-2: Dynamic OBI Threshold Implementation + Git Clean Guard + Survey Evidence
 
-**상태:** COMPLETED
+**상태:** REFERENCE (D_ALPHA-2-UNBLOCK-2 완료 스냅샷)
+**SSOT 노트:** D_ALPHA-2 메인 상태는 IN PROGRESS (상단 D_ALPHA-2 섹션 참조)
 
 **문서:** `docs/v2/reports/D_ALPHA/DALPHA-2-UNBLOCK-2_REPORT.md`
 

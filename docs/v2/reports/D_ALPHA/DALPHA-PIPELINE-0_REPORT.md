@@ -74,7 +74,7 @@ $raw = & python scripts/check_ssot_docs.py 2>&1; $exit = $LASTEXITCODE
 $raw | Out-File -FilePath (Join-Path $docops "ssot_docs_check_raw.txt") -Encoding utf8
 $exit | Out-File -FilePath (Join-Path $docops "ssot_docs_check_exitcode.txt") -Encoding ascii
 $paths = @(Get-ChildItem -Path "docs/v2" -Recurse -File | Select-Object -ExpandProperty FullName); $paths += (Resolve-Path "D_ROADMAP.md").Path
-(Select-String -Pattern "cci:" -Path $paths) | Out-File -FilePath (Join-Path $docops "rg_cci.txt") -Encoding utf8
+(Select-String -Pattern "LOCAL_LINK_PATTERN" -Path $paths) | Out-File -FilePath (Join-Path $docops "rg_cci.txt") -Encoding utf8
 (Select-String -Pattern "이관|migrate|migration" -Path $paths) | Out-File -FilePath (Join-Path $docops "rg_migrate.txt") -Encoding utf8
 (Select-String -Pattern "TODO|TBD|PLACEHOLDER" -Path $paths) | Out-File -FilePath (Join-Path $docops "rg_marker.txt") -Encoding utf8
 git status --short | Out-File -FilePath (Join-Path $docops "git_status.txt") -Encoding utf8
@@ -91,7 +91,7 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"; $out = "logs/evidence/dalpha_pipeline_
 ---
 
 ## 5. 경로 불일치 이슈
-- 실패 경로: `c:/work/XXX_ARBITRAGE_TRADING_BOT/scripts/run_alpha_pipeline.py`
+- 실패 경로: `<repo_root>/scripts/run_alpha_pipeline.py`
 - 실제 경로: 검색 결과 없음 (repo 전체 탐색 결과 미발견)
 - 원인: 파일명/경로 불일치 또는 파일 미존재
 
