@@ -19,6 +19,7 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.orchestrator import PaperOrchestrator
 from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
+from arbitrage.v2.marketdata.ws import UpbitWsProvider, BinanceWsProvider
 from arbitrage.v2.core.fx_provider import LiveFxProvider, FixedFxProvider
 from arbitrage.v2.marketdata.rate_limiter import RateLimiter
 from arbitrage.v2.storage.ledger import V2LedgerStorage
@@ -211,17 +212,25 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     binance_provider = None
     rate_limiter_upbit = None
     rate_limiter_binance = None
+    upbit_ws_provider = None
+    binance_ws_provider = None
     
     if config.use_real_data:
         try:
             rate_limiter_upbit = RateLimiter(requests_per_second=9, burst=2)
             rate_limiter_binance = RateLimiter(requests_per_second=20, burst=5)
-            upbit_provider = UpbitRestProvider(timeout=10.0, rate_limiter=rate_limiter_upbit)
+            upbit_provider = UpbitRestProvider(timeout=10.0)
             binance_provider = BinanceRestProvider(timeout=10.0)
             logger.info(f"[D207-1] Real MarketData Providers initialized")
         except Exception as e:
             logger.error(f"[D207-1] Provider init failed: {e}", exc_info=True)
             raise RuntimeError(f"Provider initialization failed: {e}")
+
+    cache_cfg = getattr(v2_config, "cache", None)
+    if config.use_real_data and cache_cfg and getattr(cache_cfg, "redis_enabled", False):
+        upbit_ws_provider = UpbitWsProvider()
+        binance_ws_provider = BinanceWsProvider()
+        logger.info("[D207-1] WS providers initialized (cache.redis_enabled=True)")
     
     # 3. FX Provider (D207-1-2: Real data는 Live FX, 테스트/Mock은 Fixed FX)
     fx_mode = getattr(config, "fx_provider_mode", "live" if config.use_real_data else "fixed")
@@ -296,6 +305,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             obi_filter=obi_filter_cfg,
             obi_dynamic_threshold=obi_dynamic_cfg,
             min_net_edge_bps=min_net_edge_bps,
+            upbit_ws_provider=upbit_ws_provider,
+            binance_ws_provider=binance_ws_provider,
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:

@@ -97,6 +97,15 @@
   - universe_loaded_count=20, unique_symbols_evaluated=20
   - positive_net_edge_pct=5.61
 
+### Alpha Fast Lane WS Cache Wiring Update (2026-02-10)
+- 변경: WS 캐시 우선(orderbook), rate limit consume 비차단 처리, Binance REST 429 추적, rate limiter 토큰 버킷화
+- Gate Doctor/Fast/Regression:
+  - `logs/evidence/20260210_234922_gate_doctor_9626dc1/`
+  - `logs/evidence/20260210_234936_gate_fast_9626dc1/`
+  - `logs/evidence/20260210_235341_gate_regression_9626dc1/`
+- DocOps: `logs/evidence/d207_6_docops_gate_20260210_235952/` (ssot_docs_check_exitcode.txt=0)
+- Unit Tests: `pytest tests/test_market_data_provider.py tests/test_rate_limiter.py` (33 passed)
+
 ### AC-2/AC-3 아티팩트
 - OBI TopN: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_topn.json`
 - OBI Filter Counters: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_filter_counters.json`

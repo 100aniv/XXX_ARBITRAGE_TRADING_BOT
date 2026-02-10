@@ -7026,6 +7026,14 @@ enable_execution: false       # REQUIRED
   - tick_elapsed_ms p50=2228.48, p95=2453.04, p99=2460.05
   - universe_loaded_count=20, unique_symbols_evaluated=20, positive_net_edge_pct=5.61
 
+**Alpha Fast Lane WS Cache Wiring Update (2026-02-10):**
+- 변경: WS 캐시 우선(orderbook), rate limit consume 비차단 처리, Binance REST 429 추적, rate limiter 토큰 버킷화
+- Gate: Doctor `logs/evidence/20260210_234922_gate_doctor_9626dc1/` PASS
+- Gate: Fast `logs/evidence/20260210_234936_gate_fast_9626dc1/` PASS
+- Gate: Regression `logs/evidence/20260210_235341_gate_regression_9626dc1/` PASS
+- DocOps: `logs/evidence/d207_6_docops_gate_20260210_235900/` (ssot_docs_check_exitcode.txt=0, rg_cci/rg_migrate/rg_todo, git_status/diff)
+- Unit Tests: `pytest tests/test_market_data_provider.py tests/test_rate_limiter.py` (33 passed)
+
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
 - Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)

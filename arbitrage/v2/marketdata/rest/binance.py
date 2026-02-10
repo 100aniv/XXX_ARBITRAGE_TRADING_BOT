@@ -19,6 +19,7 @@ from arbitrage.v2.marketdata.interfaces import (
     OrderbookLevel,
     Trade,
 )
+from arbitrage.v2.marketdata.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,12 @@ class BinanceRestProvider(RestProvider):
     - 혼동 방지: "V2"는 우리 프로젝트 시즌, "R1/R3"는 Binance API 버전
     """
     
-    def __init__(self, market_type: str = "futures", timeout: float = 5.0):
+    def __init__(
+        self,
+        market_type: str = "futures",
+        timeout: float = 5.0,
+        rate_limiter: Optional[RateLimiter] = None,
+    ):
         """
         Args:
             market_type: "spot" or "futures" (default: "futures")
@@ -56,6 +62,21 @@ class BinanceRestProvider(RestProvider):
         
         self.timeout = timeout
         self.session = requests.Session()
+        self.rate_limiter = rate_limiter
+        self.last_error_status: Optional[int] = None
+        self.last_error_reason: Optional[str] = None
+
+    def _acquire_rate_limit(self) -> None:
+        if self.rate_limiter:
+            self.rate_limiter.acquire()
+
+    def _set_last_error(self, status_code: Optional[int], reason: str) -> None:
+        self.last_error_status = status_code
+        self.last_error_reason = reason
+
+    def _clear_last_error(self) -> None:
+        self.last_error_status = None
+        self.last_error_reason = None
     
     def get_ticker(self, symbol: str) -> Optional[Ticker]:
         """
@@ -74,10 +95,12 @@ class BinanceRestProvider(RestProvider):
             url = f"{self.base_url}/ticker/bookTicker"
             params = {"symbol": market}
             
+            self._acquire_rate_limit()
             resp = self.session.get(url, params=params, timeout=self.timeout)
             resp.raise_for_status()
             
             data = resp.json()
+            self._clear_last_error()
             
             return Ticker(
                 exchange="binance",
@@ -91,7 +114,16 @@ class BinanceRestProvider(RestProvider):
                 ask_size=float(data["askQty"]),  # D205-14-5
             )
         
+        except requests.exceptions.HTTPError as e:
+            status_code = getattr(e.response, "status_code", None)
+            self._set_last_error(status_code, "ticker")
+            if status_code == 429:
+                logger.info("[D202-1_BINANCE_REST] Ticker rate limited (429)")
+                return None
+            logger.error(f"[D202-1_BINANCE_REST] Ticker error: {e}", exc_info=True)
+            return None
         except Exception as e:
+            self._set_last_error(None, "ticker")
             logger.error(f"[D202-1_BINANCE_REST] Ticker error: {e}", exc_info=True)
             return None
     
@@ -112,11 +144,13 @@ class BinanceRestProvider(RestProvider):
             
             url = f"{self.base_url}/depth"
             params = {"symbol": market, "limit": depth}
-            
+
+            self._acquire_rate_limit()
             resp = self.session.get(url, params=params, timeout=self.timeout)
             resp.raise_for_status()
-            
+
             data = resp.json()
+            self._clear_last_error()
             
             bids = [
                 OrderbookLevel(
@@ -142,7 +176,16 @@ class BinanceRestProvider(RestProvider):
                 asks=asks,
             )
         
+        except requests.exceptions.HTTPError as e:
+            status_code = getattr(e.response, "status_code", None)
+            self._set_last_error(status_code, "orderbook")
+            if status_code == 429:
+                logger.info("[D202-1_BINANCE_REST] Orderbook rate limited (429)")
+                return None
+            logger.error(f"[D202-1_BINANCE_REST] Orderbook error: {e}", exc_info=True)
+            return None
         except Exception as e:
+            self._set_last_error(None, "orderbook")
             logger.error(f"[D202-1_BINANCE_REST] Orderbook error: {e}")
             return None
     
@@ -163,11 +206,13 @@ class BinanceRestProvider(RestProvider):
             
             url = f"{self.base_url}/trades"
             params = {"symbol": market, "limit": min(limit, 1000)}
-            
+
+            self._acquire_rate_limit()
             resp = self.session.get(url, params=params, timeout=self.timeout)
             resp.raise_for_status()
-            
+
             data = resp.json()
+            self._clear_last_error()
             
             return [
                 Trade(
@@ -181,6 +226,15 @@ class BinanceRestProvider(RestProvider):
                 for item in data[:limit]
             ]
         
+        except requests.exceptions.HTTPError as e:
+            status_code = getattr(e.response, "status_code", None)
+            self._set_last_error(status_code, "trades")
+            if status_code == 429:
+                logger.info("[D202-1_BINANCE_REST] Trades rate limited (429)")
+                return []
+            logger.error(f"[D202-1_BINANCE_REST] Trades error: {e}", exc_info=True)
+            return []
         except Exception as e:
+            self._set_last_error(None, "trades")
             logger.error(f"[D202-1_BINANCE_REST] Trades error: {e}")
             return []

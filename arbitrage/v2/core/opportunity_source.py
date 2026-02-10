@@ -207,6 +207,11 @@ def _obi_direction_allowed(
 
 class RealOpportunitySource(OpportunitySource):
     """Real MarketData 기반 Opportunity 생성"""
+
+    _UPBIT_ORDERBOOK_WEIGHT = 1
+    _UPBIT_TICKER_WEIGHT = 1
+    _BINANCE_ORDERBOOK_WEIGHT = 5
+    _BINANCE_TICKER_WEIGHT = 1
     
     def __init__(
         self,
@@ -229,12 +234,16 @@ class RealOpportunitySource(OpportunitySource):
         obi_filter: Optional[ObiFilterConfig] = None,
         obi_dynamic_threshold: Optional[ObiDynamicThresholdConfig] = None,
         min_net_edge_bps: float = 0.0,
+        upbit_ws_provider=None,
+        binance_ws_provider=None,
         rng: Optional[random.Random] = None,
     ):
         self.upbit_provider = upbit_provider
         self.binance_provider = binance_provider
         self.rate_limiter_upbit = rate_limiter_upbit
         self.rate_limiter_binance = rate_limiter_binance
+        self.upbit_ws_provider = upbit_ws_provider
+        self.binance_ws_provider = binance_ws_provider
         self.fx_provider = fx_provider
         self.break_even_params = break_even_params
         self.kpi = kpi
@@ -267,7 +276,63 @@ class RealOpportunitySource(OpportunitySource):
         self._symbol_pair_idx = 0
         self._latency_profiler = LatencyProfiler(enabled=True)
         self._last_tick_timing: Optional[Dict[str, float]] = None
-        self._marketdata_executor = ThreadPoolExecutor(max_workers=2)
+        self._marketdata_executor = ThreadPoolExecutor(
+            max_workers=self._resolve_marketdata_workers()
+        )
+
+    def _resolve_marketdata_workers(self, pair_count: Optional[int] = None) -> int:
+        if pair_count is None:
+            pair_count = len(self._get_symbol_pairs())
+        pair_count = max(1, int(pair_count))
+        if isinstance(self.max_symbols_per_tick, int) and self.max_symbols_per_tick > 0:
+            pair_count = min(pair_count, self.max_symbols_per_tick)
+        target = pair_count * 2
+        return max(4, min(32, target))
+
+    def _ensure_marketdata_executor(self, pair_count: int) -> None:
+        target = self._resolve_marketdata_workers(pair_count)
+        current = getattr(self._marketdata_executor, "_max_workers", None)
+        if current == target:
+            return
+        if self._marketdata_executor:
+            self._marketdata_executor.shutdown(wait=False)
+        self._marketdata_executor = ThreadPoolExecutor(max_workers=target)
+
+    def _consume_rate_limit(self, limiter, weight: int, label: str, iteration: int) -> bool:
+        if limiter is None:
+            return True
+        allowed = True
+        try:
+            allowed = limiter.consume(weight=weight)
+        except TypeError:
+            try:
+                allowed = limiter.consume(tokens=weight)
+            except TypeError:
+                allowed = limiter.consume(weight)
+        except Exception as exc:
+            logger.warning(f"[D207-1] RateLimiter error ({label}): {exc}")
+            return True
+
+        if not allowed:
+            self.kpi.ratelimit_hits += 1
+            if iteration % 10 == 1:
+                logger.warning(f"[D207-1] {label} RateLimit exceeded")
+        return allowed
+
+    def _get_cached_orderbook(self, ws_provider, symbol: str, exchange: str):
+        if ws_provider is None:
+            return None
+        try:
+            return ws_provider.get_latest_orderbook(symbol)
+        except Exception as exc:
+            logger.warning(f"[D207-1] {exchange} WS cache error: {exc}")
+            return None
+
+    def _guard_rate_limit_ban(self, provider, exchange: str) -> None:
+        status = getattr(provider, "last_error_status", None)
+        if status == 429:
+            logger.critical(f"[CRITICAL FAIL] {exchange} HTTP 429 (IP ban detected)")
+            raise RuntimeError(f"{exchange} HTTP 429 (IP ban detected)")
 
     @staticmethod
     def _extract_bid_ask(ticker) -> tuple[Optional[float], Optional[float]]:
@@ -464,15 +529,6 @@ class RealOpportunitySource(OpportunitySource):
                 _set_edge_distribution([], reason="provider_none")
                 return None
             
-            if self.rate_limiter_upbit and getattr(self.upbit_provider, "rate_limiter", None) is None:
-                if not self.rate_limiter_upbit.consume(tokens=1):
-                    self.kpi.ratelimit_hits += 1
-                    if iteration % 10 == 1:
-                        logger.warning(f"[D207-1] Upbit RateLimit exceeded")
-                    self.kpi.real_ticks_fail_count += 1
-                    _set_edge_distribution([], reason="ratelimit_upbit")
-                    return None
-            
             # D207-1-2: FX rate 조회 (AU: Dynamic FX Intelligence)
             fx_fetch_start = time.perf_counter()
             fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
@@ -543,80 +599,180 @@ class RealOpportunitySource(OpportunitySource):
             candidates_all: List[OpportunityCandidate] = []
             tick_processed = False
 
+            if symbol_pairs:
+                self._ensure_marketdata_executor(len(symbol_pairs))
+
+            obi_depth = int(self.obi_filter_cfg.levels) if self.obi_filter_cfg else 5
+            if obi_depth <= 0:
+                obi_depth = 5
+
+            upbit_external_limit = (
+                self.rate_limiter_upbit is not None
+                and getattr(self.upbit_provider, "rate_limiter", None) is None
+            )
+            binance_external_limit = (
+                self.rate_limiter_binance is not None
+                and getattr(self.binance_provider, "rate_limiter", None) is None
+            )
+
+            orderbook_tasks: List[Dict[str, Any]] = []
             for symbol_a, symbol_b in symbol_pairs:
-                if self.rate_limiter_upbit and getattr(self.upbit_provider, "rate_limiter", None) is None:
-                    if not self.rate_limiter_upbit.consume(tokens=1):
-                        self.kpi.ratelimit_hits += 1
-                        if iteration % 10 == 1:
-                            logger.warning(f"[D207-1] Upbit RateLimit exceeded")
+                orderbook_upbit = self._get_cached_orderbook(self.upbit_ws_provider, symbol_a, "upbit")
+                orderbook_binance = self._get_cached_orderbook(self.binance_ws_provider, symbol_b, "binance")
+
+                if orderbook_upbit is None and upbit_external_limit:
+                    if not self._consume_rate_limit(
+                        self.rate_limiter_upbit,
+                        weight=self._UPBIT_ORDERBOOK_WEIGHT,
+                        label="Upbit",
+                        iteration=iteration,
+                    ):
                         _record_failure("ratelimit_upbit")
                         continue
 
-                if self.rate_limiter_binance and not self.rate_limiter_binance.consume(tokens=1):
-                    self.kpi.ratelimit_hits += 1
-                    if iteration % 10 == 1:
-                        logger.warning(f"[D207-1] Binance RateLimit exceeded")
-                    _record_failure("ratelimit_binance")
-                    continue
+                if orderbook_binance is None and binance_external_limit:
+                    if not self._consume_rate_limit(
+                        self.rate_limiter_binance,
+                        weight=self._BINANCE_ORDERBOOK_WEIGHT,
+                        label="Binance",
+                        iteration=iteration,
+                    ):
+                        _record_failure("ratelimit_binance")
+                        continue
 
-                obi_depth = int(self.obi_filter_cfg.levels) if self.obi_filter_cfg else 5
-                if obi_depth <= 0:
-                    obi_depth = 5
+                future_upbit = None
+                if orderbook_upbit is None:
+                    future_upbit = self._marketdata_executor.submit(
+                        self.upbit_provider.get_orderbook, symbol_a, depth=obi_depth
+                    )
 
-                orderbook_fetch_start = time.perf_counter()
-                future_upbit = self._marketdata_executor.submit(
-                    self.upbit_provider.get_orderbook, symbol_a, depth=obi_depth
+                future_binance = None
+                if orderbook_binance is None:
+                    future_binance = self._marketdata_executor.submit(
+                        self.binance_provider.get_orderbook, symbol_b, depth=obi_depth
+                    )
+
+                orderbook_tasks.append(
+                    {
+                        "symbol_a": symbol_a,
+                        "symbol_b": symbol_b,
+                        "orderbook_upbit": orderbook_upbit,
+                        "orderbook_binance": orderbook_binance,
+                        "future_upbit": future_upbit,
+                        "future_binance": future_binance,
+                    }
                 )
-                future_binance = self._marketdata_executor.submit(
-                    self.binance_provider.get_orderbook, symbol_b, depth=obi_depth
-                )
-                try:
-                    orderbook_upbit = future_upbit.result()
-                except Exception:
-                    orderbook_upbit = None
-                try:
-                    orderbook_binance = future_binance.result()
-                except Exception:
-                    orderbook_binance = None
-                fetch_elapsed_ms = (time.perf_counter() - orderbook_fetch_start) * 1000.0
-                orderbook_fetch_ms += fetch_elapsed_ms
-                io_ms += fetch_elapsed_ms
 
-                ticker_upbit = None
-                ticker_binance = None
+            for task in orderbook_tasks:
+                if task["future_upbit"] is not None:
+                    fetch_start = time.perf_counter()
+                    try:
+                        task["orderbook_upbit"] = task["future_upbit"].result()
+                    except Exception:
+                        task["orderbook_upbit"] = None
+                    fetch_elapsed_ms = (time.perf_counter() - fetch_start) * 1000.0
+                    orderbook_fetch_ms += fetch_elapsed_ms
+                    io_ms += fetch_elapsed_ms
+                    if task["orderbook_upbit"] is None:
+                        self._guard_rate_limit_ban(self.upbit_provider, "Upbit")
 
-                if not orderbook_upbit:
-                    upbit_status = getattr(self.upbit_provider, "last_error_status", None)
-                    if iteration % 10 == 1:
-                        if upbit_status == 429:
-                            self.kpi.ratelimit_hits += 1
-                            logger.info("[D207-1] Upbit orderbook rate limited (429)")
-                        else:
-                            logger.warning("[D207-1] Upbit orderbook fetch failed")
-                    ticker_start = time.perf_counter()
-                    ticker_upbit = self.upbit_provider.get_ticker(symbol_a)
-                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
-                    ticker_fetch_ms += ticker_elapsed_ms
-                    io_ms += ticker_elapsed_ms
+                if task["future_binance"] is not None:
+                    fetch_start = time.perf_counter()
+                    try:
+                        task["orderbook_binance"] = task["future_binance"].result()
+                    except Exception:
+                        task["orderbook_binance"] = None
+                    fetch_elapsed_ms = (time.perf_counter() - fetch_start) * 1000.0
+                    orderbook_fetch_ms += fetch_elapsed_ms
+                    io_ms += fetch_elapsed_ms
+                    if task["orderbook_binance"] is None:
+                        self._guard_rate_limit_ban(self.binance_provider, "Binance")
 
-                if not orderbook_binance:
-                    if iteration % 10 == 1:
-                        logger.warning("[D207-1] Binance orderbook fetch failed")
-                    ticker_start = time.perf_counter()
-                    ticker_binance = self.binance_provider.get_ticker(symbol_b)
-                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
-                    ticker_fetch_ms += ticker_elapsed_ms
-                    io_ms += ticker_elapsed_ms
+            for task in orderbook_tasks:
+                orderbook_upbit = task["orderbook_upbit"]
+                orderbook_binance = task["orderbook_binance"]
 
                 upbit_bid, upbit_ask = (None, None)
                 if orderbook_upbit:
                     upbit_bid, upbit_ask = self._extract_orderbook_bid_ask(orderbook_upbit)
-                if (not upbit_bid or not upbit_ask) and ticker_upbit is None:
+                task["upbit_bid"] = upbit_bid
+                task["upbit_ask"] = upbit_ask
+
+                binance_bid_usdt, binance_ask_usdt = (None, None)
+                if orderbook_binance:
+                    binance_bid_usdt, binance_ask_usdt = self._extract_orderbook_bid_ask(orderbook_binance)
+                task["binance_bid_usdt"] = binance_bid_usdt
+                task["binance_ask_usdt"] = binance_ask_usdt
+
+                need_upbit_ticker = not upbit_bid or not upbit_ask
+                need_binance_ticker = not binance_bid_usdt or not binance_ask_usdt
+
+                if need_upbit_ticker:
+                    if upbit_external_limit:
+                        if not self._consume_rate_limit(
+                            self.rate_limiter_upbit,
+                            weight=self._UPBIT_TICKER_WEIGHT,
+                            label="Upbit",
+                            iteration=iteration,
+                        ):
+                            _record_failure("ratelimit_upbit")
+                            task["skip"] = True
+                            continue
+                    task["future_upbit_ticker"] = self._marketdata_executor.submit(
+                        self.upbit_provider.get_ticker, task["symbol_a"]
+                    )
+
+                if need_binance_ticker:
+                    if binance_external_limit:
+                        if not self._consume_rate_limit(
+                            self.rate_limiter_binance,
+                            weight=self._BINANCE_TICKER_WEIGHT,
+                            label="Binance",
+                            iteration=iteration,
+                        ):
+                            _record_failure("ratelimit_binance")
+                            task["skip"] = True
+                            continue
+                    task["future_binance_ticker"] = self._marketdata_executor.submit(
+                        self.binance_provider.get_ticker, task["symbol_b"]
+                    )
+
+            for task in orderbook_tasks:
+                if task.get("skip"):
+                    continue
+
+                symbol_a = task["symbol_a"]
+                symbol_b = task["symbol_b"]
+
+                ticker_upbit = None
+                ticker_binance = None
+
+                if task.get("future_upbit_ticker") is not None:
                     ticker_start = time.perf_counter()
-                    ticker_upbit = self.upbit_provider.get_ticker(symbol_a)
+                    try:
+                        ticker_upbit = task["future_upbit_ticker"].result()
+                    except Exception:
+                        ticker_upbit = None
                     ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
                     ticker_fetch_ms += ticker_elapsed_ms
                     io_ms += ticker_elapsed_ms
+                    if ticker_upbit is None:
+                        self._guard_rate_limit_ban(self.upbit_provider, "Upbit")
+
+                if task.get("future_binance_ticker") is not None:
+                    ticker_start = time.perf_counter()
+                    try:
+                        ticker_binance = task["future_binance_ticker"].result()
+                    except Exception:
+                        ticker_binance = None
+                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
+                    ticker_fetch_ms += ticker_elapsed_ms
+                    io_ms += ticker_elapsed_ms
+                    if ticker_binance is None:
+                        self._guard_rate_limit_ban(self.binance_provider, "Binance")
+
+                upbit_bid = task["upbit_bid"]
+                upbit_ask = task["upbit_ask"]
                 if (not upbit_bid or not upbit_ask) and ticker_upbit:
                     upbit_bid, upbit_ask = self._extract_bid_ask(ticker_upbit)
                 if not upbit_bid or not upbit_ask or upbit_bid <= 0 or upbit_ask <= 0:
@@ -625,15 +781,8 @@ class RealOpportunitySource(OpportunitySource):
                     _record_failure("upbit_price_missing")
                     continue
 
-                binance_bid_usdt, binance_ask_usdt = (None, None)
-                if orderbook_binance:
-                    binance_bid_usdt, binance_ask_usdt = self._extract_orderbook_bid_ask(orderbook_binance)
-                if (not binance_bid_usdt or not binance_ask_usdt) and ticker_binance is None:
-                    ticker_start = time.perf_counter()
-                    ticker_binance = self.binance_provider.get_ticker(symbol_b)
-                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
-                    ticker_fetch_ms += ticker_elapsed_ms
-                    io_ms += ticker_elapsed_ms
+                binance_bid_usdt = task["binance_bid_usdt"]
+                binance_ask_usdt = task["binance_ask_usdt"]
                 if (not binance_bid_usdt or not binance_ask_usdt) and ticker_binance:
                     binance_bid_usdt, binance_ask_usdt = self._extract_bid_ask(ticker_binance)
                 if (
