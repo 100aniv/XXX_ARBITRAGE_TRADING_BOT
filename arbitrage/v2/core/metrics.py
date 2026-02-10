@@ -53,6 +53,13 @@ class PaperMetrics:
     warning_count: int = 0  # WarningCounterHandler에서 수집
     memory_mb: float = 0.0
     cpu_pct: float = 0.0
+
+    # D_ALPHA-2: Per-tick latency samples (ms)
+    tick_elapsed_ms_samples: List[float] = field(default_factory=list)
+    tick_ticker_fetch_ms_samples: List[float] = field(default_factory=list)
+    tick_orderbook_fetch_ms_samples: List[float] = field(default_factory=list)
+    tick_decision_ms_samples: List[float] = field(default_factory=list)
+    tick_io_ms_samples: List[float] = field(default_factory=list)
     
     # D205-3: PnL 필드
     closed_trades: int = 0
@@ -161,6 +168,60 @@ class PaperMetrics:
         if self.closed_trades > 0:
             self.winrate_pct = (self.wins / self.closed_trades) * 100
 
+    def _record_sample(self, samples: List[float], value: float, max_size: int = 10000) -> None:
+        """샘플 기록 (메모리 제한)"""
+        samples.append(float(value))
+        if len(samples) > max_size:
+            samples.pop(0)
+
+    def record_tick_timing(
+        self,
+        tick_elapsed_ms: float,
+        ticker_fetch_ms: float = 0.0,
+        orderbook_fetch_ms: float = 0.0,
+        decision_ms: float = 0.0,
+        io_ms: float = 0.0,
+    ) -> None:
+        """Per-tick timing 기록 (D_ALPHA-2)"""
+        self._record_sample(self.tick_elapsed_ms_samples, tick_elapsed_ms)
+        self._record_sample(self.tick_ticker_fetch_ms_samples, ticker_fetch_ms)
+        self._record_sample(self.tick_orderbook_fetch_ms_samples, orderbook_fetch_ms)
+        self._record_sample(self.tick_decision_ms_samples, decision_ms)
+        self._record_sample(self.tick_io_ms_samples, io_ms)
+
+    @staticmethod
+    def _summarize_samples(samples: List[float]) -> Dict[str, float]:
+        if not samples:
+            return {
+                "count": 0,
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "mean_ms": 0.0,
+            }
+        sorted_samples = sorted(samples)
+        size = len(sorted_samples)
+        p50 = sorted_samples[min(int(size * 0.50), size - 1)]
+        p95 = sorted_samples[min(int(size * 0.95), size - 1)]
+        p99 = sorted_samples[min(int(size * 0.99), size - 1)]
+        mean = sum(sorted_samples) / size
+        return {
+            "count": size,
+            "p50_ms": round(p50, 3),
+            "p95_ms": round(p95, 3),
+            "p99_ms": round(p99, 3),
+            "mean_ms": round(mean, 3),
+        }
+
+    def _tick_timing_summary(self) -> Dict[str, Dict[str, float]]:
+        return {
+            "tick_elapsed": self._summarize_samples(self.tick_elapsed_ms_samples),
+            "ticker_fetch": self._summarize_samples(self.tick_ticker_fetch_ms_samples),
+            "orderbook_fetch": self._summarize_samples(self.tick_orderbook_fetch_ms_samples),
+            "decision": self._summarize_samples(self.tick_decision_ms_samples),
+            "io": self._summarize_samples(self.tick_io_ms_samples),
+        }
+
     def sync_reject_total(self) -> int:
         """
         reject_total을 reject_reasons 합계로 동기화
@@ -186,6 +247,8 @@ class PaperMetrics:
         
         reject_total = self.sync_reject_total()
 
+        tick_timing = self._tick_timing_summary()
+
         kpi = {
             "start_time": datetime.fromtimestamp(self.wallclock_start).isoformat(),
             "duration_seconds": round(duration_seconds, 2),
@@ -193,6 +256,10 @@ class PaperMetrics:
             "expected_duration_sec": round(self.expected_duration_sec, 2),
             "wallclock_drift_pct": round(self.wallclock_drift_pct, 2),
             "max_heartbeat_gap_sec": round(self.max_heartbeat_gap_sec, 2),
+            "tick_timing_ms": tick_timing,
+            "tick_elapsed_ms_p50": tick_timing["tick_elapsed"]["p50_ms"],
+            "tick_elapsed_ms_p95": tick_timing["tick_elapsed"]["p95_ms"],
+            "tick_elapsed_ms_p99": tick_timing["tick_elapsed"]["p99_ms"],
             "opportunities_generated": self.opportunities_generated,
             "intents_created": self.intents_created,
             "mock_executions": self.mock_executions,

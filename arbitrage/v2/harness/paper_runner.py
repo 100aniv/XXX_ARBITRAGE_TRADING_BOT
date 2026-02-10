@@ -41,7 +41,7 @@ class PaperRunnerConfig:
     config_path: Optional[str] = None
     symbols: Optional[List[Tuple[str, str]]] = None
     cli_args: Optional[Dict[str, Any]] = None
-    symbols_top: int = 100
+    symbols_top: int = 20
     max_symbols_per_tick: Optional[int] = None
     db_connection_string: str = ""
     read_only: bool = True
@@ -307,7 +307,7 @@ def main():
         help="Execution phase",
     )
     parser.add_argument("--output-dir", default="", help="Evidence output directory")
-    parser.add_argument("--symbols-top", type=int, default=100, help="Top N symbols")
+    parser.add_argument("--symbols-top", type=int, default=20, help="Top N symbols")
     parser.add_argument("--max-symbols-per-tick", type=int, default=None, help="Max symbols per tick")
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode")

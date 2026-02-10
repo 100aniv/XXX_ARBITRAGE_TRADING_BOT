@@ -9,6 +9,17 @@
 > "운영 프로토콜은 OPS_PROTOCOL.md를 따른다. 충돌 시 SSOT_RULES.md가 우선한다."
 
 ---
+(B) OPS_PROTOCOL.md 최상단에 박을 것 (운영 디폴트)
+
+NET 정책 2단
+
+NET-READ: 즉시 실행(사전 승인) / 질문 금지
+
+NET-TRADE: Pre-flight + Risk Report + Final Command까지 “한 번에 준비” (중간 멈춤 금지)
+
+스코프 충돌 디폴트
+
+“대량 변경 감지” ⇒ stash/restore로 작업 범위만 남기고 계속 진행 (질문 금지)
 
 ## 1. Document Purpose & Scope
 

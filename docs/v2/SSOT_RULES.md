@@ -6,6 +6,20 @@
 
 ---
 
+(A) SSOT_RULES.md 최상단에 박을 것 (Alpha Fast Lane 헌법 조항)
+
+ALPHA FAST LANE (D_ALPHA-*)
+
+NO-ASK: 사용자를 멈춰 세우는 질문(승인 UI/스코프/선택지) 금지
+
+AUTO-SCOPE: 스코프는 D_ROADMAP IN_PROGRESS + git diff로 자동 확정
+
+DEFAULT ACTION: 스코프 밖 대량 변경 감지 시 “문서/리포트만 커밋 + 나머지 stash”가 기본값(묻지 말고 실행)
+
+NET-READ PRE-AUTH: ticker/orderbook/market data read는 사전 승인
+
+ALPHA 증거 최소셋: kpi.json + manifest.json + edge_survey_report.json만 있으면 “Done(Alpha)” 인정
+
 ## 핵심 원칙
 
 ### 1. SSOT는 D_ROADMAP.md 단 1개

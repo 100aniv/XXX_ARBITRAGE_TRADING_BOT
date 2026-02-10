@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import logging
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
@@ -10,6 +11,7 @@ from arbitrage.v2.domain.break_even import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_mismatch
+from arbitrage.v2.observability.latency_profiler import LatencyProfiler, LatencyStage
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,10 @@ class OpportunitySource(ABC):
     def get_dynamic_threshold_state(self) -> Optional[Dict[str, Any]]:
         """OBI 동적 임계치 상태 반환"""
         return getattr(self, "_dynamic_threshold_state", None)
+
+    def get_last_tick_timing(self) -> Optional[Dict[str, float]]:
+        """최근 tick timing 샘플 반환"""
+        return getattr(self, "_last_tick_timing", None)
 
 
 def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
@@ -259,6 +265,9 @@ class RealOpportunitySource(OpportunitySource):
         self._rng = rng or random
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
         self._symbol_pair_idx = 0
+        self._latency_profiler = LatencyProfiler(enabled=True)
+        self._last_tick_timing: Optional[Dict[str, float]] = None
+        self._marketdata_executor = ThreadPoolExecutor(max_workers=2)
 
     @staticmethod
     def _extract_bid_ask(ticker) -> tuple[Optional[float], Optional[float]]:
@@ -284,6 +293,21 @@ class RealOpportunitySource(OpportunitySource):
                 return last_val, last_val
 
         return None, None
+
+    @staticmethod
+    def _extract_orderbook_bid_ask(orderbook) -> tuple[Optional[float], Optional[float]]:
+        bids = getattr(orderbook, "bids", None)
+        asks = getattr(orderbook, "asks", None)
+        if not bids or not asks:
+            return None, None
+        try:
+            bid_val = float(bids[0].price)
+            ask_val = float(asks[0].price)
+        except (TypeError, ValueError, AttributeError, IndexError):
+            return None, None
+        if bid_val <= 0 or ask_val <= 0:
+            return None, None
+        return bid_val, ask_val
 
     def _get_symbol_pairs(self) -> List[Tuple[str, str]]:
         if self.symbols:
@@ -425,6 +449,14 @@ class RealOpportunitySource(OpportunitySource):
         def _record_failure(reason: str) -> None:
             failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
 
+        tick_start = time.perf_counter()
+        ticker_fetch_ms = 0.0
+        orderbook_fetch_ms = 0.0
+        decision_ms = 0.0
+        io_ms = 0.0
+        self._latency_profiler.start_span(LatencyStage.RECEIVE_TICK)
+        decide_span_started = False
+
         try:
             if self.upbit_provider is None or self.binance_provider is None:
                 logger.error(f"[D207-1] Provider is None")
@@ -442,7 +474,9 @@ class RealOpportunitySource(OpportunitySource):
                     return None
             
             # D207-1-2: FX rate 조회 (AU: Dynamic FX Intelligence)
+            fx_fetch_start = time.perf_counter()
             fx_rate = self.fx_provider.get_fx_rate("USDT", "KRW")
+            io_ms += (time.perf_counter() - fx_fetch_start) * 1000.0
             
             # D207-1-2: FX rate info 기록 (LiveFxProvider인 경우)
             if hasattr(self.fx_provider, 'get_rate_info'):
@@ -502,6 +536,10 @@ class RealOpportunitySource(OpportunitySource):
 
             symbol_pairs, sampling_policy = self._select_symbol_pairs(symbol_pairs)
 
+            if symbol_pairs:
+                self._latency_profiler.start_span(LatencyStage.DECIDE)
+                decide_span_started = True
+
             candidates_all: List[OpportunityCandidate] = []
             tick_processed = False
 
@@ -514,18 +552,6 @@ class RealOpportunitySource(OpportunitySource):
                         _record_failure("ratelimit_upbit")
                         continue
 
-                ticker_upbit = self.upbit_provider.get_ticker(symbol_a)
-                if not ticker_upbit:
-                    upbit_status = getattr(self.upbit_provider, "last_error_status", None)
-                    if iteration % 10 == 1:
-                        if upbit_status == 429:
-                            self.kpi.ratelimit_hits += 1
-                            logger.info("[D207-1] Upbit ticker rate limited (429)")
-                        else:
-                            logger.warning(f"[D207-1] Upbit ticker fetch failed")
-                    _record_failure("ticker_upbit_missing")
-                    continue
-
                 if self.rate_limiter_binance and not self.rate_limiter_binance.consume(tokens=1):
                     self.kpi.ratelimit_hits += 1
                     if iteration % 10 == 1:
@@ -533,24 +559,91 @@ class RealOpportunitySource(OpportunitySource):
                     _record_failure("ratelimit_binance")
                     continue
 
-                ticker_binance = self.binance_provider.get_ticker(symbol_b)
-                if not ticker_binance:
-                    if iteration % 10 == 1:
-                        logger.warning(f"[D207-1] Binance ticker fetch failed")
-                    _record_failure("ticker_binance_missing")
-                    continue
+                obi_depth = int(self.obi_filter_cfg.levels) if self.obi_filter_cfg else 5
+                if obi_depth <= 0:
+                    obi_depth = 5
 
-                upbit_bid, upbit_ask = self._extract_bid_ask(ticker_upbit)
+                orderbook_fetch_start = time.perf_counter()
+                future_upbit = self._marketdata_executor.submit(
+                    self.upbit_provider.get_orderbook, symbol_a, depth=obi_depth
+                )
+                future_binance = self._marketdata_executor.submit(
+                    self.binance_provider.get_orderbook, symbol_b, depth=obi_depth
+                )
+                try:
+                    orderbook_upbit = future_upbit.result()
+                except Exception:
+                    orderbook_upbit = None
+                try:
+                    orderbook_binance = future_binance.result()
+                except Exception:
+                    orderbook_binance = None
+                fetch_elapsed_ms = (time.perf_counter() - orderbook_fetch_start) * 1000.0
+                orderbook_fetch_ms += fetch_elapsed_ms
+                io_ms += fetch_elapsed_ms
+
+                ticker_upbit = None
+                ticker_binance = None
+
+                if not orderbook_upbit:
+                    upbit_status = getattr(self.upbit_provider, "last_error_status", None)
+                    if iteration % 10 == 1:
+                        if upbit_status == 429:
+                            self.kpi.ratelimit_hits += 1
+                            logger.info("[D207-1] Upbit orderbook rate limited (429)")
+                        else:
+                            logger.warning("[D207-1] Upbit orderbook fetch failed")
+                    ticker_start = time.perf_counter()
+                    ticker_upbit = self.upbit_provider.get_ticker(symbol_a)
+                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
+                    ticker_fetch_ms += ticker_elapsed_ms
+                    io_ms += ticker_elapsed_ms
+
+                if not orderbook_binance:
+                    if iteration % 10 == 1:
+                        logger.warning("[D207-1] Binance orderbook fetch failed")
+                    ticker_start = time.perf_counter()
+                    ticker_binance = self.binance_provider.get_ticker(symbol_b)
+                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
+                    ticker_fetch_ms += ticker_elapsed_ms
+                    io_ms += ticker_elapsed_ms
+
+                upbit_bid, upbit_ask = (None, None)
+                if orderbook_upbit:
+                    upbit_bid, upbit_ask = self._extract_orderbook_bid_ask(orderbook_upbit)
+                if (not upbit_bid or not upbit_ask) and ticker_upbit is None:
+                    ticker_start = time.perf_counter()
+                    ticker_upbit = self.upbit_provider.get_ticker(symbol_a)
+                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
+                    ticker_fetch_ms += ticker_elapsed_ms
+                    io_ms += ticker_elapsed_ms
+                if (not upbit_bid or not upbit_ask) and ticker_upbit:
+                    upbit_bid, upbit_ask = self._extract_bid_ask(ticker_upbit)
                 if not upbit_bid or not upbit_ask or upbit_bid <= 0 or upbit_ask <= 0:
                     if iteration % 10 == 1:
-                        logger.warning("[D207-1] Upbit price missing (bid/ask/last)")
+                        logger.warning("[D207-1] Upbit price missing (orderbook/ticker)")
                     _record_failure("upbit_price_missing")
                     continue
 
-                binance_bid_usdt, binance_ask_usdt = self._extract_bid_ask(ticker_binance)
-                if not binance_bid_usdt or not binance_ask_usdt or binance_bid_usdt <= 0 or binance_ask_usdt <= 0:
+                binance_bid_usdt, binance_ask_usdt = (None, None)
+                if orderbook_binance:
+                    binance_bid_usdt, binance_ask_usdt = self._extract_orderbook_bid_ask(orderbook_binance)
+                if (not binance_bid_usdt or not binance_ask_usdt) and ticker_binance is None:
+                    ticker_start = time.perf_counter()
+                    ticker_binance = self.binance_provider.get_ticker(symbol_b)
+                    ticker_elapsed_ms = (time.perf_counter() - ticker_start) * 1000.0
+                    ticker_fetch_ms += ticker_elapsed_ms
+                    io_ms += ticker_elapsed_ms
+                if (not binance_bid_usdt or not binance_ask_usdt) and ticker_binance:
+                    binance_bid_usdt, binance_ask_usdt = self._extract_bid_ask(ticker_binance)
+                if (
+                    not binance_bid_usdt
+                    or not binance_ask_usdt
+                    or binance_bid_usdt <= 0
+                    or binance_ask_usdt <= 0
+                ):
                     if iteration % 10 == 1:
-                        logger.warning("[D207-1] Binance price missing (bid/ask/last)")
+                        logger.warning("[D207-1] Binance price missing (orderbook/ticker)")
                     _record_failure("binance_price_missing")
                     continue
 
@@ -570,11 +663,7 @@ class RealOpportunitySource(OpportunitySource):
                     _record_failure("binance_price_suspicious")
                     continue
 
-                obi_depth = int(self.obi_filter_cfg.levels) if self.obi_filter_cfg else 5
-                if obi_depth <= 0:
-                    obi_depth = 5
-                orderbook_upbit = self.upbit_provider.get_orderbook(symbol_a, depth=obi_depth)
-                orderbook_binance = self.binance_provider.get_orderbook(symbol_b, depth=obi_depth)
+                decision_start = time.perf_counter()
                 obi_upbit, depth_upbit = _compute_orderbook_obi(orderbook_upbit, depth=obi_depth)
                 obi_binance, depth_binance = _compute_orderbook_obi(orderbook_binance, depth=obi_depth)
                 obi_score = _merge_metric(obi_upbit, obi_binance)
@@ -619,6 +708,7 @@ class RealOpportunitySource(OpportunitySource):
 
                 candidates = [c for c in [candidate_a, candidate_b] if c]
                 if not candidates:
+                    decision_ms += (time.perf_counter() - decision_start) * 1000.0
                     _record_failure("candidate_none")
                     continue
 
@@ -640,6 +730,8 @@ class RealOpportunitySource(OpportunitySource):
                     candidate.obi_score = obi_score
                     candidate.depth_imbalance = depth_imbalance
                     candidates_all.append(candidate)
+
+                decision_ms += (time.perf_counter() - decision_start) * 1000.0
 
             if iteration == 1:
                 logger.info(f"[D207-1] FX rate: {fx_rate} KRW/USDT")
@@ -769,6 +861,30 @@ class RealOpportunitySource(OpportunitySource):
                 "candidates": [],
             }
             return None
+        finally:
+            if decide_span_started and LatencyStage.DECIDE in self._latency_profiler.active_spans:
+                self._latency_profiler.end_span(LatencyStage.DECIDE)
+            if LatencyStage.RECEIVE_TICK in self._latency_profiler.active_spans:
+                self._latency_profiler.end_span(LatencyStage.RECEIVE_TICK)
+            tick_elapsed_ms = (time.perf_counter() - tick_start) * 1000.0
+            if ticker_fetch_ms <= 0.0 and orderbook_fetch_ms > 0.0:
+                ticker_fetch_ms = orderbook_fetch_ms
+            timing = {
+                "tick_elapsed_ms": round(tick_elapsed_ms, 3),
+                "ticker_fetch_ms": round(ticker_fetch_ms, 3),
+                "orderbook_fetch_ms": round(orderbook_fetch_ms, 3),
+                "decision_ms": round(decision_ms, 3),
+                "io_ms": round(io_ms, 3),
+            }
+            self._last_tick_timing = timing
+            if self.kpi is not None:
+                self.kpi.record_tick_timing(
+                    tick_elapsed_ms=tick_elapsed_ms,
+                    ticker_fetch_ms=ticker_fetch_ms,
+                    orderbook_fetch_ms=orderbook_fetch_ms,
+                    decision_ms=decision_ms,
+                    io_ms=io_ms,
+                )
 
 
 class MockOpportunitySource(OpportunitySource):

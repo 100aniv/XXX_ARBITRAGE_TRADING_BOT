@@ -105,7 +105,7 @@ universe:
   mode: "static"  # D205-15-2: static (고정 리스트) or topn (동적 Top N)
   
   # TopN 설정 (mode="topn"일 때만 사용)
-  topn_count: 100
+  topn_count: 20
   data_source: "mock"  # "mock" | "real"
   cache_ttl_seconds: 600
   min_volume_usd: 1000000.0
@@ -128,7 +128,7 @@ universe:
     - ["ETC/KRW", "ETC/USDT"]
   
   # Legacy (Deprecated, use universe.mode instead)
-  symbols_top_n: 10
+  symbols_top_n: 20
   allowlist: []
   denylist:
     - "DOGE/KRW"
