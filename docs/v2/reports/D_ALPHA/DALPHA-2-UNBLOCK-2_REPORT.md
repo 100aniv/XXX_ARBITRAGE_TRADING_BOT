@@ -4,7 +4,7 @@
 
 **Branch:** rescue/d207_6_multi_symbol_alpha_survey
 
-**Commit:** AC 충족 후 기록
+**Commit:** 46f155b2 (Alpha Fast Lane addendum)
 
 ---
 
@@ -82,6 +82,21 @@
   - `edge_distribution.json`: 58 edge samples collected
   - `engine_report.json`: git status + dynamic threshold metadata
 
+### Alpha Fast Lane 20m REAL-READ (Latency + Universe Slim)
+- Evidence: `logs/evidence/d_alpha_2_fastlane_20m_20260210_185217/`
+- Gate Doctor/Fast/Regression:
+  - `logs/evidence/20260210_181025_gate_doctor_3fbc7e9/`
+  - `logs/evidence/20260210_181840_gate_fast_3fbc7e9/`
+  - `logs/evidence/20260210_182147_gate_regression_3fbc7e9/`
+- DocOps: `logs/evidence/d_alpha_2_fastlane_docops_20260210_183714/` (ssot_docs_check_exitcode.txt=0)
+- KPI 요약:
+  - duration_minutes=20.09, ticks=452, stop_reason=TIME_REACHED
+  - tick_elapsed_ms p50=2228.48, p95=2453.04, p99=2460.05
+  - net_pnl_full=-6.87, winrate_pct=77.78, closed_trades=18
+- Universe 요약:
+  - universe_loaded_count=20, unique_symbols_evaluated=20
+  - positive_net_edge_pct=5.61
+
 ### AC-2/AC-3 아티팩트
 - OBI TopN: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_topn.json`
 - OBI Filter Counters: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_filter_counters.json`
@@ -116,11 +131,16 @@
 ## Evidence 경로
 
 - OBI ON 20m Survey: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`
+- Alpha Fast Lane 20m REAL-READ: `logs/evidence/d_alpha_2_fastlane_20m_20260210_185217/`
 - Gate Doctor/Fast/Regression:
   - `logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`
   - `logs/evidence/20260207_212001_gate_fast_ee4a9d6/`
   - `logs/evidence/20260207_212255_gate_regression_ee4a9d6/`
+  - `logs/evidence/20260210_181025_gate_doctor_3fbc7e9/`
+  - `logs/evidence/20260210_181840_gate_fast_3fbc7e9/`
+  - `logs/evidence/20260210_182147_gate_regression_3fbc7e9/`
 - DocOps/Boundary: `logs/evidence/dalpha_2_final_docops_20260207_215500/`
+- DocOps (Alpha Fast Lane): `logs/evidence/d_alpha_2_fastlane_docops_20260210_183714/`
 
 ---
 

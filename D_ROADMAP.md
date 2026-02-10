@@ -7015,6 +7015,17 @@ enable_execution: false       # REQUIRED
 - [x] AC-5: OBI ON 20m survey **TIME_REACHED** 완주 증거 확보 (watch_summary/kpi/engine_report/FACT_CHECK).
 - [ ] AC-6: MODEL_ANOMALY 원인 분해 보고(시간진실/시장구조/수수료/체결확률) + 코드 경로 연결 증거.
 
+**Alpha Fast Lane (Latency + Universe Slim, 2026-02-10):**
+- 코드: `46f155b2` (Alpha Fast Lane latency + universe defaults)
+- Gate: Doctor `logs/evidence/20260210_181025_gate_doctor_3fbc7e9/` PASS
+- Gate: Fast `logs/evidence/20260210_181840_gate_fast_3fbc7e9/` PASS
+- Gate: Regression `logs/evidence/20260210_182147_gate_regression_3fbc7e9/` PASS
+- DocOps: `logs/evidence/d_alpha_2_fastlane_docops_20260210_183714/` (ssot_docs_check_exitcode.txt=0, rg_cci/rg_migrate/rg_marker, git_status/diff)
+- REAL-READ 20m survey: `logs/evidence/d_alpha_2_fastlane_20m_20260210_185217/`
+  - TIME_REACHED, duration_minutes=20.09, ticks=452
+  - tick_elapsed_ms p50=2228.48, p95=2453.04, p99=2460.05
+  - universe_loaded_count=20, unique_symbols_evaluated=20, positive_net_edge_pct=5.61
+
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
 - Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)
