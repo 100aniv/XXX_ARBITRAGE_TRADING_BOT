@@ -1,5 +1,5 @@
 """
-D205-18-2: Paper Metrics Collector (Engine-Centric)
+Paper Metrics Collector (Engine-Centric)
 
 PaperRunner에서 KPI 집계 로직 분리.
 Live Runner에서도 재사용 가능.
@@ -27,16 +27,16 @@ class PaperMetrics:
     """
     Paper 실행 메트릭 수집기
     
-    D205-18-2: PaperRunner에서 분리
+    EXEC: PaperRunner에서 분리
     - Runner는 이 클래스 인스턴스만 참조
     - 모든 집계 로직은 여기에 집중
     
-    D205-18-4R: Wallclock duration tracking 추가
+    PERF: Wallclock duration tracking 추가
     - start_time: 초기 생성 시간 (레거시)
     - wallclock_start: 실제 실행 시작 시간 (wall-clock 기준)
     """
     start_time: float = field(default_factory=time.time)
-    wallclock_start: float = field(default_factory=time.time)  # D205-18-4R: Wall-clock 기준
+    wallclock_start: float = field(default_factory=time.time)  # PERF: Wall-clock 기준
     expected_duration_sec: float = 0.0
     wallclock_drift_pct: float = 0.0
     max_heartbeat_gap_sec: float = 0.0
@@ -49,19 +49,27 @@ class PaperMetrics:
     errors: List[str] = field(default_factory=list)
     db_last_error: str = ""
     
-    # D206-0 FIX: WARN=FAIL 카운터 (Evidence 저장용)
+    # EXEC: WARN=FAIL 카운터 (Evidence 저장용)
     warning_count: int = 0  # WarningCounterHandler에서 수집
     memory_mb: float = 0.0
     cpu_pct: float = 0.0
 
-    # D_ALPHA-2: Per-tick latency samples (ms)
-    tick_elapsed_ms_samples: List[float] = field(default_factory=list)
+    # PERF: Per-tick latency samples (ms)
+    tick_elapsed_ms_samples: List[float] = field(default_factory=list)  # deprecated alias -> interval
+    tick_compute_ms_samples: List[float] = field(default_factory=list)
+    tick_interval_ms_samples: List[float] = field(default_factory=list)
+    tick_sleep_ms_samples: List[float] = field(default_factory=list)
     tick_ticker_fetch_ms_samples: List[float] = field(default_factory=list)
     tick_orderbook_fetch_ms_samples: List[float] = field(default_factory=list)
     tick_decision_ms_samples: List[float] = field(default_factory=list)
     tick_io_ms_samples: List[float] = field(default_factory=list)
+    md_upbit_ms_samples: List[float] = field(default_factory=list)
+    md_binance_ms_samples: List[float] = field(default_factory=list)
+    md_total_ms_samples: List[float] = field(default_factory=list)
+    compute_decision_ms_samples: List[float] = field(default_factory=list)
+    rate_limiter_wait_ms_samples: List[float] = field(default_factory=list)
     
-    # D205-3: PnL 필드
+    # EXEC: PnL 필드
     closed_trades: int = 0
     gross_pnl: float = 0.0
     net_pnl: float = 0.0
@@ -71,19 +79,19 @@ class PaperMetrics:
     losses: int = 0
     winrate_pct: float = 0.0
     
-    # D205-9: Real MarketData 증거
+    # EXEC: Real MarketData 증거
     marketdata_mode: str = "MOCK"  # MOCK or REAL
     upbit_marketdata_ok: bool = False
     binance_marketdata_ok: bool = False
     real_ticks_ok_count: int = 0
     real_ticks_fail_count: int = 0
     
-    # D205-9 RECOVERY: Redis 지표
+    # EXEC: Redis 지표
     redis_ok: bool = False
     ratelimit_hits: int = 0
     dedup_hits: int = 0
     
-    # D205-10: Decision Trace (reject reason 카운트)
+    # EXEC: Decision Trace (reject reason 카운트)
     reject_reasons: Dict[str, int] = field(default_factory=lambda: {
         "profitable_false": 0,
         "direction_none": 0,
@@ -94,33 +102,33 @@ class PaperMetrics:
         "candidate_none": 0,
         "intent_conversion_failed": 0,
         "symbol_blacklisted": 0,
-        "admin_paused": 0,  # D205-12-1: AdminControl reject
+        "admin_paused": 0,  # EXEC: AdminControl reject
         "cooldown": 0,
         "fx_stale": 0,
         "exit_candidate_none": 0,
         "execution_reject": 0,
     })
     
-    # D207-1-2: FX Rate Info (Economic Truth - Real-time FX)
+    # EXEC: FX Rate Info (Economic Truth - Real-time FX)
     fx_rate: float = 0.0
     fx_rate_source: str = "unknown"
     fx_rate_age_sec: float = 0.0
     fx_rate_timestamp: str = ""
     fx_rate_degraded: bool = False
     
-    # D207-1-3: Friction Costs (Economic Truth - Reality Model)
+    # EXEC: Friction Costs (Economic Truth - Reality Model)
     fees_total: float = 0.0
     slippage_cost: float = 0.0
     latency_cost: float = 0.0
     partial_fill_penalty: float = 0.0
     exec_cost_total: float = 0.0
-    # D207-1-6: Realism Pack v1 - explicit totals
+    # EXEC: Realism Pack totals
     slippage_total: float = 0.0
     latency_total: float = 0.0
     reject_total: float = 0.0
     partial_fill_total: float = 0.0
     
-    # D207-1-5: StopReason Single Truth Chain (SSOT)
+    # EXEC: StopReason Single Truth Chain (SSOT)
     # Orchestrator가 유일한 소유자, 모든 파일에 동일하게 기록
     stop_reason: str = ""  # TIME_REACHED, MODEL_ANOMALY, FX_STALE, ERROR, USER_SIGINT
     stop_message: str = ""  # 상세 설명
@@ -176,18 +184,47 @@ class PaperMetrics:
 
     def record_tick_timing(
         self,
-        tick_elapsed_ms: float,
+        tick_elapsed_ms: float = 0.0,
         ticker_fetch_ms: float = 0.0,
         orderbook_fetch_ms: float = 0.0,
         decision_ms: float = 0.0,
         io_ms: float = 0.0,
+        tick_compute_ms: Optional[float] = None,
+        tick_interval_ms: Optional[float] = None,
+        tick_sleep_ms: Optional[float] = None,
+        md_upbit_ms: float = 0.0,
+        md_binance_ms: float = 0.0,
+        md_total_ms: float = 0.0,
+        rate_limiter_wait_ms: float = 0.0,
+        compute_decision_ms: Optional[float] = None,
     ) -> None:
-        """Per-tick timing 기록 (D_ALPHA-2)"""
-        self._record_sample(self.tick_elapsed_ms_samples, tick_elapsed_ms)
+        """Per-tick timing 기록 (PERF)"""
+        if tick_compute_ms is None:
+            tick_compute_ms = tick_elapsed_ms
+        if tick_interval_ms is None:
+            tick_interval_ms = tick_elapsed_ms
+        if tick_sleep_ms is None and tick_interval_ms is not None:
+            tick_sleep_ms = max(0.0, float(tick_interval_ms) - float(tick_compute_ms))
+        if compute_decision_ms is None:
+            compute_decision_ms = decision_ms
+
+        if tick_interval_ms is not None:
+            self._record_sample(self.tick_elapsed_ms_samples, tick_interval_ms)
+            self._record_sample(self.tick_interval_ms_samples, tick_interval_ms)
+        else:
+            self._record_sample(self.tick_elapsed_ms_samples, tick_elapsed_ms)
+        self._record_sample(self.tick_compute_ms_samples, tick_compute_ms)
+        if tick_sleep_ms is not None:
+            self._record_sample(self.tick_sleep_ms_samples, tick_sleep_ms)
         self._record_sample(self.tick_ticker_fetch_ms_samples, ticker_fetch_ms)
         self._record_sample(self.tick_orderbook_fetch_ms_samples, orderbook_fetch_ms)
         self._record_sample(self.tick_decision_ms_samples, decision_ms)
         self._record_sample(self.tick_io_ms_samples, io_ms)
+        self._record_sample(self.md_upbit_ms_samples, md_upbit_ms)
+        self._record_sample(self.md_binance_ms_samples, md_binance_ms)
+        self._record_sample(self.md_total_ms_samples, md_total_ms)
+        self._record_sample(self.compute_decision_ms_samples, compute_decision_ms)
+        self._record_sample(self.rate_limiter_wait_ms_samples, rate_limiter_wait_ms)
 
     @staticmethod
     def _summarize_samples(samples: List[float]) -> Dict[str, float]:
@@ -216,10 +253,18 @@ class PaperMetrics:
     def _tick_timing_summary(self) -> Dict[str, Dict[str, float]]:
         return {
             "tick_elapsed": self._summarize_samples(self.tick_elapsed_ms_samples),
+            "tick_compute": self._summarize_samples(self.tick_compute_ms_samples),
+            "tick_interval": self._summarize_samples(self.tick_interval_ms_samples),
+            "tick_sleep": self._summarize_samples(self.tick_sleep_ms_samples),
             "ticker_fetch": self._summarize_samples(self.tick_ticker_fetch_ms_samples),
             "orderbook_fetch": self._summarize_samples(self.tick_orderbook_fetch_ms_samples),
             "decision": self._summarize_samples(self.tick_decision_ms_samples),
             "io": self._summarize_samples(self.tick_io_ms_samples),
+            "md_upbit": self._summarize_samples(self.md_upbit_ms_samples),
+            "md_binance": self._summarize_samples(self.md_binance_ms_samples),
+            "md_total": self._summarize_samples(self.md_total_ms_samples),
+            "compute_decision": self._summarize_samples(self.compute_decision_ms_samples),
+            "rate_limiter_wait": self._summarize_samples(self.rate_limiter_wait_ms_samples),
         }
 
     def sync_reject_total(self) -> int:
@@ -240,9 +285,9 @@ class PaperMetrics:
         Returns:
             KPI dict (JSON 직렬화 가능)
         
-        D205-18-4R: duration_seconds는 wallclock_start 기준 (정확한 wall-clock 시간)
+        PERF: duration_seconds는 wallclock_start 기준 (정확한 wall-clock 시간)
         """
-        # D205-18-4R: Wall-clock 기준 duration 계산
+        # PERF: Wall-clock 기준 duration 계산
         duration_seconds = time.time() - self.wallclock_start
         
         reject_total = self.sync_reject_total()
@@ -260,6 +305,15 @@ class PaperMetrics:
             "tick_elapsed_ms_p50": tick_timing["tick_elapsed"]["p50_ms"],
             "tick_elapsed_ms_p95": tick_timing["tick_elapsed"]["p95_ms"],
             "tick_elapsed_ms_p99": tick_timing["tick_elapsed"]["p99_ms"],
+            "tick_compute_ms_p50": tick_timing["tick_compute"]["p50_ms"],
+            "tick_compute_ms_p95": tick_timing["tick_compute"]["p95_ms"],
+            "tick_compute_ms_p99": tick_timing["tick_compute"]["p99_ms"],
+            "tick_interval_ms_p50": tick_timing["tick_interval"]["p50_ms"],
+            "tick_interval_ms_p95": tick_timing["tick_interval"]["p95_ms"],
+            "tick_interval_ms_p99": tick_timing["tick_interval"]["p99_ms"],
+            "tick_sleep_ms_p50": tick_timing["tick_sleep"]["p50_ms"],
+            "tick_sleep_ms_p95": tick_timing["tick_sleep"]["p95_ms"],
+            "tick_sleep_ms_p99": tick_timing["tick_sleep"]["p99_ms"],
             "opportunities_generated": self.opportunities_generated,
             "intents_created": self.intents_created,
             "mock_executions": self.mock_executions,
@@ -270,7 +324,7 @@ class PaperMetrics:
             "db_last_error": self.db_last_error,
             "memory_mb": self.memory_mb,
             "cpu_pct": self.cpu_pct,
-            # D205-3: PnL 필드
+            # EXEC: PnL 필드
             "closed_trades": self.closed_trades,
             "gross_pnl": round(self.gross_pnl, 2),
             "net_pnl": round(self.net_pnl_full, 2),
@@ -279,36 +333,36 @@ class PaperMetrics:
             "wins": self.wins,
             "losses": self.losses,
             "winrate_pct": round(self.winrate_pct, 2),
-            # D205-9: Real MarketData 증거
+            # EXEC: Real MarketData 증거
             "marketdata_mode": self.marketdata_mode,
             "upbit_marketdata_ok": self.upbit_marketdata_ok,
             "binance_marketdata_ok": self.binance_marketdata_ok,
             "real_ticks_ok_count": self.real_ticks_ok_count,
             "real_ticks_fail_count": self.real_ticks_fail_count,
-            # D205-9 RECOVERY: Redis 지표
+            # EXEC: Redis 지표
             "redis_ok": self.redis_ok,
             "ratelimit_hits": self.ratelimit_hits,
             "dedup_hits": self.dedup_hits,
-            # D205-10: Decision Trace
+            # EXEC: Decision Trace
             "reject_reasons": dict(self.reject_reasons),
-            # D207-1-2: FX Rate Info
+            # EXEC: FX Rate Info
             "fx_rate": round(self.fx_rate, 4),
             "fx_rate_source": self.fx_rate_source,
             "fx_rate_age_sec": round(self.fx_rate_age_sec, 2),
             "fx_rate_timestamp": self.fx_rate_timestamp,
             "fx_rate_degraded": self.fx_rate_degraded,
-            # D207-1-3: Friction Costs
+            # EXEC: Friction Costs
             "fees_total": round(self.fees_total, 4),
             "slippage_cost": round(self.slippage_cost, 4),
             "latency_cost": round(self.latency_cost, 4),
             "partial_fill_penalty": round(self.partial_fill_penalty, 4),
             "exec_cost_total": round(self.exec_cost_total, 4),
-            # D207-1-6: Realism Pack v1 totals
+            # EXEC: Realism Pack totals
             "slippage_total": round(self.slippage_total, 4),
             "latency_total": round(self.latency_total, 4),
             "reject_total": reject_total,
             "partial_fill_total": round(self.partial_fill_total, 4),
-            # D207-1-5: StopReason Single Truth Chain
+            # EXEC: StopReason Single Truth Chain
             "stop_reason": self.stop_reason,
             "stop_message": self.stop_message,
         }

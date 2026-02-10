@@ -19,6 +19,7 @@ import json
 import subprocess
 import traceback
 from pathlib import Path
+from typing import Optional
 from datetime import datetime, timezone
 
 
@@ -80,6 +81,7 @@ def run_gate_test(log_dir: Path, duration_sec: int = 600) -> tuple:
     start_time = datetime.now(timezone.utc)
     gate_log = log_dir / "gate.log"
     
+    kpi_output_path = log_dir / "d77_0_kpi_summary.json"
     cmd = [
         sys.executable,
         "scripts/run_d77_0_topn_arbitrage_paper.py",
@@ -89,13 +91,15 @@ def run_gate_test(log_dir: Path, duration_sec: int = 600) -> tuple:
         "--monitoring-enabled",
         "--zone-profile-file", "config/arbitrage/zone_profiles_v2.yaml",
         "--skip-env-check",  # D92 v3.2: env check는 Gate wrapper에서 수행
-        "--validation-profile", "none"  # D92 v3.2: Gate 10m은 안정성 검증, Win Rate 검증 제외
+        "--validation-profile", "none",  # D92 v3.2: Gate 10m은 안정성 검증, Win Rate 검증 제외
+        "--kpi-output-path", str(kpi_output_path),
     ]
     
     metadata = {
         "command": " ".join(cmd),
         "start_time": start_time.isoformat(),
-        "target_duration_sec": duration_sec
+        "target_duration_sec": duration_sec,
+        "kpi_output_path": str(kpi_output_path),
     }
     
     with open(gate_log, "w", encoding="utf-8") as log_file:
@@ -125,15 +129,36 @@ def run_gate_test(log_dir: Path, duration_sec: int = 600) -> tuple:
     return exit_code, duration, metadata
 
 
-def extract_kpi_from_logs(log_dir: Path) -> dict:
+def extract_kpi_from_logs(log_dir: Path, kpi_summary_path: Optional[Path] = None) -> dict:
     """로그에서 KPI 추출"""
     kpi = {
         "round_trips_count": 0,
         "pnl_usd": 0.0,
         "zone_profiles_loaded": {"attempted": 0, "success": 0, "profiles": []},
-        "errors": []
+        "errors": [],
+        "source": "gate_log",
     }
-    
+
+    if kpi_summary_path and kpi_summary_path.exists():
+        try:
+            with open(kpi_summary_path, "r", encoding="utf-8") as f:
+                kpi_summary = json.load(f)
+            kpi["round_trips_count"] = int(kpi_summary.get("round_trips_completed", 0))
+            kpi["pnl_usd"] = float(kpi_summary.get("total_pnl_usd", 0.0))
+            zone_profiles = kpi_summary.get("zone_profiles_loaded", {})
+            if isinstance(zone_profiles, dict) and zone_profiles:
+                profiles_applied = zone_profiles.get("profiles_applied", {})
+                kpi["zone_profiles_loaded"]["attempted"] = 1
+                kpi["zone_profiles_loaded"]["success"] = 1 if profiles_applied else 0
+                if isinstance(profiles_applied, dict):
+                    kpi["zone_profiles_loaded"]["profiles"] = sorted(
+                        profiles_applied.keys()
+                    )
+            kpi["source"] = "kpi_summary"
+            return kpi
+        except Exception as e:
+            kpi["errors"].append(f"KPI summary parse error: {str(e)}")
+
     gate_log = log_dir / "gate.log"
     if not gate_log.exists():
         kpi["errors"].append("gate.log 파일이 존재하지 않습니다")
@@ -250,7 +275,10 @@ def main():
     
     # STEP 3: KPI 추출 및 저장
     print("[STEP 3/4] KPI 추출 및 저장 중...")
-    kpi = extract_kpi_from_logs(log_dir)
+    kpi = extract_kpi_from_logs(
+        log_dir,
+        kpi_summary_path=Path(metadata.get("kpi_output_path", "")),
+    )
     kpi_file = generate_kpi_json(log_dir, metadata, kpi)
     print(f"[OK] KPI 저장: {kpi_file}")
     print()

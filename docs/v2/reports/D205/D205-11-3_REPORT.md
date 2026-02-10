@@ -342,3 +342,40 @@ D205-11-2 SSOT 위반을 수정하고 AC 이관 체계를 확립했습니다.
 - Step 6: SSOT 최종 확인
 - Step 7: Git commit + push
 - Step 8: Closeout Summary
+
+---
+
+## 11. 2026-02-11 진행 업데이트 (MarketData 병렬화)
+
+### 11-1. 변경 요약
+- RealOpportunitySource MarketData fetch 병렬화 (asyncio.gather + run_in_executor + semaphore)
+- Upbit/Binance orderbook/ticker 동시 호출 및 타이밍 분리 유지
+- KPI tick breakdown 유지 (md_upbit_ms/md_binance_ms/md_total_ms, compute_decision_ms, rate_limiter_wait_ms)
+
+### 11-2. Gate 결과
+- Doctor: PASS
+- Fast: PASS
+- Regression: PASS
+
+**Evidence 경로:**
+- `logs/evidence/20260211_021352_gate_doctor_2296676/`
+- `logs/evidence/20260211_021402_gate_fast_2296676/`
+- `logs/evidence/20260211_021708_gate_regression_2296676/`
+
+### 11-3. DocOps Gate (2026-02-11)
+**Evidence:** `logs/evidence/d205_11_3_docops_20260211_040200/`
+- check_ssot_docs.py: ExitCode=0 ✅ (`ssot_docs_check_exitcode.txt`)
+- ripgrep 위반 탐지:
+  - rg_cci.txt: NO_MATCH
+  - rg_migrate.txt: MATCHES (SSOT 규칙/기존 문서 내 가이드 항목)
+  - rg_marker.txt: MATCHES (과거 리포트/가이드 내 기록)
+- git status/diff --stat: 기록 완료 (`git_status.txt`, `git_diff_stat.txt`, `git_diff.txt`)
+
+### 11-4. Gate 10m Smoke (D92 v3.2, 2026-02-11)
+**Evidence:** `logs/gate_10m/gate_10m_20260211_030206/`
+- gate_10m_kpi.json: duration_sec=601.213, exit_code=0, round_trips=22, pnl_usd=0.22699
+- d77_0_kpi_summary.json: round_trips_completed=22, win_rate_pct=72.73
+
+**재현 환경:**
+- ARBITRAGE_ENV=paper
+- SKIP_LIVE_KEY_GUARD=1 (Live Key Guard 우회)

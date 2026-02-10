@@ -3911,11 +3911,18 @@ Rationale:
 ---
 
 #### D205-11-3: Bottleneck Optimization & ≥10% 개선
-**상태:** ⏳ PLANNED (조건부)
+**상태:** 🔄 IN PROGRESS (2026-02-11)
 **커밋:** (미정)
-**테스트:** (미정)
+**테스트:** ✅ Doctor/Fast/Regression PASS (2026-02-11), ✅ Gate 10m PASS (2026-02-11)
 **문서:** `docs/v2/reports/D205/D205-11-3_REPORT.md`
 **Evidence:** `logs/evidence/d205_11_3_optimization_<timestamp>/`
+- Gate Evidence: `logs/evidence/20260211_021352_gate_doctor_2296676/`, `logs/evidence/20260211_021402_gate_fast_2296676/`, `logs/evidence/20260211_021708_gate_regression_2296676/`
+- Gate 10m (D92 v3.2): `logs/gate_10m/gate_10m_20260211_030206/` (gate_10m_kpi.json, d77_0_kpi_summary.json)
+
+**진행 내용 (2026-02-11):**
+- MarketData fetch 병렬화 (asyncio.gather + run_in_executor + semaphore)
+- Upbit/Binance orderbook/ticker 동시 fetch 및 타이밍 분리 유지
+- KPI tick breakdown 유지 (md_upbit_ms/md_binance_ms/md_total_ms, compute_decision_ms, rate_limiter_wait_ms)
 
 **목표:**
 - D205-11-1 병목 지점 최적화 (RECEIVE_TICK: 56.46ms → <25ms)
