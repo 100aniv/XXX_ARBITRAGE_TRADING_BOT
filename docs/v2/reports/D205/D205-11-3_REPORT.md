@@ -363,7 +363,7 @@ D205-11-2 SSOT 위반을 수정하고 AC 이관 체계를 확립했습니다.
 - `logs/evidence/20260211_021708_gate_regression_2296676/`
 
 ### 11-3. DocOps Gate (2026-02-11)
-**Evidence:** `logs/evidence/d205_11_3_docops_20260211_040200/`
+**Evidence:** `logs/evidence/d205_11_3_docops_20260211_041600/`
 - check_ssot_docs.py: ExitCode=0 ✅ (`ssot_docs_check_exitcode.txt`)
 - ripgrep 위반 탐지:
   - rg_cci.txt: NO_MATCH

@@ -3912,7 +3912,7 @@ Rationale:
 
 #### D205-11-3: Bottleneck Optimization & ≥10% 개선
 **상태:** 🔄 IN PROGRESS (2026-02-11)
-**커밋:** (미정)
+**커밋:** 15f9cd9
 **테스트:** ✅ Doctor/Fast/Regression PASS (2026-02-11), ✅ Gate 10m PASS (2026-02-11)
 **문서:** `docs/v2/reports/D205/D205-11-3_REPORT.md`
 **Evidence:** `logs/evidence/d205_11_3_optimization_<timestamp>/`
