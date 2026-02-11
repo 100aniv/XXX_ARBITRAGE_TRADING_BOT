@@ -106,6 +106,15 @@
 - DocOps: `logs/evidence/d207_6_docops_gate_20260210_235952/` (ssot_docs_check_exitcode.txt=0)
 - Unit Tests: `pytest tests/test_market_data_provider.py tests/test_rate_limiter.py` (33 passed)
 
+### Gate 안정화 리런 (LiveKeyGuard + perf 테스트 안정화, 2026-02-11)
+- 변경: `tests/test_d98_4_live_key_guard.py`에서 SKIP_LIVE_KEY_GUARD 강제 제거 fixture 추가
+- 변경: `tests/test_d53_performance_loop.py`에서 perf_counter 기반 측정 + jitter tolerance 적용
+- Gate Doctor/Fast/Regression:
+  - `logs/evidence/20260211_131300_gate_doctor_89d0bd8/`
+  - `logs/evidence/20260211_131312_gate_fast_89d0bd8/`
+  - `logs/evidence/20260211_131621_gate_regression_89d0bd8/`
+  - DocOps: `logs/evidence/dalpha_2_docops_20260211_20260211_132824/` (ssot_docs_check_exitcode.txt=0)
+
 ### AC-2/AC-3 아티팩트
 - OBI TopN: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_topn.json`
 - OBI Filter Counters: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/obi_filter_counters.json`
@@ -148,8 +157,12 @@
   - `logs/evidence/20260210_181025_gate_doctor_3fbc7e9/`
   - `logs/evidence/20260210_181840_gate_fast_3fbc7e9/`
   - `logs/evidence/20260210_182147_gate_regression_3fbc7e9/`
+  - `logs/evidence/20260211_131300_gate_doctor_89d0bd8/`
+  - `logs/evidence/20260211_131312_gate_fast_89d0bd8/`
+  - `logs/evidence/20260211_131621_gate_regression_89d0bd8/`
 - DocOps/Boundary: `logs/evidence/dalpha_2_final_docops_20260207_215500/`
 - DocOps (Alpha Fast Lane): `logs/evidence/d_alpha_2_fastlane_docops_20260210_183714/`
+- DocOps (Gate 안정화): `logs/evidence/dalpha_2_docops_20260211_20260211_132824/`
 
 ---
 

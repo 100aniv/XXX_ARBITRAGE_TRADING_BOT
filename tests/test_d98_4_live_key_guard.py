@@ -33,6 +33,11 @@ from arbitrage.config.live_key_guard import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_skip_live_key_guard(monkeypatch):
+    monkeypatch.delenv("SKIP_LIVE_KEY_GUARD", raising=False)
+
+
 class TestDetectLiveKey:
     """detect_live_key() 함수 테스트"""
     

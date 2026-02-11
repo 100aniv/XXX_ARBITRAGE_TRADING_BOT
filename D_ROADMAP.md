@@ -7041,6 +7041,13 @@ enable_execution: false       # REQUIRED
 - DocOps: `logs/evidence/d207_6_docops_gate_20260210_235900/` (ssot_docs_check_exitcode.txt=0, rg_cci/rg_migrate/rg_todo, git_status/diff)
 - Unit Tests: `pytest tests/test_market_data_provider.py tests/test_rate_limiter.py` (33 passed)
 
+**Gate 안정화 리런 (LiveKeyGuard + perf 테스트 안정화, 2026-02-11):**
+- 변경: `tests/test_d98_4_live_key_guard.py`에서 SKIP_LIVE_KEY_GUARD 강제 제거 fixture 추가
+- 변경: `tests/test_d53_performance_loop.py`에서 perf_counter 기반 측정 + jitter tolerance 적용
+- Gate: Doctor `logs/evidence/20260211_131300_gate_doctor_89d0bd8/` PASS
+- Gate: Fast `logs/evidence/20260211_131312_gate_fast_89d0bd8/` PASS
+- Gate: Regression `logs/evidence/20260211_131621_gate_regression_89d0bd8/` PASS
+
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
 - Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)

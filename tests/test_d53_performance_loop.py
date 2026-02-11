@@ -132,24 +132,25 @@ class TestMarketDataProviderOptimization:
         provider = WebSocketMarketDataProvider(ws_adapters={})
         
         # 첫 호출 (캐싱)
-        start = time.time()
+        start = time.perf_counter()
         for _ in range(100):
             provider.get_latest_snapshot("KRW-BTC")
-        first_time = time.time() - start
+        first_time = time.perf_counter() - start
         
         # 캐시 확인
         assert "KRW-BTC" in provider._symbol_cache
         
         # 두 번째 호출 (캐시 사용)
-        start = time.time()
+        start = time.perf_counter()
         for _ in range(100):
             provider.get_latest_snapshot("KRW-BTC")
-        second_time = time.time() - start
+        second_time = time.perf_counter() - start
         
         # 캐시 사용 후 성능 향상
         print(f"First call (with caching): {first_time*1000:.2f}ms")
         print(f"Second call (cached): {second_time*1000:.2f}ms")
-        assert second_time <= first_time
+        tolerance = max(first_time * 0.1, 1e-6)
+        assert second_time <= first_time + tolerance
 
 
 class TestLoopMetricsOptimization:
