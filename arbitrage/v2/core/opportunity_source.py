@@ -248,6 +248,7 @@ class RealOpportunitySource(OpportunitySource):
         upbit_ws_provider=None,
         binance_ws_provider=None,
         clean_room: bool = False,
+        ws_only_mode: bool = False,
         order_size_policy_mode: Optional[str] = None,
         fixed_quote: Optional[Dict[str, Any]] = None,
         default_quote_amount: float = 100000.0,
@@ -264,6 +265,7 @@ class RealOpportunitySource(OpportunitySource):
         self.kpi = kpi
         self.profit_core = profit_core
         self.clean_room = bool(clean_room)
+        self.ws_only_mode = bool(ws_only_mode or clean_room)
         self.order_size_policy_mode = order_size_policy_mode
         self.fixed_quote = dict(fixed_quote or {})
         self.default_quote_amount = float(default_quote_amount)
@@ -682,14 +684,16 @@ class RealOpportunitySource(OpportunitySource):
                         self.binance_ws_provider, symbol_b, "binance"
                     )
 
-                    if self.clean_room:
+                    if self.ws_only_mode:
                         if orderbook_upbit is None:
                             raise RuntimeError(
-                                f"[CLEAN_ROOM] WS cache miss (upbit): symbol={symbol_a}"
+                                f"[WS_ONLY] Orderbook WS cache miss (upbit): symbol={symbol_a}. "
+                                f"REST fallback is forbidden in WS-only mode."
                             )
                         if orderbook_binance is None:
                             raise RuntimeError(
-                                f"[CLEAN_ROOM] WS cache miss (binance): symbol={symbol_b}"
+                                f"[WS_ONLY] Orderbook WS cache miss (binance): symbol={symbol_b}. "
+                                f"REST fallback is forbidden in WS-only mode."
                             )
 
                     orderbook_requests = []
@@ -789,10 +793,10 @@ class RealOpportunitySource(OpportunitySource):
                     need_upbit_ticker = not upbit_bid or not upbit_ask
                     need_binance_ticker = not binance_bid_usdt or not binance_ask_usdt
 
-                    if self.clean_room and (need_upbit_ticker or need_binance_ticker):
+                    if self.ws_only_mode and (need_upbit_ticker or need_binance_ticker):
                         raise RuntimeError(
-                            f"[CLEAN_ROOM] Ticker fallback forbidden (need_upbit_ticker={need_upbit_ticker}, "
-                            f"need_binance_ticker={need_binance_ticker})"
+                            f"[WS_ONLY] Ticker WS cache miss (need_upbit_ticker={need_upbit_ticker}, "
+                            f"need_binance_ticker={need_binance_ticker}). REST fallback is forbidden in WS-only mode."
                         )
 
                     ticker_requests = []

@@ -518,6 +518,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
                     if binance_ws_provider.get_latest_orderbook(sym_b) is None:
                         raise RuntimeError(f"[CLEAN_ROOM] WS prewarm failed (binance): {sym_b}")
 
+        ws_only_mode = bool(upbit_ws_provider is not None and binance_ws_provider is not None)
         opportunity_source = RealOpportunitySource(
             upbit_provider=upbit_provider,
             binance_provider=binance_provider,
@@ -541,6 +542,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             upbit_ws_provider=upbit_ws_provider,
             binance_ws_provider=binance_ws_provider,
             clean_room=clean_room,
+            ws_only_mode=ws_only_mode,
             order_size_policy_mode=getattr(config, "order_size_policy_mode", "fixed_quote"),
             fixed_quote=getattr(config, "fixed_quote", None),
             default_quote_amount=getattr(config, "default_quote_amount", 100000.0),

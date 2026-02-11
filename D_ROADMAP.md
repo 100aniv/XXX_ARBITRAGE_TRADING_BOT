@@ -7056,6 +7056,21 @@ enable_execution: false       # REQUIRED
 - Clean-Room 1m smoke: `logs/evidence/dalpha_clean_room_1m_fix_20260211_222529/` (exit_code=0, warnings=0, stop_reason=TIME_REACHED)
 - DocOps: `logs/evidence/d_alpha_2_docops_20260211_230322/` (ssot_docs_check_exitcode.txt=0, rg_cci_count=0건, rg_migrate_count=77건, rg_todo_count=17건)
 
+**TURN1/2/3 통합 (WS-only 강제 + profitable 단일화 + tail threshold, 2026-02-12):**
+- TURN1: WS-only mode 강제 (ws_provider 존재 시 REST fallback 완전 차단)
+  - 코드: `opportunity_source.py` ws_only_mode 플래그 추가, WS cache miss 시 RuntimeError
+  - 코드: `runtime_factory.py` WS provider 존재 시 ws_only_mode=True 전달
+  - 목표: tick loop에서 REST 호출 0건 (WS 중심 실전 경로)
+- TURN2: profitable 판정 단일화 검증 완료
+  - 코드: `detector.py:218` 이미 구현됨 (exec_cost_breakdown.net_edge_after_exec_bps > 0)
+  - 테스트: `tests/test_turn2_profitable_exec_cost.py` 3개 PASS (raw edge +인데 exec_cost로 profitable=False 뒤집힘 증명)
+  - 결과: profitable 판정은 detect_candidates() 단 1곳에서만 결정, exec_cost + partial_fill_penalty 반영 확인
+- TURN3: tail threshold 착수 (min_net_edge_bps 활용)
+  - 설정: `config.yml` min_net_edge_bps=5.0 (강한 엣지만 남기기)
+  - 목표: 기회 수 늘리기가 아닌 흑자 우선 전략
+- Gate: Doctor `logs/evidence/20260212_003621_gate_doctor_ee952a1/` PASS
+- DocOps: `logs/evidence/turn123_docops_*/` (ssot_docs_check_exitcode.txt=0, rg_cci_count=0건, rg_migrate_count=24건, rg_todo_count=2건)
+
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
 - Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)
