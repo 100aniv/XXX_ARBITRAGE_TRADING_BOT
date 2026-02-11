@@ -302,7 +302,7 @@ class RunWatcher:
             if avg_pnl_per_trade < 0:
                 if self._negative_edge_start is None:
                     self._negative_edge_start = now
-                    logger.warning(f"[RunWatcher] Negative edge detected (avg: {avg_pnl_per_trade:.2f})")
+                    logger.info(f"[RunWatcher] Negative edge detected (avg: {avg_pnl_per_trade:.2f})")
                 elif (now - self._negative_edge_start) >= self.config.negative_edge_duration_sec:
                     self.stop_reason = "ERROR"
                     self.diagnosis = (

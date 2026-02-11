@@ -131,6 +131,7 @@ class TopNProvider:
         selection_rate_limit_enabled: bool = True,
         selection_batch_size: int = 10,
         selection_batch_delay_sec: float = 1.5,
+        clean_room: bool = False,
     ):
         """
         D82-2: Hybrid Mode initialization.
@@ -150,6 +151,7 @@ class TopNProvider:
         self.mode = mode
         self.selection_data_source = selection_data_source
         self.entry_exit_data_source = entry_exit_data_source
+        self.clean_room = bool(clean_room)
         self.cache_ttl_seconds = cache_ttl_seconds
         self.max_symbols = max_symbols
         self.upbit_api_base = upbit_api_base
@@ -176,6 +178,13 @@ class TopNProvider:
         
         # D82-3: Rate Limiter (lazy init)
         self._rate_limiter = None
+
+        if self.clean_room:
+            if self.selection_data_source != "mock" or self.entry_exit_data_source != "mock":
+                raise RuntimeError(
+                    "[CLEAN_ROOM] TopNProvider real data source is forbidden "
+                    f"(selection={self.selection_data_source}, entry_exit={self.entry_exit_data_source})"
+                )
         
         logger.info(
             f"[TOPN_PROVIDER] D82-2/D82-3 Hybrid Mode: "
@@ -201,6 +210,8 @@ class TopNProvider:
         Returns:
             TopNResult
         """
+        if self.clean_room:
+            raise RuntimeError("[CLEAN_ROOM] TopNProvider.get_topn_symbols is forbidden")
         # D82-2: Check selection cache first
         now = time.time()
         use_cache = selection_limit is None
@@ -283,6 +294,8 @@ class TopNProvider:
         Returns:
             {symbol: SymbolMetrics}
         """
+        if self.clean_room:
+            raise RuntimeError("[CLEAN_ROOM] TopNProvider selection metrics fetch is forbidden")
         if self.selection_data_source == "mock":
             logger.info("[TOPN_PROVIDER] Using MOCK data for TopN selection")
             return self._fetch_mock_metrics()

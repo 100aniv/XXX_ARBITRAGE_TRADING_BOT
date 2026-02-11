@@ -37,6 +37,7 @@ class UniverseBuilderConfig:
     static_symbols: List[Tuple[str, str]] = None  # [(symbol_a, symbol_b), ...]
     topn_count: int = 100
     data_source: str = "mock"  # "mock" | "real"
+    clean_room: bool = False
     cache_ttl_seconds: int = 600
     min_volume_usd: float = 1_000_000.0
     min_liquidity_usd: float = 50_000.0
@@ -77,6 +78,10 @@ class UniverseBuilder:
         Returns:
             [(symbol_a, symbol_b), ...] - 예: [("BTC/KRW", "BTC/USDT"), ...]
         """
+        if self.config.clean_room and self.config.mode != UniverseMode.STATIC:
+            raise RuntimeError(
+                f"[CLEAN_ROOM] Universe mode must be static (got: {self.config.mode.value})"
+            )
         if self.config.mode == UniverseMode.STATIC:
             return self._get_static_symbols()
         elif self.config.mode == UniverseMode.TOPN:
@@ -127,6 +132,7 @@ class UniverseBuilder:
                 mode=mode,
                 selection_data_source=self.config.data_source,
                 entry_exit_data_source=self.config.data_source,
+                clean_room=self.config.clean_room,
                 cache_ttl_seconds=self.config.cache_ttl_seconds,
                 max_symbols=self.config.topn_count,
                 min_volume_usd=self.config.min_volume_usd,
@@ -290,6 +296,7 @@ def from_config_dict(config_dict: Dict[str, Any]) -> UniverseBuilder:
         static_symbols=static_symbols,
         topn_count=config_dict.get("topn_count", 100),
         data_source=config_dict.get("data_source", "mock"),
+        clean_room=bool(config_dict.get("clean_room", False)),
         cache_ttl_seconds=config_dict.get("cache_ttl_seconds", 600),
         min_volume_usd=config_dict.get("min_volume_usd", 1_000_000.0),
         min_liquidity_usd=config_dict.get("min_liquidity_usd", 50_000.0),

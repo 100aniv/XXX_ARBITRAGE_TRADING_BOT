@@ -7048,6 +7048,14 @@ enable_execution: false       # REQUIRED
 - Gate: Fast `logs/evidence/20260211_131312_gate_fast_89d0bd8/` PASS
 - Gate: Regression `logs/evidence/20260211_131621_gate_regression_89d0bd8/` PASS
 
+**Clean-Room WARN=FAIL 해소 + ExecCost net edge 반영 (2026-02-11):**
+- 코드: `3d7510b` (Clean-Room WS-only + WARN=FAIL 해소 + net_edge_after_exec_bps)
+- Gate: Doctor `logs/evidence/20260211_223118_gate_doctor_3d7510b/` PASS
+- Gate: Fast `logs/evidence/20260211_223122_gate_fast_3d7510b/` PASS
+- Gate: Regression `logs/evidence/20260211_223422_gate_regression_3d7510b/` PASS
+- Clean-Room 1m smoke: `logs/evidence/dalpha_clean_room_1m_fix_20260211_222529/` (exit_code=0, warnings=0, stop_reason=TIME_REACHED)
+- DocOps: `logs/evidence/d_alpha_2_docops_20260211_230322/` (ssot_docs_check_exitcode.txt=0, rg_cci_count=0건, rg_migrate_count=77건, rg_todo_count=17건)
+
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)
 - Doctor: `logs/evidence/20260205_230950_gate_doctor_final/` (exitcode.txt=0)

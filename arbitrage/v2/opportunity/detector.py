@@ -22,6 +22,8 @@ from arbitrage.v2.domain.break_even import (
     compute_edge_bps,
 )
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
+from arbitrage.v2.execution_quality.model_v1 import SimpleExecutionQualityModel
+from arbitrage.v2.execution_quality.schemas import ExecutionCostBreakdown
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,13 @@ class OpportunityCandidate:
         fx_rate_degraded: FX degraded flag
         deterministic_drift_bps: Deterministic drift penalty (bps)
         net_edge_bps: Edge after deterministic drift (bps)
+        maker_mode: Maker mode flag
+        fill_probability: Fill probability (optional)
+        maker_net_edge_bps: Maker net edge (optional)
+        allow_unprofitable: Allow unprofitable flag
+        exec_cost_bps: Execution cost (bps) (optional)
+        net_edge_after_exec_bps: Net edge after execution (bps) (optional)
+        exec_model_version: Execution model version (optional)
     """
     symbol: str
     exchange_a: str
@@ -86,6 +95,9 @@ class OpportunityCandidate:
     fill_probability: Optional[float] = None
     maker_net_edge_bps: Optional[float] = None
     allow_unprofitable: bool = False
+    exec_cost_bps: Optional[float] = None
+    net_edge_after_exec_bps: Optional[float] = None
+    exec_model_version: Optional[str] = None
 
 
 def detect_candidates(
@@ -98,6 +110,11 @@ def detect_candidates(
     deterministic_drift_bps: float = 0.0,
     maker_mode: bool = False,
     fill_probability_params: Optional[FillProbabilityParams] = None,
+    notional: Optional[float] = None,
+    upbit_bid_size: Optional[float] = None,
+    upbit_ask_size: Optional[float] = None,
+    binance_bid_size: Optional[float] = None,
+    binance_ask_size: Optional[float] = None,
 ) -> Optional[OpportunityCandidate]:
     """
     단일 심볼에 대한 기회 탐지
@@ -187,6 +204,19 @@ def detect_candidates(
         # Maker mode에서는 maker_net_edge로 profitable 판정
         profitable = maker_net_edge > 0
     
+    exec_cost_breakdown: Optional[ExecutionCostBreakdown] = None
+    if (not maker_mode) and (notional is not None) and float(notional) > 0:
+        exec_quality_model = SimpleExecutionQualityModel()
+        exec_cost_breakdown = exec_quality_model.compute_execution_cost(
+            edge_bps=net_edge_bps,
+            notional=float(notional),
+            upbit_bid_size=upbit_bid_size,
+            upbit_ask_size=upbit_ask_size,
+            binance_bid_size=binance_bid_size,
+            binance_ask_size=binance_ask_size,
+        )
+        profitable = exec_cost_breakdown.net_edge_after_exec_bps > 0
+    
     return OpportunityCandidate(
         symbol=symbol,
         exchange_a=exchange_a,
@@ -203,6 +233,15 @@ def detect_candidates(
         maker_mode=maker_mode,
         fill_probability=fill_prob,
         maker_net_edge_bps=maker_net_edge,
+        exec_cost_bps=(
+            exec_cost_breakdown.total_exec_cost_bps if exec_cost_breakdown is not None else None
+        ),
+        net_edge_after_exec_bps=(
+            exec_cost_breakdown.net_edge_after_exec_bps if exec_cost_breakdown is not None else None
+        ),
+        exec_model_version=(
+            exec_cost_breakdown.exec_model_version if exec_cost_breakdown is not None else None
+        ),
     )
 
 

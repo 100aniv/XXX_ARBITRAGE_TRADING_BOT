@@ -31,6 +31,40 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _parse_symbol_pairs(raw: str) -> List[Tuple[str, str]]:
+    """심볼 문자열을 [(BASE/KRW, BASE/USDT), ...]로 변환"""
+    if not raw:
+        return []
+    pairs: List[Tuple[str, str]] = []
+    seen: set[str] = set()
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        base = None
+        if "/" in item:
+            parts = [part.strip().upper() for part in item.split("/") if part.strip()]
+            if len(parts) == 2:
+                base = parts[0]
+        elif "-" in item:
+            parts = [part.strip().upper() for part in item.split("-") if part.strip()]
+            if len(parts) == 2:
+                if parts[0] in ("KRW", "USDT", "BTC"):
+                    base = parts[1]
+                else:
+                    base = parts[0]
+        else:
+            base = item.strip().upper()
+        if not base:
+            logger.warning(f"[EXEC] Invalid symbol token skipped: {item}")
+            continue
+        if base in seen:
+            continue
+        seen.add(base)
+        pairs.append((f"{base}/KRW", f"{base}/USDT"))
+    return pairs
+
+
 @dataclass
 class PaperRunnerConfig:
     """Paper Runner 설정"""
@@ -40,14 +74,17 @@ class PaperRunnerConfig:
     output_dir: str = ""
     config_path: Optional[str] = None
     symbols: Optional[List[Tuple[str, str]]] = None
+    universe_mode: Optional[str] = None
     cli_args: Optional[Dict[str, Any]] = None
     symbols_top: int = 20
     max_symbols_per_tick: Optional[int] = None
+    cycle_interval_seconds: Optional[float] = None
     db_connection_string: str = ""
     read_only: bool = True
     db_mode: str = "strict"
     ensure_schema: bool = True
     use_real_data: bool = False
+    clean_room: bool = False
     survey_mode: bool = False
     maker_mode: bool = False
     min_hold_ms: Optional[int] = None
@@ -67,18 +104,26 @@ class PaperRunnerConfig:
         if not os.getenv("BOOTSTRAP_FLAG"):
             logger.error("[BOOTSTRAP GUARD] FAIL: BOOTSTRAP_FLAG missing. Run bootstrap_runtime_env.ps1 first.")
             raise SystemExit(1)
+        
+        if self.clean_room:
+            self.use_real_data = True
+            self.universe_mode = "static"
+            self.fx_provider_mode = "fixed"
+            self.cycle_interval_seconds = 0.0
+        
         if self.survey_mode:
             from arbitrage.v2.core.engine_report import get_git_status_info
             status_info = get_git_status_info()
             status = status_info.get("status")
             if status != "clean":
                 logger.error(
-                    f"[D_ALPHA-2 GIT CLEAN GUARD] FAIL: status={status} (survey_mode requires clean git)"
+                    f"[RISK] Git clean guard fail: status={status} (survey_mode requires clean git)"
                 )
-                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] modified={status_info.get('modified_files')}")
-                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] added={status_info.get('added_files')}")
-                logger.error(f"[D_ALPHA-2 GIT CLEAN GUARD] untracked={status_info.get('untracked_files')}")
+                logger.error(f"[RISK] Git clean guard modified={status_info.get('modified_files')}")
+                logger.error(f"[RISK] Git clean guard added={status_info.get('added_files')}")
+                logger.error(f"[RISK] Git clean guard untracked={status_info.get('untracked_files')}")
                 raise SystemExit(1)
+        
         if self.output_dir and not self.run_id:
             self.run_id = Path(self.output_dir).name
         elif not self.run_id:
@@ -138,7 +183,7 @@ class PaperRunner:
         self.admin_control = admin_control
         self.kpi = None  # D205-18-4-FIX-3: 테스트 호환성
         self._orchestrator = None  # D206-1: Orchestrator 참조
-        logger.info(f"[D207-1] PaperRunner initialized: {config.run_id}")
+        logger.info(f"[EXEC] PaperRunner initialized: {config.run_id}")
     
     # D206-1 CLOSEOUT: Registry Evidence Fields (프로퍼티로 Orchestrator KPI 노출)
     @property
@@ -218,7 +263,7 @@ class PaperRunner:
         Returns:
             Exit code (0=success, 1=failure)
         """
-        logger.info(f"[D207-1] PaperRunner starting (duration={self.config.duration_minutes}m)")
+        logger.info(f"[EXEC] PaperRunner starting (duration={self.config.duration_minutes}m)")
         
         orchestrator = None
         exit_code = 1  # 기본값 FAIL
@@ -238,11 +283,11 @@ class PaperRunner:
             # D206-0: KPI 참조 노출 (테스트 호환성)
             self.kpi = orchestrator.kpi
             
-            logger.info(f"[D207-1] PaperRunner completed: exit_code={exit_code}")
+            logger.info(f"[EXEC] PaperRunner completed: exit_code={exit_code}")
             return exit_code
             
         except Exception as e:
-            logger.error(f"[D207-1] PaperRunner failed: {e}", exc_info=True)
+            logger.error(f"[EXEC] PaperRunner failed: {e}", exc_info=True)
             
             # D207-1-5 Step 2: Evidence Atomicity - DIAGNOSIS.md 생성
             try:
@@ -261,9 +306,9 @@ class PaperRunner:
                     f.write(traceback.format_exc())
                     f.write("\n```\n")
                 
-                logger.info(f"[D207-1-5] DIAGNOSIS.md saved: {diagnosis_path}")
+                logger.info(f"[EXEC] DIAGNOSIS.md saved: {diagnosis_path}")
             except Exception as diag_err:
-                logger.error(f"[D207-1-5] DIAGNOSIS.md save failed: {diag_err}")
+                logger.error(f"[EXEC] DIAGNOSIS.md save failed: {diag_err}")
             
             return 1
         
@@ -291,14 +336,14 @@ class PaperRunner:
                         }
                         with open(manifest_path, "w", encoding="utf-8") as f:
                             json.dump(manifest, f, indent=2)
-                        logger.info(f"[D207-1-5] manifest.json (minimal) saved: {manifest_path}")
+                        logger.info(f"[EXEC] manifest.json (minimal) saved: {manifest_path}")
                 except Exception as finally_err:
-                    logger.error(f"[D207-1-5] Finally block failed: {finally_err}")
+                    logger.error(f"[EXEC] Finally block failed: {finally_err}")
 
 
 def main():
     """CLI 엔트리포인트"""
-    parser = argparse.ArgumentParser(description="D205-18-2D Paper Runner (Thin Wrapper)")
+    parser = argparse.ArgumentParser(description="Paper Runner (Thin Wrapper)")
     parser.add_argument("--duration", type=int, required=True, help="Duration in minutes")
     parser.add_argument(
         "--phase",
@@ -309,20 +354,34 @@ def main():
     parser.add_argument("--output-dir", default="", help="Evidence output directory")
     parser.add_argument("--symbols-top", type=int, default=20, help="Top N symbols")
     parser.add_argument("--max-symbols-per-tick", type=int, default=None, help="Max symbols per tick")
+    parser.add_argument("--symbols", default="", help="Symbol list (comma-separated, e.g. KRW-BTC,BTC/KRW,BTC)")
+    parser.add_argument(
+        "--universe-mode",
+        default=None,
+        choices=["static", "topn"],
+        help="Universe mode override (static/topn)",
+    )
     parser.add_argument("--db-connection-string", default="", help="PostgreSQL connection string")
     parser.add_argument("--db-mode", default="strict", choices=["strict", "optional", "off"], help="DB mode")
     parser.add_argument("--ensure-schema", action=argparse.BooleanOptionalAction, default=True, help="Verify DB schema")
     parser.add_argument("--use-real-data", action="store_true", help="Use Real MarketData")
+    parser.add_argument("--clean-room", action="store_true", help="Clean-Room measurement mode (WS-only, static universe, no sleep)")
     parser.add_argument("--survey-mode", action="store_true", help="Survey mode: collect raw spread data before filtering")
-    parser.add_argument("--maker-mode", action="store_true", help="D_ALPHA-1: Maker-Taker hybrid mode with fill probability")
+    parser.add_argument("--maker-mode", action="store_true", help="Maker-Taker hybrid mode with fill probability")
     args = parser.parse_args()
+    
+    if args.clean_room:
+        args.use_real_data = True
+        args.universe_mode = "static"
     
     # D207-1 REAL 강제 가드: baseline/longrun은 REAL MarketData 필수
     if args.phase in ["baseline", "longrun"] and not args.use_real_data:
-        logger.error(f"[D207-1 GUARD] FAIL: phase={args.phase} requires --use-real-data")
-        logger.error(f"[D207-1 GUARD] Reason: MOCK data is invalid for {args.phase} validation")
-        logger.error(f"[D207-1 GUARD] Fix: Add --use-real-data flag")
+        logger.error(f"[RISK] Phase requires --use-real-data: phase={args.phase}")
+        logger.error(f"[RISK] Reason: MOCK data is invalid for {args.phase} validation")
+        logger.error(f"[RISK] Fix: Add --use-real-data flag")
         sys.exit(1)
+
+    symbol_pairs = _parse_symbol_pairs(args.symbols)
     
     config = PaperRunnerConfig(
         duration_minutes=args.duration,
@@ -330,10 +389,13 @@ def main():
         output_dir=args.output_dir or "",
         symbols_top=args.symbols_top,
         max_symbols_per_tick=args.max_symbols_per_tick,
+        symbols=symbol_pairs or None,
+        universe_mode=args.universe_mode,
         db_connection_string=args.db_connection_string or "",
         db_mode=args.db_mode,
         ensure_schema=args.ensure_schema,
         use_real_data=args.use_real_data,
+        clean_room=args.clean_room,
         survey_mode=args.survey_mode,
         maker_mode=args.maker_mode,
     )

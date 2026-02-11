@@ -167,7 +167,7 @@
 ## 📂 수정할 문서 파일 목록
 
 ### 1. D_ROADMAP.md (최우선)
-**위치:** `c:\work\XXX_ARBITRAGE_TRADING_BOT\D_ROADMAP.md`
+**위치:** `D_ROADMAP.md`
 
 **수정 내용:**
 - D205-3 다음에 D205-4~9 신설 섹션 추가

@@ -8,7 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate
+from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate, detect_candidates
 from arbitrage.v2.domain.break_even import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig
@@ -16,6 +16,13 @@ from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_
 from arbitrage.v2.observability.latency_profiler import LatencyProfiler, LatencyStage
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class OpportunitySource(ABC):
@@ -94,14 +101,16 @@ def _compute_orderbook_obi(orderbook: Optional[Any], depth: int = 5) -> tuple[Op
     bids = bids[:depth]
     asks = asks[:depth]
     bid_depth = sum(
-        float(level.quantity)
+        qty
         for level in bids
-        if level is not None and getattr(level, "quantity", None) is not None
+        for qty in [_safe_float(getattr(level, "quantity", None))]
+        if level is not None and qty is not None
     )
     ask_depth = sum(
-        float(level.quantity)
+        qty
         for level in asks
-        if level is not None and getattr(level, "quantity", None) is not None
+        for qty in [_safe_float(getattr(level, "quantity", None))]
+        if level is not None and qty is not None
     )
     if bid_depth <= 0 or ask_depth <= 0:
         return None, None
@@ -238,6 +247,10 @@ class RealOpportunitySource(OpportunitySource):
         min_net_edge_bps: float = 0.0,
         upbit_ws_provider=None,
         binance_ws_provider=None,
+        clean_room: bool = False,
+        order_size_policy_mode: Optional[str] = None,
+        fixed_quote: Optional[Dict[str, Any]] = None,
+        default_quote_amount: float = 100000.0,
         rng: Optional[random.Random] = None,
     ):
         self.upbit_provider = upbit_provider
@@ -250,6 +263,10 @@ class RealOpportunitySource(OpportunitySource):
         self.break_even_params = break_even_params
         self.kpi = kpi
         self.profit_core = profit_core
+        self.clean_room = bool(clean_room)
+        self.order_size_policy_mode = order_size_policy_mode
+        self.fixed_quote = dict(fixed_quote or {})
+        self.default_quote_amount = float(default_quote_amount)
         self.deterministic_drift_bps = deterministic_drift_bps
         self.symbols = list(symbols) if symbols else None
         self.max_symbols_per_tick = max_symbols_per_tick
@@ -366,14 +383,16 @@ class RealOpportunitySource(OpportunitySource):
     def _extract_orderbook_bid_ask(orderbook) -> tuple[Optional[float], Optional[float]]:
         bids = getattr(orderbook, "bids", None)
         asks = getattr(orderbook, "asks", None)
+        if not isinstance(bids, (list, tuple)) or not isinstance(asks, (list, tuple)):
+            return None, None
         if not bids or not asks:
             return None, None
         try:
-            bid_val = float(bids[0].price)
-            ask_val = float(asks[0].price)
+            bid_val = _safe_float(getattr(bids[0], "price", None))
+            ask_val = _safe_float(getattr(asks[0], "price", None))
         except (TypeError, ValueError, AttributeError, IndexError):
             return None, None
-        if bid_val <= 0 or ask_val <= 0:
+        if bid_val is None or ask_val is None or bid_val <= 0 or ask_val <= 0:
             return None, None
         return bid_val, ask_val
 
@@ -533,11 +552,15 @@ class RealOpportunitySource(OpportunitySource):
         decide_span_started = False
 
         try:
-            if self.upbit_provider is None or self.binance_provider is None:
-                logger.error("[EXEC] Provider is None")
-                self.kpi.real_ticks_fail_count += 1
-                _set_edge_distribution([], reason="provider_none")
-                return None
+            if not self.clean_room:
+                if self.upbit_provider is None or self.binance_provider is None:
+                    logger.error("[EXEC] Provider is None")
+                    self.kpi.real_ticks_fail_count += 1
+                    _set_edge_distribution([], reason="provider_none")
+                    return None
+            else:
+                if self.upbit_ws_provider is None or self.binance_ws_provider is None:
+                    raise RuntimeError("[CLEAN_ROOM] WS providers are required")
             
             # EXEC: FX rate 조회 (Dynamic FX Intelligence)
             fx_fetch_start = time.perf_counter()
@@ -659,6 +682,16 @@ class RealOpportunitySource(OpportunitySource):
                         self.binance_ws_provider, symbol_b, "binance"
                     )
 
+                    if self.clean_room:
+                        if orderbook_upbit is None:
+                            raise RuntimeError(
+                                f"[CLEAN_ROOM] WS cache miss (upbit): symbol={symbol_a}"
+                            )
+                        if orderbook_binance is None:
+                            raise RuntimeError(
+                                f"[CLEAN_ROOM] WS cache miss (binance): symbol={symbol_b}"
+                            )
+
                     orderbook_requests = []
                     if orderbook_upbit is None:
                         if upbit_external_limit:
@@ -756,6 +789,12 @@ class RealOpportunitySource(OpportunitySource):
                     need_upbit_ticker = not upbit_bid or not upbit_ask
                     need_binance_ticker = not binance_bid_usdt or not binance_ask_usdt
 
+                    if self.clean_room and (need_upbit_ticker or need_binance_ticker):
+                        raise RuntimeError(
+                            f"[CLEAN_ROOM] Ticker fallback forbidden (need_upbit_ticker={need_upbit_ticker}, "
+                            f"need_binance_ticker={need_binance_ticker})"
+                        )
+
                     ticker_requests = []
                     if need_upbit_ticker:
                         if upbit_external_limit:
@@ -836,17 +875,45 @@ class RealOpportunitySource(OpportunitySource):
                                 ticker_upbit = result
                                 if ticker_upbit is None:
                                     self._guard_rate_limit_ban(self.upbit_provider, "Upbit")
-                                else:
-                                    upbit_bid, upbit_ask = self._extract_bid_ask(ticker_upbit)
                             else:
                                 metrics["md_binance_ms"] += fetch_elapsed_ms
                                 ticker_binance = result
                                 if ticker_binance is None:
                                     self._guard_rate_limit_ban(self.binance_provider, "Binance")
-                                else:
-                                    binance_bid_usdt, binance_ask_usdt = self._extract_bid_ask(
-                                        ticker_binance
-                                    )
+
+                    if (upbit_bid is None or upbit_ask is None) and ticker_upbit is not None:
+                        upbit_bid, upbit_ask = self._extract_bid_ask(ticker_upbit)
+
+                    if (binance_bid_usdt is None or binance_ask_usdt is None) and ticker_binance is not None:
+                        binance_bid_usdt, binance_ask_usdt = self._extract_bid_ask(ticker_binance)
+
+                    upbit_bid_qty = None
+                    upbit_ask_qty = None
+                    if orderbook_upbit is not None:
+                        bids = getattr(orderbook_upbit, "bids", None)
+                        asks = getattr(orderbook_upbit, "asks", None)
+                        if isinstance(bids, (list, tuple)) and isinstance(asks, (list, tuple)) and bids and asks:
+                            upbit_bid_qty = _safe_float(getattr(bids[0], "quantity", None))
+                            upbit_ask_qty = _safe_float(getattr(asks[0], "quantity", None))
+                    if (upbit_bid_qty is None or upbit_ask_qty is None) and ticker_upbit is not None:
+                        if upbit_bid_qty is None:
+                            upbit_bid_qty = _safe_float(getattr(ticker_upbit, "bid_size", None))
+                        if upbit_ask_qty is None:
+                            upbit_ask_qty = _safe_float(getattr(ticker_upbit, "ask_size", None))
+
+                    binance_bid_qty = None
+                    binance_ask_qty = None
+                    if orderbook_binance is not None:
+                        bids = getattr(orderbook_binance, "bids", None)
+                        asks = getattr(orderbook_binance, "asks", None)
+                        if isinstance(bids, (list, tuple)) and isinstance(asks, (list, tuple)) and bids and asks:
+                            binance_bid_qty = _safe_float(getattr(bids[0], "quantity", None))
+                            binance_ask_qty = _safe_float(getattr(asks[0], "quantity", None))
+                    if (binance_bid_qty is None or binance_ask_qty is None) and ticker_binance is not None:
+                        if binance_bid_qty is None:
+                            binance_bid_qty = _safe_float(getattr(ticker_binance, "bid_size", None))
+                        if binance_ask_qty is None:
+                            binance_ask_qty = _safe_float(getattr(ticker_binance, "ask_size", None))
 
                     return {
                         "symbol_a": symbol_a,
@@ -857,6 +924,10 @@ class RealOpportunitySource(OpportunitySource):
                         "upbit_ask": upbit_ask,
                         "binance_bid_usdt": binance_bid_usdt,
                         "binance_ask_usdt": binance_ask_usdt,
+                        "upbit_bid_qty": upbit_bid_qty,
+                        "upbit_ask_qty": upbit_ask_qty,
+                        "binance_bid_qty": binance_bid_qty,
+                        "binance_ask_qty": binance_ask_qty,
                         "failures": failures,
                         "metrics": metrics,
                     }
@@ -894,6 +965,10 @@ class RealOpportunitySource(OpportunitySource):
                 upbit_ask = task.get("upbit_ask")
                 binance_bid_usdt = task.get("binance_bid_usdt")
                 binance_ask_usdt = task.get("binance_ask_usdt")
+                upbit_bid_qty = task.get("upbit_bid_qty")
+                upbit_ask_qty = task.get("upbit_ask_qty")
+                binance_bid_qty = task.get("binance_bid_qty")
+                binance_ask_qty = task.get("binance_ask_qty")
 
                 if not upbit_bid or not upbit_ask or upbit_bid <= 0 or upbit_ask <= 0:
                     if iteration % 10 == 1:
@@ -947,7 +1022,44 @@ class RealOpportunitySource(OpportunitySource):
                 binance_bid_krw = normalize_price_to_krw(binance_bid_usdt, "USDT", fx_rate)
                 binance_ask_krw = normalize_price_to_krw(binance_ask_usdt, "USDT", fx_rate)
 
-                candidate_a = build_candidate(
+                upbit_bid_size = None
+                upbit_ask_size = None
+                if upbit_bid_qty is not None and upbit_bid is not None and upbit_bid > 0:
+                    upbit_bid_size = float(upbit_bid) * float(upbit_bid_qty)
+                if upbit_ask_qty is not None and upbit_ask is not None and upbit_ask > 0:
+                    upbit_ask_size = float(upbit_ask) * float(upbit_ask_qty)
+
+                binance_bid_size = None
+                binance_ask_size = None
+                if binance_bid_qty is not None and binance_bid_krw is not None and binance_bid_krw > 0:
+                    binance_bid_size = float(binance_bid_krw) * float(binance_bid_qty)
+                if binance_ask_qty is not None and binance_ask_krw is not None and binance_ask_krw > 0:
+                    binance_ask_size = float(binance_ask_krw) * float(binance_ask_qty)
+
+                def _resolve_notional_krw(price_a_val: float, price_b_val: float) -> Optional[float]:
+                    if self.maker_mode:
+                        return None
+                    order_size_mode = (self.order_size_policy_mode or "").strip().lower()
+                    if order_size_mode in ("", "none", "disabled"):
+                        return None
+                    quote_amount = self.default_quote_amount
+                    buy_exchange = None
+                    if price_a_val < price_b_val:
+                        buy_exchange = "upbit"
+                    elif price_a_val > price_b_val:
+                        buy_exchange = "binance"
+
+                    if order_size_mode == "fixed_quote":
+                        if buy_exchange == "upbit":
+                            quote_amount = self.fixed_quote.get("upbit_krw", quote_amount)
+                            return float(quote_amount)
+                        if buy_exchange == "binance":
+                            quote_amount = self.fixed_quote.get("binance_usdt", quote_amount)
+                            return float(quote_amount) * float(fx_rate)
+
+                    return None
+
+                candidate_a = detect_candidates(
                     symbol=symbol_a,
                     exchange_a="upbit",
                     exchange_b="binance",
@@ -957,9 +1069,14 @@ class RealOpportunitySource(OpportunitySource):
                     deterministic_drift_bps=self.deterministic_drift_bps,
                     maker_mode=self.maker_mode,
                     fill_probability_params=self.fill_probability_params,
+                    notional=_resolve_notional_krw(upbit_ask, binance_bid_krw),
+                    upbit_bid_size=upbit_bid_size,
+                    upbit_ask_size=upbit_ask_size,
+                    binance_bid_size=binance_bid_size,
+                    binance_ask_size=binance_ask_size,
                 )
 
-                candidate_b = build_candidate(
+                candidate_b = detect_candidates(
                     symbol=symbol_a,
                     exchange_a="upbit",
                     exchange_b="binance",
@@ -969,6 +1086,11 @@ class RealOpportunitySource(OpportunitySource):
                     deterministic_drift_bps=self.deterministic_drift_bps,
                     maker_mode=self.maker_mode,
                     fill_probability_params=self.fill_probability_params,
+                    notional=_resolve_notional_krw(upbit_bid, binance_ask_krw),
+                    upbit_bid_size=upbit_bid_size,
+                    upbit_ask_size=upbit_ask_size,
+                    binance_bid_size=binance_bid_size,
+                    binance_ask_size=binance_ask_size,
                 )
 
                 candidates = [c for c in [candidate_a, candidate_b] if c]
