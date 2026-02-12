@@ -14,6 +14,7 @@ from arbitrage.v2.domain.fill_probability import FillProbabilityParams
 from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_mismatch
 from arbitrage.v2.observability.latency_profiler import LatencyProfiler, LatencyStage
+from arbitrage.v2.core.tick_context import RestCallInTickError
 
 logger = logging.getLogger(__name__)
 
@@ -661,6 +662,8 @@ class RealOpportunitySource(OpportunitySource):
                         call = functools.partial(func, *args, **kwargs)
                         try:
                             result = await loop.run_in_executor(self._marketdata_executor, call)
+                        except RestCallInTickError:
+                            raise
                         except Exception:
                             result = None
                         fetch_elapsed_ms = (time.perf_counter() - fetch_start) * 1000.0
@@ -1241,6 +1244,8 @@ class RealOpportunitySource(OpportunitySource):
                 return None
             return candidate
             
+        except RestCallInTickError:
+            raise
         except Exception as e:
             logger.warning(f"[EXEC] Real opportunity failed: {e}")
             self.kpi.errors.append(f"real_opportunity: {e}")

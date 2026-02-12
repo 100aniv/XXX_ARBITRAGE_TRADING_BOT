@@ -31,7 +31,7 @@ mode: "paper"  # paper, live, replay
 # FX 설정 (D205-15-4: Real-time FX Integration)
 fx:
   # Provider 선택: "fixed" (테스트/Paper용) | "live" (실시간)
-  provider: "fixed"
+  provider: "live"
   
   # Fixed FX 설정 (provider="fixed"일 때만)
   fixed:

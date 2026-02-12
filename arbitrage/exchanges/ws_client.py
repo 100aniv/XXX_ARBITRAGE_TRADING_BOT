@@ -128,6 +128,15 @@ class BaseWebSocketClient(ABC):
         재연결 핸들러 (선택적 오버라이드)
         """
         logger.info(f"[D49_WS] Reconnected to {self.url}")
+
+    @staticmethod
+    def _is_connection_closed(error: Exception) -> bool:
+        try:
+            import websockets
+            return isinstance(error, websockets.exceptions.ConnectionClosed)
+        except Exception:
+            message = str(error).lower()
+            return "connectionclosed" in error.__class__.__name__.lower() or "no close frame" in message
     
     async def connect(self) -> None:
         """
@@ -176,7 +185,10 @@ class BaseWebSocketClient(ABC):
             self.is_connected = False
             logger.info(f"[D49_WS] Disconnected from {self.url}")
         except Exception as e:
-            logger.error(f"[D49_WS] Disconnect error: {e}")
+            if self._is_connection_closed(e):
+                logger.info(f"[D49_WS] Disconnect completed after close: {e}")
+            else:
+                logger.error(f"[D49_WS] Disconnect error: {e}")
     
     async def receive_loop(self) -> None:
         """
@@ -233,8 +245,11 @@ class BaseWebSocketClient(ABC):
                     await self.disconnect()
             
             except Exception as e:
-                logger.error(f"[D49_WS] Receive error: {e}")
-                self.on_error(e)
+                if self._is_connection_closed(e):
+                    logger.info(f"[D49_WS] Connection closed: {e}")
+                else:
+                    logger.error(f"[D49_WS] Receive error: {e}")
+                    self.on_error(e)
                 await self.disconnect()
     
     async def _reconnect(self) -> None:

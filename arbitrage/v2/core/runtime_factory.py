@@ -23,7 +23,6 @@ from arbitrage.v2.core.monitor import EvidenceCollector
 from arbitrage.v2.core.orchestrator import PaperOrchestrator
 from arbitrage.v2.marketdata.rest.upbit import UpbitRestProvider
 from arbitrage.v2.marketdata.rest.binance import BinanceRestProvider
-from arbitrage.v2.marketdata.ws import UpbitWsProvider, BinanceWsProvider
 from arbitrage.v2.marketdata.interfaces import WsProvider, Orderbook, OrderbookLevel
 from arbitrage.v2.core.fx_provider import LiveFxProvider, FixedFxProvider
 from arbitrage.v2.marketdata.rate_limiter import RateLimiter
@@ -422,20 +421,34 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             raise RuntimeError(f"Provider initialization failed: {e}")
 
     cache_cfg = getattr(v2_config, "cache", None)
-    if config.use_real_data and clean_room:
+    if config.use_real_data:
+        reason = "default"
+        if clean_room:
+            reason = "clean_room"
+        elif cache_cfg and getattr(cache_cfg, "redis_enabled", False):
+            reason = "redis_enabled"
+        symbol_pairs = list(getattr(config, "symbols", []) or [])
+        ws_upbit_symbols = {pair[0] for pair in symbol_pairs if len(pair) == 2}
+        ws_binance_symbols = {pair[1] for pair in symbol_pairs if len(pair) == 2}
+        # FX crypto-implied requires BTC/KRW + BTC/USDT even if not in trading universe.
+        ws_upbit_symbols.add("BTC/KRW")
+        ws_binance_symbols.add("BTC/USDT")
         upbit_ws_provider = _AdapterBackedWsProvider(
             exchange="upbit",
-            symbols_v2=[pair[0] for pair in getattr(config, "symbols", [])],
+            symbols_v2=sorted(ws_upbit_symbols),
         )
         binance_ws_provider = _AdapterBackedWsProvider(
             exchange="binance",
-            symbols_v2=[pair[1] for pair in getattr(config, "symbols", [])],
+            symbols_v2=sorted(ws_binance_symbols),
         )
-        logger.info("[CLEAN_ROOM] WS providers initialized (adapter-backed)")
-    elif config.use_real_data and cache_cfg and getattr(cache_cfg, "redis_enabled", False):
-        upbit_ws_provider = UpbitWsProvider()
-        binance_ws_provider = BinanceWsProvider()
-        logger.info("[D207-1] WS providers initialized (cache.redis_enabled=True)")
+        logger.info(
+            "[D207-1] WS providers initialized (adapter-backed, reason=%s, upbit=%d, binance=%d)",
+            reason,
+            len(ws_upbit_symbols),
+            len(ws_binance_symbols),
+        )
+
+    ws_only_mode = bool(config.use_real_data and upbit_ws_provider and binance_ws_provider)
     
     # 3. FX Provider (D207-1-2: Real data는 Live FX, 테스트/Mock은 Fixed FX)
     fx_mode = getattr(config, "fx_provider_mode", "live" if config.use_real_data else "fixed")
@@ -448,12 +461,34 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         raise RuntimeError("REAL mode requires live FX provider (fixed FX is forbidden)")
 
     class _FxMarketDataFetcher:
-        def __init__(self, upbit, binance):
-            self.upbit = upbit
-            self.binance = binance
+        def __init__(self, upbit_rest, binance_rest, upbit_ws=None, binance_ws=None, ws_only: bool = False):
+            self.upbit_rest = upbit_rest
+            self.binance_rest = binance_rest
+            self.upbit_ws = upbit_ws
+            self.binance_ws = binance_ws
+            self.ws_only = bool(ws_only)
+
+        @staticmethod
+        def _mid_from_orderbook(orderbook: Optional[Orderbook]) -> Optional[float]:
+            if not orderbook or not orderbook.bids or not orderbook.asks:
+                return None
+            bid = getattr(orderbook.bids[0], "price", None)
+            ask = getattr(orderbook.asks[0], "price", None)
+            if bid is None or ask is None:
+                return None
+            return (float(bid) + float(ask)) / 2.0
 
         def get_mid_price(self, exchange: str, symbol: str) -> float:
-            provider = self.upbit if exchange == "upbit" else self.binance
+            ws_provider = self.upbit_ws if exchange == "upbit" else self.binance_ws
+            if ws_provider is not None:
+                orderbook = ws_provider.get_latest_orderbook(symbol)
+                mid = self._mid_from_orderbook(orderbook)
+                if mid is not None:
+                    return mid
+                if self.ws_only:
+                    raise RuntimeError(f"FX fetcher WS orderbook missing: {exchange}/{symbol}")
+
+            provider = self.upbit_rest if exchange == "upbit" else self.binance_rest
             if provider is None:
                 raise RuntimeError(f"FX fetcher provider missing: {exchange}")
             ticker = provider.get_ticker(symbol)
@@ -476,7 +511,17 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         fx_source = fx_live_cfg.get("source", "crypto_implied")
         fx_ttl_seconds = fx_live_cfg.get("ttl_seconds", 60.0)
         fx_http_cfg = fx_live_cfg.get("http", {}) or {}
-        market_data_fetcher = _FxMarketDataFetcher(upbit_provider, binance_provider) if config.use_real_data else None
+        market_data_fetcher = (
+            _FxMarketDataFetcher(
+                upbit_provider,
+                binance_provider,
+                upbit_ws=upbit_ws_provider,
+                binance_ws=binance_ws_provider,
+                ws_only=ws_only_mode,
+            )
+            if config.use_real_data
+            else None
+        )
         fx_provider = LiveFxProvider(
             source=fx_source,
             ttl_seconds=fx_ttl_seconds,
@@ -493,11 +538,16 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
         raise RuntimeError(f"phase={config.phase} requires --use-real-data flag")
     
     if config.use_real_data:
-        if clean_room:
-            # Clean-room은 WS-only 모드이므로 런타임 시작 전에 캐시 프리웜을 강제한다.
-            upbit_ws_provider._ensure_started()
-            binance_ws_provider._ensure_started()
+        if ws_only_mode:
+            # WS-only 모드이므로 런타임 시작 전에 캐시 프리웜을 강제한다.
+            if hasattr(upbit_ws_provider, "_ensure_started"):
+                upbit_ws_provider._ensure_started()
+            if hasattr(binance_ws_provider, "_ensure_started"):
+                binance_ws_provider._ensure_started()
             required_pairs: List[Tuple[str, str]] = list(getattr(config, "symbols", []) or [])
+            fx_pair = ("BTC/KRW", "BTC/USDT")
+            if fx_pair not in required_pairs:
+                required_pairs.append(fx_pair)
             deadline = time.time() + 15.0
             while time.time() < deadline:
                 ok = True
@@ -514,11 +564,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             if required_pairs:
                 for sym_a, sym_b in required_pairs:
                     if upbit_ws_provider.get_latest_orderbook(sym_a) is None:
-                        raise RuntimeError(f"[CLEAN_ROOM] WS prewarm failed (upbit): {sym_a}")
+                        prefix = "CLEAN_ROOM" if clean_room else "WS_PREWARM"
+                        raise RuntimeError(f"[{prefix}] WS prewarm failed (upbit): {sym_a}")
                     if binance_ws_provider.get_latest_orderbook(sym_b) is None:
-                        raise RuntimeError(f"[CLEAN_ROOM] WS prewarm failed (binance): {sym_b}")
+                        prefix = "CLEAN_ROOM" if clean_room else "WS_PREWARM"
+                        raise RuntimeError(f"[{prefix}] WS prewarm failed (binance): {sym_b}")
 
-        ws_only_mode = bool(upbit_ws_provider is not None and binance_ws_provider is not None)
         opportunity_source = RealOpportunitySource(
             upbit_provider=upbit_provider,
             binance_provider=binance_provider,
