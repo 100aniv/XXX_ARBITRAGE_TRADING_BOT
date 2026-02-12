@@ -6426,9 +6426,10 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-1: BASELINE 20분 수익성 (Phase2 핵심 관문)
 
-**상태:** ⚠️ PARTIAL (2026-01-19)
+**상태:** ❌ BLOCKED (2026-02-12 TURN5 FAIL)
 - ✅ 실행환경: REAL MarketData 20분 구동(기초 인프라/러너/가드 경로 확인)
-- ❌ 수익성: net_pnl > 0 미달 (단, 이후 PnL 계산/모델링 결함이 발견되어 재검증 필요)
+- ❌ 수익성: net_pnl > 0 미달 (TURN3: partial_fill_penalty 누적 손실)
+- ❌ TURN5 실험 FAIL: E[partial_fill_cost] 선반영 접근 → 0 trades (모든 거래 차단)
 
 **D207-1 Acceptance Criteria**
 - [x] AC-1: Real MarketData (실행 증거 + 엔진 아티팩트로 입증)
@@ -6436,12 +6437,25 @@ enable_execution: false       # REQUIRED
 - [ ] AC-3: Latency 모델 (지수분포/꼬리 포함) 주입
 - [ ] AC-4: Partial Fill 모델 주입
 - [x] AC-5: BASELINE 20분 실행 (Evidence로 입증)
-- [ ] AC-6: net_pnl > 0 (Realistic friction 포함)
+- [ ] AC-6: net_pnl > 0 (Realistic friction 포함) ❌ BLOCKED
 - [ ] AC-7: KPI 비교 (baseline vs 이전 실행 vs 파라미터)
 
 **Evidence (확인됨)**
 - `logs/evidence/d207_1_baseline_20m_20260119_final/` (20분, trades=3654, winrate=0%, net_pnl=-7,527,365 KRW)
 - `logs/evidence/d207_3_baseline_20m_20260121_1145/` (20분, trades=0, winrate=0%, net_pnl=0 KRW, stop_reason=TIME_REACHED)
+- `logs/evidence/20260212_d207_1_turn5_fail/D207_1_TURN5_FAIL_REPORT.md` ❌ TURN5 FAIL (E[partial_fill_cost] 선반영 → 0 trades)
+
+**TURN5 실험 결론 (2026-02-12):**
+- **가설:** E[partial_fill_cost] = P(부분체결) × Avg(penalty_usd) / notional × 10000 (bps) 선반영 → 손실 거래 사전 차단
+- **결과:** ❌ FAIL (Run#1: avg_penalty=2.89 USD, Run#2: avg_penalty=1.5 USD - 모두 0 trades, loss_cooldown 반복)
+- **원인:** E[cost]를 모든 기회에 적용 → 진입 조건 극도로 엄격 → 거래 기회 완전 차단
+- **재해석:** `partial_fill_penalty`는 **발생 시** 사후 페널티 (loss_cooldown이 누적 손실 방지)
+- **Git:** `git stash: "D207-1 TURN5 E[partial_fill_cost] experiment - FAILED (0 trades)"`
+
+**대안 전략 (TURN6 제안):**
+- **Option A (폐기):** E[partial_fill_cost] 선반영 (TURN5 FAIL 증명)
+- **Option B (추천):** min_net_edge_bps 상향 (5 bps → 8~10 bps, 증거 기반 조정)
+- **Option C (복잡):** Adaptive min_net_edge (실시간 조정, 런타임 통계 기반)
 
 ---
 
