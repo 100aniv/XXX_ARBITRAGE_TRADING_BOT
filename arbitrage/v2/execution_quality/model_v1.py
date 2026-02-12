@@ -175,11 +175,11 @@ class SimpleExecutionQualityModel:
         binance_ask_size: Optional[float],
     ) -> float:
         """
-        부분체결 리스크 페널티
+        부분체결 리스크 페널티 (D207-1 TURN6: PaperExecutionAdapter와 동일 로직)
         
         Logic:
-        - notional / avg_size < min_size_ratio이면 partial_fill_penalty_bps 적용
-        - 그렇지 않으면 0
+        - expected_fill_ratio = 1.0 if size_ratio <= max_safe else max_safe / size_ratio
+        - expected_partial_penalty = partial_penalty_bps * (1 - expected_fill_ratio)
         
         Returns:
             partial_fill_risk_bps
@@ -209,9 +209,14 @@ class SimpleExecutionQualityModel:
         # Size ratio (주문 크기 / 시장 유동성)
         size_ratio = notional / avg_size
         
-        # max_safe_ratio보다 작으면 안전 (페널티 없음)
+        # Expected fill ratio (PaperExecutionAdapter와 동일)
         if size_ratio <= self.max_safe_ratio:
-            return 0.0
+            expected_fill_ratio = 1.0
+        else:
+            expected_fill_ratio = self.max_safe_ratio / size_ratio
+            expected_fill_ratio = max(0.1, min(1.0, expected_fill_ratio))
         
-        # 크면 페널티 (주문이 시장 대비 너무 큼 → 부분체결 리스크)
-        return self.partial_fill_penalty_bps
+        # Expected partial penalty (점진적)
+        expected_partial_penalty = self.partial_fill_penalty_bps * (1.0 - expected_fill_ratio)
+        
+        return expected_partial_penalty

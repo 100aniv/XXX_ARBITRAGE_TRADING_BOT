@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import logging
 
 from arbitrage.v2.core import OrderIntent, OrderSide
-from arbitrage.v2.adapters import MockAdapter
+from arbitrage.v2.adapters import PaperAdapter
 from arbitrage.v2.core.profit_core import ProfitCore
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class PaperExecutor:
             raise TypeError("PaperExecutor: profit_core is REQUIRED (WARN=FAIL principle)")
         
         self.profit_core = profit_core
-        self.adapter = MockAdapter(config=adapter_config)
+        self.adapter = PaperAdapter(config=adapter_config)
         base_balance = initial_balance or {
             "KRW": 10_000_000.0,
             "USDT": 10_000.0,
@@ -59,11 +59,18 @@ class PaperExecutor:
         }
         self.balance = {k: _quantize(_to_decimal(v)) for k, v in base_balance.items()}
     
-    def execute(self, intent: OrderIntent, ref_price: Optional[float] = None):
-        """주문 실행 (MockAdapter)"""
+    def execute(
+        self,
+        intent: OrderIntent,
+        ref_price: Optional[float] = None,
+        top_depth: Optional[float] = None,
+    ):
+        """주문 실행 (PaperAdapter)"""
         payload = self.adapter.translate_intent(intent)
         if ref_price:
             payload["ref_price"] = ref_price
+        if top_depth is not None:
+            payload["top_depth"] = top_depth
         response = self.adapter.submit_order(payload)
         order_result = self.adapter.parse_response(response)
         self._update_balance(intent, order_result)

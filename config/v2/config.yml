@@ -138,7 +138,7 @@ universe:
 # Strategy (전략 파라미터)
 strategy:
   # Edge Guard (D207-1-1: Economic Truth)
-  min_net_edge_bps: 5.0  # 음수/제로 edge 거래 차단 (최소 순수익 마진)
+  min_net_edge_bps: 2.0  # TURN6: partial fill trade net_edge 평균(0.0) + 2.0bps
   deterministic_drift_bps: 10.0  # D207-3: 탐지 단계 고정 드리프트 패널티
   negative_edge_execution_probability: 0.15  # D_ALPHA-1U-FIX-2-1: 음수 edge 일부 허용 확률
   negative_edge_floor_bps: -10.0  # D_ALPHA-1U-FIX-2-1: 허용 음수 edge 하한
@@ -228,6 +228,7 @@ mock_adapter:
   adverse_slippage_bps_min: 10.0
   adverse_slippage_bps_max: 25.0
   fill_reject_probability: 0.05
+  max_safe_ratio: 0.3
   random_seed: 20260204
 
 # Safety (안전 장치)

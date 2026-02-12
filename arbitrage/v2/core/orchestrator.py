@@ -355,10 +355,45 @@ class PaperOrchestrator:
                 # intents[0].exchange에 맞는 ref_price 적용
                 ref_price_0 = candidate.price_a if intents[0].exchange == candidate.exchange_a else candidate.price_b
                 ref_price_1 = candidate.price_a if intents[1].exchange == candidate.exchange_a else candidate.price_b
-                entry_result = self.executor.execute(intents[0], ref_price=ref_price_0)
-                exit_result = self.executor.execute(intents[1], ref_price=ref_price_1)
+
+                def _resolve_top_depth(intent, candidate_obj):
+                    if intent.exchange == candidate_obj.exchange_a:
+                        bid_size = candidate_obj.exchange_a_bid_size
+                        ask_size = candidate_obj.exchange_a_ask_size
+                        bid_price = candidate_obj.exchange_a_bid or candidate_obj.price_a
+                        ask_price = candidate_obj.exchange_a_ask or candidate_obj.price_a
+                        fx_rate = None
+                    else:
+                        bid_size = candidate_obj.exchange_b_bid_size
+                        ask_size = candidate_obj.exchange_b_ask_size
+                        bid_price = candidate_obj.exchange_b_bid or candidate_obj.price_b
+                        ask_price = candidate_obj.exchange_b_ask or candidate_obj.price_b
+                        fx_rate = candidate_obj.fx_rate
+
+                    if intent.side == OrderSide.BUY:
+                        top_depth = ask_size
+                        if top_depth is None:
+                            return None
+                        if fx_rate and fx_rate > 0 and intent.exchange != candidate_obj.exchange_a:
+                            return float(top_depth) / float(fx_rate)
+                        return float(top_depth)
+
+                    top_notional = bid_size
+                    if top_notional is None:
+                        return None
+                    price = bid_price if bid_price else ask_price
+                    if price and price > 0:
+                        return float(top_notional) / float(price)
+                    return None
+
+                top_depth_0 = _resolve_top_depth(intents[0], candidate)
+                top_depth_1 = _resolve_top_depth(intents[1], candidate)
+                entry_result = self.executor.execute(intents[0], ref_price=ref_price_0, top_depth=top_depth_0)
+                exit_result = self.executor.execute(intents[1], ref_price=ref_price_1, top_depth=top_depth_1)
                 
                 self.kpi.mock_executions += 2
+                if hasattr(self.kpi, "paper_executions"):
+                    self.kpi.paper_executions += 2
 
                 reject_count = 0
                 if not getattr(entry_result, "success", True) or not entry_result.filled_qty:

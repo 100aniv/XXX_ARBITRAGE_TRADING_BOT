@@ -43,6 +43,7 @@ class PaperMetrics:
     opportunities_generated: int = 0
     intents_created: int = 0
     mock_executions: int = 0
+    paper_executions: int = 0
     db_inserts_ok: int = 0
     db_inserts_failed: int = 0
     error_count: int = 0
@@ -317,6 +318,7 @@ class PaperMetrics:
             "opportunities_generated": self.opportunities_generated,
             "intents_created": self.intents_created,
             "mock_executions": self.mock_executions,
+            "paper_executions": self.paper_executions,
             "db_inserts_ok": self.db_inserts_ok,
             "db_inserts_failed": self.db_inserts_failed,
             "error_count": self.error_count,

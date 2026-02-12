@@ -84,6 +84,10 @@ class OpportunityCandidate:
     exchange_a_ask: Optional[float] = None
     exchange_b_bid: Optional[float] = None
     exchange_b_ask: Optional[float] = None
+    exchange_a_bid_size: Optional[float] = None
+    exchange_a_ask_size: Optional[float] = None
+    exchange_b_bid_size: Optional[float] = None
+    exchange_b_ask_size: Optional[float] = None
     fx_rate: Optional[float] = None
     fx_rate_source: Optional[str] = None
     fx_rate_age_sec: Optional[float] = None
@@ -233,6 +237,10 @@ def detect_candidates(
         maker_mode=maker_mode,
         fill_probability=fill_prob,
         maker_net_edge_bps=maker_net_edge,
+        exchange_a_bid_size=upbit_bid_size,
+        exchange_a_ask_size=upbit_ask_size,
+        exchange_b_bid_size=binance_bid_size,
+        exchange_b_ask_size=binance_ask_size,
         exec_cost_bps=(
             exec_cost_breakdown.total_exec_cost_bps if exec_cost_breakdown is not None else None
         ),

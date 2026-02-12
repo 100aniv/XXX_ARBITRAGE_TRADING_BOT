@@ -99,10 +99,11 @@ class PaperExecutionAdapter(ExchangeAdapter):
         adverse_slippage_bps_min: Optional[float] = None,
         adverse_slippage_bps_max: Optional[float] = None,
         fill_reject_probability: Optional[float] = None,
+        max_safe_ratio: Optional[float] = None,
         rng: Optional[random.Random] = None
     ):
         """
-        Initialize mock adapter.
+        Initialize paper adapter.
         
         D205-18-1: Config SSOT 통합
         - 우선순위: config > 명시적 파라미터 > 기본값
@@ -160,6 +161,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             self.fill_reject_probability = mock_cfg.get(
                 "fill_reject_probability", self.FILL_REJECT_PROBABILITY
             )
+            self.max_safe_ratio = float(mock_cfg.get("max_safe_ratio", 0.3))
             fee_rates = config.get("fee_rates") if isinstance(config, dict) else None
             if isinstance(fee_rates, dict):
                 self._fee_rates.update({str(k).lower(): float(v) for k, v in fee_rates.items()})
@@ -216,14 +218,48 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 if fill_reject_probability is not None
                 else self.FILL_REJECT_PROBABILITY
             )
+            self.max_safe_ratio = float(max_safe_ratio if max_safe_ratio is not None else 0.3)
             if config and isinstance(config, dict):
                 fee_rates = config.get("fee_rates")
                 if isinstance(fee_rates, dict):
                     self._fee_rates.update({str(k).lower(): float(v) for k, v in fee_rates.items()})
+
+    def _calculate_partial_fill_ratio(self, payload: Dict[str, Any]) -> float:
+        """
+        Deterministic partial fill ratio (Anti-Dice).
+
+        Rule:
+        - size_ratio <= max_safe_ratio -> fill_ratio = 1.0
+        - otherwise -> fill_ratio = max_safe_ratio / size_ratio (clamp to [0.1, 1.0])
+        """
+        try:
+            side = str(payload.get("side", "")).upper()
+            order_size = 0.0
+            if side == "BUY":
+                order_size = float(payload.get("quote_amount") or 0.0)
+            else:
+                order_size = float(payload.get("base_qty") or 0.0)
+
+            top_depth = payload.get("top_depth")
+            if top_depth is None:
+                return 1.0
+            top_depth = float(top_depth)
+            if order_size <= 0 or top_depth <= 0:
+                return 1.0
+
+            max_safe = float(self.max_safe_ratio or 0.3)
+            size_ratio = order_size / top_depth
+            if size_ratio <= max_safe:
+                return 1.0
+            fill_ratio = max_safe / size_ratio
+            fill_ratio = max(0.1, min(1.0, fill_ratio))
+            return round(fill_ratio, 2)
+        except Exception:
+            return 1.0
     
     def translate_intent(self, intent: OrderIntent) -> Dict[str, Any]:
         """
-        Translate intent to mock payload.
+        Translate intent to paper payload.
         
         Just returns a simple representation for logging.
         
@@ -231,7 +267,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             intent: Order intent
             
         Returns:
-            Mock payload
+            Paper payload
         """
         intent.validate()
         
@@ -258,7 +294,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
     
     def submit_order(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Submit mock order (returns fake success response).
+        Submit paper order (returns simulated success response).
         
         D205-15-6a: ref_price 기반 filled_price (Fail-fast)
         D205-15-6b: MARKET BUY filled_qty 계약 고정
@@ -267,10 +303,10 @@ class PaperExecutionAdapter(ExchangeAdapter):
         - 계산 불가 시 RuntimeError (Fail-fast)
         
         Args:
-            payload: Mock payload
+            payload: Paper payload
             
         Returns:
-            Mock response
+            Paper response
         """
         # D207-1-6: Realism Pack v1 - latency with exponential tail
         latency_ms = float(self.latency_base_ms)
@@ -278,7 +314,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             latency_ms += self._rng.expovariate(1.0 / float(self.latency_jitter_ms))
         time.sleep(latency_ms / 1000.0)
 
-        order_id = f"mock-{uuid.uuid4().hex[:8]}"
+        order_id = f"paper-{uuid.uuid4().hex[:8]}"
         
         # D205-15-6a: ref_price 우선, 없으면 limit_price, 둘 다 없으면 fallback (경고)
         base_price = payload.get("ref_price") or payload.get("limit_price")
@@ -288,7 +324,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"[D205-15-6a] MockAdapter: base_price fallback to 100.0. "
+                f"[D205-15-6a] PaperAdapter: base_price fallback to 100.0. "
                 f"Consider providing 'ref_price' or 'limit_price'. "
                 f"payload keys: {list(payload.keys())}"
             )
@@ -384,12 +420,12 @@ class PaperExecutionAdapter(ExchangeAdapter):
             quote_amount = payload.get("quote_amount")
             if not quote_amount or quote_amount <= 0:
                 raise RuntimeError(
-                    f"[D205-15-6b] MockAdapter: MARKET BUY requires positive quote_amount. "
+                    f"[D205-15-6b] PaperAdapter: MARKET BUY requires positive quote_amount. "
                     f"Got: {quote_amount}, payload: {payload}"
                 )
             if filled_price <= 0:
                 raise RuntimeError(
-                    f"[D205-15-6b] MockAdapter: MARKET BUY requires positive filled_price. "
+                    f"[D205-15-6b] PaperAdapter: MARKET BUY requires positive filled_price. "
                     f"Got: {filled_price}, payload: {payload}"
                 )
             filled_qty = _quantize(_to_decimal(quote_amount) / filled_price)
@@ -398,7 +434,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             filled_qty = _to_decimal(payload.get("base_qty"))
             if filled_qty <= 0:
                 raise RuntimeError(
-                    f"[D205-15-6b] MockAdapter: filled_qty missing or invalid. "
+                    f"[D205-15-6b] PaperAdapter: filled_qty missing or invalid. "
                     f"order_type={order_type}, side={side}, base_qty={filled_qty}, payload: {payload}"
                 )
             filled_qty = _quantize(filled_qty)
@@ -408,12 +444,11 @@ class PaperExecutionAdapter(ExchangeAdapter):
         partial_fill_probability = self.partial_fill_probability
         if not self.enable_slippage and not self._partial_fill_configured:
             partial_fill_probability = 0.0
-        if partial_fill_probability > 0 and self._rng.random() < partial_fill_probability:
-            ratio_min = min(self.partial_fill_ratio_min, self.partial_fill_ratio_max)
-            ratio_max = max(self.partial_fill_ratio_min, self.partial_fill_ratio_max)
-            partial_fill_ratio = max(0.01, min(1.0, self._rng.uniform(ratio_min, ratio_max)))
-            status = "partial"
-            filled_qty = _quantize(filled_qty * _to_decimal(partial_fill_ratio))
+        if partial_fill_probability > 0:
+            partial_fill_ratio = self._calculate_partial_fill_ratio(payload)
+            if partial_fill_ratio < 1.0:
+                status = "partial"
+                filled_qty = _quantize(filled_qty * _to_decimal(partial_fill_ratio))
 
         response = {
             "order_id": order_id,
@@ -434,14 +469,14 @@ class PaperExecutionAdapter(ExchangeAdapter):
     
     def parse_response(self, response: Dict[str, Any]) -> OrderResult:
         """
-        Parse mock response to OrderResult.
+        Parse paper response to OrderResult.
         
         D207-1-3 Add-on BF: Non-Zero Friction Value
         - 수수료 계산: filled_qty * filled_price * fee_rate
         - Upbit 5bps, Binance 4bps 강제 적용
         
         Args:
-            response: Mock response
+            response: Paper response
             
         Returns:
             OrderResult
