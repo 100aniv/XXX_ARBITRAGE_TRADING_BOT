@@ -4,6 +4,7 @@ Tests for PostgreSQLAlertStorage
 
 import pytest
 import os
+import uuid
 from datetime import datetime, timedelta
 from arbitrage.alerting.models import AlertRecord, AlertSeverity, AlertSource
 from arbitrage.alerting.storage.postgres_storage import PostgreSQLAlertStorage
@@ -19,9 +20,10 @@ CONNECTION_STRING = os.getenv(
 @pytest.fixture
 def storage():
     """Create storage instance and cleanup after test"""
+    table_name = f"alert_history_test_{uuid.uuid4().hex[:8]}"
     store = PostgreSQLAlertStorage(
         connection_string=CONNECTION_STRING,
-        table_name="alert_history_test",
+        table_name=table_name,
         retention_days=7
     )
     
@@ -33,13 +35,21 @@ def storage():
     # Cleanup after test
     store.clear()
 
+    try:
+        with store._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"DROP TABLE IF EXISTS {store.table_name}")
+            conn.commit()
+    except Exception:
+        pass
+
 
 class TestPostgreSQLAlertStorage:
     """Test suite for PostgreSQL alert storage"""
     
     def test_initialization(self, storage):
         """Test storage initialization"""
-        assert storage.table_name == "alert_history_test"
+        assert storage.table_name.startswith("alert_history_test_")
         assert storage.retention_days == 7
         
     def test_save_alert(self, storage):

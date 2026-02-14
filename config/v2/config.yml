@@ -243,7 +243,7 @@ safety:
   min_hold_ms: 1000
   
   # Cooldown (연속 손실 후 대기 시간, 초)
-  cooldown_after_loss_seconds: 300  # 5분
+  cooldown_after_loss_seconds: 30  # 30초
   
   # Emergency stop (즉시 중단 조건)
   emergency_stop:

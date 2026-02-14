@@ -13,7 +13,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from threading import Lock
+from threading import RLock
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class HealthMonitor:
         self.metrics = HealthMetrics()
         self._latency_history = deque(maxlen=history_size)
         self._error_history = deque(maxlen=1000)  # 최근 1000개 요청
-        self._lock = Lock()
+        self._lock = RLock()
         
         # Health status transition tracking
         self._current_status = ExchangeHealthStatus.HEALTHY

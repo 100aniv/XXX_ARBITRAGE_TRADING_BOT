@@ -22,9 +22,17 @@ from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timezone
-import uuid
 
-from arbitrage.v2.core.opportunity_source import OpportunitySource
+from arbitrage.v2.core.tick_context import (
+    tick_context,
+    reset_rest_call_count,
+    get_rest_call_count,
+)
+from arbitrage.v2.core.opportunity_source import (
+    OpportunitySource,
+    RealOpportunitySource,
+    MockOpportunitySource,
+)
 from arbitrage.v2.core.paper_executor import PaperExecutor
 from arbitrage.v2.core.ledger_writer import LedgerWriter
 from arbitrage.v2.core.metrics import PaperMetrics
@@ -39,7 +47,7 @@ from arbitrage.v2.core.engine_report import (
 from arbitrage.v2.core.order_intent import OrderSide
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary, calculate_net_pnl_full
+from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +142,7 @@ class PaperOrchestrator:
         self._last_edge_distribution_iteration: Optional[int] = None
         self._last_trade_ts: float = 0.0
         self._last_loss_ts: Optional[float] = None
+        self._trade_seq: int = 0
         
         # D206-0 AC-5: 상태 관리
         self._state = OrchestratorState.IDLE
@@ -180,12 +189,12 @@ class PaperOrchestrator:
         # D206-0 AC-5: 상태 전이 IDLE -> RUNNING
         self._state = OrchestratorState.RUNNING
         self._warning_handler.reset()  # D206-0 AC-2: WARNING 카운터 리셋
+        reset_rest_call_count()
         
         logger.info(f"[D207-1] Orchestrator starting (state={self._state.value})...")
         
         # Add-on AA: Provider Verification (D207-1 RECOVERY)
         # D207-1 Step 2: REAL MarketData 강제 검증 (Runtime)
-        from arbitrage.v2.core.opportunity_source import RealOpportunitySource, MockOpportunitySource
         provider_class_name = self.opportunity_source.__class__.__name__
         is_real = isinstance(self.opportunity_source, RealOpportunitySource)
         is_mock = isinstance(self.opportunity_source, MockOpportunitySource)
@@ -277,7 +286,9 @@ class PaperOrchestrator:
                     break
                 
                 # 1. Opportunity 생성
-                candidate = self.opportunity_source.generate(iteration)
+                rest_forbidden = bool(getattr(self.opportunity_source, "ws_only_mode", False))
+                with tick_context(rest_forbidden=rest_forbidden):
+                    candidate = self.opportunity_source.generate(iteration)
                 edge_sample = self.opportunity_source.get_edge_distribution_sample()
                 if edge_sample:
                     sample_iteration = edge_sample.get("iteration")
@@ -388,8 +399,9 @@ class PaperOrchestrator:
 
                 top_depth_0 = _resolve_top_depth(intents[0], candidate)
                 top_depth_1 = _resolve_top_depth(intents[1], candidate)
-                entry_result = self.executor.execute(intents[0], ref_price=ref_price_0, top_depth=top_depth_0)
-                exit_result = self.executor.execute(intents[1], ref_price=ref_price_1, top_depth=top_depth_1)
+                with tick_context(rest_forbidden=rest_forbidden):
+                    entry_result = self.executor.execute(intents[0], ref_price=ref_price_0, top_depth=top_depth_0)
+                    exit_result = self.executor.execute(intents[1], ref_price=ref_price_1, top_depth=top_depth_1)
                 
                 self.kpi.mock_executions += 2
                 if hasattr(self.kpi, "paper_executions"):
@@ -462,17 +474,7 @@ class PaperOrchestrator:
                     return float(result.latency_ms)
 
                 def _calc_partial_penalty(result) -> Decimal:
-                    if not result or result.partial_fill_ratio is None:
-                        return Decimal("0")
-                    if result.ref_price is None or result.filled_qty is None:
-                        return Decimal("0")
-                    ratio = _to_decimal(result.partial_fill_ratio)
-                    if ratio <= 0 or ratio >= 1:
-                        return Decimal("0")
-                    filled_qty = _to_decimal(result.filled_qty)
-                    intended_qty = filled_qty / ratio
-                    missing_qty = intended_qty - filled_qty
-                    return _quantize(abs(_to_decimal(result.ref_price)) * missing_qty)
+                    return Decimal("0")
 
                 def _calc_reject(result) -> float:
                     if not result:
@@ -495,17 +497,12 @@ class PaperOrchestrator:
                     total_fee=float(total_fee),
                     return_decimal=True
                 )
-                net_pnl_full, exec_cost_total = calculate_net_pnl_full(
-                    gross_pnl=gross_pnl,
-                    total_fee=total_fee,
-                    slippage_cost=slippage_cost,
-                    latency_cost=latency_cost,
-                    partial_penalty=partial_penalty,
-                    return_decimal=True
-                )
+                net_pnl_full = realized_pnl
+                exec_cost_total = _quantize(total_fee + slippage_cost + latency_cost + partial_penalty)
                 is_win = net_pnl_full > Decimal("0")
                 
-                trade_id = str(uuid.uuid4())
+                self._trade_seq += 1
+                trade_id = f"trade-{self.run_id}-{self._trade_seq:08d}"
                 self.ledger_writer.record_trade_complete(
                     trade_id=trade_id,
                     candidate=candidate,
@@ -586,6 +583,12 @@ class PaperOrchestrator:
                     "exit_latency_ms": exit_result.latency_ms,
                     "entry_partial_fill_ratio": entry_result.partial_fill_ratio,
                     "exit_partial_fill_ratio": exit_result.partial_fill_ratio,
+                    "entry_fill_ratio": entry_result.partial_fill_ratio,
+                    "exit_fill_ratio": exit_result.partial_fill_ratio,
+                    "entry_top_depth": getattr(entry_result, "raw_response", {}).get("top_depth") if getattr(entry_result, "raw_response", None) else None,
+                    "exit_top_depth": getattr(exit_result, "raw_response", {}).get("top_depth") if getattr(exit_result, "raw_response", None) else None,
+                    "entry_size_ratio": getattr(entry_result, "raw_response", {}).get("size_ratio") if getattr(entry_result, "raw_response", None) else None,
+                    "exit_size_ratio": getattr(exit_result, "raw_response", {}).get("size_ratio") if getattr(exit_result, "raw_response", None) else None,
                     "gross_pnl": float(gross_pnl),
                     "realized_pnl": float(realized_pnl),
                     "net_pnl_full": float(net_pnl_full),
@@ -796,6 +799,8 @@ class PaperOrchestrator:
             self.kpi.stop_reason = self._stop_reason
             self.kpi.stop_message = self._stop_message
 
+            self.kpi.rest_in_tick_count = int(get_rest_call_count())
+
             db_counts = self.ledger_writer.get_counts()
             self.save_evidence(db_counts=db_counts)
             
@@ -817,7 +822,6 @@ class PaperOrchestrator:
                 
                 # Add-on AA: Provider Verification - pass to engine_report
                 provider_class_name = self.opportunity_source.__class__.__name__
-                from arbitrage.v2.core.opportunity_source import RealOpportunitySource
                 provider_is_real = isinstance(self.opportunity_source, RealOpportunitySource)
                 
                 # Get warning counts
@@ -830,6 +834,12 @@ class PaperOrchestrator:
 
                 if hasattr(self, "kpi") and hasattr(self.kpi, "sync_reject_total"):
                     self.kpi.sync_reject_total()
+
+                if hasattr(self, "kpi"):
+                    try:
+                        self.kpi.rest_in_tick_count = int(get_rest_call_count())
+                    except Exception:
+                        pass
                 
                 # Wallclock duration (fallback if not defined)
                 wallclock_duration = 0.0
@@ -943,6 +953,18 @@ class PaperOrchestrator:
     
     def save_evidence(self, db_counts: Optional[Dict[str, int]] = None):
         """Evidence 저장"""
+        try:
+            self.kpi.rest_in_tick_count = int(get_rest_call_count())
+        except Exception:
+            pass
+
+        try:
+            if getattr(self.kpi, "stop_reason", "") in (None, "") and getattr(self, "_stop_reason", ""):
+                self.kpi.stop_reason = self._stop_reason
+            if getattr(self.kpi, "stop_message", "") in (None, "") and getattr(self, "_stop_message", ""):
+                self.kpi.stop_message = self._stop_message
+        except Exception:
+            pass
         dynamic_state = None
         if hasattr(self.opportunity_source, "get_dynamic_threshold_state"):
             dynamic_state = self.opportunity_source.get_dynamic_threshold_state()
@@ -954,6 +976,8 @@ class PaperOrchestrator:
             "config_path": getattr(self.config, "config_path", None),
             "symbols": getattr(self.config, "symbols", None),
             "cli_args": getattr(self.config, "cli_args", None),
+            "engine_random_seed": getattr(self.config, "engine_random_seed", None),
+            "paper_adapter_random_seed": getattr(self.executor, "adapter_random_seed", None),
             "metrics": self.kpi.to_dict(),
             "universe_metadata": getattr(self.config, "universe_metadata", None),
             "obi_dynamic_threshold_state": dynamic_state,

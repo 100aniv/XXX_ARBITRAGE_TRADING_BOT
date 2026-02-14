@@ -19,7 +19,6 @@ D207-1-3 Add-on BF: Non-Zero Friction Value
 
 from typing import Dict, Any, Optional
 from decimal import Decimal, ROUND_HALF_UP
-import uuid
 import random
 import time
 
@@ -119,7 +118,9 @@ class PaperExecutionAdapter(ExchangeAdapter):
         self.exchange_name = exchange_name
         self._partial_fill_configured = False
         self._fee_rates = dict(self.FEE_RATES)
-        self._rng = rng or random
+        self._rng = rng or random.Random(0)
+        self._order_seq = 0
+        self.random_seed = None
         
         # D205-18-1: Config SSOT 우선
         if config and "mock_adapter" in config:
@@ -127,7 +128,8 @@ class PaperExecutionAdapter(ExchangeAdapter):
             if rng is None:
                 seed = mock_cfg.get("random_seed")
                 if seed is not None:
-                    self._rng = random.Random(int(seed))
+                    self.random_seed = int(seed)
+                    self._rng = random.Random(self.random_seed)
             self._partial_fill_configured = "partial_fill_probability" in mock_cfg
             self.enable_slippage = mock_cfg.get("enable_slippage", True)
             self.slippage_bps_min = mock_cfg.get("slippage_bps_min", 20.0)
@@ -236,7 +238,13 @@ class PaperExecutionAdapter(ExchangeAdapter):
             side = str(payload.get("side", "")).upper()
             order_size = 0.0
             if side == "BUY":
-                order_size = float(payload.get("quote_amount") or 0.0)
+                quote_amount = float(payload.get("quote_amount") or 0.0)
+                base_price = payload.get("ref_price") or payload.get("limit_price")
+                base_price_f = float(base_price) if base_price is not None else 0.0
+                if quote_amount > 0 and base_price_f > 0:
+                    order_size = quote_amount / base_price_f
+                else:
+                    order_size = 0.0
             else:
                 order_size = float(payload.get("base_qty") or 0.0)
 
@@ -272,7 +280,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
         intent.validate()
         
         payload = {
-            "exchange": self.exchange_name,
+            "exchange": intent.exchange,
             "symbol": intent.symbol,
             "side": intent.side.value,
             "order_type": intent.order_type.value,
@@ -314,7 +322,8 @@ class PaperExecutionAdapter(ExchangeAdapter):
             latency_ms += self._rng.expovariate(1.0 / float(self.latency_jitter_ms))
         time.sleep(latency_ms / 1000.0)
 
-        order_id = f"paper-{uuid.uuid4().hex[:8]}"
+        self._order_seq += 1
+        order_id = f"paper-{str(payload.get('exchange') or self.exchange_name)}-{self._order_seq:08d}"
         
         # D205-15-6a: ref_price 우선, 없으면 limit_price, 둘 다 없으면 fallback (경고)
         base_price = payload.get("ref_price") or payload.get("limit_price")
@@ -332,8 +341,35 @@ class PaperExecutionAdapter(ExchangeAdapter):
         side = payload.get("side", "").upper()
         base_price_decimal = _to_decimal(base_price)
 
+        size_ratio = None
+        try:
+            top_depth_val = payload.get("top_depth")
+            if top_depth_val is not None:
+                top_depth_f = float(top_depth_val)
+                if top_depth_f > 0:
+                    if side == "BUY":
+                        quote_amount = float(payload.get("quote_amount") or 0.0)
+                        base_price_f = float(base_price) if base_price is not None else 0.0
+                        order_size = (quote_amount / base_price_f) if (quote_amount > 0 and base_price_f > 0) else 0.0
+                    else:
+                        order_size = float(payload.get("base_qty") or 0.0)
+                    if order_size > 0:
+                        size_ratio = float(order_size) / float(top_depth_f)
+        except Exception:
+            size_ratio = None
+
         reject_probability = float(self.fill_reject_probability or 0.0)
-        if reject_probability > 0 and self._rng.random() < reject_probability:
+        should_reject = False
+        if reject_probability >= 1.0:
+            should_reject = True
+        elif reject_probability > 0:
+            if size_ratio is not None:
+                if size_ratio > float(self.max_safe_ratio or 0.3) * 3.0:
+                    should_reject = True
+            else:
+                should_reject = self._rng.random() < reject_probability
+
+        if should_reject:
             import logging
             logger = logging.getLogger(__name__)
             logger.info(
@@ -352,6 +388,8 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 "symbol": payload.get("symbol"),
                 "partial_fill_ratio": 0.0,
                 "adverse_slippage_bps": 0.0,
+                "top_depth": payload.get("top_depth"),
+                "size_ratio": size_ratio,
                 "error_message": "fill_rejected",
             }
 
@@ -365,7 +403,15 @@ class PaperExecutionAdapter(ExchangeAdapter):
             max_bps = max(self.slippage_bps_min, self.slippage_bps_max)
             slippage_bps = min_bps if min_bps == max_bps else self._rng.uniform(min_bps, max_bps)
             adverse_prob = float(self.adverse_slippage_probability or 0.0)
-            if adverse_prob > 0 and self._rng.random() < adverse_prob:
+            should_adverse = False
+            if adverse_prob >= 1.0:
+                should_adverse = True
+            elif adverse_prob > 0:
+                if size_ratio is not None:
+                    should_adverse = self._rng.random() < adverse_prob
+                else:
+                    should_adverse = self._rng.random() < adverse_prob
+            if should_adverse:
                 adv_min = min(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
                 adv_max = max(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
                 adverse_slippage_bps = adv_min if adv_min == adv_max else self._rng.uniform(adv_min, adv_max)
@@ -463,6 +509,8 @@ class PaperExecutionAdapter(ExchangeAdapter):
             "symbol": payload.get("symbol"),
             "partial_fill_ratio": partial_fill_ratio,
             "adverse_slippage_bps": adverse_slippage_bps,
+            "top_depth": payload.get("top_depth"),
+            "size_ratio": size_ratio,
         }
         
         return response
