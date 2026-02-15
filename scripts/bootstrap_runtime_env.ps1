@@ -195,3 +195,5 @@ Write-Line "POSTGRES_CONNECTION_STRING=SET"
 Write-Line "REDIS_URL=SET"
 Write-Line "BOOTSTRAP_FLAG=SET"
 Write-Line "OK"
+
+exit 0

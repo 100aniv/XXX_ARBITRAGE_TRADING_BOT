@@ -229,6 +229,7 @@ mock_adapter:
   adverse_slippage_bps_max: 25.0
   fill_reject_probability: 0.05
   max_safe_ratio: 0.3
+  paper_deterministic: true
   random_seed: 20260204
 
 # Safety (안전 장치)

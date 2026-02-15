@@ -12,6 +12,11 @@ import requests
 from typing import List, Optional
 from datetime import datetime
 
+from arbitrage.v2.core.tick_context import (
+    record_rest_call,
+    is_rest_forbidden_in_tick,
+    RestCallInTickError,
+)
 from arbitrage.v2.marketdata.interfaces import (
     RestProvider,
     Ticker,
@@ -68,6 +73,9 @@ class UpbitRestProvider(RestProvider):
             Ticker 또는 None (에러 시)
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST ticker called in tick: symbol={symbol}")
             # D205-14-4/14-5: orderbook에서 실제 best bid/ask + size 가져오기
             orderbook = self.get_orderbook(symbol, depth=1)
             if not orderbook or not orderbook.bids or not orderbook.asks:
@@ -133,6 +141,9 @@ class UpbitRestProvider(RestProvider):
             Orderbook 또는 None (에러 시)
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST orderbook called in tick: symbol={symbol}")
             # BTC/KRW → KRW-BTC (Upbit 마켓 코드 형식)
             base, quote = symbol.split("/")
             market = f"{quote}-{base}"
@@ -195,6 +206,9 @@ class UpbitRestProvider(RestProvider):
             Trade 리스트
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST trades called in tick: symbol={symbol}")
             # BTC/KRW → KRW-BTC
             market = symbol.replace("/", "-")
             

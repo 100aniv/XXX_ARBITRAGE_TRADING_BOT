@@ -99,6 +99,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
         adverse_slippage_bps_max: Optional[float] = None,
         fill_reject_probability: Optional[float] = None,
         max_safe_ratio: Optional[float] = None,
+        paper_deterministic: Optional[bool] = None,
         rng: Optional[random.Random] = None
     ):
         """
@@ -121,10 +122,15 @@ class PaperExecutionAdapter(ExchangeAdapter):
         self._rng = rng or random.Random(0)
         self._order_seq = 0
         self.random_seed = None
+        self.paper_deterministic = False
         
         # D205-18-1: Config SSOT 우선
         if config and "mock_adapter" in config:
             mock_cfg = config["mock_adapter"]
+            if paper_deterministic is not None:
+                self.paper_deterministic = bool(paper_deterministic)
+            else:
+                self.paper_deterministic = bool(mock_cfg.get("paper_deterministic", False))
             if rng is None:
                 seed = mock_cfg.get("random_seed")
                 if seed is not None:
@@ -225,7 +231,42 @@ class PaperExecutionAdapter(ExchangeAdapter):
                 fee_rates = config.get("fee_rates")
                 if isinstance(fee_rates, dict):
                     self._fee_rates.update({str(k).lower(): float(v) for k, v in fee_rates.items()})
+            self.paper_deterministic = bool(paper_deterministic) if paper_deterministic is not None else False
 
+    def _extract_size_ratio(self, payload: Dict[str, Any], base_price: Optional[float]) -> Optional[float]:
+        size_ratio = None
+        try:
+            side = str(payload.get("side", "")).upper()
+            top_depth_val = payload.get("top_depth")
+            if top_depth_val is None:
+                return None
+            top_depth_f = float(top_depth_val)
+            if top_depth_f <= 0:
+                return None
+
+            if side == "BUY":
+                quote_amount = float(payload.get("quote_amount") or 0.0)
+                base_price_f = float(base_price) if base_price is not None else 0.0
+                order_size = (quote_amount / base_price_f) if (quote_amount > 0 and base_price_f > 0) else 0.0
+            else:
+                order_size = float(payload.get("base_qty") or 0.0)
+
+            if order_size > 0:
+                size_ratio = float(order_size) / float(top_depth_f)
+        except Exception:
+            size_ratio = None
+        return size_ratio
+
+    def _deterministic_slippage_bps(self, size_ratio: Optional[float]) -> float:
+        min_bps = min(self.slippage_bps_min, self.slippage_bps_max)
+        max_bps = max(self.slippage_bps_min, self.slippage_bps_max)
+        if size_ratio is None:
+            return float(min_bps)
+        max_safe = max(0.000001, float(self.max_safe_ratio or 0.3))
+        pressure = max(0.0, float(size_ratio) - max_safe)
+        normalized = min(1.0, pressure / max_safe)
+        return float(min_bps + (max_bps - min_bps) * normalized)
+    
     def _calculate_partial_fill_ratio(self, payload: Dict[str, Any]) -> float:
         """
         Deterministic partial fill ratio (Anti-Dice).
@@ -318,7 +359,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
         """
         # D207-1-6: Realism Pack v1 - latency with exponential tail
         latency_ms = float(self.latency_base_ms)
-        if self.latency_jitter_ms > 0:
+        if (not self.paper_deterministic) and self.latency_jitter_ms > 0:
             latency_ms += self._rng.expovariate(1.0 / float(self.latency_jitter_ms))
         time.sleep(latency_ms / 1000.0)
 
@@ -341,33 +382,22 @@ class PaperExecutionAdapter(ExchangeAdapter):
         side = payload.get("side", "").upper()
         base_price_decimal = _to_decimal(base_price)
 
-        size_ratio = None
-        try:
-            top_depth_val = payload.get("top_depth")
-            if top_depth_val is not None:
-                top_depth_f = float(top_depth_val)
-                if top_depth_f > 0:
-                    if side == "BUY":
-                        quote_amount = float(payload.get("quote_amount") or 0.0)
-                        base_price_f = float(base_price) if base_price is not None else 0.0
-                        order_size = (quote_amount / base_price_f) if (quote_amount > 0 and base_price_f > 0) else 0.0
-                    else:
-                        order_size = float(payload.get("base_qty") or 0.0)
-                    if order_size > 0:
-                        size_ratio = float(order_size) / float(top_depth_f)
-        except Exception:
-            size_ratio = None
+        size_ratio = self._extract_size_ratio(payload, base_price)
 
         reject_probability = float(self.fill_reject_probability or 0.0)
         should_reject = False
-        if reject_probability >= 1.0:
-            should_reject = True
-        elif reject_probability > 0:
-            if size_ratio is not None:
-                if size_ratio > float(self.max_safe_ratio or 0.3) * 3.0:
-                    should_reject = True
-            else:
-                should_reject = self._rng.random() < reject_probability
+        if self.paper_deterministic:
+            if size_ratio is not None and size_ratio > float(self.max_safe_ratio or 0.3) * 3.0:
+                should_reject = True
+        else:
+            if reject_probability >= 1.0:
+                should_reject = True
+            elif reject_probability > 0:
+                if size_ratio is not None:
+                    if size_ratio > float(self.max_safe_ratio or 0.3) * 3.0:
+                        should_reject = True
+                else:
+                    should_reject = self._rng.random() < reject_probability
 
         if should_reject:
             import logging
@@ -399,23 +429,26 @@ class PaperExecutionAdapter(ExchangeAdapter):
         slippage_bps = 0.0
         adverse_slippage_bps = 0.0
         if self.enable_slippage:
-            min_bps = min(self.slippage_bps_min, self.slippage_bps_max)
-            max_bps = max(self.slippage_bps_min, self.slippage_bps_max)
-            slippage_bps = min_bps if min_bps == max_bps else self._rng.uniform(min_bps, max_bps)
-            adverse_prob = float(self.adverse_slippage_probability or 0.0)
-            should_adverse = False
-            if adverse_prob >= 1.0:
-                should_adverse = True
-            elif adverse_prob > 0:
-                if size_ratio is not None:
-                    should_adverse = self._rng.random() < adverse_prob
-                else:
-                    should_adverse = self._rng.random() < adverse_prob
-            if should_adverse:
-                adv_min = min(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
-                adv_max = max(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
-                adverse_slippage_bps = adv_min if adv_min == adv_max else self._rng.uniform(adv_min, adv_max)
-                slippage_bps += adverse_slippage_bps
+            if self.paper_deterministic:
+                slippage_bps = self._deterministic_slippage_bps(size_ratio)
+            else:
+                min_bps = min(self.slippage_bps_min, self.slippage_bps_max)
+                max_bps = max(self.slippage_bps_min, self.slippage_bps_max)
+                slippage_bps = min_bps if min_bps == max_bps else self._rng.uniform(min_bps, max_bps)
+                adverse_prob = float(self.adverse_slippage_probability or 0.0)
+                should_adverse = False
+                if adverse_prob >= 1.0:
+                    should_adverse = True
+                elif adverse_prob > 0:
+                    if size_ratio is not None:
+                        should_adverse = self._rng.random() < adverse_prob
+                    else:
+                        should_adverse = self._rng.random() < adverse_prob
+                if should_adverse:
+                    adv_min = min(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
+                    adv_max = max(self.adverse_slippage_bps_min, self.adverse_slippage_bps_max)
+                    adverse_slippage_bps = adv_min if adv_min == adv_max else self._rng.uniform(adv_min, adv_max)
+                    slippage_bps += adverse_slippage_bps
             slippage_ratio = _to_decimal(slippage_bps) / Decimal("10000")
             
             if side == "BUY":
@@ -440,7 +473,10 @@ class PaperExecutionAdapter(ExchangeAdapter):
         # D207-3: Pessimistic Drift (physical price contamination)
         drift_bps_min = min(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
         drift_bps_max = max(self.pessimistic_drift_bps_min, self.pessimistic_drift_bps_max)
-        drift_bps = drift_bps_min if drift_bps_min == drift_bps_max else self._rng.uniform(drift_bps_min, drift_bps_max)
+        if self.paper_deterministic:
+            drift_bps = drift_bps_min
+        else:
+            drift_bps = drift_bps_min if drift_bps_min == drift_bps_max else self._rng.uniform(drift_bps_min, drift_bps_max)
         drift_ratio = _to_decimal(drift_bps) / Decimal("10000")
         if drift_ratio > 0:
             if side == "BUY":
@@ -487,14 +523,20 @@ class PaperExecutionAdapter(ExchangeAdapter):
         
         partial_fill_ratio = 1.0
         status = "filled"
-        partial_fill_probability = self.partial_fill_probability
-        if not self.enable_slippage and not self._partial_fill_configured:
-            partial_fill_probability = 0.0
-        if partial_fill_probability > 0:
+        if self.paper_deterministic:
             partial_fill_ratio = self._calculate_partial_fill_ratio(payload)
             if partial_fill_ratio < 1.0:
                 status = "partial"
                 filled_qty = _quantize(filled_qty * _to_decimal(partial_fill_ratio))
+        else:
+            partial_fill_probability = self.partial_fill_probability
+            if not self.enable_slippage and not self._partial_fill_configured:
+                partial_fill_probability = 0.0
+            if partial_fill_probability > 0:
+                partial_fill_ratio = self._calculate_partial_fill_ratio(payload)
+                if partial_fill_ratio < 1.0:
+                    status = "partial"
+                    filled_qty = _quantize(filled_qty * _to_decimal(partial_fill_ratio))
 
         response = {
             "order_id": order_id,
@@ -511,6 +553,7 @@ class PaperExecutionAdapter(ExchangeAdapter):
             "adverse_slippage_bps": adverse_slippage_bps,
             "top_depth": payload.get("top_depth"),
             "size_ratio": size_ratio,
+            "paper_deterministic": self.paper_deterministic,
         }
         
         return response

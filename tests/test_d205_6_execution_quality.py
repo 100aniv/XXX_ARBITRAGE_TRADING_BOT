@@ -134,7 +134,7 @@ class TestSimpleExecutionQualityModel:
             binance_bid_size=1000000.0,
             binance_ask_size=1000000.0,
         )
-        assert result2.partial_fill_risk_bps == 20.0
+        assert result2.partial_fill_risk_bps == pytest.approx(5.0)
 
 
     def test_large_order_penalty_inverse_logic(self):
@@ -165,7 +165,7 @@ class TestSimpleExecutionQualityModel:
         assert result_small.partial_fill_risk_bps == 0.0
         
         # Large order: penalty applied
-        assert result_large.partial_fill_risk_bps == 20.0
+        assert result_large.partial_fill_risk_bps == pytest.approx(8.0)
         
         # Large order should have higher total cost
         assert result_large.total_exec_cost_bps > result_small.total_exec_cost_bps

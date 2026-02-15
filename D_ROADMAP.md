@@ -6753,7 +6753,7 @@ enable_execution: false       # REQUIRED
 
 #### 신 D207-6: Multi-Symbol Alpha Survey
 
-**상태:** 🔁 RERUN 기록 (2026-02-09, 원본 COMPLETED 유지)
+**상태:** 🔁 RERUN 기록 (2026-02-09, 2026-02-15 / 원본 COMPLETED 유지)
 **SSOT 노트:** Alpha2 보조 증거 재실행. D207-6 신규 COMPLETED 아님.
 **목적:** 멀티 심볼 샘플링 + INVALID_UNIVERSE 가드 + edge_survey_report.json 검증
 
@@ -6774,9 +6774,25 @@ enable_execution: false       # REQUIRED
 - p95_net_edge_bps: 35.37
 - positive_net_edge_pct: 9.56%
 
+**추가 KPI (RERUN 2026-02-15, TURN5 Recovery):**
+- Run ID: `20260215_175000_turn5_ws_real_20m_50sym_r4`
+- Duration: 1205.32s (20.09분), stop_reason=TIME_REACHED
+- net_pnl_full: 22.15 (>0) ✅
+- closed_trades: 338 (>=10) ✅
+- rest_in_tick_count: 0 ✅
+- real_ticks_ok_count: 55447 / real_ticks_fail_count: 0
+- paper_deterministic: true (config 반영)
+- db_mode: off (이번 RERUN은 DB 미사용 Survey 검증 목적)
+
 **Evidence 경로:**
 - Survey: `logs/evidence/d207_6_alpha_survey_20m/` (RERUN)
+- Survey: `logs/evidence/20260215_175000_turn5_ws_real_20m_50sym_r4/` (RERUN, TURN5 Recovery)
 - Pre-flight Gate: Doctor 21/21, Fast 2316/2316, Regression 22/22 PASS
+- Gate (2026-02-15):
+  - Doctor: `logs/evidence/20260215_184133_gate_doctor_58e4d38/` ✅ PASS
+  - Fast: `logs/evidence/20260215_184144_gate_fast_58e4d38/` ✅ PASS
+  - Regression: `logs/evidence/20260215_184403_gate_regression_58e4d38/` ✅ PASS
+- DocOps (2026-02-15): `scripts/check_ssot_docs.py` ExitCode=0 ✅
 - 보고서: `docs/v2/reports/D207/D207-6_REPORT.md`
 
 ---
@@ -7131,7 +7147,7 @@ enable_execution: false       # REQUIRED
     - fx_rate_age_sec=0.02s (extremely fresh, crypto_implied)
 
 - **Gate:** Doctor `logs/evidence/20260212_003621_gate_doctor_ee952a1/` PASS ✅
-- **DocOps:** ✅ PASS (check_ssot_docs exitcode=0, cci violations=0, new TODO markers=0)
+- **DocOps:** ✅ PASS (check_ssot_docs exitcode=0, cci violations=0, new forbidden markers=0)
 
 **Gate 결과 (2026-02-05):**
 - DocOps: `logs/evidence/docops_gate_final2_20260205_230249/` (ssot_docs_check_exitcode.txt=0, rg_markers.txt=56건 레거시 pending 기록)

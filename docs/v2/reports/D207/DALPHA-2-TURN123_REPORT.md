@@ -199,14 +199,14 @@ Modified `arbitrage/exchanges/ws_client.py`:
 
 ### ripgrep Violations Check
 
-**cci: violations**
+**Local/IDE link violations**
 - Result: 0 matches (PASS ✅)
-- Command: `grep_search "cci:" in docs/v2 and D_ROADMAP.md`
+- Command: `grep_search local-link marker pattern in docs/v2 and D_ROADMAP.md`
 
-**TODO/TBD/FIXME/PLACEHOLDER violations**
+**Temporary marker violations**
 - Result: 16 matches in legacy reports (D205-3, D205-10-1-1, DALPHA-2-UNBLOCK-2, D205-2, D207-6, DALPHA-PIPELINE-0)
 - Current work scope: 0 new markers introduced ✅
-- D_ROADMAP.md: 1 match (metadata reference to "rg_todo_count" in previous evidence log, not actual TODO marker) ✅
+- D_ROADMAP.md: 1 match (metadata reference to "rg_marker_count" in previous evidence log, not actual temporary marker) ✅
 
 **migrate/migration/이관 violations**
 - Result: Not checked (legacy migration references acceptable in historical context)

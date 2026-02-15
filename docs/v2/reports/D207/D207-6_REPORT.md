@@ -110,6 +110,23 @@ git diff > git_diff.txt
 
 **해석:** 멀티심볼 survey 정상 동작, units_mismatch=0 확인, edge_survey_report.json 생성 완료.
 
+### RERUN (2026-02-15, TURN5 Recovery)
+
+**Run ID:** `20260215_175000_turn5_ws_real_20m_50sym_r4`  
+**Duration:** 1205.32s (20.09분)  
+**Mode:** WS REAL + PAPER (`paper_deterministic=true`, `db_mode=off`)
+
+#### KPI 검증
+- stop_reason: `TIME_REACHED` ✅
+- net_pnl_full: `22.15` (> 0) ✅
+- closed_trades: `338` (>= 10) ✅
+- rest_in_tick_count: `0` ✅
+- real_ticks_ok_count: `55447` / real_ticks_fail_count: `0`
+
+#### 핵심 해석
+- TURN5 정체 원인(후보별 ExecutionQuality 모델 재초기화) 제거 후 50심볼 20분 wallclock 정상 완주.
+- Evidence flush 정상화: kpi/manifest/watch_summary/trades_ledger/edge_survey_report 생성 확인.
+
 ---
 
 ## AC 달성 현황
@@ -132,6 +149,11 @@ git diff > git_diff.txt
   - kpi.json, engine_report.json, watch_summary.json, edge_survey_report.json, manifest.json
   - edge_distribution.json, edge_analysis_summary.json
   - decision_trace.json, trades_ledger.jsonl
+
+### RERUN (TURN5 Recovery)
+- `logs/evidence/20260215_175000_turn5_ws_real_20m_50sym_r4/`
+  - kpi.json, manifest.json, watch_summary.json, edge_survey_report.json
+  - trades_ledger.jsonl, edge_distribution.json, edge_analysis_summary.json
 
 ### Gate Results (Pre-flight)
 - Doctor: 21/21 PASS (2.6s)

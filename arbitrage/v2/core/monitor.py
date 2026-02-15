@@ -622,6 +622,72 @@ class EvidenceCollector:
                 json.dump(obi_dynamic, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] OBI dynamic threshold saved: {obi_dynamic_path}")
 
+            try:
+                dynamic_threshold_state = {}
+                if isinstance(run_meta, dict):
+                    dynamic_threshold_state = dict(run_meta.get("obi_dynamic_threshold_state") or {})
+
+                dynamic_threshold_state_path = self.output_dir / "dynamic_threshold_state.json"
+                with open(dynamic_threshold_state_path, "w", encoding="utf-8") as f:
+                    json.dump(dynamic_threshold_state, f, indent=2, ensure_ascii=False)
+                logger.info(
+                    f"[EvidenceCollector] Dynamic threshold state saved: {dynamic_threshold_state_path}"
+                )
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] Dynamic threshold state save failed: {e}")
+
+            try:
+                reconciliation_rows: List[Dict[str, Any]] = []
+                for trade in trade_history:
+                    try:
+                        entry_qty = trade.get("entry_filled_qty")
+                        exit_qty = trade.get("exit_filled_qty")
+                        penalty = float(trade.get("partial_fill_penalty") or 0.0)
+                        if penalty > 0:
+                            reconciliation_rows.append(
+                                {
+                                    "trade_id": trade.get("trade_id"),
+                                    "entry_filled_qty": entry_qty,
+                                    "exit_filled_qty": exit_qty,
+                                    "entry_partial_fill_ratio": trade.get("entry_partial_fill_ratio"),
+                                    "exit_partial_fill_ratio": trade.get("exit_partial_fill_ratio"),
+                                    "partial_fill_penalty": penalty,
+                                }
+                            )
+                    except Exception:
+                        continue
+
+                reconciliation_trace_path = self.output_dir / "reconciliation_trace.json"
+                with open(reconciliation_trace_path, "w", encoding="utf-8") as f:
+                    json.dump({"rows": reconciliation_rows}, f, indent=2, ensure_ascii=False)
+                logger.info(
+                    f"[EvidenceCollector] Reconciliation trace saved: {reconciliation_trace_path} ({len(reconciliation_rows)} rows)"
+                )
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] Reconciliation trace save failed: {e}")
+
+            try:
+                pnl_attribution_path = self.output_dir / "pnl_attribution.md"
+                pnl_lines = [
+                    "# PnL Attribution\n",
+                    f"phase: {phase}\n",
+                    "\n",
+                    "## Totals\n",
+                    f"- closed_trades: {kpi_dict.get('closed_trades')}\n",
+                    f"- gross_pnl: {kpi_dict.get('gross_pnl')}\n",
+                    f"- fees_total: {kpi_dict.get('fees_total')}\n",
+                    f"- slippage_cost: {kpi_dict.get('slippage_cost')}\n",
+                    f"- latency_cost: {kpi_dict.get('latency_cost')}\n",
+                    f"- partial_fill_penalty: {kpi_dict.get('partial_fill_penalty')}\n",
+                    f"- exec_cost_total: {kpi_dict.get('exec_cost_total')}\n",
+                    f"- net_pnl_full: {kpi_dict.get('net_pnl_full')}\n",
+                ]
+                with open(pnl_attribution_path, "w", encoding="utf-8") as f:
+                    f.write("".join(pnl_lines))
+                logger.info(f"[EvidenceCollector] PnL attribution saved: {pnl_attribution_path}")
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] PnL attribution save failed: {e}")
+
             # 3-6. Edge Decomposition (AC-3)
             edge_decomposition = self._edge_decomposition(trade_history, metrics)
             edge_decomposition_path = self.output_dir / "edge_decomposition.json"
@@ -662,6 +728,9 @@ class EvidenceCollector:
                 "obi_topn.json",
                 "obi_filter_counters.json",
                 "obi_dynamic_threshold.json",
+                "dynamic_threshold_state.json",
+                "reconciliation_trace.json",
+                "pnl_attribution.md",
                 "edge_decomposition.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"

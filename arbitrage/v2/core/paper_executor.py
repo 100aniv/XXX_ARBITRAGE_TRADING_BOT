@@ -58,6 +58,12 @@ class PaperExecutor:
             "ETH": 1.0,
         }
         self.balance = {k: _quantize(_to_decimal(v)) for k, v in base_balance.items()}
+
+    @property
+    def adapter_random_seed(self) -> Optional[int]:
+        if not hasattr(self, "adapter") or self.adapter is None:
+            return None
+        return getattr(self.adapter, "random_seed", None)
     
     def execute(
         self,

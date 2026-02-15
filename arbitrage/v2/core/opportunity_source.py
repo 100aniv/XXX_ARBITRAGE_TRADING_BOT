@@ -947,7 +947,20 @@ class RealOpportunitySource(OpportunitySource):
                     return []
                 return await asyncio.gather(*tasks)
 
-            marketdata_results = asyncio.run(_fetch_marketdata_for_pairs())
+            try:
+                # D_ALPHA-FAST: per-tick marketdata 수집이 장시간 블로킹되면
+                # duration 종료가 지연될 수 있으므로 tick 단위 timeout을 둔다.
+                marketdata_results = asyncio.run(
+                    asyncio.wait_for(_fetch_marketdata_for_pairs(), timeout=15.0)
+                )
+            except asyncio.TimeoutError:
+                self.kpi.real_ticks_fail_count += 1
+                _set_edge_distribution(
+                    [],
+                    reason="marketdata_fetch_timeout",
+                    sampling_policy=sampling_policy,
+                )
+                return None
 
             for task in marketdata_results:
                 for reason in task.get("failures", []):

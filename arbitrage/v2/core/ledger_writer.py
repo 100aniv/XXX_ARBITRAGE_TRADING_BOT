@@ -2,7 +2,6 @@ from typing import Optional, Dict, List
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import logging
-import uuid
 
 from arbitrage.v2.domain.order_intent import OrderIntent, OrderSide
 from arbitrage.v2.storage.ledger import V2LedgerStorage
@@ -29,6 +28,8 @@ class LedgerWriter:
     def __init__(self, storage: Optional[V2LedgerStorage], config):
         self.storage = storage
         self.config = config
+        self._order_seq = 0
+        self._fill_seq = 0
         
         if storage and config.db_mode == "strict":
             self._verify_schema()
@@ -61,7 +62,8 @@ class LedgerWriter:
         error_msg = ""
         
         try:
-            order_id = str(uuid.uuid4())
+            self._order_seq += 1
+            order_id = f"order-{self.config.run_id}-{self._order_seq:08d}"
             timestamp = datetime.now(timezone.utc)
             
             order_quantity = _quantize(_to_decimal(intent.base_qty)) if intent.base_qty else None
@@ -79,7 +81,8 @@ class LedgerWriter:
             )
             rows_inserted += 1
             
-            fill_id = str(uuid.uuid4())
+            self._fill_seq += 1
+            fill_id = f"fill-{self.config.run_id}-{self._fill_seq:08d}"
             filled_at = datetime.now(timezone.utc)
             
             filled_qty = _quantize(_to_decimal(order_result.filled_qty))

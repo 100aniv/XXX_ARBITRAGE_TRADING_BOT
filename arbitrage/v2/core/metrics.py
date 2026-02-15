@@ -91,6 +91,7 @@ class PaperMetrics:
     redis_ok: bool = False
     ratelimit_hits: int = 0
     dedup_hits: int = 0
+    rest_in_tick_count: int = 0
     
     # EXEC: Decision Trace (reject reason 카운트)
     reject_reasons: Dict[str, int] = field(default_factory=lambda: {
@@ -345,6 +346,7 @@ class PaperMetrics:
             "redis_ok": self.redis_ok,
             "ratelimit_hits": self.ratelimit_hits,
             "dedup_hits": self.dedup_hits,
+            "rest_in_tick_count": int(self.rest_in_tick_count),
             # EXEC: Decision Trace
             "reject_reasons": dict(self.reject_reasons),
             # EXEC: FX Rate Info

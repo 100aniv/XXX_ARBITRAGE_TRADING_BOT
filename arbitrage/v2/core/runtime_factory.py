@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple, Dict, Any
 import logging
 import asyncio
 import os
+import random
 import threading
 import time
 import yaml
@@ -278,6 +279,16 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     v2_config = load_config("config/v2/config.yml")
     profit_core = ProfitCore(v2_config.profit_core)
     logger.info(f"[D206-1] ProfitCore loaded: default_price_krw={v2_config.profit_core.default_price_krw}")
+
+    engine_seed = None
+    try:
+        if getattr(v2_config, "mock_adapter", None) is not None:
+            engine_seed = v2_config.mock_adapter.get("random_seed")
+    except Exception:
+        engine_seed = None
+    engine_seed = int(engine_seed) if engine_seed is not None else 0
+    config.engine_random_seed = engine_seed
+    engine_rng = random.Random(engine_seed)
 
     # D207-5: run_meta defaults (config_path/symbols)
     if getattr(config, "config_path", None) is None:
@@ -597,6 +608,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             order_size_policy_mode=getattr(config, "order_size_policy_mode", "fixed_quote"),
             fixed_quote=getattr(config, "fixed_quote", None),
             default_quote_amount=getattr(config, "default_quote_amount", 100000.0),
+            rng=engine_rng,
         )
         logger.info(f"[D207-1] RealOpportunitySource initialized (REAL MarketData, survey_mode={getattr(config, 'survey_mode', False)})")
     else:
@@ -610,6 +622,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             maker_mode=getattr(config, "maker_mode", False),
             negative_edge_execution_probability=negative_edge_execution_probability,
             negative_edge_floor_bps=negative_edge_floor_bps,
+            rng=engine_rng,
         )
         logger.info(f"[D207-1] MockOpportunitySource initialized (MOCK MarketData)")
     

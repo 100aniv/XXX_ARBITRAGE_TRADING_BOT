@@ -23,6 +23,7 @@ from typing import Optional, List, Tuple, Dict, Any
 
 from arbitrage.v2.opportunity import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
+from arbitrage.v2.scan.evidence_guard import save_json_with_validation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -132,6 +133,59 @@ class PaperRunnerConfig:
         
         if not self.output_dir:
             self.output_dir = f"logs/evidence/{self.run_id}"
+
+        output_dir_path = Path(self.output_dir)
+        evidence_root = output_dir_path.parent
+
+        collision_reason = None
+        if evidence_root.exists() and not evidence_root.is_dir():
+            collision_reason = f"evidence_root_not_dir:{evidence_root}"
+        elif output_dir_path.exists() and not output_dir_path.is_dir():
+            collision_reason = f"output_dir_not_dir:{output_dir_path}"
+
+        preflight_dir = output_dir_path
+        if collision_reason:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_run_id = str(self.run_id).replace("/", "_").replace("\\\\", "_").replace(":", "_")
+            preflight_dir = evidence_root / "__preflight_failures__" / f"{ts}_{safe_run_id}"
+
+        try:
+            preflight_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        preflight_payload = {
+            "run_id": self.run_id,
+            "phase": self.phase,
+            "output_dir": str(output_dir_path),
+            "preflight_dir": str(preflight_dir),
+            "status": "FAIL" if collision_reason else "PASS",
+            "reason": collision_reason,
+            "ts": datetime.now().isoformat(),
+        }
+
+        try:
+            save_json_with_validation(preflight_dir / "preflight.json", preflight_payload)
+        except Exception:
+            try:
+                import json
+
+                (preflight_dir / "preflight.json").write_text(
+                    json.dumps(preflight_payload, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+
+        if collision_reason:
+            logger.error(f"[EVIDENCE_PREFLIGHT] FAIL: {collision_reason}")
+            raise SystemExit(1)
+
+        try:
+            output_dir_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"[EVIDENCE_PREFLIGHT] FAIL: cannot create output_dir={output_dir_path}: {e}")
+            raise SystemExit(1)
         
         if not self.db_connection_string:
             env_conn = os.getenv("POSTGRES_CONNECTION_STRING")

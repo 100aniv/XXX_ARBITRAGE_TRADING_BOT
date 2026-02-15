@@ -13,6 +13,7 @@ D205-8: Quote Normalization 통합
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from typing import List, Optional
 import logging
 
@@ -26,6 +27,12 @@ from arbitrage.v2.execution_quality.model_v1 import SimpleExecutionQualityModel
 from arbitrage.v2.execution_quality.schemas import ExecutionCostBreakdown
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def _get_exec_quality_model() -> SimpleExecutionQualityModel:
+    """Hot-path 재사용: ExecutionQuality 모델을 1회만 생성한다."""
+    return SimpleExecutionQualityModel()
 
 
 class OpportunityDirection(str, Enum):
@@ -210,7 +217,7 @@ def detect_candidates(
     
     exec_cost_breakdown: Optional[ExecutionCostBreakdown] = None
     if (not maker_mode) and (notional is not None) and float(notional) > 0:
-        exec_quality_model = SimpleExecutionQualityModel()
+        exec_quality_model = _get_exec_quality_model()
         exec_cost_breakdown = exec_quality_model.compute_execution_cost(
             edge_bps=net_edge_bps,
             notional=float(notional),

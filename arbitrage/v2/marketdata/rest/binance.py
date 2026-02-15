@@ -12,6 +12,11 @@ import requests
 from typing import List, Optional
 from datetime import datetime
 
+from arbitrage.v2.core.tick_context import (
+    record_rest_call,
+    is_rest_forbidden_in_tick,
+    RestCallInTickError,
+)
 from arbitrage.v2.marketdata.interfaces import (
     RestProvider,
     Ticker,
@@ -89,6 +94,9 @@ class BinanceRestProvider(RestProvider):
             Ticker 또는 None (에러 시)
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST ticker called in tick: symbol={symbol}")
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             
@@ -139,6 +147,9 @@ class BinanceRestProvider(RestProvider):
             Orderbook 또는 None (에러 시)
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST orderbook called in tick: symbol={symbol}")
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             
@@ -201,6 +212,9 @@ class BinanceRestProvider(RestProvider):
             Trade 리스트
         """
         try:
+            record_rest_call()
+            if is_rest_forbidden_in_tick():
+                raise RestCallInTickError(f"REST trades called in tick: symbol={symbol}")
             # BTC/USDT → BTCUSDT
             market = symbol.replace("/", "")
             

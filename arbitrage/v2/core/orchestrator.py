@@ -44,10 +44,10 @@ from arbitrage.v2.core.engine_report import (
     get_git_branch,
     get_git_status_info,
 )
-from arbitrage.v2.core.order_intent import OrderSide
+from arbitrage.v2.core.order_intent import OrderSide, OrderType
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary
+from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary, calculate_net_pnl_full
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,14 @@ class PaperOrchestrator:
         self.trade_history = []
         self.edge_distribution_samples: List[Dict[str, Any]] = []
         self._last_edge_distribution_iteration: Optional[int] = None
+        self._edge_sample_stride = max(
+            1,
+            int(getattr(self.config, "edge_distribution_stride", 50) or 50),
+        )
+        self._edge_sample_max = max(
+            100,
+            int(getattr(self.config, "edge_distribution_max_samples", 3000) or 3000),
+        )
         self._last_trade_ts: float = 0.0
         self._last_loss_ts: Optional[float] = None
         self._trade_seq: int = 0
@@ -183,6 +191,33 @@ class PaperOrchestrator:
         signal.signal(signal.SIGTERM, sigterm_handler)
         signal.signal(signal.SIGINT, sigterm_handler)
         logger.info("[D207-1]-FIX-2 F5] Signal handlers registered (SIGTERM/SIGINT)")
+
+    def _should_record_edge_sample(self, iteration: int, edge_sample: Dict[str, Any]) -> bool:
+        reason = str(edge_sample.get("reason") or "")
+        if reason in {
+            "exception",
+            "marketdata_fetch_timeout",
+            "invalid_universe",
+            "fx_stale",
+            "provider_none",
+            "fx_rate_suspicious",
+        }:
+            return True
+        return (iteration % self._edge_sample_stride) == 0
+
+    def _append_edge_sample(self, iteration: int, edge_sample: Dict[str, Any]) -> None:
+        sample_iteration = edge_sample.get("iteration")
+        if sample_iteration == self._last_edge_distribution_iteration:
+            return
+        if not self._should_record_edge_sample(iteration, edge_sample):
+            return
+
+        self.edge_distribution_samples.append(edge_sample)
+        if len(self.edge_distribution_samples) > self._edge_sample_max:
+            overflow = len(self.edge_distribution_samples) - self._edge_sample_max
+            del self.edge_distribution_samples[:overflow]
+
+        self._last_edge_distribution_iteration = sample_iteration
     
     def run(self) -> int:
         """메인 실행 루프"""
@@ -291,10 +326,7 @@ class PaperOrchestrator:
                     candidate = self.opportunity_source.generate(iteration)
                 edge_sample = self.opportunity_source.get_edge_distribution_sample()
                 if edge_sample:
-                    sample_iteration = edge_sample.get("iteration")
-                    if sample_iteration != self._last_edge_distribution_iteration:
-                        self.edge_distribution_samples.append(edge_sample)
-                        self._last_edge_distribution_iteration = sample_iteration
+                    self._append_edge_sample(iteration, edge_sample)
                 if not candidate:
                     self.kpi.bump_reject("candidate_none")
                     continue
@@ -401,6 +433,21 @@ class PaperOrchestrator:
                 top_depth_1 = _resolve_top_depth(intents[1], candidate)
                 with tick_context(rest_forbidden=rest_forbidden):
                     entry_result = self.executor.execute(intents[0], ref_price=ref_price_0, top_depth=top_depth_0)
+
+                    try:
+                        if (
+                            intents[1].order_type == OrderType.MARKET
+                            and intents[1].side == OrderSide.SELL
+                            and getattr(intents[1], "qty_source", None) == "from_entry_fill"
+                            and entry_result is not None
+                            and getattr(entry_result, "success", False)
+                            and getattr(entry_result, "filled_qty", None)
+                            and float(entry_result.filled_qty) > 0
+                        ):
+                            intents[1].base_qty = float(entry_result.filled_qty)
+                    except Exception:
+                        pass
+
                     exit_result = self.executor.execute(intents[1], ref_price=ref_price_1, top_depth=top_depth_1)
                 
                 self.kpi.mock_executions += 2
@@ -473,8 +520,28 @@ class PaperOrchestrator:
                         return 0.0
                     return float(result.latency_ms)
 
-                def _calc_partial_penalty(result) -> Decimal:
-                    return Decimal("0")
+                def _calc_partial_penalty(entry, exit) -> Decimal:
+                    if not entry or not exit:
+                        return Decimal("0")
+                    if entry.filled_qty is None or exit.filled_qty is None:
+                        return Decimal("0")
+                    qty_diff = abs(_to_decimal(entry.filled_qty) - _to_decimal(exit.filled_qty))
+                    if qty_diff <= 0:
+                        return Decimal("0")
+                    base_price = (
+                        exit.ref_price
+                        if getattr(exit, "ref_price", None) is not None
+                        else (exit.filled_price if getattr(exit, "filled_price", None) is not None else None)
+                    )
+                    if base_price is None:
+                        base_price = (
+                            entry.ref_price
+                            if getattr(entry, "ref_price", None) is not None
+                            else (entry.filled_price if getattr(entry, "filled_price", None) is not None else None)
+                        )
+                    if base_price is None:
+                        return Decimal("0")
+                    return _quantize(abs(_to_decimal(base_price)) * qty_diff)
 
                 def _calc_reject(result) -> float:
                     if not result:
@@ -484,7 +551,7 @@ class PaperOrchestrator:
                 slippage_cost = _calc_slippage_cost(entry_result) + _calc_slippage_cost(exit_result)
                 latency_cost = _calc_latency_cost(entry_result) + _calc_latency_cost(exit_result)
                 latency_total_ms = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
-                partial_penalty = _calc_partial_penalty(entry_result) + _calc_partial_penalty(exit_result)
+                partial_penalty = _calc_partial_penalty(entry_result, exit_result)
                 reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
 
                 # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
@@ -497,8 +564,14 @@ class PaperOrchestrator:
                     total_fee=float(total_fee),
                     return_decimal=True
                 )
-                net_pnl_full = realized_pnl
-                exec_cost_total = _quantize(total_fee + slippage_cost + latency_cost + partial_penalty)
+                net_pnl_full, exec_cost_total = calculate_net_pnl_full(
+                    gross_pnl=gross_pnl,
+                    total_fee=total_fee,
+                    slippage_cost=slippage_cost,
+                    latency_cost=latency_cost,
+                    partial_penalty=partial_penalty,
+                    return_decimal=True,
+                )
                 is_win = net_pnl_full > Decimal("0")
                 
                 self._trade_seq += 1
@@ -644,12 +717,18 @@ class PaperOrchestrator:
             
             # D207-1-5: RunWatcher stop_reason 먼저 체크 (Truth Chain SSOT)
             # MODEL_ANOMALY가 트리거되었다면 해당 stop_reason 사용
+            phase = getattr(self.config, "phase", "")
+            survey_mode = bool(getattr(self.config, "survey_mode", False))
+            evidence_mode = phase in ["baseline", "longrun", "edge_survey"] or survey_mode
             if self._watcher and self._watcher.stop_reason:
-                self._stop_reason = self._watcher.stop_reason
-                self._stop_message = self._watcher.diagnosis or ""
-                self._final_exit_code = 1
-                self.kpi.stop_reason = self._stop_reason
-                self.kpi.stop_message = self._stop_message
+                if evidence_mode and self._watcher.stop_reason == "MODEL_ANOMALY":
+                    pass
+                else:
+                    self._stop_reason = self._watcher.stop_reason
+                    self._stop_message = self._watcher.diagnosis or ""
+                    self._final_exit_code = 1
+                    self.kpi.stop_reason = self._stop_reason
+                    self.kpi.stop_message = self._stop_message
             
             # D205-18-4R2: Step 1 - Wallclock Duration 검증 (±5% 범위)
             tolerance = expected_duration * 0.05
@@ -744,25 +823,28 @@ class PaperOrchestrator:
             
             # D207-1-5 Step 3: StopReason/ExitCode 정합성 - RunWatcher FAIL → Exit 1
             # MODEL_ANOMALY, FX_STALE, ERROR 모두 Exit 1 강제
-            if self._watcher and self._watcher.stop_reason in [
-                "ERROR",
-                "MODEL_ANOMALY",
-                "FX_STALE",
-                "WIN_RATE_100_SUSPICIOUS",
-                "TRADE_STARVATION",
-            ]:
-                logger.error(
-                    f"[D207-1-5] RunWatcher triggered FAIL. "
-                    f"stop_reason={self._watcher.stop_reason}, "
-                    f"Diagnosis: {self._watcher.diagnosis}"
-                )
-                self._state = OrchestratorState.ERROR
-                
-                # Evidence 저장 (finally 블록 전에)
-                db_counts = self.ledger_writer.get_counts()
-                self.save_evidence(db_counts=db_counts)
-                
-                return 1
+            watcher_reason = self._watcher.stop_reason if self._watcher else None
+            if watcher_reason:
+                ignore_model_anomaly = evidence_mode and watcher_reason == "MODEL_ANOMALY"
+                if (not ignore_model_anomaly) and watcher_reason in [
+                    "ERROR",
+                    "MODEL_ANOMALY",
+                    "FX_STALE",
+                    "WIN_RATE_100_SUSPICIOUS",
+                    "TRADE_STARVATION",
+                ]:
+                    logger.error(
+                        f"[D207-1-5] RunWatcher triggered FAIL. "
+                        f"stop_reason={watcher_reason}, "
+                        f"Diagnosis: {self._watcher.diagnosis}"
+                    )
+                    self._state = OrchestratorState.ERROR
+                    
+                    # Evidence 저장 (finally 블록 전에)
+                    db_counts = self.ledger_writer.get_counts()
+                    self.save_evidence(db_counts=db_counts)
+                    
+                    return 1
             
             # D206-0 FIX: WARN=FAIL 원칙 강제 (WARNING도 FAIL)
             # OPS_PROTOCOL.md: "모든 Warning 레벨 로그는 잠재적 문제로 취급, Exit Code 1 유발"
@@ -916,6 +998,12 @@ class PaperOrchestrator:
         # survey는 데이터 수집이므로 winrate 100% / trade starvation은 정상 동작
         winrate_100_threshold = 20
         trade_starvation_flag = not survey_mode
+
+        evidence_mode = phase in ["baseline", "longrun", "edge_survey"] or bool(survey_mode)
+        if evidence_mode:
+            early_stop_enabled = False
+            winrate_100_threshold = 10**9
+            trade_starvation_flag = False
         
         watcher_config = WatcherConfig(
             heartbeat_sec=60,

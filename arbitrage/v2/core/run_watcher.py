@@ -219,6 +219,14 @@ class RunWatcher:
                     self._trigger_graceful_stop()
                     return
 
+        if not self.config.early_stop_enabled:
+            self._save_heartbeat(kpi)
+            logger.debug(
+                f"[RunWatcher] Heartbeat OK (early_stop_disabled) - "
+                f"trades={kpi.closed_trades}, pnl_full={net_pnl_full:.2f}"
+            )
+            return
+        
         # D207-1-3: FAIL 조건 (F): Winrate Cap (AT: Active Failure Detection)
         if (
             kpi.closed_trades >= self.config.min_trades_for_winrate_cap
@@ -274,15 +282,6 @@ class RunWatcher:
                         self._trigger_graceful_stop()
                         return
 
-        # D207-1 Step 3: early_stop_enabled=False이면 일부 FAIL 조건 스킵 (always-on은 이미 검사됨)
-        if not self.config.early_stop_enabled:
-            self._save_heartbeat(kpi)
-            logger.debug(
-                f"[RunWatcher] Heartbeat OK (early_stop_disabled) - "
-                f"trades={kpi.closed_trades}, pnl_full={net_pnl_full:.2f}"
-            )
-            return
-        
         # FAIL 조건 (A): wins=0 AND closed_trades >= N
         if kpi.closed_trades >= self.config.min_trades_for_winrate_check and kpi.wins == 0:
             self.stop_reason = "ERROR"
