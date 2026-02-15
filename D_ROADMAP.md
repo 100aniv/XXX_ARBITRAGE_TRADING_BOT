@@ -7096,6 +7096,13 @@ enable_execution: false       # REQUIRED
 - Clean-Room 1m smoke: `logs/evidence/dalpha_clean_room_1m_fix_20260211_222529/` (exit_code=0, warnings=0, stop_reason=TIME_REACHED)
 - DocOps: `logs/evidence/d_alpha_2_docops_20260211_230322/` (ssot_docs_check_exitcode.txt=0, rg_cci_count=0건, rg_migrate_count=77건, rg_todo_count=17건)
 
+**Friction-Truth PnL Welding + Tail Threshold (REAL 20m Top50, 2026-02-15):**
+- 실행: `logs/evidence/20260215_dalpha3_pnl_weld_tail_20m/`
+- KPI: closed_trades=280, gross_pnl=32.52, net_pnl_full=13.25, winrate=97.14%, rest_in_tick_count=0, stop_reason=TIME_REACHED
+- Friction totals: fees_total=2.5363, slippage_cost=8.4489, latency_cost=5.6411, spread_cost=2.6424, exec_cost_total=19.2687
+- Tail artifacts: tail_threshold_report.json, tail_threshold_sensitivity.json, tail_threshold_state.json
+- PnL artifacts: pnl_breakdown.json, pnl_attribution.md
+
 **D_ALPHA-2: TURN1/2/3 통합 (WS-only 강제 + profitable 단일화 + tail threshold, 2026-02-12) ✅ COMPLETED:**
 
 **리포트:** `docs/v2/reports/D207/D_ALPHA-2_TURN123_REPORT.md`

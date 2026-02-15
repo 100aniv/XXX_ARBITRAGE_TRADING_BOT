@@ -382,6 +382,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
     min_net_edge_bps = float(getattr(v2_config.strategy, "min_net_edge_bps", 0.0))
     obi_filter_cfg = getattr(v2_config.strategy, "obi_filter", None)
     obi_dynamic_cfg = getattr(v2_config.strategy, "obi_dynamic_threshold", None)
+    tail_filter_cfg = getattr(v2_config.strategy, "tail_filter", None)
     if getattr(config, "deterministic_drift_bps", None) is None:
         config.deterministic_drift_bps = deterministic_drift_bps
     if config.use_real_data and getattr(config, "cycle_interval_seconds", None) is None:
@@ -600,6 +601,7 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             negative_edge_floor_bps=negative_edge_floor_bps,
             obi_filter=obi_filter_cfg,
             obi_dynamic_threshold=obi_dynamic_cfg,
+            tail_filter=tail_filter_cfg,
             min_net_edge_bps=min_net_edge_bps,
             upbit_ws_provider=upbit_ws_provider,
             binance_ws_provider=binance_ws_provider,

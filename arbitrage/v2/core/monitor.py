@@ -378,6 +378,9 @@ class EvidenceCollector:
         dynamic_pass = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is True)
         dynamic_drop = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is False)
         dynamic_warmup = sum(1 for c in candidates if c.get("dynamic_threshold_pass") is None)
+        tail_pass = sum(1 for c in candidates if c.get("tail_threshold_pass") is True)
+        tail_drop = sum(1 for c in candidates if c.get("tail_threshold_pass") is False)
+        tail_warmup = sum(1 for c in candidates if c.get("tail_threshold_pass") is None)
         for candidate in candidates:
             reason = candidate.get("dynamic_threshold_reason")
             if reason:
@@ -394,6 +397,10 @@ class EvidenceCollector:
         if run_meta and "obi_dynamic_threshold_state" in run_meta:
             dynamic_state = dict(run_meta.get("obi_dynamic_threshold_state") or {})
 
+        tail_state = {}
+        if run_meta and run_meta.get("tail_threshold_state") is not None:
+            tail_state = dict(run_meta.get("tail_threshold_state") or {})
+
         return {
             "considered": considered,
             "passed_obi": passed_obi,
@@ -406,6 +413,13 @@ class EvidenceCollector:
                 "dropped": dynamic_drop,
                 "warmup": dynamic_warmup,
                 "reason_counts": dynamic_reasons,
+            },
+            "tail_threshold": {
+                "enabled": bool(tail_state.get("enabled")) if tail_state else False,
+                "ready": bool(tail_state.get("ready")) if tail_state else False,
+                "passed": tail_pass,
+                "dropped": tail_drop,
+                "warmup": tail_warmup,
             },
             "drop_reasons": {
                 "reject_reasons": reject_reasons,
@@ -457,6 +471,178 @@ class EvidenceCollector:
             "threshold_values": threshold_stats,
         }
 
+    def _tail_threshold_report(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        trade_history: Optional[List[Dict[str, Any]]] = None,
+        metrics: Optional[Any] = None,
+        run_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        candidates: List[Dict[str, Any]] = []
+        reason_counts: Dict[str, int] = {}
+        threshold_values: List[float] = []
+        for tick in edge_distribution:
+            for candidate in tick.get("candidates") or []:
+                candidates.append(candidate)
+                reason = candidate.get("tail_threshold_reason")
+                if reason:
+                    reason_counts[reason] = reason_counts.get(reason, 0) + 1
+                threshold_value = candidate.get("tail_threshold_value")
+                if threshold_value is not None:
+                    threshold_values.append(float(threshold_value))
+
+        tail_state = {}
+        if run_meta and "tail_threshold_state" in run_meta:
+            tail_state = dict(run_meta.get("tail_threshold_state") or {})
+
+        pass_count = sum(1 for c in candidates if c.get("tail_threshold_pass") is True)
+        drop_count = sum(1 for c in candidates if c.get("tail_threshold_pass") is False)
+        warmup_count = sum(1 for c in candidates if c.get("tail_threshold_pass") is None)
+
+        total_count = len(candidates)
+        pass_rate = (pass_count / total_count) if total_count else 0.0
+
+        def _quantile(values: List[float], q: float) -> Optional[float]:
+            if not values:
+                return None
+            sorted_vals = sorted(values)
+            idx = min(max(int(len(sorted_vals) * q), 0), len(sorted_vals) - 1)
+            return float(sorted_vals[idx])
+
+        all_edges = [float(c.get("net_edge_bps")) for c in candidates if c.get("net_edge_bps") is not None]
+        pass_edges = [
+            float(c.get("net_edge_bps"))
+            for c in candidates
+            if c.get("tail_threshold_pass") is True and c.get("net_edge_bps") is not None
+        ]
+        all_stats = {
+            "count": len(all_edges),
+            "p50": _quantile(all_edges, 0.50),
+            "p95": _quantile(all_edges, 0.95),
+            "p99": _quantile(all_edges, 0.99),
+        }
+        pass_stats = {
+            "count": len(pass_edges),
+            "p50": _quantile(pass_edges, 0.50),
+            "p95": _quantile(pass_edges, 0.95),
+            "p99": _quantile(pass_edges, 0.99),
+        }
+
+        execution_summary = {
+            "closed_trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "winrate_pct": 0.0,
+            "net_pnl_full": 0.0,
+            "gross_pnl": 0.0,
+            "exec_cost_total": 0.0,
+            "max_drawdown": 0.0,
+            "max_drawdown_pct": 0.0,
+        }
+        trades = trade_history or []
+        if trades:
+            wins = sum(1 for t in trades if (t.get("net_pnl_full") or 0) > 0)
+            total = len(trades)
+            losses = total - wins
+            net_total = sum(float(t.get("net_pnl_full") or 0.0) for t in trades)
+            gross_total = sum(float(t.get("gross_pnl") or 0.0) for t in trades)
+            exec_total = sum(float(t.get("exec_cost_total") or 0.0) for t in trades)
+            equity = 0.0
+            peak = 0.0
+            max_dd = 0.0
+            for trade in trades:
+                equity += float(trade.get("net_pnl_full") or 0.0)
+                if equity > peak:
+                    peak = equity
+                drawdown = peak - equity
+                if drawdown > max_dd:
+                    max_dd = drawdown
+            dd_pct = (max_dd / peak * 100.0) if peak > 0 else 0.0
+
+            execution_summary = {
+                "closed_trades": total,
+                "wins": wins,
+                "losses": losses,
+                "winrate_pct": round((wins / total) * 100.0, 2) if total else 0.0,
+                "net_pnl_full": round(net_total, 6),
+                "gross_pnl": round(gross_total, 6),
+                "exec_cost_total": round(exec_total, 6),
+                "max_drawdown": round(max_dd, 6),
+                "max_drawdown_pct": round(dd_pct, 4),
+            }
+        elif metrics is not None:
+            execution_summary = {
+                "closed_trades": int(getattr(metrics, "closed_trades", 0) or 0),
+                "wins": int(getattr(metrics, "wins", 0) or 0),
+                "losses": int(getattr(metrics, "losses", 0) or 0),
+                "winrate_pct": round(float(getattr(metrics, "winrate_pct", 0.0) or 0.0), 2),
+                "net_pnl_full": round(float(getattr(metrics, "net_pnl_full", 0.0) or 0.0), 6),
+                "gross_pnl": round(float(getattr(metrics, "gross_pnl", 0.0) or 0.0), 6),
+                "exec_cost_total": round(float(getattr(metrics, "exec_cost_total", 0.0) or 0.0), 6),
+                "max_drawdown": 0.0,
+                "max_drawdown_pct": 0.0,
+            }
+
+        threshold_stats = {
+            "min": min(threshold_values) if threshold_values else None,
+            "max": max(threshold_values) if threshold_values else None,
+            "last": threshold_values[-1] if threshold_values else None,
+        }
+
+        return {
+            "state": tail_state,
+            "counts": {
+                "considered": len(candidates),
+                "passed": pass_count,
+                "dropped": drop_count,
+                "warmup": warmup_count,
+                "pass_rate": round(pass_rate, 6),
+                "reason_counts": reason_counts,
+            },
+            "threshold_values": threshold_stats,
+            "net_edge_stats": {
+                "all": all_stats,
+                "passed": pass_stats,
+            },
+            "execution_summary": execution_summary,
+        }
+
+    def _tail_threshold_sensitivity(
+        self,
+        edge_distribution: List[Dict[str, Any]],
+        percentiles: Optional[List[float]] = None,
+    ) -> Dict[str, Any]:
+        values: List[float] = []
+        for tick in edge_distribution:
+            for candidate in tick.get("candidates") or []:
+                net_edge = candidate.get("net_edge_bps")
+                if net_edge is not None:
+                    values.append(float(net_edge))
+
+        if percentiles is None:
+            percentiles = [0.90, 0.92, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99]
+
+        results: List[Dict[str, Any]] = []
+        if values:
+            sorted_vals = sorted(values)
+            total = len(sorted_vals)
+            for p in percentiles:
+                idx = min(max(int(total * p), 0), total - 1)
+                threshold = sorted_vals[idx]
+                pass_rate = sum(1 for v in values if v >= threshold) / total if total else 0.0
+                results.append(
+                    {
+                        "percentile": p,
+                        "threshold": round(float(threshold), 6),
+                        "pass_rate": round(pass_rate, 6),
+                    }
+                )
+
+        return {
+            "sample_count": len(values),
+            "percentiles": results,
+        }
+
     def _edge_decomposition(
         self,
         trade_history: List[Dict[str, Any]],
@@ -479,6 +665,7 @@ class EvidenceCollector:
                     "slippage_cost": best_trade.get("slippage_cost"),
                     "latency_cost": best_trade.get("latency_cost"),
                     "partial_fill_penalty": best_trade.get("partial_fill_penalty"),
+                    "spread_cost": best_trade.get("spread_cost"),
                     "exec_cost_total": best_trade.get("exec_cost_total"),
                 },
             }
@@ -487,15 +674,17 @@ class EvidenceCollector:
         slippage_cost = float(getattr(metrics, "slippage_cost", 0.0) or 0.0)
         latency_cost = float(getattr(metrics, "latency_cost", 0.0) or 0.0)
         partial_penalty = float(getattr(metrics, "partial_fill_penalty", 0.0) or 0.0)
+        spread_cost = float(getattr(metrics, "spread_cost", 0.0) or 0.0)
         exec_cost_total = float(getattr(metrics, "exec_cost_total", 0.0) or 0.0)
         if exec_cost_total == 0.0:
-            exec_cost_total = fees_total + slippage_cost + latency_cost + partial_penalty
+            exec_cost_total = fees_total + slippage_cost + latency_cost + partial_penalty + spread_cost
 
         costs = {
             "fees_total": fees_total,
             "slippage_cost": slippage_cost,
             "latency_cost": latency_cost,
             "partial_fill_penalty": partial_penalty,
+            "spread_cost": spread_cost,
         }
         dominant_name = max(costs, key=costs.get) if costs else "fees_total"
         dominant_value = costs.get(dominant_name, 0.0)
@@ -637,6 +826,20 @@ class EvidenceCollector:
                 logger.error(f"[EvidenceCollector] Dynamic threshold state save failed: {e}")
 
             try:
+                tail_threshold_state = {}
+                if isinstance(run_meta, dict):
+                    tail_threshold_state = dict(run_meta.get("tail_threshold_state") or {})
+
+                tail_threshold_state_path = self.output_dir / "tail_threshold_state.json"
+                with open(tail_threshold_state_path, "w", encoding="utf-8") as f:
+                    json.dump(tail_threshold_state, f, indent=2, ensure_ascii=False)
+                logger.info(
+                    f"[EvidenceCollector] Tail threshold state saved: {tail_threshold_state_path}"
+                )
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] Tail threshold state save failed: {e}")
+
+            try:
                 reconciliation_rows: List[Dict[str, Any]] = []
                 for trade in trade_history:
                     try:
@@ -679,6 +882,7 @@ class EvidenceCollector:
                     f"- slippage_cost: {kpi_dict.get('slippage_cost')}\n",
                     f"- latency_cost: {kpi_dict.get('latency_cost')}\n",
                     f"- partial_fill_penalty: {kpi_dict.get('partial_fill_penalty')}\n",
+                    f"- spread_cost: {kpi_dict.get('spread_cost')}\n",
                     f"- exec_cost_total: {kpi_dict.get('exec_cost_total')}\n",
                     f"- net_pnl_full: {kpi_dict.get('net_pnl_full')}\n",
                 ]
@@ -688,12 +892,80 @@ class EvidenceCollector:
             except Exception as e:
                 logger.error(f"[EvidenceCollector] PnL attribution save failed: {e}")
 
+            try:
+                fees_total = float(kpi_dict.get("fees_total") or 0.0)
+                slippage_cost = float(kpi_dict.get("slippage_cost") or 0.0)
+                latency_cost = float(kpi_dict.get("latency_cost") or 0.0)
+                partial_penalty = float(kpi_dict.get("partial_fill_penalty") or 0.0)
+                spread_cost = float(kpi_dict.get("spread_cost") or 0.0)
+                exec_cost_total = float(kpi_dict.get("exec_cost_total") or 0.0)
+                if exec_cost_total == 0.0:
+                    exec_cost_total = fees_total + slippage_cost + latency_cost + partial_penalty + spread_cost
+
+                share_pct = {}
+                if exec_cost_total > 0:
+                    for name, value in {
+                        "fees_total": fees_total,
+                        "slippage_cost": slippage_cost,
+                        "latency_cost": latency_cost,
+                        "partial_fill_penalty": partial_penalty,
+                        "spread_cost": spread_cost,
+                    }.items():
+                        share_pct[name] = round((value / exec_cost_total) * 100, 4)
+
+                realized_pnl = float(kpi_dict.get("gross_pnl") or 0.0) - fees_total
+                pnl_breakdown = {
+                    "closed_trades": kpi_dict.get("closed_trades"),
+                    "gross_pnl": kpi_dict.get("gross_pnl"),
+                    "realized_pnl": round(realized_pnl, 8),
+                    "net_pnl_full": kpi_dict.get("net_pnl_full"),
+                    "exec_cost_total": exec_cost_total,
+                    "costs": {
+                        "fees_total": fees_total,
+                        "slippage_cost": slippage_cost,
+                        "latency_cost": latency_cost,
+                        "partial_fill_penalty": partial_penalty,
+                        "spread_cost": spread_cost,
+                    },
+                    "cost_share_pct": share_pct,
+                }
+
+                pnl_breakdown_path = self.output_dir / "pnl_breakdown.json"
+                with open(pnl_breakdown_path, "w", encoding="utf-8") as f:
+                    json.dump(pnl_breakdown, f, indent=2, ensure_ascii=False)
+                logger.info(f"[EvidenceCollector] PnL breakdown saved: {pnl_breakdown_path}")
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] PnL breakdown save failed: {e}")
+
             # 3-6. Edge Decomposition (AC-3)
             edge_decomposition = self._edge_decomposition(trade_history, metrics)
             edge_decomposition_path = self.output_dir / "edge_decomposition.json"
             with open(edge_decomposition_path, "w", encoding="utf-8") as f:
                 json.dump(edge_decomposition, f, indent=2, ensure_ascii=False)
             logger.info(f"[EvidenceCollector] Edge decomposition saved: {edge_decomposition_path}")
+
+            try:
+                tail_report = self._tail_threshold_report(
+                    edge_distribution,
+                    trade_history=trade_history,
+                    metrics=metrics,
+                    run_meta=run_meta,
+                )
+                tail_report_path = self.output_dir / "tail_threshold_report.json"
+                with open(tail_report_path, "w", encoding="utf-8") as f:
+                    json.dump(tail_report, f, indent=2, ensure_ascii=False)
+                logger.info(f"[EvidenceCollector] Tail threshold report saved: {tail_report_path}")
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] Tail threshold report save failed: {e}")
+
+            try:
+                tail_sensitivity = self._tail_threshold_sensitivity(edge_distribution)
+                tail_sensitivity_path = self.output_dir / "tail_threshold_sensitivity.json"
+                with open(tail_sensitivity_path, "w", encoding="utf-8") as f:
+                    json.dump(tail_sensitivity, f, indent=2, ensure_ascii=False)
+                logger.info(f"[EvidenceCollector] Tail threshold sensitivity saved: {tail_sensitivity_path}")
+            except Exception as e:
+                logger.error(f"[EvidenceCollector] Tail threshold sensitivity save failed: {e}")
             
             # 4. Chain Summary (D205-18-4-FIX-2 F4: Evidence Completeness 필수 파일)
             chain_summary = {
@@ -729,9 +1001,13 @@ class EvidenceCollector:
                 "obi_filter_counters.json",
                 "obi_dynamic_threshold.json",
                 "dynamic_threshold_state.json",
+                "tail_threshold_state.json",
                 "reconciliation_trace.json",
                 "pnl_attribution.md",
+                "pnl_breakdown.json",
                 "edge_decomposition.json",
+                "tail_threshold_report.json",
+                "tail_threshold_sensitivity.json",
             ]
             run_log_path = self.output_dir / "run_log.txt"
             if run_log_path.exists():

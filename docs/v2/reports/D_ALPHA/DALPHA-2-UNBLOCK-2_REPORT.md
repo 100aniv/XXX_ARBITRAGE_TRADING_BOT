@@ -166,6 +166,33 @@
 
 ---
 
+## Friction-Truth PnL Welding + Tail Threshold (2026-02-15)
+
+- Evidence: `logs/evidence/20260215_dalpha3_pnl_weld_tail_20m/`
+- STOP_REASON: TIME_REACHED (20.1m)
+- KPI:
+  - closed_trades=280, gross_pnl=32.52, net_pnl_full=13.25, winrate=97.14%
+  - rest_in_tick_count=0, execution_reject=82, tail_threshold_drop=32726
+- Friction Totals:
+  - fees_total=2.5363, slippage_cost=8.4489, latency_cost=5.6411
+  - spread_cost=2.6424, exec_cost_total=19.2687
+- Artifacts:
+  - pnl_breakdown.json, pnl_attribution.md
+  - tail_threshold_report.json, tail_threshold_sensitivity.json, tail_threshold_state.json
+
+### Gate/DocOps (2026-02-15)
+
+- Gate Doctor: `logs/evidence/20260215_205718_gate_doctor_9fe1061/`
+- Gate Fast: `logs/evidence/20260215_205859_gate_fast_9fe1061/`
+- Gate Regression: `logs/evidence/20260215_210132_gate_regression_9fe1061/`
+- DocOps: `logs/evidence/dalpha3_docops_20260215_210500/`
+  - ssot_docs_check_exitcode.txt=0
+  - rg_cci.txt=NO_MATCH
+  - rg_migrate.txt=matches (SSOT docs/legacy references)
+  - rg_todo.txt=matches (legacy TODO markers)
+
+---
+
 ## 잔여 AC (Follow-up)
 
 - AC-1: OBI 계산 표준화 + 동적 임계치

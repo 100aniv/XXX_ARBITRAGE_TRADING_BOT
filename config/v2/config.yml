@@ -158,6 +158,13 @@ strategy:
     min_pass_rate: 0.05
     min_samples: 50
 
+  # Tail-only Threshold (D_ALPHA-2)
+  tail_filter:
+    enabled: true
+    warmup_sec: 180
+    percentile: 0.95
+    min_samples: 50
+
   # Maker Fill Probability (D_ALPHA-1)
   fill_probability:
     base_fill_probability: 0.7

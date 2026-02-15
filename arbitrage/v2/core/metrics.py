@@ -109,6 +109,7 @@ class PaperMetrics:
         "fx_stale": 0,
         "exit_candidate_none": 0,
         "execution_reject": 0,
+        "tail_threshold_drop": 0,
     })
     
     # EXEC: FX Rate Info (Economic Truth - Real-time FX)
@@ -123,6 +124,7 @@ class PaperMetrics:
     slippage_cost: float = 0.0
     latency_cost: float = 0.0
     partial_fill_penalty: float = 0.0
+    spread_cost: float = 0.0
     exec_cost_total: float = 0.0
     # EXEC: Realism Pack totals
     slippage_total: float = 0.0
@@ -360,6 +362,7 @@ class PaperMetrics:
             "slippage_cost": round(self.slippage_cost, 4),
             "latency_cost": round(self.latency_cost, 4),
             "partial_fill_penalty": round(self.partial_fill_penalty, 4),
+            "spread_cost": round(self.spread_cost, 4),
             "exec_cost_total": round(self.exec_cost_total, 4),
             # EXEC: Realism Pack totals
             "slippage_total": round(self.slippage_total, 4),

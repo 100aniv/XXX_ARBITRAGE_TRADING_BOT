@@ -47,7 +47,7 @@ from arbitrage.v2.core.engine_report import (
 from arbitrage.v2.core.order_intent import OrderSide, OrderType
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.domain.pnl_calculator import calculate_pnl_summary, calculate_net_pnl_full
+from arbitrage.v2.domain.pnl_calculator import calculate_net_pnl_full_welded
 
 logger = logging.getLogger(__name__)
 
@@ -473,7 +473,7 @@ class PaperOrchestrator:
                 self.ledger_writer.record_order_and_fill(intents[1], exit_result, candidate, self.kpi)
                 
                 # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
-                # Add-on Alpha: Domain-Driven PnL (pnl_calculator.py SSOT)
+                # Add-on Alpha: Domain-Driven PnL Welding (pnl_calculator.py SSOT)
                 def _to_decimal(value: Optional[float]) -> Decimal:
                     return Decimal(str(value if value is not None else 0))
 
@@ -554,24 +554,28 @@ class PaperOrchestrator:
                 partial_penalty = _calc_partial_penalty(entry_result, exit_result)
                 reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
 
-                # PnL 계산: pnl_calculator.py로 일원화 (중복 방지)
-                gross_pnl, realized_pnl, _ = calculate_pnl_summary(
+                pnl_weld = calculate_net_pnl_full_welded(
                     entry_side=intents[0].side.value,
                     exit_side=intents[1].side.value,
                     entry_price=entry_result.filled_price,
                     exit_price=exit_result.filled_price,
-                    quantity=entry_result.filled_qty,
-                    total_fee=float(total_fee),
-                    return_decimal=True
-                )
-                net_pnl_full, exec_cost_total = calculate_net_pnl_full(
-                    gross_pnl=gross_pnl,
+                    entry_qty=entry_result.filled_qty,
+                    exit_qty=exit_result.filled_qty,
                     total_fee=total_fee,
                     slippage_cost=slippage_cost,
                     latency_cost=latency_cost,
                     partial_penalty=partial_penalty,
+                    entry_bid=candidate.exchange_a_bid if intents[0].exchange == candidate.exchange_a else candidate.exchange_b_bid,
+                    entry_ask=candidate.exchange_a_ask if intents[0].exchange == candidate.exchange_a else candidate.exchange_b_ask,
+                    exit_bid=candidate.exchange_a_bid if intents[1].exchange == candidate.exchange_a else candidate.exchange_b_bid,
+                    exit_ask=candidate.exchange_a_ask if intents[1].exchange == candidate.exchange_a else candidate.exchange_b_ask,
                     return_decimal=True,
                 )
+                gross_pnl = pnl_weld["gross_pnl"]
+                realized_pnl = pnl_weld["realized_pnl"]
+                net_pnl_full = pnl_weld["net_pnl_full"]
+                exec_cost_total = pnl_weld["exec_cost_total"]
+                spread_cost = pnl_weld["spread_cost"]
                 is_win = net_pnl_full > Decimal("0")
                 
                 self._trade_seq += 1
@@ -598,6 +602,8 @@ class PaperOrchestrator:
                 self.kpi.slippage_cost += float(slippage_cost)
                 self.kpi.latency_cost += float(latency_cost)
                 self.kpi.partial_fill_penalty += float(partial_penalty)
+                if hasattr(self.kpi, "spread_cost"):
+                    self.kpi.spread_cost += float(spread_cost)
                 self.kpi.exec_cost_total += float(exec_cost_total)
                 # D207-1-6: Realism Pack v1 totals
                 self.kpi.slippage_total += float(slippage_cost)
@@ -669,6 +675,7 @@ class PaperOrchestrator:
                     "slippage_cost": float(slippage_cost),
                     "latency_cost": float(latency_cost),
                     "partial_fill_penalty": float(partial_penalty),
+                    "spread_cost": float(spread_cost),
                     "exec_cost_total": float(exec_cost_total),
                 })
                 
@@ -1056,6 +1063,9 @@ class PaperOrchestrator:
         dynamic_state = None
         if hasattr(self.opportunity_source, "get_dynamic_threshold_state"):
             dynamic_state = self.opportunity_source.get_dynamic_threshold_state()
+        tail_state = None
+        if hasattr(self.opportunity_source, "get_tail_threshold_state"):
+            tail_state = self.opportunity_source.get_tail_threshold_state()
         run_meta = {
             "run_id": self.run_id,
             "git_sha": get_git_sha(),
@@ -1069,6 +1079,7 @@ class PaperOrchestrator:
             "metrics": self.kpi.to_dict(),
             "universe_metadata": getattr(self.config, "universe_metadata", None),
             "obi_dynamic_threshold_state": dynamic_state,
+            "tail_threshold_state": tail_state,
         }
         self.evidence_collector.save(
             metrics=self.kpi,

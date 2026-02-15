@@ -109,6 +109,9 @@ class OpportunityCandidate:
     exec_cost_bps: Optional[float] = None
     net_edge_after_exec_bps: Optional[float] = None
     exec_model_version: Optional[str] = None
+    tail_threshold_pass: Optional[bool] = None
+    tail_threshold_reason: Optional[str] = None
+    tail_threshold_value: Optional[float] = None
 
 
 def detect_candidates(

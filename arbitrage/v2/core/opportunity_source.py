@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from arbitrage.v2.opportunity import OpportunityCandidate, build_candidate, detect_candidates
 from arbitrage.v2.domain.break_even import BreakEvenParams
 from arbitrage.v2.domain.fill_probability import FillProbabilityParams
-from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig
+from arbitrage.v2.core.config import ObiFilterConfig, ObiDynamicThresholdConfig, TailFilterConfig
 from arbitrage.v2.core.quote_normalizer import normalize_price_to_krw, is_units_mismatch
 from arbitrage.v2.observability.latency_profiler import LatencyProfiler, LatencyStage
 from arbitrage.v2.core.tick_context import RestCallInTickError
@@ -42,6 +42,10 @@ class OpportunitySource(ABC):
         """OBI 동적 임계치 상태 반환"""
         return getattr(self, "_dynamic_threshold_state", None)
 
+    def get_tail_threshold_state(self) -> Optional[Dict[str, Any]]:
+        """Tail-only 임계치 상태 반환"""
+        return getattr(self, "_tail_threshold_state", None)
+
     def get_last_tick_timing(self) -> Optional[Dict[str, float]]:
         """최근 tick timing 샘플 반환"""
         return getattr(self, "_last_tick_timing", None)
@@ -56,6 +60,9 @@ def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
     dynamic_threshold_pass = getattr(candidate, "dynamic_threshold_pass", None)
     dynamic_threshold_reason = getattr(candidate, "dynamic_threshold_reason", None)
     dynamic_threshold_value = getattr(candidate, "dynamic_threshold_value", None)
+    tail_threshold_pass = getattr(candidate, "tail_threshold_pass", None)
+    tail_threshold_reason = getattr(candidate, "tail_threshold_reason", None)
+    tail_threshold_value = getattr(candidate, "tail_threshold_value", None)
     return {
         "symbol": candidate.symbol,
         "exchange_a": candidate.exchange_a,
@@ -86,6 +93,9 @@ def _candidate_to_edge_dict(candidate: OpportunityCandidate) -> Dict[str, Any]:
         "dynamic_threshold_pass": dynamic_threshold_pass,
         "dynamic_threshold_reason": dynamic_threshold_reason,
         "dynamic_threshold_value": round(float(dynamic_threshold_value), 6) if dynamic_threshold_value is not None else None,
+        "tail_threshold_pass": tail_threshold_pass,
+        "tail_threshold_reason": tail_threshold_reason,
+        "tail_threshold_value": round(float(tail_threshold_value), 6) if tail_threshold_value is not None else None,
         "allow_unprofitable": getattr(candidate, "allow_unprofitable", False),
     }
 
@@ -245,6 +255,7 @@ class RealOpportunitySource(OpportunitySource):
         negative_edge_floor_bps: float = 0.0,
         obi_filter: Optional[ObiFilterConfig] = None,
         obi_dynamic_threshold: Optional[ObiDynamicThresholdConfig] = None,
+        tail_filter: Optional[TailFilterConfig] = None,
         min_net_edge_bps: float = 0.0,
         upbit_ws_provider=None,
         binance_ws_provider=None,
@@ -280,6 +291,7 @@ class RealOpportunitySource(OpportunitySource):
         self.negative_edge_floor_bps = float(negative_edge_floor_bps or 0.0)
         self.obi_filter_cfg = obi_filter or ObiFilterConfig()
         self.obi_dynamic_cfg = obi_dynamic_threshold or ObiDynamicThresholdConfig()
+        self.tail_filter_cfg = tail_filter or TailFilterConfig()
         self.min_net_edge_bps = float(min_net_edge_bps or 0.0)
         self._dynamic_threshold_samples: List[float] = []
         self._dynamic_threshold_started_at: Optional[float] = None
@@ -292,6 +304,15 @@ class RealOpportunitySource(OpportunitySource):
             "enabled": bool(self.obi_dynamic_cfg.enabled),
             "status": "disabled" if not self.obi_dynamic_cfg.enabled else "warming_up",
             "warmup_sec": int(self.obi_dynamic_cfg.warmup_sec),
+        }
+        self._tail_threshold_samples: List[float] = []
+        self._tail_threshold_started_at: Optional[float] = None
+        self._tail_threshold_value: Optional[float] = None
+        self._tail_threshold_ready: bool = False
+        self._tail_threshold_state: Dict[str, Any] = {
+            "enabled": bool(self.tail_filter_cfg.enabled),
+            "status": "disabled" if not self.tail_filter_cfg.enabled else "warming_up",
+            "warmup_sec": int(self.tail_filter_cfg.warmup_sec),
         }
         self._rng = rng or random
         self._edge_distribution_sample: Optional[Dict[str, Any]] = None
@@ -510,6 +531,62 @@ class RealOpportunitySource(OpportunitySource):
             "ready": self._dynamic_threshold_ready,
         }
         self._dynamic_threshold_state = state
+        return state
+
+    def _update_tail_threshold_state(
+        self,
+        candidates: List[OpportunityCandidate],
+        now_ts: float,
+    ) -> Dict[str, Any]:
+        cfg = self.tail_filter_cfg
+        if not cfg.enabled:
+            state = {
+                "enabled": False,
+                "status": "disabled",
+                "warmup_sec": int(cfg.warmup_sec),
+                "warmup_elapsed_sec": 0.0,
+                "warmup_remaining_sec": float(cfg.warmup_sec),
+                "sample_count": 0,
+                "percentile": float(cfg.percentile),
+                "min_samples": int(cfg.min_samples),
+                "threshold": None,
+                "reason": "disabled",
+                "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "ready": False,
+            }
+            self._tail_threshold_state = state
+            return state
+
+        if self._tail_threshold_started_at is None:
+            self._tail_threshold_started_at = now_ts
+
+        elapsed = max(0.0, now_ts - self._tail_threshold_started_at)
+        if not self._tail_threshold_ready:
+            for candidate in candidates:
+                if candidate is None:
+                    continue
+                self._tail_threshold_samples.append(float(candidate.net_edge_bps))
+            if elapsed >= float(cfg.warmup_sec) and len(self._tail_threshold_samples) >= int(cfg.min_samples):
+                self._tail_threshold_value = _quantile(self._tail_threshold_samples, float(cfg.percentile))
+                self._tail_threshold_ready = True
+
+        status = "ready" if self._tail_threshold_ready else "warming_up"
+        remaining = max(0.0, float(cfg.warmup_sec) - elapsed)
+        state = {
+            "enabled": True,
+            "status": status,
+            "warmup_sec": int(cfg.warmup_sec),
+            "warmup_elapsed_sec": round(elapsed, 2),
+            "warmup_remaining_sec": round(remaining, 2),
+            "sample_count": len(self._tail_threshold_samples),
+            "percentile": float(cfg.percentile),
+            "min_samples": int(cfg.min_samples),
+            "threshold": self._tail_threshold_value if self._tail_threshold_ready else None,
+            "reason": "ready" if self._tail_threshold_ready else "warming_up",
+            "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "ready": self._tail_threshold_ready,
+        }
+        self._tail_threshold_state = state
         return state
     
     def generate(self, iteration: int) -> Optional[OpportunityCandidate]:
@@ -1157,9 +1234,12 @@ class RealOpportunitySource(OpportunitySource):
 
             now_ts = time.time()
             dynamic_state = self._update_dynamic_threshold_state(candidates_all, now_ts)
+            tail_state = self._update_tail_threshold_state(candidates_all, now_ts)
             obi_filter_enabled = bool(self.obi_filter_cfg and self.obi_filter_cfg.enabled)
             dynamic_enabled = bool(dynamic_state.get("enabled"))
             dynamic_ready = bool(dynamic_state.get("ready"))
+            tail_enabled = bool(tail_state.get("enabled"))
+            tail_ready = bool(tail_state.get("ready"))
 
             for candidate in candidates_all:
                 obi_score_value = getattr(candidate, "obi_score", None)
@@ -1200,6 +1280,27 @@ class RealOpportunitySource(OpportunitySource):
                         candidate.dynamic_threshold_pass = False
                         candidate.dynamic_threshold_reason = "below_threshold"
 
+                if not tail_enabled:
+                    candidate.tail_threshold_pass = None
+                    candidate.tail_threshold_reason = "disabled"
+                    candidate.tail_threshold_value = None
+                elif not tail_ready:
+                    candidate.tail_threshold_pass = None
+                    candidate.tail_threshold_reason = "warmup"
+                    candidate.tail_threshold_value = None
+                else:
+                    tail_threshold_value = tail_state.get("threshold")
+                    candidate.tail_threshold_value = tail_threshold_value
+                    if tail_threshold_value is None:
+                        candidate.tail_threshold_pass = None
+                        candidate.tail_threshold_reason = "threshold_missing"
+                    elif candidate.net_edge_bps >= float(tail_threshold_value):
+                        candidate.tail_threshold_pass = True
+                        candidate.tail_threshold_reason = None
+                    else:
+                        candidate.tail_threshold_pass = False
+                        candidate.tail_threshold_reason = "below_threshold"
+
             if obi_filter_enabled and self.obi_filter_cfg.top_k > 0:
                 ranked = [c for c in candidates_all if c.obi_filter_pass]
                 ranked.sort(
@@ -1232,9 +1333,13 @@ class RealOpportunitySource(OpportunitySource):
                 filtered_candidates = [c for c in filtered_candidates if c.obi_filter_pass]
             if dynamic_enabled and dynamic_ready:
                 filtered_candidates = [c for c in filtered_candidates if c.dynamic_threshold_pass]
+            if tail_enabled and tail_ready:
+                filtered_candidates = [c for c in filtered_candidates if c.tail_threshold_pass]
 
             if not filtered_candidates:
-                if dynamic_enabled and dynamic_ready:
+                if tail_enabled and tail_ready:
+                    self.kpi.bump_reject("tail_threshold_drop")
+                elif dynamic_enabled and dynamic_ready:
                     self.kpi.bump_reject("dynamic_threshold_drop")
                 elif obi_filter_enabled:
                     self.kpi.bump_reject("obi_filter_drop")

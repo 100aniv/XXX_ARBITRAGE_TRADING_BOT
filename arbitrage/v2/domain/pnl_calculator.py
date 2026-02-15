@@ -13,7 +13,7 @@ Author: arbitrage-lite V2
 Date: 2026-01-10
 """
 
-from typing import Literal, Tuple, Union
+from typing import Literal, Tuple, Union, Optional, Dict
 from decimal import Decimal, ROUND_HALF_UP
 
 
@@ -28,6 +28,12 @@ def _ensure_decimal(value: Union[float, Decimal]) -> Decimal:
     if isinstance(value, Decimal):
         return value
     return _to_decimal(value)
+
+
+def _ensure_decimal_or_zero(value: Optional[Union[float, Decimal]]) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    return _ensure_decimal(value)
 
 
 def _quantize(value: Decimal) -> Decimal:
@@ -144,6 +150,156 @@ def calculate_net_pnl_full(
         return net_pnl_full_q, exec_cost_total_q
 
     return float(net_pnl_full_q), float(exec_cost_total_q)
+
+
+def _normalize_side(side: str) -> str:
+    return side.upper().strip()
+
+
+def _calculate_gross_decimal(
+    entry_side: str,
+    exit_side: str,
+    entry_price: Union[float, Decimal],
+    exit_price: Union[float, Decimal],
+    quantity: Union[float, Decimal],
+) -> Decimal:
+    d_entry_price = _ensure_decimal(entry_price)
+    d_exit_price = _ensure_decimal(exit_price)
+    d_quantity = _ensure_decimal(quantity)
+    entry_side = _normalize_side(entry_side)
+    exit_side = _normalize_side(exit_side)
+
+    if entry_side == "BUY" and exit_side == "SELL":
+        gross = (d_exit_price - d_entry_price) * d_quantity
+    elif entry_side == "SELL" and exit_side == "BUY":
+        gross = (d_entry_price - d_exit_price) * d_quantity
+    else:
+        raise ValueError(
+            f"Invalid arbitrage side combination: entry={entry_side}, exit={exit_side}. "
+            "Expected (BUY, SELL) or (SELL, BUY)."
+        )
+    return _quantize(gross)
+
+
+def _calculate_spread_cost(
+    side: str,
+    bid: Optional[Union[float, Decimal]],
+    ask: Optional[Union[float, Decimal]],
+    quantity: Optional[Union[float, Decimal]],
+) -> Decimal:
+    if bid is None or ask is None or quantity is None:
+        return Decimal("0")
+    d_bid = _ensure_decimal(bid)
+    d_ask = _ensure_decimal(ask)
+    d_qty = _ensure_decimal(quantity)
+    if d_bid <= 0 or d_ask <= 0 or d_qty <= 0:
+        return Decimal("0")
+
+    half_spread = abs(d_ask - d_bid) / Decimal("2")
+    if half_spread <= 0:
+        return Decimal("0")
+    return _quantize(half_spread * d_qty)
+
+
+def calculate_friction_breakdown(
+    total_fee: Union[float, Decimal],
+    slippage_cost: Union[float, Decimal],
+    latency_cost: Union[float, Decimal],
+    partial_penalty: Union[float, Decimal],
+    entry_side: str,
+    exit_side: str,
+    entry_bid: Optional[Union[float, Decimal]] = None,
+    entry_ask: Optional[Union[float, Decimal]] = None,
+    exit_bid: Optional[Union[float, Decimal]] = None,
+    exit_ask: Optional[Union[float, Decimal]] = None,
+    entry_qty: Optional[Union[float, Decimal]] = None,
+    exit_qty: Optional[Union[float, Decimal]] = None,
+    return_decimal: bool = False,
+) -> Dict[str, Union[float, Decimal]]:
+    d_fee = _ensure_decimal_or_zero(total_fee)
+    d_slippage = _ensure_decimal_or_zero(slippage_cost)
+    d_latency = _ensure_decimal_or_zero(latency_cost)
+    d_partial = _ensure_decimal_or_zero(partial_penalty)
+
+    spread_entry = _calculate_spread_cost(entry_side, entry_bid, entry_ask, entry_qty)
+    spread_exit = _calculate_spread_cost(exit_side, exit_bid, exit_ask, exit_qty)
+    spread_total = _quantize(spread_entry + spread_exit)
+
+    exec_cost_total = _quantize(d_fee + d_slippage + d_latency + d_partial + spread_total)
+
+    breakdown: Dict[str, Union[float, Decimal]] = {
+        "fee_total": _quantize(d_fee),
+        "slippage_cost": _quantize(d_slippage),
+        "latency_cost": _quantize(d_latency),
+        "partial_fill_penalty": _quantize(d_partial),
+        "spread_cost": spread_total,
+        "exec_cost_total": exec_cost_total,
+    }
+
+    if return_decimal:
+        return breakdown
+
+    return {key: float(value) for key, value in breakdown.items()}
+
+
+def calculate_net_pnl_full_welded(
+    entry_side: Literal["BUY", "SELL"],
+    exit_side: Literal["BUY", "SELL"],
+    entry_price: Union[float, Decimal],
+    exit_price: Union[float, Decimal],
+    entry_qty: Optional[Union[float, Decimal]],
+    exit_qty: Optional[Union[float, Decimal]],
+    total_fee: Union[float, Decimal],
+    slippage_cost: Union[float, Decimal],
+    latency_cost: Union[float, Decimal],
+    partial_penalty: Union[float, Decimal],
+    entry_bid: Optional[Union[float, Decimal]] = None,
+    entry_ask: Optional[Union[float, Decimal]] = None,
+    exit_bid: Optional[Union[float, Decimal]] = None,
+    exit_ask: Optional[Union[float, Decimal]] = None,
+    return_decimal: bool = False,
+) -> Dict[str, Union[float, Decimal]]:
+    qty = entry_qty if entry_qty is not None and float(entry_qty) > 0 else exit_qty
+    if qty is None:
+        qty = 0.0
+
+    gross = _calculate_gross_decimal(entry_side, exit_side, entry_price, exit_price, qty)
+    realized = _quantize(gross - _ensure_decimal_or_zero(total_fee))
+
+    friction = calculate_friction_breakdown(
+        total_fee=total_fee,
+        slippage_cost=slippage_cost,
+        latency_cost=latency_cost,
+        partial_penalty=partial_penalty,
+        entry_side=entry_side,
+        exit_side=exit_side,
+        entry_bid=entry_bid,
+        entry_ask=entry_ask,
+        exit_bid=exit_bid,
+        exit_ask=exit_ask,
+        entry_qty=entry_qty,
+        exit_qty=exit_qty,
+        return_decimal=True,
+    )
+    exec_cost_total = friction["exec_cost_total"]
+    net_pnl_full = _quantize(gross - exec_cost_total)
+
+    payload: Dict[str, Union[float, Decimal]] = {
+        "gross_pnl": gross,
+        "realized_pnl": realized,
+        "net_pnl_full": net_pnl_full,
+        "exec_cost_total": exec_cost_total,
+        "fee_total": friction["fee_total"],
+        "slippage_cost": friction["slippage_cost"],
+        "latency_cost": friction["latency_cost"],
+        "partial_fill_penalty": friction["partial_fill_penalty"],
+        "spread_cost": friction["spread_cost"],
+    }
+
+    if return_decimal:
+        return payload
+
+    return {key: float(value) for key, value in payload.items()}
 
 
 def is_win(realized_pnl: Union[float, Decimal]) -> bool:

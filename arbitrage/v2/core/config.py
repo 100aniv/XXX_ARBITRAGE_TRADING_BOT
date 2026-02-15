@@ -83,6 +83,23 @@ class ObiDynamicThresholdConfig:
 
 
 @dataclass
+class TailFilterConfig:
+    """Tail-only 임계치 설정 (net_edge_bps 기반)"""
+    enabled: bool = False
+    warmup_sec: int = 180
+    percentile: float = 0.95
+    min_samples: int = 50
+
+    def __post_init__(self):
+        if self.warmup_sec < 0:
+            raise ValueError("tail_filter.warmup_sec는 0 이상이어야 합니다")
+        if not (0 < self.percentile < 1):
+            raise ValueError("tail_filter.percentile는 0~1 범위여야 합니다")
+        if self.min_samples < 0:
+            raise ValueError("tail_filter.min_samples는 0 이상이어야 합니다")
+
+
+@dataclass
 class OrderSizePolicyConfig:
     """주문 크기 정책 설정"""
     mode: str  # "fixed_quote" or "risk_based"
@@ -100,6 +117,7 @@ class StrategyConfig:
     negative_edge_floor_bps: float = 0.0
     obi_filter: ObiFilterConfig = field(default_factory=ObiFilterConfig)
     obi_dynamic_threshold: ObiDynamicThresholdConfig = field(default_factory=ObiDynamicThresholdConfig)
+    tail_filter: TailFilterConfig = field(default_factory=TailFilterConfig)
 
 
 @dataclass
@@ -437,6 +455,14 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         min_pass_rate=float(obi_dynamic_raw.get('min_pass_rate', 0.05)),
         min_samples=int(obi_dynamic_raw.get('min_samples', 50)),
     )
+
+    tail_filter_raw = strategy_raw.get('tail_filter') or {}
+    tail_filter = TailFilterConfig(
+        enabled=bool(tail_filter_raw.get('enabled', False)),
+        warmup_sec=int(tail_filter_raw.get('warmup_sec', 180)),
+        percentile=float(tail_filter_raw.get('percentile', 0.95)),
+        min_samples=int(tail_filter_raw.get('min_samples', 50)),
+    )
     
     strategy = StrategyConfig(
         threshold=threshold,
@@ -449,6 +475,7 @@ def load_config(config_path: str = "config/v2/config.yml") -> V2Config:
         negative_edge_floor_bps=float(strategy_raw.get('negative_edge_floor_bps', 0.0)),
         obi_filter=obi_filter,
         obi_dynamic_threshold=obi_dynamic_threshold,
+        tail_filter=tail_filter,
     )
 
     fill_probability_raw = strategy_raw.get("fill_probability") or raw_config.get("fill_probability") or {}
