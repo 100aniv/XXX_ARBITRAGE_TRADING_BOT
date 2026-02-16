@@ -276,7 +276,8 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             raise SystemExit(1)
     
     # 0. D206-1 CLOSEOUT: ProfitCore (config.yml 기반)
-    v2_config = load_config("config/v2/config.yml")
+    config_path = getattr(config, "config_path", None) or "config/v2/config.yml"
+    v2_config = load_config(config_path)
     profit_core = ProfitCore(v2_config.profit_core)
     logger.info(f"[D206-1] ProfitCore loaded: default_price_krw={v2_config.profit_core.default_price_krw}")
 

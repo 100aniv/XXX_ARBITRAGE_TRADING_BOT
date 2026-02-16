@@ -7045,6 +7045,29 @@ enable_execution: false       # REQUIRED
 **주의:**
 - FIX-3 (DB strict/persistence)는 별도 D_ALPHA-1U-FIX-3로 유지, 선행 완료 금지.
 
+**D_ALPHA-1U-FIX-2-2: OrderIntent Price Guard + D206-1 Profitability Matrix Stabilization**
+
+**상태:** COMPLETED (2026-02-17)
+**목표:** `OrderIntent.price` 오접근 런타임 오류를 제거하고, 1분 matrix 증거 런에서 민감도/수익성 아티팩트를 안정적으로 완주한다.
+
+**Acceptance Criteria:**
+- [x] AC-1: `PaperOrchestrator`에서 `OrderIntent.price`/`quantity` 직접 접근 제거, quote notional 유도 경로(`quote_amount/base_qty/limit_price/ref_price`)로 교체.
+- [x] AC-2: Orchestrator loop의 모든 주요 `continue` 분기(`candidate_none`, `admin_paused`, `symbol_blacklisted`, `cooldown`, `intent_conversion_failed`, `execution_reject`)에서 cycle pacing 강제.
+- [x] AC-3: 회귀 테스트 추가 및 PASS - `tests/test_d_alpha_1u_fix_2_reality_welding.py::test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`.
+- [x] AC-4: D206-1 proof matrix 재실행 PASS (top20/top50 x 5 seeds = 10 runs), `failed_runs=False`, `has_negative_pnl=False`, `missing_percentiles=[]`.
+- [x] AC-5: runtime config 주입 경로 유지 (`runtime_factory`에서 `config_path` 우선 로드) + proof harness에서 `negative_edge_execution_probability=0.0`, `min_net_edge_bps>=40`, `edge_distribution_stride=1` 적용.
+
+**Evidence 경로:**
+- Matrix PASS: `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/`
+  - `profitability_matrix.json` (negative runs 0, failed runs 0)
+  - `sensitivity_report.json` (required percentiles 0.90~0.99 complete)
+  - `profitability_matrix.md`
+- Regression test: `tests/test_d_alpha_1u_fix_2_reality_welding.py`
+- 관련 코드:
+  - `arbitrage/v2/core/orchestrator.py`
+  - `arbitrage/v2/core/runtime_factory.py`
+  - `scripts/run_d206_1_profit_proof_matrix.py`
+
 ---
 
 #### D_ALPHA-2: OBI Filter & Ranking (HFT Intelligence v1)

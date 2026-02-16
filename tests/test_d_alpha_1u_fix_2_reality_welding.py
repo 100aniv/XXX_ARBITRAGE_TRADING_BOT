@@ -196,3 +196,72 @@ def test_ac3_allow_unprofitable_creates_intents():
     candidate.allow_unprofitable = False
     blocked = candidate_to_order_intents(candidate, quote_amount=100000.0)
     assert blocked == []
+
+
+def test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr(tmp_path):
+    profit_core = ProfitCore(
+        ProfitCoreConfig(default_price_krw=100000.0, default_price_usdt=100.0)
+    )
+    adapter_config = {
+        "mock_adapter": {
+            "enable_slippage": True,
+            "slippage_bps_min": 0.0,
+            "slippage_bps_max": 0.0,
+            "pessimistic_drift_bps_min": 0.0,
+            "pessimistic_drift_bps_max": 0.0,
+            "latency_base_ms": 0.0,
+            "latency_jitter_ms": 0.0,
+            "partial_fill_probability": 0.0,
+            "fill_reject_probability": 0.0,
+            "random_seed": 17,
+        }
+    }
+    executor = PaperExecutor(profit_core, adapter_config=adapter_config)
+
+    candidate = OpportunityCandidate(
+        symbol="BTC/KRW",
+        exchange_a="upbit",
+        exchange_b="binance",
+        price_a=100000.0,
+        price_b=101000.0,
+        spread_bps=99.0099,
+        break_even_bps=10.0,
+        edge_bps=89.0099,
+        direction=OpportunityDirection.BUY_A_SELL_B,
+        profitable=True,
+        deterministic_drift_bps=0.0,
+        net_edge_bps=89.0099,
+        net_edge_after_exec_bps=70.0,
+        exec_model_version="v1",
+    )
+    source = OneShotSource(candidate)
+
+    config = PaperRunnerConfig(
+        duration_minutes=0.001,
+        phase="smoke",
+        output_dir=str(tmp_path),
+        db_mode="off",
+    )
+    config.symbols = [("BTC/KRW", "BTC/USDT")]
+    config.cycle_interval_seconds = 0.0
+
+    kpi = PaperMetrics()
+    collector = EvidenceCollector(output_dir=str(tmp_path), run_id=config.run_id)
+
+    orch = PaperOrchestrator(
+        config=config,
+        opportunity_source=source,
+        executor=executor,
+        ledger_writer=DummyLedgerWriter(),
+        kpi=kpi,
+        evidence_collector=collector,
+        run_id=config.run_id,
+    )
+
+    exit_code = orch.run()
+    assert exit_code == 0
+    assert kpi.closed_trades == 1
+    assert len(orch.trade_history) == 1
+    row = orch.trade_history[0]
+    assert "expected_net_pnl_after_friction" in row
+    assert isinstance(row["expected_net_pnl_after_friction"], float)

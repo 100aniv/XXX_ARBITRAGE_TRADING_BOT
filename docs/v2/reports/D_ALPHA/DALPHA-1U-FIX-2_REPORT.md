@@ -357,3 +357,52 @@ python -m arbitrage.v2.harness.paper_runner --duration 20 --phase edge_survey --
 5. PnL 분해 스케일 상식선 유지 (friction < 1.1% notional)
 
 **다음 단계:** D_ALPHA-2 (OBI Filter & Ranking) 진입 가능
+
+---
+
+## Addendum (2026-02-17): D_ALPHA-1U-FIX-2-2 OrderIntent Price Guard + D206-1 Matrix Stabilization
+
+### 배경
+
+REAL PAPER 경로에서 trade-history enrichment 시 `OrderIntent.price` 접근으로 런타임 `AttributeError`가 발생했다.
+또한 1분 proof matrix 환경에서 edge distribution 샘플 부족/음수 PnL 런이 간헐 발생하여 tail sensitivity 증거가 불안정했다.
+
+### 적용 사항
+
+1. `PaperOrchestrator` 런타임 보강
+   - `OrderIntent.price/quantity` 직접 접근 제거
+   - `quote_amount -> base_qty*limit_price -> base_qty*ref_price` 순서로 quote notional 유도
+   - 주요 `continue` 분기 전체에 cycle pacing 강제 적용
+2. 회귀 테스트 추가
+   - `test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`
+3. Proof harness 안정화
+   - `negative_edge_execution_probability=0.0`
+   - `min_net_edge_bps >= 40.0`
+   - `edge_distribution_stride=1`, `edge_distribution_max_samples=20000`
+4. Runtime config 주입 일관화
+   - `runtime_factory`에서 `config_path` 우선 로드
+
+### 재실행 결과 (Matrix PASS)
+
+- Evidence Root: `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/`
+- Run Set: top20/top50 × seeds(20260216~20260220) = 10 runs
+- `profitability_matrix.json`
+  - `failure_analysis.has_failures = False`
+  - `failure_analysis.has_negative_pnl = False`
+  - `failure_analysis.has_rest_in_tick_violation = False`
+- `sensitivity_report.json` + validation
+  - required percentiles 0.90~0.99 모두 충족
+  - `missing_percentiles = []`
+
+### 검증 결과
+
+- Regression: `pytest -q tests/test_d_alpha_1u_fix_2_reality_welding.py` PASS
+- D206-1 proof matrix script: ExitCode=0, 최종 `[D206-1 PROOF] PASS`
+
+### 관련 파일
+
+- `arbitrage/v2/core/orchestrator.py`
+- `arbitrage/v2/core/runtime_factory.py`
+- `scripts/run_d206_1_profit_proof_matrix.py`
+- `tests/test_d_alpha_1u_fix_2_reality_welding.py`
+- `D_ROADMAP.md` (D_ALPHA-1U-FIX-2-2 섹션 추가)

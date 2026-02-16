@@ -310,8 +310,17 @@ class PaperOrchestrator:
             if cycle_interval_sec < 0:
                 cycle_interval_sec = 0.0
 
+            def _sleep_for_cycle_pacing(iteration_started_at: float) -> None:
+                if cycle_interval_sec <= 0:
+                    return
+                elapsed = time.time() - iteration_started_at
+                remaining = cycle_interval_sec - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
+
             while time.time() - start_time < duration_sec:
                 iteration += 1
+                iteration_started_at = time.time()
                 
                 if self._stop_requested:
                     if self._sigterm_received:
@@ -329,6 +338,7 @@ class PaperOrchestrator:
                     self._append_edge_sample(iteration, edge_sample)
                 if not candidate:
                     self.kpi.bump_reject("candidate_none")
+                    _sleep_for_cycle_pacing(iteration_started_at)
                     continue
                 
                 self.kpi.opportunities_generated += 1
@@ -337,10 +347,12 @@ class PaperOrchestrator:
                 if self.admin_control:
                     if not self.admin_control.should_process_tick():
                         self.kpi.bump_reject("admin_paused")
+                        _sleep_for_cycle_pacing(iteration_started_at)
                         continue
                     
                     if self.admin_control.is_symbol_blacklisted(candidate.symbol):
                         self.kpi.bump_reject("symbol_blacklisted")
+                        _sleep_for_cycle_pacing(iteration_started_at)
                         continue
                 
                 # D207-1-6: Realism Pack v1 - min hold & loss cooldown
@@ -365,6 +377,7 @@ class PaperOrchestrator:
                         f"[D207-1-6] Cooldown active ({cooldown_reason}), remaining={cooldown_remaining:.2f}s"
                     )
                     time.sleep(min(1.0, cooldown_remaining))
+                    _sleep_for_cycle_pacing(iteration_started_at)
                     continue
 
                 # 2. Intent 변환
@@ -390,6 +403,7 @@ class PaperOrchestrator:
                 intents = candidate_to_order_intents(candidate, quote_amount=quote_amount)
                 if not intents or len(intents) != 2:
                     self.kpi.bump_reject("intent_conversion_failed")
+                    _sleep_for_cycle_pacing(iteration_started_at)
                     continue
                 
                 self.kpi.intents_created += len(intents)
@@ -466,6 +480,7 @@ class PaperOrchestrator:
                         f"[D_ALPHA-1U-FIX-2-1] Execution rejected: entry={entry_result.success}, "
                         f"exit={exit_result.success}"
                     )
+                    _sleep_for_cycle_pacing(iteration_started_at)
                     continue
                 
                 # 4. DB 기록
@@ -576,6 +591,43 @@ class PaperOrchestrator:
                 net_pnl_full = pnl_weld["net_pnl_full"]
                 exec_cost_total = pnl_weld["exec_cost_total"]
                 spread_cost = pnl_weld["spread_cost"]
+                entry_theoretical_spread_bps = float(getattr(candidate, "spread_bps", 0.0) or 0.0)
+                expected_net_edge_bps = float(
+                    getattr(candidate, "net_edge_after_exec_bps", getattr(candidate, "net_edge_bps", 0.0)) or 0.0
+                )
+                expected_quote_amount = 0.0
+                if intents:
+                    entry_intent = intents[0]
+                    quote_amount = getattr(entry_intent, "quote_amount", None)
+                    if quote_amount is not None and float(quote_amount) > 0:
+                        expected_quote_amount = float(quote_amount)
+                    else:
+                        base_qty = getattr(entry_intent, "base_qty", None)
+                        if base_qty is not None and float(base_qty) > 0:
+                            limit_price = getattr(entry_intent, "limit_price", None)
+                            if limit_price is not None and float(limit_price) > 0:
+                                expected_quote_amount = float(base_qty) * float(limit_price)
+                            else:
+                                ref_entry_price = (
+                                    float(ref_price_0)
+                                    if ref_price_0 is not None and float(ref_price_0) > 0
+                                    else float(getattr(candidate, "price_a", 0.0) or 0.0)
+                                )
+                                expected_quote_amount = float(base_qty) * ref_entry_price
+                expected_net_pnl_after_friction = expected_quote_amount * (expected_net_edge_bps / 10000.0)
+
+                partial_fill_zero_guard_flag = False
+                partial_fill_zero_guard_reason = ""
+                if float(partial_penalty) == 0.0 and getattr(candidate, "exec_model_version", None):
+                    partial_fill_zero_guard_flag = True
+                    partial_fill_zero_guard_reason = (
+                        "partial_fill_penalty=0.0 while execution-quality model was used for entry decision"
+                    )
+                    logger.info(
+                        "[ZERO-PASS-GUARD] Potential model defect: trade_id_pending, symbol=%s, reason=%s",
+                        candidate.symbol,
+                        partial_fill_zero_guard_reason,
+                    )
                 is_win = net_pnl_full > Decimal("0")
                 
                 self._trade_seq += 1
@@ -632,7 +684,10 @@ class PaperOrchestrator:
                     "iteration": iteration,
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                     "candidate_spread_bps": candidate.spread_bps,
+                    "theoretical_spread_bps": entry_theoretical_spread_bps,
                     "candidate_edge_bps": candidate.edge_bps,
+                    "expected_net_edge_after_friction_bps": expected_net_edge_bps,
+                    "expected_net_pnl_after_friction": expected_net_pnl_after_friction,
                     "candidate_break_even_bps": candidate.break_even_bps,
                     "candidate_direction": candidate.direction.value,
                     "candidate_profitable": candidate.profitable,
@@ -675,6 +730,8 @@ class PaperOrchestrator:
                     "slippage_cost": float(slippage_cost),
                     "latency_cost": float(latency_cost),
                     "partial_fill_penalty": float(partial_penalty),
+                    "partial_fill_zero_guard_flag": partial_fill_zero_guard_flag,
+                    "partial_fill_zero_guard_reason": partial_fill_zero_guard_reason,
                     "spread_cost": float(spread_cost),
                     "exec_cost_total": float(exec_cost_total),
                 })
@@ -685,9 +742,8 @@ class PaperOrchestrator:
                         f"[D207-1 KPI] iter={iteration}, opp={self.kpi.opportunities_generated}, "
                         f"closed={self.kpi.closed_trades}, pnl_full={self.kpi.net_pnl_full:.2f}"
                     )
-                
-                if cycle_interval_sec > 0:
-                    time.sleep(cycle_interval_sec)
+
+                _sleep_for_cycle_pacing(iteration_started_at)
             
             logger.info(f"[D207-1] Orchestrator completed: {iteration} iterations")
 
