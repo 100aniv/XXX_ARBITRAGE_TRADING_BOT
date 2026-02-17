@@ -7891,5 +7891,28 @@ enable_execution: false       # REQUIRED
 - D_ALPHA-2 AC 표기를 OPEN-only + DONE closeout 형태로 정규화.
 - D_ALPHA-2 내부 중복 evidence/gate 라인은 canonical closeout 참조 링크로 정리.
 
+### Targeted Canonicalization Table (TURN5 + Alpha2 + D207/Matrix)
+
+| scope | duplicate/conflict signal | canonical status/reference | normalization action |
+|---|---|---|---|
+| TURN5 | D207-1에 TURN5 FAIL/RETRY 기록 + D207-6에 TURN5 Recovery 기록 동시 존재 | TURN5는 현재 상태가 아닌 historical experiment/rerun tag로만 해석 (`신 D207-1`, `신 D207-6`) | 상태 판정은 각 step의 `상태:` 헤더를 기준으로 고정하고, TURN5 라벨은 증거 설명 용도로만 유지 |
+| D_ALPHA-1U-FIX-2-2 | D206 matrix 안정화 내용이 Alpha fix 섹션과 matrix evidence에 분산 | canonical step은 `D_ALPHA-1U-FIX-2-2`, canonical evidence는 `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/` | matrix 경로는 해당 step에 단일 연결하고 Canonical Evidence Index에 1회 등록 |
+| D_ALPHA-2 | 메인 섹션(IN PROGRESS) + 하단 reference snapshot(legacy completed block) 공존 | status DB는 메인 `#### D_ALPHA-2` 섹션이 단일 기준 | 하단 `## D_ALPHA-2` 블록은 REFERENCE로 한정하고 상태 판정에서 제외 |
+| 신 D207-6 | rerun 기록과 원본 완료 이력이 함께 표기 | canonical note: rerun evidence는 보조 증거, 신규 COMPLETED 아님 | `상태: 🔁 RERUN 기록` + SSOT note 유지 |
+| 신 D207-7 | D207-6/Alpha2 문맥에서 tail survey 증거가 혼용될 수 있음 | canonical step: `신 D207-7`, status=`✅ COMPLETED` | D207-7 evidence는 D207-7 문맥으로 고정, 타 step에는 참조 링크만 허용 |
+| D206 / profit_matrix | D206 matrix 언급이 여러 step/리포트에 산재 | canonical matrix ownership: `D_ALPHA-1U-FIX-2-2` AC-4 | `profitability_matrix` KPI 인용은 canonical step 링크(`See`)로 통일 |
+
+### AC Registry (Targeted Steps)
+
+| step_id | AC total | AC done | AC open | canonical evidence |
+|---|---:|---:|---:|---|
+| 신 D207-1 | 7 | 7 | 0 | `logs/evidence/20260213_074858_turn6_ws_real_20m/` |
+| D_ALPHA-1U-FIX-2-2 | 5 | 5 | 0 | `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/` |
+| D_ALPHA-2 | 6 | 5 | 1 | `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/` |
+| 신 D207-6 | 6 | 6 | 0 | `logs/evidence/d207_6_alpha_survey_20m/` |
+| 신 D207-7 | 6 | 6 | 0 | `logs/evidence/d207_7_survey_top100_v2/`, `logs/evidence/d207_7_survey_top200/` |
+
+Registry rule: 상태 충돌이 보이면 메인 step header(`상태:`) + 이 AC Registry를 우선 적용한다.
+
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

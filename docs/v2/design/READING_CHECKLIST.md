@@ -120,3 +120,11 @@
 - docs/v2/OPS_PROTOCOL.md — 확인: 운영 기록 규칙(Task ID/RERUN) 적용 여부 확인.
 - docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 DocOps 업데이트 대상 문서 확인.
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: DocOps/Gate 증거 저장 규칙 재확인.
+
+## Step 0 Reading (Engine-Centric Purge + Welding Audit + Roadmap Sanitize)
+
+- D_ROADMAP.md — 확인: TURN5, D_ALPHA-1U-FIX-2-2, D_ALPHA-2, D207-6/7, D206 matrix 참조 충돌/중복 구간과 canonicalization 기준.
+- docs/v2/SSOT_RULES.md — 확인: AC 삭제 금지, Additive-only, Gate/DocOps 강제 규칙.
+- docs/v2/V2_ARCHITECTURE.md — 확인: Engine-Centric 원칙과 harness/scripts thin wrapper 경계.
+- docs/v2/design/ENGINE_CENTRIC_PURGE_AUDIT.md — 확인: scripts/harness 분류와 thin-wrapper 이행 상태 업데이트 대상.
+- docs/v2/design/WELDING_AUDIT.md — 확인: friction/PnL canonical API 단일 진실 경로와 guard 적용 범위.

@@ -20,6 +20,16 @@ ALLOWED_FILES = {
     Path("arbitrage/v2/domain/pnl_calculator.py"),
 }
 
+EXCLUDED_DIR_PARTS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+
 FORBIDDEN_PATTERNS: Dict[str, re.Pattern[str]] = {
     "local_slippage_helper": re.compile(r"def\s+_calc_slippage_cost\s*\("),
     "local_latency_helper": re.compile(r"def\s+_calc_latency_cost\s*\("),
@@ -31,9 +41,14 @@ FORBIDDEN_PATTERNS: Dict[str, re.Pattern[str]] = {
 
 def _iter_target_files() -> List[Path]:
     files: List[Path] = []
-    for pattern in ("arbitrage/**/*.py", "scripts/**/*.py"):
-        files.extend(ROOT.glob(pattern))
-    return sorted({path for path in files if path.is_file()})
+    for abs_path in ROOT.rglob("*.py"):
+        if not abs_path.is_file():
+            continue
+        rel_path = abs_path.relative_to(ROOT)
+        if any(part in EXCLUDED_DIR_PARTS for part in rel_path.parts):
+            continue
+        files.append(abs_path)
+    return sorted(set(files))
 
 
 def main() -> int:

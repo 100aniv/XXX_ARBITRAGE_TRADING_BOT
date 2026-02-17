@@ -5,7 +5,7 @@ from pathlib import Path
 # Project root bootstrap
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from arbitrage.v2.core.topn_stress import cli_main
+from arbitrage.v2.tools.topn_stress import cli_main
 
 
 if __name__ == "__main__":
