@@ -406,3 +406,65 @@ REAL PAPER 경로에서 trade-history enrichment 시 `OrderIntent.price` 접근�
 - `scripts/run_d206_1_profit_proof_matrix.py`
 - `tests/test_d_alpha_1u_fix_2_reality_welding.py`
 - `D_ROADMAP.md` (D_ALPHA-1U-FIX-2-2 섹션 추가)
+
+---
+
+## Addendum (2026-02-17): Autopilot A/B/C + D(min)
+
+### A) Roadmap Sanitize
+
+- `D_ROADMAP.md` cross-step duplicate evidence 경로를 canonical `See:` 링크로 정리
+- D_ALPHA-2 AC 표기 정규화
+  - OPEN only: AC-1
+  - DONE closeout: AC-2/3/4/5/6
+- `Roadmap Sanitize Addendum` + `Canonical Evidence Index` + `Roadmap Diff Summary` 추가
+
+### B) Welding Audit (Single Source)
+
+- Welding truth API 도입:
+  - `calculate_execution_friction_from_results(...)` in `arbitrage/v2/domain/pnl_calculator.py`
+- `orchestrator.py` inline friction math 제거 후 canonical API 호출로 통합
+- 테스트도 canonical API 경유로 정리:
+  - `tests/test_d_alpha_1u_fix_2_latency_cost_decomposition.py`
+  - `tests/test_d_alpha_3_pnl_welded.py`
+- Audit 문서 생성:
+  - `docs/v2/design/WELDING_AUDIT.md`
+
+### C) Engine-Centric Purge
+
+- business logic move:
+  - `arbitrage/v2/core/topn_stress.py` 신규 (core 소유)
+- thin wrapper 전환:
+  - `arbitrage/v2/harness/topn_stress.py`
+  - `scripts/run_d205_8_topn_stress.py`
+- purge audit 문서 생성:
+  - `docs/v2/design/ENGINE_CENTRIC_PURGE_AUDIT.md`
+
+### Guardrails (Gate/Preflight)
+
+- `scripts/check_no_duplicate_pnl.py` 신규
+- `scripts/check_engine_centricity.py` 신규
+- `scripts/run_gate_with_evidence.py`에 preflight 통합
+  - duplicate pnl guard FAIL 시 gate 중단
+  - engine-centricity guard FAIL 시 gate 중단
+
+### D) Next OPEN AC minimal implementation
+
+- 선택 AC: D_ALPHA-2 AC-6 (MODEL_ANOMALY 원인 분해 + 코드 경로 연결)
+- 결과물:
+  - `docs/v2/reports/D_ALPHA/DALPHA-2-AC6_REPORT.md`
+- D_ROADMAP 반영: AC-6 DONE closeout 추가
+
+### Verification
+
+- Unit subset PASS:
+  - `tests/test_d_alpha_1u_fix_2_latency_cost_decomposition.py`
+  - `tests/test_d_alpha_3_pnl_welded.py`
+  - `tests/test_d205_8_topn_stress.py`
+- Guards PASS:
+  - `python scripts/check_no_duplicate_pnl.py`
+  - `python scripts/check_engine_centricity.py`
+- Gate PASS:
+  - Doctor: `logs/evidence/20260217_100439_gate_doctor_8c6726e/`
+  - Fast: `logs/evidence/20260217_100459_gate_fast_8c6726e/`
+  - Regression: `logs/evidence/20260217_100725_gate_regression_8c6726e/`

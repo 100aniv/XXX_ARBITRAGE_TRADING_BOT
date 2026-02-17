@@ -6049,7 +6049,7 @@ logs/evidence/d205_15_6_smoke_10m_<timestamp>/
 **Strategy:** V1 ArbitrageEngine 핵심 로직 100% V2 통합 → Config SSOT 복원 → 주문 파이프라인 완성  
 **Constitutional Basis:** "돈 버는 알고리즘 우선" (SSOT_RULES.md), Scan-First → Reuse-First (V1 유산 강제 재사용)
 
-**Reality Scan:** `logs/evidence/ROADMAP_REBASE_SCAN_20260116_133527/scan_summary.md`
+**Reality Scan:** See `## 🔄 REBASELOG (2026-01-16)` / `logs/evidence/ROADMAP_REBASE_SCAN_20260116_133527/scan_summary.md`
 
 **현재 문제 (구 D206-1 eddcc66 패치 검증):**
 - ❌ V1 도메인 모델 미통합 (OrderBookSnapshot, ArbitrageOpportunity, ArbitrageTrade는 dict로만 흉내)
@@ -6442,7 +6442,7 @@ enable_execution: false       # REQUIRED
 
 **Evidence (확인됨)**
 - `logs/evidence/d207_1_baseline_20m_20260119_final/` (20분, trades=3654, winrate=0%, net_pnl=-7,527,365 KRW)
-- `logs/evidence/d207_3_baseline_20m_20260121_1145/` (20분, trades=0, winrate=0%, net_pnl=0 KRW, stop_reason=TIME_REACHED)
+- See: `신 D207-3` / `logs/evidence/d207_3_baseline_20m_20260121_1145/`
 - `logs/evidence/20260212_d207_1_turn5_fail/D207_1_TURN5_FAIL_REPORT.md` ❌ TURN5 FAIL (E[partial_fill_cost] 선반영 → 0 trades)
 - `logs/evidence/20260213_014710_turn5_ws_real_20m/` ❌ TURN5 RETRY (net_pnl_full=-7.11, partial_fill_penalty=13.02)
 - `logs/evidence/20260213_074858_turn6_ws_real_20m/` ✅ TURN6 PASS (net_pnl_full=4.71, partial_fill_penalty=0.0, trades=31)
@@ -6967,7 +6967,7 @@ enable_execution: false       # REQUIRED
   - 결과: 100/100 symbols loaded, coverage_ratio=1.00, wallclock=51.08s
   - 파일: `arbitrage/domain/topn_provider.py`, `arbitrage/exchanges/binance_public_data.py`, `arbitrage/v2/universe/builder.py`
   - 테스트: `tests/test_binance_futures_filter.py`, `tests/test_d77_0_topn_arbitrage_paper.py`, `tests/test_d_alpha_0_universe_truth.py`
-- **ALPHA 병행 기록:** D205-10-1-1 Thin Wrapper 정리 완료 (Evidence: `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/`)
+- **ALPHA 병행 기록:** See `D205-10-1-1` / `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/`
 
 **D_ALPHA-1U-FIX-2: Reality Welding & Persistence Lock (Latency Cost Decomposition)**
 
@@ -7074,16 +7074,18 @@ enable_execution: false       # REQUIRED
 
 **상태:** IN PROGRESS (2026-02-04)  
 **현재 진행 Task ID:** D_ALPHA-2 (Alpha2 진행 중 SSOT 기준)
-**RERUN 참고:** D207-6 REAL 20m (`logs/evidence/d207_6_alpha_survey_20m/`)은 Alpha2 보조 증거이며 신규 COMPLETED 아님.
+**RERUN 참고:** See `신 D207-6` / `logs/evidence/d207_6_alpha_survey_20m/` (Alpha2에서는 링크만 유지, KPI 원문은 D207-6 canonical).
 **목적:** “아무 기회나”가 아니라 **OBI로 유리한 순간만** 골라 메이커 진입을 보조.
 
-**Acceptance Criteria:**
+**Acceptance Criteria (OPEN only):**
 - [ ] AC-1: OBI 계산 표준화 및 **수익 구간 진입을 위한 동적 임계치(Dynamic Threshold)**가 엔진에 내장된다.
-- [ ] AC-2: TopN 후보를 OBI로 랭킹하고 “왜 선택했는지”를 아티팩트로 남긴다.
-- [ ] AC-3: 최소 1회 이상 positive net edge 샘플을 확보하거나, 실패 원인이 ‘시장구조/수수료/체결확률’로 분해된다.
-- [ ] AC-4: Regression Gate **skipped=0** 달성 (Zero-Skip 준수, skip 사유 제거 또는 실행 가능화).
-- [x] AC-5: OBI ON 20m survey **TIME_REACHED** 완주 증거 확보 (watch_summary/kpi/engine_report/FACT_CHECK).
-- [ ] AC-6: MODEL_ANOMALY 원인 분해 보고(시간진실/시장구조/수수료/체결확률) + 코드 경로 연결 증거.
+
+**Closeout (DONE AC):**
+- DONE: AC-2, AC-3, AC-4, AC-5, AC-6
+- Commit: `11f6762`, `ee4a9d6`
+- Canonical Evidence: `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`
+- Canonical Gate: `logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, `logs/evidence/20260207_212001_gate_fast_ee4a9d6/`, `logs/evidence/20260207_212255_gate_regression_ee4a9d6/`
+- AC-6 Report: `docs/v2/reports/D_ALPHA/DALPHA-2-AC6_REPORT.md`
 
 **Alpha Fast Lane (Latency + Universe Slim, 2026-02-10):**
 - 코드: `46f155b2` (Alpha Fast Lane latency + universe defaults)
@@ -7244,15 +7246,7 @@ enable_execution: false       # REQUIRED
   - Regression: PASS (`logs/evidence/20260207_212255_gate_regression_ee4a9d6/`, skipped=0)
   - OBI ON 20m survey: stop_reason=TIME_REACHED (`logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`)
   - KPI: closed_trades=11, gross_pnl=3.72, net_pnl_full=-1.68, fees=0.11, winrate=72.73%, db_inserts_ok=55
-- [x] (2026-02-06) AC-4: Regression Gate skipped=1 (WebSocket L2 provider, ALPHA-2 무관) ✅
-- [x] AC-5: OBI ON 20m survey TIME_REACHED 완주 증거 확보 ✅
-
-**잔여 AC (follow-up):**
-- [ ] AC-1: OBI 계산 표준화 + 동적 임계치 (별도 D-step)
-- [x] AC-2: TopN OBI 랭킹 + 아티팩트 (별도 D-step)
-- [x] AC-3: positive net edge 샘플 확보 또는 실패 원인 분해 (슬리피지 모델 현실화 필요: winrate 100% → 50~80%)
-- [x] AC-4: Regression Gate zero-skip (skip=0)
-- [ ] AC-6: MODEL_ANOMALY 원인 분해 보고 (survey_mode 완화로 해결, 추가 분석 필요)
+- AC 상태 표준화: OPEN AC는 상단 `Acceptance Criteria (OPEN only)`를 canonical로 사용한다.
 
 **OBI OFF 20m smoke (조기 종료, 2026-02-05) — FAIL:**
 - Evidence: `logs/evidence/d_alpha_2_obi_off_smoke_20m_20260205_005828/`
@@ -7266,8 +7260,8 @@ enable_execution: false       # REQUIRED
 - `logs/evidence/d_alpha_2_obi_filter_*/edge_survey_report.json`
 - `logs/evidence/d_alpha_2_obi_off_*/` (OBI disabled: 2m smoke + 20m survey)
 - `logs/evidence/d_alpha_2_obi_on_*/` (OBI enabled: 2m smoke + 20m survey)
-- `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/` (OBI ON 20m, TIME_REACHED)
-- Gate Doctor/Fast/Regression: `logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, `logs/evidence/20260207_212001_gate_fast_ee4a9d6/`, `logs/evidence/20260207_212255_gate_regression_ee4a9d6/`
+- See (canonical): `D_ALPHA-2` closeout block / `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/`
+- See (canonical): `D_ALPHA-2` closeout block / `logs/evidence/20260207_211341_gate_doctor_ee4a9d6/`, `logs/evidence/20260207_212001_gate_fast_ee4a9d6/`, `logs/evidence/20260207_212255_gate_regression_ee4a9d6/`
 - DocOps/Boundary: `logs/evidence/dalpha_2_final_docops_20260207_215500/`
 - 테스트: `tests/test_d_alpha_2_pnl_ssot.py`
 - Report: `docs/v2/reports/D_ALPHA/DALPHA-2-UNBLOCK-2_REPORT.md`
@@ -7873,6 +7867,29 @@ enable_execution: false       # REQUIRED
 > - Boundary: PASS (check_v2_boundary.py exitcode=0)
 
 ---
+
+## Roadmap Sanitize Addendum (2026-02-17)
+
+### Canonical Evidence Index
+
+| evidence_path | canonical_step_id | date | kpi summary |
+|---|---|---|---|
+| `logs/evidence/ROADMAP_REBASE_SCAN_20260116_133527/scan_summary.md` | `## 🔄 REBASELOG (2026-01-16)` | 2026-01-16 | n/a (roadmap reality scan artifact) |
+| `logs/evidence/STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739/` | `#### D205-10-1-1` | 2026-02-01 | n/a (bootstrap/docops artifact) |
+| `logs/evidence/d207_3_baseline_20m_20260121_1145/` | `#### 신 D207-3` | 2026-01-21 | net_pnl_full≈0, closed_trades=0, rest_in_tick_count=n/a, stop_reason=TIME_REACHED |
+| `logs/evidence/d207_6_alpha_survey_20m/` | `#### 신 D207-6` | 2026-02-09 | net_pnl_full=n/a, closed_trades=n/a, rest_in_tick_count=n/a, stop_reason=TIME_REACHED |
+| `logs/evidence/dalpha_2_final_obi_on_20m_20260207_212559/` | `#### D_ALPHA-2` | 2026-02-07 | net_pnl_full=-1.68, closed_trades=11, rest_in_tick_count=n/a, stop_reason=TIME_REACHED |
+| `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/` | `**D_ALPHA-1U-FIX-2-2**` | 2026-02-17 | matrix: has_negative_pnl=False, failed_runs=False, rest_in_tick_violation=False, missing_percentiles=[] |
+
+### Roadmap Diff Summary
+
+- Cross-step duplicate evidence references sanitized to canonical `See: <step> / <path>` for:
+  - `ROADMAP_REBASE_SCAN_20260116_133527`
+  - `STEP0_BOOTSTRAP_D205_10_THINWRAP_20260201_184739`
+  - `d207_3_baseline_20m_20260121_1145`
+  - `d207_6_alpha_survey_20m`
+- D_ALPHA-2 AC 표기를 OPEN-only + DONE closeout 형태로 정규화.
+- D_ALPHA-2 내부 중복 evidence/gate 라인은 canonical closeout 참조 링크로 정리.
 
 이 문서가 프로젝트의 단일 진실 소스(Single Source of Truth)입니다.
 모든 D 단계의 상태, 진행 상황, 완료 증거는 이 문서에 기록됩니다.

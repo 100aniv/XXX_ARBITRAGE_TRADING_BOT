@@ -13,7 +13,7 @@ Author: arbitrage-lite V2
 Date: 2026-01-10
 """
 
-from typing import Literal, Tuple, Union, Optional, Dict
+from typing import Any, Literal, Tuple, Union, Optional, Dict
 from decimal import Decimal, ROUND_HALF_UP
 
 
@@ -240,6 +240,145 @@ def calculate_friction_breakdown(
         return breakdown
 
     return {key: float(value) for key, value in breakdown.items()}
+
+
+def _slippage_cost_from_result(result: Any) -> Decimal:
+    if not result:
+        return Decimal("0")
+    ref_price = getattr(result, "ref_price", None)
+    filled_qty = getattr(result, "filled_qty", None)
+    if ref_price is None or filled_qty is None:
+        return Decimal("0")
+
+    d_ref = _ensure_decimal_or_zero(ref_price)
+    d_qty = _ensure_decimal_or_zero(filled_qty)
+    if d_ref <= 0 or d_qty <= 0:
+        return Decimal("0")
+
+    slippage_bps = getattr(result, "slippage_bps", None)
+    if slippage_bps is None:
+        filled_price = getattr(result, "filled_price", None)
+        if filled_price is None:
+            return Decimal("0")
+        diff = abs(_ensure_decimal(filled_price) - d_ref)
+        return _quantize(diff * d_qty)
+
+    slippage_ratio = abs(_ensure_decimal(slippage_bps)) / Decimal("10000")
+    return _quantize(abs(d_ref) * slippage_ratio * d_qty)
+
+
+def _latency_cost_from_result(result: Any) -> Decimal:
+    if not result:
+        return Decimal("0")
+    ref_price = getattr(result, "ref_price", None)
+    filled_qty = getattr(result, "filled_qty", None)
+    if ref_price is None or filled_qty is None:
+        return Decimal("0")
+
+    drift_bps = getattr(result, "pessimistic_drift_bps", None)
+    if drift_bps is None:
+        return Decimal("0")
+
+    d_ref = _ensure_decimal_or_zero(ref_price)
+    d_qty = _ensure_decimal_or_zero(filled_qty)
+    if d_ref <= 0 or d_qty <= 0:
+        return Decimal("0")
+
+    slippage_bps = getattr(result, "slippage_bps", 0.0) or 0.0
+    slippage_ratio = abs(_ensure_decimal(slippage_bps)) / Decimal("10000")
+    drift_ratio = abs(_ensure_decimal(drift_bps)) / Decimal("10000")
+    return _quantize(abs(d_ref * (Decimal("1") + slippage_ratio) * drift_ratio * d_qty))
+
+
+def _latency_ms_from_result(result: Any) -> float:
+    if not result:
+        return 0.0
+    latency_ms = getattr(result, "latency_ms", None)
+    if latency_ms is None:
+        return 0.0
+    try:
+        return float(latency_ms)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _partial_penalty_from_results(entry_result: Any, exit_result: Any) -> Decimal:
+    if not entry_result or not exit_result:
+        return Decimal("0")
+
+    entry_qty = getattr(entry_result, "filled_qty", None)
+    exit_qty = getattr(exit_result, "filled_qty", None)
+    if entry_qty is None or exit_qty is None:
+        return Decimal("0")
+
+    qty_diff = abs(_ensure_decimal_or_zero(entry_qty) - _ensure_decimal_or_zero(exit_qty))
+    if qty_diff <= 0:
+        return Decimal("0")
+
+    base_price = getattr(exit_result, "ref_price", None)
+    if base_price is None:
+        base_price = getattr(exit_result, "filled_price", None)
+    if base_price is None:
+        base_price = getattr(entry_result, "ref_price", None)
+    if base_price is None:
+        base_price = getattr(entry_result, "filled_price", None)
+    if base_price is None:
+        return Decimal("0")
+
+    return _quantize(abs(_ensure_decimal(base_price)) * qty_diff)
+
+
+def _reject_count_from_result(result: Any) -> float:
+    if not result:
+        return 0.0
+    return 1.0 if getattr(result, "reject_flag", False) else 0.0
+
+
+def calculate_execution_friction_from_results(
+    entry_result: Any,
+    exit_result: Any,
+    return_decimal: bool = False,
+) -> Dict[str, Union[float, Decimal]]:
+    """
+    Single welding-truth API for execution-result friction decomposition.
+
+    This function is the only allowed place to derive friction totals from
+    OrderResult-like objects (fee/slippage/latency/partial/reject).
+    """
+    fee_total = _quantize(
+        _ensure_decimal_or_zero(getattr(entry_result, "fee", None))
+        + _ensure_decimal_or_zero(getattr(exit_result, "fee", None))
+    )
+    slippage_cost = _quantize(
+        _slippage_cost_from_result(entry_result) + _slippage_cost_from_result(exit_result)
+    )
+    latency_cost = _quantize(
+        _latency_cost_from_result(entry_result) + _latency_cost_from_result(exit_result)
+    )
+    partial_penalty = _quantize(_partial_penalty_from_results(entry_result, exit_result))
+    latency_total_ms = _latency_ms_from_result(entry_result) + _latency_ms_from_result(exit_result)
+    reject_count = _reject_count_from_result(entry_result) + _reject_count_from_result(exit_result)
+
+    payload: Dict[str, Union[float, Decimal]] = {
+        "total_fee": fee_total,
+        "slippage_cost": slippage_cost,
+        "latency_cost": latency_cost,
+        "partial_fill_penalty": partial_penalty,
+        "latency_total_ms": float(latency_total_ms),
+        "reject_count": float(reject_count),
+    }
+
+    if return_decimal:
+        return payload
+
+    return {
+        "total_fee": float(fee_total),
+        "slippage_cost": float(slippage_cost),
+        "latency_cost": float(latency_cost),
+        "partial_fill_penalty": float(partial_penalty),
+        "latency_total_ms": float(latency_total_ms),
+        "reject_count": float(reject_count),
+    }
 
 
 def calculate_net_pnl_full_welded(

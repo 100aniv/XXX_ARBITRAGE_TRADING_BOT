@@ -18,7 +18,7 @@ import logging
 import signal
 import sys
 import time
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from enum import Enum
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timezone
@@ -47,7 +47,10 @@ from arbitrage.v2.core.engine_report import (
 from arbitrage.v2.core.order_intent import OrderSide, OrderType
 from arbitrage.v2.opportunity import OpportunityDirection
 from arbitrage.v2.opportunity.intent_builder import candidate_to_order_intents
-from arbitrage.v2.domain.pnl_calculator import calculate_net_pnl_full_welded
+from arbitrage.v2.domain.pnl_calculator import (
+    calculate_execution_friction_from_results,
+    calculate_net_pnl_full_welded,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -489,85 +492,17 @@ class PaperOrchestrator:
                 
                 # 5. Trade 완료 기록 (D207-1-1 RECOVERY: 아비트라지 PnL 정확성)
                 # Add-on Alpha: Domain-Driven PnL Welding (pnl_calculator.py SSOT)
-                def _to_decimal(value: Optional[float]) -> Decimal:
-                    return Decimal(str(value if value is not None else 0))
-
-                def _quantize(value: Decimal) -> Decimal:
-                    return value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
-
-                total_fee = _to_decimal(entry_result.fee) + _to_decimal(exit_result.fee)
-
-                # D207-1-6: Realism Pack v1 - friction totals (slippage/latency/partial/reject)
-                def _calc_slippage_cost(result) -> Decimal:
-                    if not result:
-                        return Decimal("0")
-                    if result.ref_price is None or result.filled_qty is None:
-                        return Decimal("0")
-                    slippage_bps = getattr(result, "slippage_bps", None)
-                    if slippage_bps is None:
-                        if result.filled_price is None:
-                            return Decimal("0")
-                        diff = abs(_to_decimal(result.filled_price) - _to_decimal(result.ref_price))
-                        return _quantize(diff * _to_decimal(result.filled_qty))
-                    slippage_ratio = abs(_to_decimal(slippage_bps)) / Decimal("10000")
-                    return _quantize(
-                        abs(_to_decimal(result.ref_price)) * slippage_ratio * _to_decimal(result.filled_qty)
-                    )
-
-                def _calc_latency_cost(result) -> Decimal:
-                    if not result:
-                        return Decimal("0")
-                    if result.ref_price is None or result.filled_qty is None:
-                        return Decimal("0")
-                    drift_bps = getattr(result, "pessimistic_drift_bps", None)
-                    if drift_bps is None:
-                        return Decimal("0")
-                    slippage_bps = getattr(result, "slippage_bps", 0.0) or 0.0
-                    slippage_ratio = abs(_to_decimal(slippage_bps)) / Decimal("10000")
-                    drift_ratio = abs(_to_decimal(drift_bps)) / Decimal("10000")
-                    base_price = _to_decimal(result.ref_price)
-                    return _quantize(
-                        abs(base_price * (Decimal("1") + slippage_ratio) * drift_ratio * _to_decimal(result.filled_qty))
-                    )
-
-                def _calc_latency_ms(result) -> float:
-                    if not result or result.latency_ms is None:
-                        return 0.0
-                    return float(result.latency_ms)
-
-                def _calc_partial_penalty(entry, exit) -> Decimal:
-                    if not entry or not exit:
-                        return Decimal("0")
-                    if entry.filled_qty is None or exit.filled_qty is None:
-                        return Decimal("0")
-                    qty_diff = abs(_to_decimal(entry.filled_qty) - _to_decimal(exit.filled_qty))
-                    if qty_diff <= 0:
-                        return Decimal("0")
-                    base_price = (
-                        exit.ref_price
-                        if getattr(exit, "ref_price", None) is not None
-                        else (exit.filled_price if getattr(exit, "filled_price", None) is not None else None)
-                    )
-                    if base_price is None:
-                        base_price = (
-                            entry.ref_price
-                            if getattr(entry, "ref_price", None) is not None
-                            else (entry.filled_price if getattr(entry, "filled_price", None) is not None else None)
-                        )
-                    if base_price is None:
-                        return Decimal("0")
-                    return _quantize(abs(_to_decimal(base_price)) * qty_diff)
-
-                def _calc_reject(result) -> float:
-                    if not result:
-                        return 0.0
-                    return 1.0 if getattr(result, "reject_flag", False) else 0.0
-
-                slippage_cost = _calc_slippage_cost(entry_result) + _calc_slippage_cost(exit_result)
-                latency_cost = _calc_latency_cost(entry_result) + _calc_latency_cost(exit_result)
-                latency_total_ms = _calc_latency_ms(entry_result) + _calc_latency_ms(exit_result)
-                partial_penalty = _calc_partial_penalty(entry_result, exit_result)
-                reject_count = _calc_reject(entry_result) + _calc_reject(exit_result)
+                friction = calculate_execution_friction_from_results(
+                    entry_result=entry_result,
+                    exit_result=exit_result,
+                    return_decimal=True,
+                )
+                total_fee = friction["total_fee"]
+                slippage_cost = friction["slippage_cost"]
+                latency_cost = friction["latency_cost"]
+                latency_total_ms = float(friction["latency_total_ms"])
+                partial_penalty = friction["partial_fill_penalty"]
+                reject_count = float(friction["reject_count"])
 
                 pnl_weld = calculate_net_pnl_full_welded(
                     entry_side=intents[0].side.value,

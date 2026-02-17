@@ -61,6 +61,19 @@ def run_gate_with_evidence(gate_name: str):
     # 명령 기록
     cmd_str = ' '.join(cmd)
     packer.add_command(cmd_str, "Gate execution")
+
+    preflight_checks = [
+        (
+            "check_no_duplicate_pnl",
+            [sys.executable, "scripts/check_no_duplicate_pnl.py"],
+        ),
+        (
+            "check_engine_centricity",
+            [sys.executable, "scripts/check_engine_centricity.py"],
+        ),
+    ]
+    for check_name, check_cmd in preflight_checks:
+        packer.add_command(' '.join(check_cmd), f"Preflight: {check_name}")
     
     print(f"[GATE] Running: {gate_name}")
     print(f"[GATE] Command: {cmd_str}")
@@ -69,6 +82,46 @@ def run_gate_with_evidence(gate_name: str):
     try:
         env = os.environ.copy()
         env["GATE_NO_SKIP"] = "1"
+
+        gate_log_path = packer.gate_log_path
+        for check_name, check_cmd in preflight_checks:
+            check_result = subprocess.run(
+                check_cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                cwd=Path.cwd(),
+                timeout=120,
+                env=env
+            )
+
+            with open(gate_log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*80}\n")
+                f.write(f"Preflight: {check_name}\n")
+                f.write(f"Command: {' '.join(check_cmd)}\n")
+                f.write(f"Exit Code: {check_result.returncode}\n")
+                f.write(f"{'='*80}\n\n")
+                f.write("=== STDOUT ===\n")
+                f.write(check_result.stdout)
+                f.write("\n\n=== STDERR ===\n")
+                f.write(check_result.stderr)
+                f.write("\n\n")
+
+            if check_result.returncode != 0:
+                status = "FAIL"
+                exit_code = 1
+                print(f"[FAIL] Preflight {check_name}: FAIL")
+                packer.add_gate_result(
+                    gate_name,
+                    status,
+                    f"Preflight failed: {check_name} (exit_code={check_result.returncode})"
+                )
+                packer.finish(status=status)
+                print(f"\n[Evidence] Path: {packer.evidence_dir}")
+                print(f"[Evidence] Files: manifest.json, gate.log, git_info.json, cmd_history.txt")
+                return exit_code
+
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -81,7 +134,6 @@ def run_gate_with_evidence(gate_name: str):
         )
         
         # gate.log에 출력 저장
-        gate_log_path = packer.gate_log_path
         with open(gate_log_path, "a", encoding="utf-8") as f:
             f.write(f"\n{'='*80}\n")
             f.write(f"Gate: {gate_name}\n")

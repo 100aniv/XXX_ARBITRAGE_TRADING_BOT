@@ -8,7 +8,11 @@ Goal:
 
 from decimal import Decimal
 
-from arbitrage.v2.domain.pnl_calculator import calculate_net_pnl_full_welded
+from arbitrage.v2.core.adapter import OrderResult
+from arbitrage.v2.domain.pnl_calculator import (
+    calculate_execution_friction_from_results,
+    calculate_net_pnl_full_welded,
+)
 
 
 def test_pnl_welded_includes_spread_cost():
@@ -62,3 +66,41 @@ def test_pnl_welded_zero_spread_when_missing_bid_ask():
     assert result["spread_cost"] == Decimal("0")
     assert result["exec_cost_total"] == Decimal("10")
     assert result["net_pnl_full"] == Decimal("-8")
+
+
+def test_execution_friction_from_results_truth_api():
+    entry = OrderResult(
+        success=True,
+        filled_qty=2.0,
+        filled_price=101.0,
+        ref_price=100.0,
+        fee=1.5,
+        slippage_bps=10.0,
+        pessimistic_drift_bps=5.0,
+        latency_ms=20.0,
+        reject_flag=False,
+    )
+    exit = OrderResult(
+        success=True,
+        filled_qty=1.5,
+        filled_price=99.0,
+        ref_price=100.0,
+        fee=1.0,
+        slippage_bps=10.0,
+        pessimistic_drift_bps=5.0,
+        latency_ms=30.0,
+        reject_flag=True,
+    )
+
+    friction = calculate_execution_friction_from_results(
+        entry_result=entry,
+        exit_result=exit,
+        return_decimal=True,
+    )
+
+    assert friction["total_fee"] == Decimal("2.50000000")
+    assert friction["latency_total_ms"] == 50.0
+    assert friction["reject_count"] == 1.0
+    assert friction["slippage_cost"] > Decimal("0")
+    assert friction["latency_cost"] > Decimal("0")
+    assert friction["partial_fill_penalty"] > Decimal("0")
