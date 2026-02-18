@@ -123,6 +123,7 @@ ALPHA 증거 최소셋: kpi.json + manifest.json + edge_survey_report.json만 �
     ├── SSOT_RULES.md          # 본 문서
     ├── V2_ARCHITECTURE.md     # V2 아키텍처 정의
     ├── design/                # 설계 문서
+    │   └── AGENTIC_FACTORY_WORKFLOW.md  # Agentic 공장 워크플로우
     ├── reports/               # 검증 리포트
     └── evidence/              # 실행 증거
   ```

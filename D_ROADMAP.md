@@ -2569,6 +2569,8 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 - PASS: AC 9개 전부 달성 + Gate/DocOps PASS + 커밋/푸시 완료
 - FAIL: AC 누락 또는 Gate/DocOps FAIL
 
+**PREP_DONE (2026-02-18):** Agentic Factory 워크플로우 가이드 → `docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md`
+
 ---
 
 ---
