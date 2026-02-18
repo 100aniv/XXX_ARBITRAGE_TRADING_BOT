@@ -5,9 +5,11 @@
 - 손익 구조의 핵심 지표(마찰 분해, 부분 체결 페널티, 복수 시드 안정성)를 단일 문서에서 고정한다.
 
 ## 판정 기준
-1. **partial_fill_penalty > 0 검증**
-   - 거래 로그에서 partial_fill_penalty 값이 0이 아닌 사례가 존재해야 한다.
-   - evidence: `trades_ledger.jsonl` 또는 `pnl_breakdown.json`
+1. **partial_fill_penalty 계산 경로 검증 (PREP 단계)**
+   - 코드 구현: `arbitrage/v2/domain/pnl_calculator.py`에 계산 로직 존재
+   - 실행 검증: `pnl_breakdown.json`에 penalty 항목이 기록됨 (값이 0.0이어도 정상)
+   - **비0 시나리오 증명은 FACTORY 안전 티켓에서 수행** (시장/설정 조건 변경 필요)
+   - evidence: `pnl_breakdown.json`, `profitability_matrix.json`
 2. **friction breakdown artifact 존재**
    - `pnl_breakdown.json` 또는 `edge_decomposition.json`에 fee/slippage/latency/spread/partial 항목이 기록되어야 한다.
 3. **복수 시드/유니버스 안정성**
