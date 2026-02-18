@@ -2530,6 +2530,47 @@ python -m pytest tests/test_d27_monitoring.py tests/test_d82_0_runner_executor_i
 
 ---
 
+#### D000-3: [META] DocOps Token Policy A + Guardrail Hardening
+**상태:** ✅ DONE (2026-02-18)
+**커밋:** (this commit)
+**브랜치:** rescue/d207_6_multi_symbol_alpha_survey
+**문서:** `docs/v2/reports/D000/D000-3_REPORT.md`
+**Evidence:**
+- Gate Doctor: `logs/evidence/20260218_170541_gate_doctor_f5d3d4e/`
+- Gate Fast: `logs/evidence/20260218_165818_gate_fast_f5d3d4e/`
+- Gate Regression: `logs/evidence/20260218_170044_gate_regression_f5d3d4e/`
+
+**목표:**
+- DocOps 토큰 정책 A 확정 (Strict/Allowlist)
+- DocOps 토큰 스캔 자동화 (config + 스크립트 + justfile 연동)
+- Welding/Engine-centric 가드 강화 (FAIL-fast)
+- Profit Logic Status 기준 문서화
+
+**범위 (Do/Don't):**
+- ✅ Do: 정책 문서/설정/스크립트 추가, guard 강화, 상태 문서 작성
+- ❌ Don't: 트레이딩 로직/엔진 알고리즘 변경
+
+**AC (증거 기반 검증):**
+- [x] AC-1: DOCOPS_TOKEN_POLICY.md + allowlist 설정 추가
+- [x] AC-2: DocOps 토큰 스캔 스크립트 + justfile 연동
+- [x] AC-3: Strict SSOT 문서 토큰 0건 유지 (SSOT_RULES/SSOT_MAP/V2_ARCHITECTURE)
+- [x] AC-4: Welding guard 강화 (pnl_calculator 단일 진실성)
+- [x] AC-5: Engine-centric guard에 harness 얇은막 강제 추가
+- [x] AC-6: PROFIT_LOGIC_STATUS.md 작성
+- [x] AC-7: Gate Doctor/Fast/Regression PASS
+- [x] AC-8: DocOps PASS (check_ssot_docs + token policy scan)
+- [x] AC-9: D_ROADMAP 업데이트 + Commit + Push
+
+**Gate 조건:**
+- Doctor/Fast/Regression 100% PASS
+- DocOps: check_ssot_docs ExitCode=0 + token policy scan PASS
+
+**PASS/FAIL 판단:**
+- PASS: AC 9개 전부 달성 + Gate/DocOps PASS + 커밋/푸시 완료
+- FAIL: AC 누락 또는 Gate/DocOps FAIL
+
+---
+
 ---
 
 ### D200: V2 Foundation (기초 확립)

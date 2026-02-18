@@ -31,6 +31,13 @@ ALLOWLIST_CHANGED_NON_THIN: Set[Path] = {
     Path("scripts/run_gate_with_evidence.py"),
     Path("scripts/check_engine_centricity.py"),
     Path("scripts/check_no_duplicate_pnl.py"),
+    Path("scripts/check_docops_tokens.py"),
+}
+
+HARNESS_NON_THIN_ALLOWLIST: Set[Path] = {
+    Path("arbitrage/v2/harness/paper_runner.py"),
+    Path("arbitrage/v2/harness/paper_chain.py"),
+    Path("arbitrage/v2/harness/smoke_runner.py"),
 }
 
 FORBIDDEN_REVERSE_IMPORT_PREFIXES = (
@@ -112,6 +119,22 @@ def _assert_required_wrappers() -> List[str]:
     return violations
 
 
+def _assert_harness_wrappers() -> List[str]:
+    violations: List[str] = []
+    harness_root = ROOT / "arbitrage/v2/harness"
+    if not harness_root.exists():
+        return violations
+
+    for abs_path in sorted(harness_root.rglob("*.py")):
+        rel_path = abs_path.relative_to(ROOT)
+        if rel_path in HARNESS_NON_THIN_ALLOWLIST:
+            continue
+        ok, reason = _is_thin_wrapper(rel_path)
+        if not ok:
+            violations.append(f"non_thin_harness:{rel_path}:{reason}")
+    return violations
+
+
 def _assert_no_reverse_imports() -> List[str]:
     violations: List[str] = []
     for scope in (ROOT / "arbitrage/v2/core", ROOT / "arbitrage/v2/domain"):
@@ -160,6 +183,7 @@ def _assert_changed_files() -> List[str]:
 def main() -> int:
     violations = []
     violations.extend(_assert_required_wrappers())
+    violations.extend(_assert_harness_wrappers())
     violations.extend(_assert_changed_files())
     violations.extend(_assert_no_reverse_imports())
 

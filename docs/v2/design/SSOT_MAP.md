@@ -15,7 +15,7 @@
 4. **SSOT 검증**: Gate 테스트로 SSOT 정합성 검증
 5. **D 번호 불변 (Immutable D-number)**: 기존 D 번호의 의미는 절대 변경 금지
    - 추가 작업은 브랜치(Dxxx-y-z)로만 확장
-   - AC "이관" 방식으로 D 번호 의미를 바꾸는 것은 SSOT 위반
+   - AC "이동" 방식으로 D 번호 의미를 바꾸는 것은 SSOT 위반
 6. **DONE/COMPLETED 진실성 강제**: 문서 작성만으로 완료 선언, 증거 재사용으로 PASS 주장 등 허위 DONE 절대 금지
    - AC + Evidence 일치 시에만 COMPLETED 선언
    - Gate 100% PASS + 실제 실행 증거 존재 필수
@@ -125,7 +125,7 @@
   - `v2_ledger`: 원장 기록 (집계용)
   - `v2_pnl_daily`: 일별 PnL 집계 (리포팅용)
 - Index, Constraint, View
-- Migration 이력 관리
+- 변경 이력 관리
 
 **SSOT 정의:**
 - 주문/체결/거래/PnL의 **유일 원천(Truth)**은 v2_schema.sql이 정의한 테이블
@@ -140,12 +140,12 @@
 - ❌ V1 테이블 직접 수정 금지 (별도 스키마 사용)
 
 **참조자:**
-- DB 초기화 시 (migration 실행)
+- DB 초기화 시 (schema apply 실행)
 - ORM/Query 작성 시 (스키마 참조)
 - PnL 리포팅 시 (집계 쿼리)
 
 **업데이트 규칙:**
-- 스키마 변경 시 → 새 migration 파일 생성 (v2_001_add_column.sql)
+- 스키마 변경 시 → 새 schema 변경 파일 생성 (v2_001_add_column.sql)
 - 변경 시 커밋 메시지에 "[DB]" 태그
 - Rollback script 필수 포함
 
@@ -389,7 +389,7 @@
 - Engine-Centric 아키텍처 정의
 - OrderIntent/Adapter/Engine 계약
 - MARKET 의미 규약 (BUY=quote_amount, SELL=base_qty)
-- V1→V2 Migration Path
+- V1→V2 Porting Path
 
 **금지 사항:**
 - ❌ V2_ARCHITECTURE_v2.md 등 버전 분기 금지

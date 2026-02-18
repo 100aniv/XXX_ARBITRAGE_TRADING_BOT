@@ -36,6 +36,9 @@ FORBIDDEN_PATTERNS: Dict[str, re.Pattern[str]] = {
     "local_partial_helper": re.compile(r"def\s+_calc_partial_penalty\s*\("),
     "local_reject_helper": re.compile(r"def\s+_calc_reject\s*\("),
     "duplicate_truth_api": re.compile(r"def\s+calculate_execution_friction_from_results\s*\("),
+    "duplicate_net_pnl_full": re.compile(r"def\s+calculate_net_pnl_full\s*\("),
+    "duplicate_net_pnl_welded": re.compile(r"def\s+calculate_net_pnl_full_welded\s*\("),
+    "duplicate_friction_breakdown": re.compile(r"def\s+calculate_friction_breakdown\s*\("),
 }
 
 

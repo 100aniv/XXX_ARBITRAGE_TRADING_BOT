@@ -1,0 +1,17 @@
+strict_paths:
+  - docs/v2/SSOT_RULES.md
+  - docs/v2/design/SSOT_MAP.md
+  - docs/v2/V2_ARCHITECTURE.md
+allowlist_paths:
+  - D_ROADMAP.md
+  - docs/v2/reports/**
+scan_extensions:
+  - .md
+  - .py
+  - .yaml
+  - .yml
+  - .json
+token_patterns:
+  cci: "cci"
+  migrate: "\\b(?:migrate|migration)\\b|\\uC774\\uAD00"
+  todo: "TODO|TBD|PLACEHOLDER"

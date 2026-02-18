@@ -29,7 +29,7 @@ ALPHA 증거 최소셋: kpi.json + manifest.json + edge_survey_report.json만 �
 
 ### 1-1. D 번호 의미는 불변 (Immutable D-number Semantics)
 - ❌ **금지:** 기존 D 번호의 의미를 다른 작업으로 변경
-- ❌ **금지:** AC를 다른 D로 "이관"하여 기존 D의 스코프 축소
+- ❌ **금지:** AC를 다른 D로 "이동"하여 기존 D의 스코프 축소
 - ❌ **금지:** D 번호를 재사용하여 다른 작업 수행
 - ✅ **허용:** D 번호는 최초 정의된 의미로 고정
 - ✅ **허용:** 추가 작업은 브랜치(Dxxx-y-z)로만 확장
@@ -558,14 +558,14 @@ logs/evidence/
 
 ---
 
-## 🔄 Section B: AC 이관 프로토콜 (강제)
+## 🔄 Section B: AC 이동 프로토콜 (강제)
 
-**목적:** AC 삭제 금지, 이관 시 원본/목적지 표기 강제, SSOT 파손 방지
+**목적:** AC 삭제 금지, 이동 시 원본/목적지 표기 강제, SSOT 파손 방지
 
 **원칙:**
 - AC는 절대 삭제하지 않음
-- AC를 다른 D로 이관할 때는 원본/목적지 모두에 표기 필수
-- 이관 사실이 명확히 드러나야 함 (audit trail)
+- AC를 다른 D로 이동할 때는 원본/목적지 모두에 표기 필수
+- 이동 사실이 명확히 드러나야 함 (audit trail)
 
 **규칙 1: 원본 AC 표기 (MOVED_TO)**
 ```markdown
@@ -583,22 +583,22 @@ logs/evidence/
 - 원본 AC를 명시하여 audit trail 유지
 
 **규칙 3: Umbrella 매핑 (선택)**
-- Umbrella 섹션에 "AC 이관 매핑" 서브섹션 추가 권장
-- 이관 사실을 Umbrella에서도 명시 (가독성 향상)
+- Umbrella 섹션에 "AC 이동 매핑" 서브섹션 추가 권장
+- 이동 사실을 Umbrella에서도 명시 (가독성 향상)
 
 **위반 시 조치:**
 - 원본 AC 삭제 → 즉시 FAIL, 복원 필수
-- 이관 표기 누락 → FAIL, MOVED_TO/FROM 추가 필수
-- 이관되지 않은 AC를 원본에서 삭제 → FAIL
+- 이동 표기 누락 → FAIL, MOVED_TO/FROM 추가 필수
+- 이동되지 않은 AC를 원본에서 삭제 → FAIL
 
 **예외:**
-- DEPRECATED AC: 이관이 아니라 "폐기"일 경우 `[DEPRECATED: <사유> / <날짜>]` 표기
+- DEPRECATED AC: 이동이 아니라 "폐기"일 경우 `[DEPRECATED: <사유> / <날짜>]` 표기
 
 ---
 
 ## 🔄 Section C: Work Prompt Template (Step 0~9)
 
-**출처:** `docs/v2/templates/D_PROMPT_TEMPLATE.md` (358 lines) → SSOT_RULES로 완전 이관
+**출처:** `docs/v2/templates/D_PROMPT_TEMPLATE.md` (358 lines) → SSOT_RULES로 완전 통합
 
 **모든 D-step은 아래 Step 0~9를 순차 실행해야 함**
 
@@ -798,7 +798,7 @@ https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT/compare/<before_sha>...<aft
 
 ## 🔄 Section D: Test Template (자동화/운영급)
 
-**출처:** `docs/v2/templates/D_TEST_TEMPLATE.md` (224 lines) → SSOT_RULES로 완전 이관
+**출처:** `docs/v2/templates/D_TEST_TEMPLATE.md` (224 lines) → SSOT_RULES로 완전 통합
 
 **테스트 절대 원칙:**
 - 테스트는 사람 개입 없이 자동 실행
@@ -974,7 +974,7 @@ git push
 
 ## 🔄 Section E: DocOps / SSOT Audit (Always-On)
 
-**출처:** `docs/v2/templates/SSOT_DOCOPS.md` (90 lines) → SSOT_RULES로 완전 이관
+**출처:** `docs/v2/templates/SSOT_DOCOPS.md` (90 lines) → SSOT_RULES로 완전 통합
 
 **적용 범위:** 모든 D 단계 / 모든 커밋
 
@@ -989,7 +989,7 @@ git push
 
 1. SSOT는 `D_ROADMAP.md` 단 1개 (충돌 시 D_ROADMAP 채택)
 2. D 번호 의미는 불변 (Immutable Semantics)
-3. 확장은 브랜치(Dxxx-y-z)로만 (이관/재정의 금지)
+3. 확장은 브랜치(Dxxx-y-z)로만 (이동/재정의 금지)
 4. DONE/COMPLETED는 Evidence 기반 (실행 증거 필수)
 
 ### DocOps Always-On 절차 (커밋 전에 무조건 수행)
@@ -1001,18 +1001,12 @@ python scripts/check_ssot_docs.py
 - **Exit code 0** 아니면 즉시 중단(FAIL)
 - 출력(로그)을 Evidence/리포트에 남겨야 DONE 가능
 
-**DocOps Gate (B) ripgrep 위반 탐지 (필수)**
+**DocOps Gate (B) 토큰 정책 스캔 (필수)**
 ```bash
-# 로컬/IDE 링크 잔재 제거
-rg "cci" -n docs/v2 D_ROADMAP.md
-
-# 이관 표현은 사고 유발 확률이 높음
-rg "이관|migrate|migration" -n docs/v2 D_ROADMAP.md
-
-# 임시 작업 마커 검출
-rg "T.DO|T.D|PLACE.OLDER" -n docs/v2 D_ROADMAP.md
+python scripts/check_docops_tokens.py --config config/docops_token_allowlist.yml
 ```
-- 특정 D 단계(예: D205) 이슈가 있으면 그 D 번호를 추가로 grep
+- 정책 정의는 `docs/v2/design/DOCOPS_TOKEN_POLICY.md`에 고정
+- 특정 D 단계(예: D205) 이슈가 있으면 해당 D 번호로 추가 스캔
 
 **DocOps Gate (C) Pre-commit sanity (필수)**
 ```bash
@@ -1198,7 +1192,7 @@ AC-1: check_ssot_docs.py ExitCode=0 (증거: ssot_docs_check_exitcode.txt = 0)
    - ❌ 규칙 위반 파일을 삭제해서 Gate 통과
    - ❌ Report/증거를 지워서 추적성 제거
    - ✅ rename으로 규칙 준수 (내용 보존)
-   - ✅ Evidence 폴더로 이관 + 링크 유지
+   - ✅ Evidence 폴더로 이동 + 링크 유지
 
 3. **ExitCode=0 아닌 상태에서 DONE 선언:**
    - ❌ ExitCode=1인데 "스코프 내 PASS"로 우기기

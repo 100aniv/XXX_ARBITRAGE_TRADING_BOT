@@ -34,7 +34,7 @@
 
 **SSOT 변경 규칙:** D_ROADMAP 수정 후 → SSOT_RULES/SSOT_MAP/V2_ARCHITECTURE 동기화
 
-## Module Boundary & Migration Policy (SSOT)
+## Module Boundary & Porting Policy (SSOT)
 
 - V2 실행 경로는 `arbitrage/v2/**` 이다.
 - V1 (`arbitrage/**` legacy execution paths)는 참조/재사용 가능하나,
@@ -44,7 +44,7 @@
 - Boundary Guard는 모든 Gate / Paper / Live 실행 전에 자동 수행된다.
 - V2 경로에서 V1 실행 모듈 import 발견 시 즉시 FAIL 한다.
 
-### Migration Rule
+### Porting Rule
 - "사용 여부"의 판정 기준은 문서가 아니라 **Runtime import graph**이다.
 - 사람이 기억하거나 수동으로 관리하지 않는다.
 
@@ -641,7 +641,7 @@ arbitrage/v2/
 
 ---
 
-## 🚀 Migration Path (V1 → V2)
+## 🚀 Porting Path (V1 → V2)
 
 ### D200~D204: 뼈대 구축 + 기초 검증
 - ✅ OrderIntent, Adapter, Engine 타입 정의
