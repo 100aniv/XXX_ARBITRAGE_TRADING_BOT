@@ -60,7 +60,7 @@ DocOps Cleanup Finalization - 4개 핵심 산출물 완결 + Guard fail-fast 증
 **판정 결과:** **Profit Logic = PASS** (2026-02-18)
 
 ### 4. Guard Fail-Fast Evidence ✅
-**경로:** `docs/v2/reports/D000/D000-3_GUARD_FAILFAST_EVIDENCE.md`
+**경로:** `docs/v2/reports/D000/D000-3-2_REPORT.md`
 
 **테스트 시나리오:**
 1. **Welding Guard (check_no_duplicate_pnl.py)**
@@ -166,7 +166,7 @@ just gate
 - **Fail-fast 증명:** 
   - 위반 시: ExitCode=1 (즉시 FAIL)
   - 원복 시: ExitCode=0 (PASS)
-  - 증거: D000-3_GUARD_FAILFAST_EVIDENCE.md 재현 로그
+  - 증거: D000-3-2_REPORT.md 재현 로그
 
 #### ✅ 3. PROFIT_LOGIC_STATUS 판정 근거 모호성 제거
 **문제:** "partial_fill_penalty > 0 검증" 기준이 "계산 경로 존재" vs "비0 값 증명" 혼재

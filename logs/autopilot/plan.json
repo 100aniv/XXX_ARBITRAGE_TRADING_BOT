@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "mode": "DRY_RUN",
+  "ticket_id": "SAFE::D_ALPHA-PIPELINE-0::AC-3",
+  "ac_id": "D_ALPHA-PIPELINE-0::AC-3",
+  "title": "DocOps Gate 실행 (check_ssot_docs ExitCode=0 + rg 결과 저장)",
+  "created_at_utc": "2026-02-18T13:39:04+00:00",
+  "scope": {
+    "modify": [
+      "ops/factory/controller.py",
+      "ops/factory/worker.py",
+      "ops/factory/schema.py",
+      "ops/factory/README.md",
+      "logs/autopilot/plan.json",
+      "logs/autopilot/result.json",
+      "justfile"
+    ],
+    "readonly": [
+      "docs/v2/design/AC_LEDGER.md",
+      "docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md"
+    ],
+    "forbidden": [
+      "arbitrage/v2/**",
+      "D_ROADMAP.md",
+      "docs/v2/SSOT_RULES.md"
+    ]
+  },
+  "done_criteria": "just gate/docops/evidence_check exit_code == 0 and machine-readable result.json generated",
+  "notes": [
+    "Safety ticket only",
+    "DRY-RUN only: no core engine changes",
+    "Factory integration endpoints are placeholders"
+  ]
+}

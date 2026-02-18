@@ -3,6 +3,8 @@
 # Evidence SSOT: docs/v2/design/EVIDENCE_FORMAT.md
 # Evidence Path: logs/evidence/<run_id>/ (자동 생성)
 
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
+
 # Default: show available commands
 default:
     @just --list
@@ -46,9 +48,20 @@ docops:
     git status --short
     git diff --stat
 
-evidence:check:
+evidence_check:
     @echo "[EVIDENCE] Latest run minimum set check"
     .\abt_bot_env\Scripts\python.exe -c "from pathlib import Path; import sys; root=Path('logs/evidence'); required=['manifest.json','gate.log','git_info.json','cmd_history.txt']; runs=sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True) if root.exists() else []; candidate=next((p for p in runs if all((p / f).exists() for f in required)), None); missing=[] if candidate else required; print('latest=%s' % candidate); print('missing=' + ','.join(missing)) if missing else print('PASS'); sys.exit(1 if missing else 0)"
+
+# Factory DRY-RUN (Controller -> Worker)
+factory_dry:
+    @echo "[FACTORY] DRY-RUN controller -> worker"
+    .\abt_bot_env\Scripts\python.exe -m ops.factory.controller --output logs\autopilot\plan.json
+    .\abt_bot_env\Scripts\python.exe -m ops.factory.worker --plan logs\autopilot\plan.json --result logs\autopilot\result.json
+
+# Factory Run (placeholder: currently same as dry-run)
+factory_run:
+    @echo "[FACTORY] RUN placeholder (mapped to dry-run in current phase)"
+    @just factory_dry
 
 # Clean: Remove cache and temporary files
 clean:

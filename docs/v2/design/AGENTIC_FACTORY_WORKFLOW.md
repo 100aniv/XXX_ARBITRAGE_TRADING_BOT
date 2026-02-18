@@ -240,7 +240,7 @@ just gate
 - **Preflight FAIL → Gate 전체 FAIL** (후속 테스트 실행하지 않음)
 - **Gate FAIL → Worker 결과 거부** (result.json status를 "FAIL"로 강제)
 - **2회 연속 FAIL → Escalation** (Auditor 호출 또는 사람 개입)
-- **증거:** `docs/v2/reports/D000/D000-3_GUARD_FAILFAST_EVIDENCE.md`에 재현 기록
+- **증거:** `docs/v2/reports/D000/D000-3-2_REPORT.md`에 재현 기록
 
 ### 5-4. Kill Switch (안전 장치)
 
@@ -313,7 +313,7 @@ just gate
 just docops
 
 # Evidence 최소 세트 확인
-just evidence:check
+just evidence_check
 
 # 개별 Gate 실행
 just doctor
@@ -330,16 +330,16 @@ just regression
 
 ```bash
 # Factory Dry Run (1개 티켓 시뮬레이션, 실제 변경 없음)
-just factory:dry
+just factory_dry
 
 # Factory Run (자동 PDCA 1사이클)
-just factory:run
+just factory_run
 
 # Factory Status (현재 큐/진행 상황)
-just factory:status
+just factory_status
 
 # Auditor 호출 (수동)
-just factory:audit <ticket_id>
+just factory_audit <ticket_id>
 ```
 
 ### 8-3. 최소 시작 절차
@@ -365,8 +365,8 @@ just factory:audit <ticket_id>
 | 로드맵 | `D_ROADMAP.md` | 상태/목표/AC DB |
 | AC 큐 | `docs/v2/design/AC_LEDGER.md` | 작업 큐 |
 | Profit Logic | `docs/v2/design/PROFIT_LOGIC_STATUS.md` | 수익 로직 판정 |
-| Guard Evidence | `docs/v2/reports/D000/D000-3_GUARD_FAILFAST_EVIDENCE.md` | Guard 동작 증명 |
-| PREP Closeout | `docs/v2/reports/D000/D000-3_CLEANUP_TURN_CLOSEOUT.md` | PREP 완료 증거 |
+| Guard Evidence | `docs/v2/reports/D000/D000-3-2_REPORT.md` | Guard 동작 증명 |
+| PREP Closeout | `docs/v2/reports/D000/D000-3-1_REPORT.md` | PREP 완료 증거 |
 | Evidence Format | `docs/v2/design/EVIDENCE_FORMAT.md` | 증거 구조 SSOT |
 | Architecture | `docs/v2/V2_ARCHITECTURE.md` | Engine-Centric 설계 |
 

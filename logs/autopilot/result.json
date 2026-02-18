@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "mode": "DRY_RUN",
+  "ticket_id": "SAFE::D_ALPHA-PIPELINE-0::AC-3",
+  "ac_id": "D_ALPHA-PIPELINE-0::AC-3",
+  "status": "PASS",
+  "created_at_utc": "2026-02-18T13:43:59+00:00",
+  "commands": [
+    {
+      "name": "gate",
+      "command": [
+        "just",
+        "gate"
+      ],
+      "exit_code": 0,
+      "duration_sec": 292.374
+    },
+    {
+      "name": "docops",
+      "command": [
+        "just",
+        "docops"
+      ],
+      "exit_code": 0,
+      "duration_sec": 1.53
+    },
+    {
+      "name": "evidence_check",
+      "command": [
+        "just",
+        "evidence_check"
+      ],
+      "exit_code": 0,
+      "duration_sec": 0.439
+    }
+  ],
+  "gate_exit_code": 0,
+  "docops_exit_code": 0,
+  "evidence_check_exit_code": 0,
+  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260218_2243",
+  "notes": [
+    "Worker executes local validation loop only",
+    "No Docker/Claude Code/Aider live integration in DRY-RUN"
+  ]
+}
