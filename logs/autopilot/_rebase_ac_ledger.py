@@ -272,6 +272,7 @@ for record in records:
 
 # duplicate handling
 merged_entries: list[dict] = []
+closeout_notes: list[dict] = []
 dup_groups: dict[str, list[dict]] = {}
 for record in records:
     dup_groups.setdefault(record["dup_key"], []).append(record)
@@ -294,15 +295,27 @@ for dup_key, group in dup_groups.items():
     for item in group:
         if item is representative:
             continue
-        item["status"] = "MERGED"
         item["merged_into"] = representative["ac_id"]
-        item["notes"] = (item["notes"] + "; " if item["notes"] else "") + f"Merged: reason=dup_key({dup_key})"
+        item["notes"] = (
+            (item["notes"] + "; " if item["notes"] else "")
+            + f"Merged into {representative['ac_id']} (dup_key={dup_key})"
+        )
         merged_entries.append(
             {
                 "from_ac": item["ac_id"],
                 "to_ac": representative["ac_id"],
                 "dup_key": dup_key,
                 "reason": "dup_key",
+            }
+        )
+        closeout_notes.append(
+            {
+                "ac_id": item["ac_id"],
+                "label": item["label"],
+                "title": item["title"],
+                "line": item["line"],
+                "merged_into": representative["ac_id"],
+                "dup_key": dup_key,
             }
         )
 
@@ -366,16 +379,23 @@ summary_counts = {
     "total": len(records),
     "done": sum(1 for record in records if record["status"] == "DONE"),
     "open": sum(1 for record in records if record["status"] == "OPEN"),
-    "merged": sum(1 for record in records if record["status"] == "MERGED"),
+    "merged": len(merged_entries),
 }
 
 report = {
     "scanned_paths": scanned_paths,
     "done_marked": done_marked,
     "merged": merged_entries,
+    "closeout_candidates": closeout_notes,
     "still_open_top": still_open[:20],
     "suspicious": suspicious[:20],
     "summary_counts": summary_counts,
+    "change_summary": {
+        "dup_group_count": sum(1 for group in dup_groups.values() if len(group) > 1),
+        "merged_count": len(merged_entries),
+        "done_count": summary_counts["done"],
+        "open_count": summary_counts["open"],
+    },
 }
 
 ledger_path = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
@@ -384,7 +404,7 @@ ledger_path.parent.mkdir(parents=True, exist_ok=True)
 header_lines = [
     f"generated_at: {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}",
     f"sources: {ROADMAP_PATH}, {EVIDENCE_ROOT}, {REPORTS_PATH}, {SSOT_RULES_PATH}",
-    "rules: evidence-driven done (gate3 + artifacts), dup handling (evidence/title/intent)",
+    "rules: evidence-driven done (gate3 + artifacts), dup handling (evidence/title/intent), status=OPEN/DONE",
 ]
 
 rows = []
@@ -396,10 +416,8 @@ for record in records:
             record["stage"],
             record["status"],
             record["canonical"],
-            record["done_rule_hit"],
             "UNKNOWN",
             record["dup_key"],
-            record.get("merged_into", "—") if record.get("status") == "MERGED" else "—",
             record["notes"] or "—",
         ]
     )
@@ -413,8 +431,8 @@ rows.sort(
 
 with ledger_path.open("w", encoding="utf-8") as handle:
     handle.write("\n".join(header_lines) + "\n")
-    handle.write("| AC_ID | TITLE | STAGE | STATUS | CANONICAL_EVIDENCE | DONE_RULE_HIT | LAST_COMMIT | DUP_GROUP_KEY | MERGED_INTO | NOTES |\n")
-    handle.write("|---|---|---|---|---|---|---|---|---|---|\n")
+    handle.write("| AC_ID | TITLE | STAGE | STATUS | CANONICAL_EVIDENCE | LAST_COMMIT | DUP_GROUP_KEY | NOTES |\n")
+    handle.write("|---|---|---|---|---|---|---|---|\n")
     for row in rows:
         handle.write("| " + " | ".join(row) + " |\n")
 

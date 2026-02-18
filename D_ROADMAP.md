@@ -4128,7 +4128,7 @@ Rationale:
 - [x] AC-2: V2Config에 mode 필드 파싱 및 validation ✅
 - [x] AC-3: PaperRunner.run()에서 while 루프 제거 ✅
 - [x] AC-4: Engine.run() 호출로 전환 (fetch_tick_data/process_tick 콜백) ✅
-- [x] AC-5: 증명 테스트 4개 추가 및 PASS ✅
+- [x] AC-5: 증명 테스트 4개 추가 및 PASS ✅ (Merged into D205-12::AC-8)
 
 **Gate 결과:**
 - ✅ Doctor Gate: PASS (compileall 3 files)
@@ -4325,7 +4325,7 @@ Rationale:
 - [x] AC-1: 입력 데이터 200줄 확보 ✅
 - [x] AC-2: AutoTuner 실행 완료 (144 조합, 200 ticks) ✅
 - [x] AC-3: leaderboard.json 형식 검증 테스트 추가 ✅
-- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)
 - [x] AC-5: D_ROADMAP 임시 토큰 제거 ✅
 - [x] AC-6: Evidence 패키징 (kpi.json, README.md) ✅
 
@@ -4388,10 +4388,10 @@ Rationale:
 - [x] AC-1: 실제 시장 데이터 1000+ ticks 기록 ✅ (1050 ticks)
 - [x] AC-2: 유니크 비율 >= 50% ✅ (100%, 1050/1050)
 - [~] AC-3: Leaderboard metrics diversity (2종 이상) ⚠️ PARTIAL (코드 정상, 데이터 한계)
-- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-4: Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)
 - [x] AC-5: Evidence 패키징 (README + kpi/stats) ✅
 - [x] AC-6: D_ROADMAP 임시 토큰 제거 + D205-14-3 추가 ✅
-- [x] AC-7: Git commit + push ✅
+- [x] AC-7: Git commit + push ✅ (Merged into AUTO-OTHER::AC-6-2)
 
 **Gate 결과:**
 - ✅ Doctor Gate: PASS (compileall 2 files)
@@ -4722,7 +4722,7 @@ logs/evidence/d205_14_5_size_recording_<YYYYMMDD_HHMMSS>/
 - [x] AC-3: ReplayRunner notional 파라미터화 ✅
 - [x] AC-4: config.yml tuning.notional 추가 ✅
 - [x] AC-5: ParameterSweep params.json 저장 ✅
-- [x] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)
 - [ ] AC-7: AutoTuner 재실행 → leaderboard Top10 mean_net_edge_bps unique >= 2 ❌ (unique=1, 시장 현실 제약)
 - [x] AC-8: Evidence 패키징 (manifest/kpi/leaderboard/params.json/README) ✅
 - [ ] AC-9: D_ROADMAP 업데이트 + Git commit + push ⏳ (방향성 재검토 후 진행)
@@ -4829,9 +4829,9 @@ logs/evidence/d205_14_6_futures_diversity_<YYYYMMDD_HHMMSS>/
 - [ ] AC-5: TopK별 AutoTune leaderboard 생성 (Evidence Run 필요)
 - [ ] AC-6: 최소 1개 심볼에서 mean_net_edge_bps unique >= 2 달성
 - [x] AC-7: cost_breakdown.json (수수료/슬리피지/환산 분해) ✅ Fix-3 적용
-- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-08
+- [x] AC-8: Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-08 (Merged into D205-14-1::AC-6)
 - [ ] AC-9: Evidence 패키징 (Evidence Run 필요)
-- [ ] AC-10: D_ROADMAP 업데이트 + Git commit + push
+- [ ] AC-10: D_ROADMAP 업데이트 + Git commit + push (Merged into D205-14-6::AC-9)
 
 **증거 요구사항 (SSOT):**
 ```
@@ -5027,11 +5027,11 @@ logs/evidence/d205_15_2_evidence_<timestamp>/
 - [x] AC-6: KPI 비교 Evidence 완료 ✅
   - `tradeable_rate` = 0.85 (≠ 100%)
   - Before/After KPI 비교: `logs/evidence/d205_15_3_profit_realism_20260108_132233/kpi_definition/`
-- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) ✅
+- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)
   - Doctor: compileall PASS
   - Fast: 14 passed (test_d205_15_3_profit_realism.py)
   - Regression: 107 passed (D205 tests)
-- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push ✅
+- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push ✅ (Merged into D205-15-2::AC-11)
 
 **증거 요구사항 (SSOT):**
 ```
@@ -5125,7 +5125,7 @@ logs/evidence/d205_15_3_profit_realism_<timestamp>/
   - Fast: 22 passed (test_d205_15_4_fx_live.py)
   - Regression: 129 passed (D205 tests)
   - DocOps: ExitCode=0
-- [x] AC-9: D_ROADMAP 업데이트 + Commit + Push ✅
+- [x] AC-9: D_ROADMAP 업데이트 + Commit + Push ✅ (Merged into D205-15-2::AC-11)
 
 **증거 요구사항 (SSOT):**
 ```
@@ -5215,12 +5215,12 @@ logs/evidence/d205_15_4_fx_live_<timestamp>/
   - 수정 사항: fee 25→5/10 bps, execution_risk 포함/제외 테스트
   - Evidence: logs/evidence/d205_15_5_smoke_10m_20260109_163720/
   - **6h Paper Run: 사용자 판단 후 진행 (execution_risk 추가 축소 vs 시장 대기 vs 작업 보류)**
-- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
+- [x] AC-7: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS (Merged into D205-15-4::AC-8)
   - Doctor PASS: compileall 통과
   - Fast PASS: 25 tests (FX 22개 + UniverseConfig 3개)
   - DocOps PASS: check_ssot_docs.py ExitCode=0
   - Evidence: GATE_RESULTS.md
-- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push
+- [x] AC-8: D_ROADMAP 업데이트 + Commit + Push (Merged into D205-15-2::AC-11)
   - D205-15-5 섹션 업데이트 완료
   - AC 체크 완료
   - Git commit 준비 중
@@ -5305,8 +5305,8 @@ logs/evidence/d205_15_5_paper_6h_<timestamp>/
 - [ ] AC-5: 10분 Smoke 테스트
   - FAIL-fast 동작 검증 (wins=0 조건 or edge<0 연속)
   - Evidence 정상 생성 확인
-- [ ] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS
-- [ ] AC-7: D_ROADMAP 업데이트 + Commit + Push
+- [ ] AC-6: Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS (Merged into D205-15-4::AC-8)
+- [ ] AC-7: D_ROADMAP 업데이트 + Commit + Push (Merged into D205-15-2::AC-11)
 - [ ] AC-8: Closeout Summary (Compare Patch URL 포함)
 
 **증거 요구사항 (SSOT):**
@@ -6741,7 +6741,7 @@ enable_execution: false       # REQUIRED
 **Acceptance Criteria:**
 - [x] AC-1: edge_distribution 분석 + 원인 분해
 - [x] AC-2: drift double-count 제거
-- [x] AC-3: REAL 20분 baseline 증거 확보
+- [x] AC-3: REAL 20분 baseline 증거 확보 (Merged into D207-5::AC-6)
 - [x] AC-4: Gate + DocOps + Git
 
 **Evidence 경로:**
@@ -6976,10 +6976,10 @@ enable_execution: false       # REQUIRED
 
 **Acceptance Criteria:**
 - [x] AC-1: latency_ms 증가 → latency_total만 증가, latency_cost 불변 (단위 테스트 검증)
-- [x] AC-2: pessimistic_drift_bps 증가 → latency_cost 증가, latency_ms 불변 (단위 테스트 검증)
-- [x] AC-3: PnL 분해 스케일 상식선 유지 (friction < 1.1% notional, 단위 테스트 검증)
-- [x] AC-4: latency_cost = slippage_bps + pessimistic_drift_bps 기반 가격 영향 (KRW 단위)
-- [x] AC-5: latency_total = ms 합계 (시간 단위, 독립적 누적)
+- [x] AC-2: pessimistic_drift_bps 증가 → latency_cost 증가, latency_ms 불변 (단위 테스트 검증) (Merged into D_ALPHA-1U::AC-1-2)
+- [x] AC-3: PnL 분해 스케일 상식선 유지 (friction < 1.1% notional, 단위 테스트 검증) (Merged into D_ALPHA-1U::AC-1-2)
+- [x] AC-4: latency_cost = slippage_bps + pessimistic_drift_bps 기반 가격 영향 (KRW 단위) (Merged into D_ALPHA-1U::AC-1-2)
+- [x] AC-5: latency_total = ms 합계 (시간 단위, 독립적 누적) (Merged into D_ALPHA-1U::AC-1-2)
 
 **Evidence 경로:**
 - `logs/evidence/d205_18_2d_edge_survey_20260204_0907/kpi.json` (2분 스모크)
@@ -7052,10 +7052,10 @@ enable_execution: false       # REQUIRED
 
 **Acceptance Criteria:**
 - [x] AC-1: `PaperOrchestrator`에서 `OrderIntent.price`/`quantity` 직접 접근 제거, quote notional 유도 경로(`quote_amount/base_qty/limit_price/ref_price`)로 교체.
-- [x] AC-2: Orchestrator loop의 모든 주요 `continue` 분기(`candidate_none`, `admin_paused`, `symbol_blacklisted`, `cooldown`, `intent_conversion_failed`, `execution_reject`)에서 cycle pacing 강제.
-- [x] AC-3: 회귀 테스트 추가 및 PASS - `tests/test_d_alpha_1u_fix_2_reality_welding.py::test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`.
-- [x] AC-4: D206-1 proof matrix 재실행 PASS (top20/top50 x 5 seeds = 10 runs), `failed_runs=False`, `has_negative_pnl=False`, `missing_percentiles=[]`.
-- [x] AC-5: runtime config 주입 경로 유지 (`runtime_factory`에서 `config_path` 우선 로드) + proof harness에서 `negative_edge_execution_probability=0.0`, `min_net_edge_bps>=40`, `edge_distribution_stride=1` 적용.
+- [x] AC-2: Orchestrator loop의 모든 주요 `continue` 분기(`candidate_none`, `admin_paused`, `symbol_blacklisted`, `cooldown`, `intent_conversion_failed`, `execution_reject`)에서 cycle pacing 강제. (Merged into D_ALPHA-1U::AC-1-4)
+- [x] AC-3: 회귀 테스트 추가 및 PASS - `tests/test_d_alpha_1u_fix_2_reality_welding.py::test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`. (Merged into D_ALPHA-1U::AC-1-4)
+- [x] AC-4: D206-1 proof matrix 재실행 PASS (top20/top50 x 5 seeds = 10 runs), `failed_runs=False`, `has_negative_pnl=False`, `missing_percentiles=[]`. (Merged into D_ALPHA-1U::AC-1-4)
+- [x] AC-5: runtime config 주입 경로 유지 (`runtime_factory`에서 `config_path` 우선 로드) + proof harness에서 `negative_edge_execution_probability=0.0`, `min_net_edge_bps>=40`, `edge_distribution_stride=1` 적용. (Merged into D_ALPHA-1U::AC-1-4)
 
 **Evidence 경로:**
 - Matrix PASS: `logs/evidence/20260217_d206_1_profit_matrix_after_fix_stride1_neg_off_min40/`
@@ -7358,7 +7358,7 @@ enable_execution: false       # REQUIRED
 - [ ] AC-2: Loss Cutoff - max_drawdown, max_consecutive_losses 임계치, 초과 시 ExitCode=1
 - [ ] AC-3: Kill-Switch - RiskGuard.stop(reason="RISK_XXX") 호출 시 Graceful Stop
 - [ ] AC-4: 리스크 메트릭 - kpi_summary.json에 position_risk, drawdown, consecutive_losses 기록
-- [ ] AC-5: 테스트 케이스 - 각 리스크 임계치 초과 시나리오 테스트, ExitCode=1 확인
+- [ ] AC-5: 테스트 케이스 - 각 리스크 임계치 초과 시나리오 테스트, ExitCode=1 확인 (Merged into D209-1::AC-5)
 - [ ] AC-6: 문서화 - docs/v2/design/RISK_GUARD.md 작성
 
 **Evidence 경로:**
