@@ -8,93 +8,57 @@
   "done_marked": [],
   "merged": [
     {
-      "from_ac": "D205-14-3::AC-7",
-      "to_ac": "AUTO-OTHER::AC-6-2",
-      "dup_key": "OTHER:TITLE:gitcommitpush",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D205-13::AC-5",
-      "to_ac": "D205-12::AC-8",
-      "dup_key": "OTHER:TITLE:pass",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D205-14-2::AC-4",
-      "to_ac": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression",
+      "from_ac": "D205-15-2::AC-11",
+      "to_ac": "D000-3::AC-9",
+      "dup_key": "OTHER:TITLE:droadmapcommitpush",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-14-3::AC-4",
-      "to_ac": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression",
+      "to_ac": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-14-6::AC-6",
-      "to_ac": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression",
+      "to_ac": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15::AC-8",
-      "to_ac": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression",
+      "to_ac": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15-3::AC-7",
-      "to_ac": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D205-15::AC-10",
-      "to_ac": "D205-14-6::AC-9",
-      "dup_key": "OTHER:TITLE:droadmapgitcommitpush",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D205-15-3::AC-8",
-      "to_ac": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush",
+      "to_ac": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15-4::AC-9",
-      "to_ac": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush",
+      "to_ac": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15-5::AC-8",
-      "to_ac": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush",
+      "to_ac": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15-6::AC-7",
-      "to_ac": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D205-15-5::AC-7",
-      "to_ac": "D205-15-4::AC-8",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspass",
+      "to_ac": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac",
       "reason": "dup_key"
     },
     {
       "from_ac": "D205-15-6::AC-6",
-      "to_ac": "D205-15-4::AC-8",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspass",
-      "reason": "dup_key"
-    },
-    {
-      "from_ac": "D207-5-1::AC-3",
-      "to_ac": "D207-5::AC-6",
-      "dup_key": "D207:TITLE:realbaseline",
+      "to_ac": "D205-15-5::AC-7",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspassmergedintodac",
       "reason": "dup_key"
     },
     {
@@ -144,206 +108,144 @@
       "to_ac": "D_ALPHA-1U::AC-1-4",
       "dup_key": "EVID:logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/",
       "reason": "dup_key"
-    },
-    {
-      "from_ac": "D209-2::AC-5",
-      "to_ac": "D209-1::AC-5",
-      "dup_key": "OTHER:TITLE:exitcode",
-      "reason": "dup_key"
     }
   ],
   "closeout_candidates": [
     {
-      "ac_id": "D205-14-3::AC-7",
-      "label": "AC-7",
-      "title": "Git commit + push ✅",
-      "line": 4394,
-      "merged_into": "AUTO-OTHER::AC-6-2",
-      "dup_key": "OTHER:TITLE:gitcommitpush"
-    },
-    {
-      "ac_id": "D205-13::AC-5",
-      "label": "AC-5",
-      "title": "증명 테스트 4개 추가 및 PASS ✅",
-      "line": 4131,
-      "merged_into": "D205-12::AC-8",
-      "dup_key": "OTHER:TITLE:pass"
-    },
-    {
-      "ac_id": "D205-14-2::AC-4",
-      "label": "AC-4",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅",
-      "line": 4328,
-      "merged_into": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression"
+      "ac_id": "D205-15-2::AC-11",
+      "label": "AC-11",
+      "title": "D_ROADMAP 최종 업데이트 + Commit + Push ✅",
+      "line": 4966,
+      "merged_into": "D000-3::AC-9",
+      "dup_key": "OTHER:TITLE:droadmapcommitpush"
     },
     {
       "ac_id": "D205-14-3::AC-4",
       "label": "AC-4",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅",
-      "line": 4391,
-      "merged_into": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression"
+      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)",
+      "line": 4432,
+      "merged_into": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac"
     },
     {
       "ac_id": "D205-14-6::AC-6",
       "label": "AC-6",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅",
-      "line": 4725,
-      "merged_into": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression"
+      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)",
+      "line": 4766,
+      "merged_into": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac"
     },
     {
       "ac_id": "D205-15::AC-8",
       "label": "AC-8",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-08",
-      "line": 4832,
-      "merged_into": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression"
+      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅ 2026-01-08 (Merged into D205-14-1::AC-6)",
+      "line": 4873,
+      "merged_into": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac"
     },
     {
       "ac_id": "D205-15-3::AC-7",
       "label": "AC-7",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅",
-      "line": 5030,
-      "merged_into": "D205-14-1::AC-6",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregression"
-    },
-    {
-      "ac_id": "D205-15::AC-10",
-      "label": "AC-10",
-      "title": "D_ROADMAP 업데이트 + Git commit + push",
-      "line": 4834,
-      "merged_into": "D205-14-6::AC-9",
-      "dup_key": "OTHER:TITLE:droadmapgitcommitpush"
-    },
-    {
-      "ac_id": "D205-15-3::AC-8",
-      "label": "AC-8",
-      "title": "D_ROADMAP 업데이트 + Commit + Push ✅",
-      "line": 5034,
-      "merged_into": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush"
+      "title": "Gate 3단 PASS (Doctor/Fast/Regression) ✅ (Merged into D205-14-1::AC-6)",
+      "line": 5071,
+      "merged_into": "D205-14-2::AC-4",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressionmergedintodac"
     },
     {
       "ac_id": "D205-15-4::AC-9",
       "label": "AC-9",
-      "title": "D_ROADMAP 업데이트 + Commit + Push ✅",
-      "line": 5128,
-      "merged_into": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush"
+      "title": "D_ROADMAP 업데이트 + Commit + Push ✅ (Merged into D205-15-2::AC-11)",
+      "line": 5169,
+      "merged_into": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac"
     },
     {
       "ac_id": "D205-15-5::AC-8",
       "label": "AC-8",
-      "title": "D_ROADMAP 업데이트 + Commit + Push",
-      "line": 5223,
-      "merged_into": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush"
+      "title": "D_ROADMAP 업데이트 + Commit + Push (Merged into D205-15-2::AC-11)",
+      "line": 5264,
+      "merged_into": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac"
     },
     {
       "ac_id": "D205-15-6::AC-7",
       "label": "AC-7",
-      "title": "D_ROADMAP 업데이트 + Commit + Push",
-      "line": 5309,
-      "merged_into": "D205-15-2::AC-11",
-      "dup_key": "OTHER:TITLE:droadmapcommitpush"
-    },
-    {
-      "ac_id": "D205-15-5::AC-7",
-      "label": "AC-7",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS",
-      "line": 5218,
-      "merged_into": "D205-15-4::AC-8",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspass"
+      "title": "D_ROADMAP 업데이트 + Commit + Push (Merged into D205-15-2::AC-11)",
+      "line": 5350,
+      "merged_into": "D205-15-3::AC-8",
+      "dup_key": "OTHER:TITLE:droadmapcommitpushmergedintodac"
     },
     {
       "ac_id": "D205-15-6::AC-6",
       "label": "AC-6",
-      "title": "Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS",
-      "line": 5308,
-      "merged_into": "D205-15-4::AC-8",
-      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspass"
-    },
-    {
-      "ac_id": "D207-5-1::AC-3",
-      "label": "AC-3",
-      "title": "REAL 20분 baseline 증거 확보",
-      "line": 6744,
-      "merged_into": "D207-5::AC-6",
-      "dup_key": "D207:TITLE:realbaseline"
+      "title": "Gate 3단 PASS (Doctor/Fast/Regression) + DocOps PASS (Merged into D205-15-4::AC-8)",
+      "line": 5349,
+      "merged_into": "D205-15-5::AC-7",
+      "dup_key": "OTHER:TITLE:gatepassdoctorfastregressiondocopspassmergedintodac"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-2-2",
       "label": "AC-2",
-      "title": "pessimistic_drift_bps 증가 → latency_cost 증가, latency_ms 불변 (단위 테스트 검증)",
-      "line": 6979,
+      "title": "pessimistic_drift_bps 증가 → latency_cost 증가, latency_ms 불변 (단위 테스트 검증) (Merged into D_ALPHA-1U::AC-1-2)",
+      "line": 7020,
       "merged_into": "D_ALPHA-1U::AC-1-2",
       "dup_key": "EVID:logs/evidence/d_alpha_1u_survey_off_20260131_233706/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-3-2",
       "label": "AC-3",
-      "title": "PnL 분해 스케일 상식선 유지 (friction < 1.1% notional, 단위 테스트 검증)",
-      "line": 6980,
+      "title": "PnL 분해 스케일 상식선 유지 (friction < 1.1% notional, 단위 테스트 검증) (Merged into D_ALPHA-1U::AC-1-2)",
+      "line": 7021,
       "merged_into": "D_ALPHA-1U::AC-1-2",
       "dup_key": "EVID:logs/evidence/d_alpha_1u_survey_off_20260131_233706/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-4-2",
       "label": "AC-4",
-      "title": "latency_cost = slippage_bps + pessimistic_drift_bps 기반 가격 영향 (KRW 단위)",
-      "line": 6981,
+      "title": "latency_cost = slippage_bps + pessimistic_drift_bps 기반 가격 영향 (KRW 단위) (Merged into D_ALPHA-1U::AC-1-2)",
+      "line": 7022,
       "merged_into": "D_ALPHA-1U::AC-1-2",
       "dup_key": "EVID:logs/evidence/d_alpha_1u_survey_off_20260131_233706/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-5-2",
       "label": "AC-5",
-      "title": "latency_total = ms 합계 (시간 단위, 독립적 누적)",
-      "line": 6982,
+      "title": "latency_total = ms 합계 (시간 단위, 독립적 누적) (Merged into D_ALPHA-1U::AC-1-2)",
+      "line": 7023,
       "merged_into": "D_ALPHA-1U::AC-1-2",
       "dup_key": "EVID:logs/evidence/d_alpha_1u_survey_off_20260131_233706/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-2-4",
       "label": "AC-2",
-      "title": "Orchestrator loop의 모든 주요 `continue` 분기(`candidate_none`, `admin_paused`, `symbol_blacklisted`, `cooldown`, `intent_conversion_failed`, `execution_reject`)에서 cycle pacing 강제.",
-      "line": 7055,
+      "title": "Orchestrator loop의 모든 주요 `continue` 분기(`candidate_none`, `admin_paused`, `symbol_blacklisted`, `cooldown`, `intent_conversion_failed`, `execution_reject`)에서 cycle pacing 강제. (Merged into D_ALPHA-1U::AC-1-4)",
+      "line": 7096,
       "merged_into": "D_ALPHA-1U::AC-1-4",
       "dup_key": "EVID:logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-3-4",
       "label": "AC-3",
-      "title": "회귀 테스트 추가 및 PASS - `tests/test_d_alpha_1u_fix_2_reality_welding.py::test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`.",
-      "line": 7056,
+      "title": "회귀 테스트 추가 및 PASS - `tests/test_d_alpha_1u_fix_2_reality_welding.py::test_ac4_orchestrator_quote_amount_regression_no_orderintent_price_attr`. (Merged into D_ALPHA-1U::AC-1-4)",
+      "line": 7097,
       "merged_into": "D_ALPHA-1U::AC-1-4",
       "dup_key": "EVID:logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-4-4",
       "label": "AC-4",
-      "title": "D206-1 proof matrix 재실행 PASS (top20/top50 x 5 seeds = 10 runs), `failed_runs=False`, `has_negative_pnl=False`, `missing_percentiles=[]`.",
-      "line": 7057,
+      "title": "D206-1 proof matrix 재실행 PASS (top20/top50 x 5 seeds = 10 runs), `failed_runs=False`, `has_negative_pnl=False`, `missing_percentiles=[]`. (Merged into D_ALPHA-1U::AC-1-4)",
+      "line": 7098,
       "merged_into": "D_ALPHA-1U::AC-1-4",
       "dup_key": "EVID:logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/"
     },
     {
       "ac_id": "D_ALPHA-1U::AC-5-4",
       "label": "AC-5",
-      "title": "runtime config 주입 경로 유지 (`runtime_factory`에서 `config_path` 우선 로드) + proof harness에서 `negative_edge_execution_probability=0.0`, `min_net_edge_bps>=40`, `edge_distribution_stride=1` 적용.",
-      "line": 7058,
+      "title": "runtime config 주입 경로 유지 (`runtime_factory`에서 `config_path` 우선 로드) + proof harness에서 `negative_edge_execution_probability=0.0`, `min_net_edge_bps>=40`, `edge_distribution_stride=1` 적용. (Merged into D_ALPHA-1U::AC-1-4)",
+      "line": 7099,
       "merged_into": "D_ALPHA-1U::AC-1-4",
       "dup_key": "EVID:logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/"
-    },
-    {
-      "ac_id": "D209-2::AC-5",
-      "label": "AC-5",
-      "title": "테스트 케이스 - 각 리스크 임계치 초과 시나리오 테스트, ExitCode=1 확인",
-      "line": 7361,
-      "merged_into": "D209-1::AC-5",
-      "dup_key": "OTHER:TITLE:exitcode"
     }
   ],
   "still_open_top": [
@@ -418,34 +320,34 @@
       "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-1",
-      "title": "ControlState enum 정의 (RUNNING/PAUSED/STOPPING/PANIC/EMERGENCY_CLOSE)",
+      "ac_id": "D000-3::AC-1",
+      "title": "DOCOPS_TOKEN_POLICY.md + allowlist 설정 추가",
+      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing; canonical evidence missing"
+    },
+    {
+      "ac_id": "D000-3::AC-2",
+      "title": "DocOps 토큰 스캔 스크립트 + justfile 연동",
+      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing; canonical evidence missing"
+    },
+    {
+      "ac_id": "D000-3::AC-3",
+      "title": "Strict SSOT 문서 토큰 0건 유지 (SSOT_RULES/SSOT_MAP/V2_ARCHITECTURE)",
+      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing; canonical evidence missing"
+    },
+    {
+      "ac_id": "D000-3::AC-4",
+      "title": "Welding guard 강화 (pnl_calculator 단일 진실성)",
+      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing; canonical evidence missing"
+    },
+    {
+      "ac_id": "D000-3::AC-5",
+      "title": "Engine-centric guard에 harness 얇은막 강제 추가",
       "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-2",
-      "title": "CommandHandler 구현 (start/stop/panic/blacklist/close 명령 처리)",
-      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
-    },
-    {
-      "ac_id": "D205-12::AC-3",
-      "title": "Start/Stop 명령 → 5초 내 상태 변경 검증",
-      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
-    },
-    {
-      "ac_id": "D205-12::AC-4",
-      "title": "Panic 명령 → 5초 내 중단 + 포지션 초기화 검증",
-      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
-    },
-    {
-      "ac_id": "D205-12::AC-5",
-      "title": "Symbol blacklist → 즉시 거래 중단 검증 (decision trace)",
-      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
-    },
-    {
-      "ac_id": "D205-12::AC-6",
-      "title": "Emergency close → 10초 내 청산 검증",
-      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing"
+      "ac_id": "D000-3::AC-6",
+      "title": "PROFIT_LOGIC_STATUS.md 작성",
+      "missing_evidence_or_artifacts": "missing canonical evidence; missing gate evidence: doctor,fast,regression; canonical evidence missing; canonical evidence missing"
     }
   ],
   "suspicious": [
@@ -520,46 +422,46 @@
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-1",
-      "title": "ControlState enum 정의 (RUNNING/PAUSED/STOPPING/PANIC/EMERGENCY_CLOSE)",
+      "ac_id": "D000-3::AC-1",
+      "title": "DOCOPS_TOKEN_POLICY.md + allowlist 설정 추가",
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-2",
-      "title": "CommandHandler 구현 (start/stop/panic/blacklist/close 명령 처리)",
+      "ac_id": "D000-3::AC-2",
+      "title": "DocOps 토큰 스캔 스크립트 + justfile 연동",
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-3",
-      "title": "Start/Stop 명령 → 5초 내 상태 변경 검증",
+      "ac_id": "D000-3::AC-3",
+      "title": "Strict SSOT 문서 토큰 0건 유지 (SSOT_RULES/SSOT_MAP/V2_ARCHITECTURE)",
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-4",
-      "title": "Panic 명령 → 5초 내 중단 + 포지션 초기화 검증",
+      "ac_id": "D000-3::AC-4",
+      "title": "Welding guard 강화 (pnl_calculator 단일 진실성)",
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-5",
-      "title": "Symbol blacklist → 즉시 거래 중단 검증 (decision trace)",
+      "ac_id": "D000-3::AC-5",
+      "title": "Engine-centric guard에 harness 얇은막 강제 추가",
       "issue": "ROADMAP checked but evidence missing"
     },
     {
-      "ac_id": "D205-12::AC-6",
-      "title": "Emergency close → 10초 내 청산 검증",
+      "ac_id": "D000-3::AC-6",
+      "title": "PROFIT_LOGIC_STATUS.md 작성",
       "issue": "ROADMAP checked but evidence missing"
     }
   ],
   "summary_counts": {
-    "total": 377,
+    "total": 386,
     "done": 6,
-    "open": 371,
-    "merged": 24
+    "open": 380,
+    "merged": 17
   },
   "change_summary": {
-    "dup_group_count": 10,
-    "merged_count": 24,
+    "dup_group_count": 6,
+    "merged_count": 17,
     "done_count": 6,
-    "open_count": 371
+    "open_count": 380
   }
 }
