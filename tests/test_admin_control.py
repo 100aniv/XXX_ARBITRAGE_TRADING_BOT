@@ -11,6 +11,7 @@ D205-12: Admin Control Engine 테스트
 
 import pytest
 import json
+import os
 import redis
 from pathlib import Path
 from datetime import datetime, timezone
@@ -25,7 +26,9 @@ from arbitrage.v2.core.admin_control import (
 @pytest.fixture
 def redis_client():
     """Redis 테스트 클라이언트 (DB 1 사용)"""
-    client = redis.Redis(host="localhost", port=6380, db=1, decode_responses=True)
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = int(os.getenv("REDIS_PORT", "6380"))
+    client = redis.Redis(host=redis_host, port=redis_port, db=1, decode_responses=True)
     yield client
     # Cleanup: 테스트 키 삭제
     for key in client.scan_iter("v2:test:*"):
