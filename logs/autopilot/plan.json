@@ -1,16 +1,25 @@
 {
   "schema_version": "1.0",
-  "mode": "DRY_RUN",
+  "mode": "BIKIT",
   "ticket_id": "SAFE::D_ALPHA-PIPELINE-0::AC-3",
   "ac_id": "D_ALPHA-PIPELINE-0::AC-3",
   "title": "DocOps Gate 실행 (check_ssot_docs ExitCode=0 + rg 결과 저장)",
-  "created_at_utc": "2026-02-18T13:39:04+00:00",
+  "created_at_utc": "2026-02-19T23:54:08+00:00",
   "scope": {
     "modify": [
       "ops/factory/controller.py",
       "ops/factory/worker.py",
+      "ops/factory_supervisor.py",
+      "ops/factory/Dockerfile.worker",
+      "ops/prompts/worker_instruction.md",
       "ops/factory/schema.py",
       "ops/factory/README.md",
+      "Makefile",
+      ".dockerignore",
+      ".gitignore",
+      ".env.factory.local.example",
+      "docs/plan/*.md",
+      "docs/report/*_analyze.md",
       "logs/autopilot/plan.json",
       "logs/autopilot/result.json",
       "justfile"
@@ -25,10 +34,14 @@
       "docs/v2/SSOT_RULES.md"
     ]
   },
-  "done_criteria": "just gate/docops/evidence_check exit_code == 0 and machine-readable result.json generated",
+  "done_criteria": "Bikit PLAN/DO/CHECK 완료 + make gate 성공 + check_ssot_docs.py exit_code==0 + machine-readable result.json/report 생성",
   "notes": [
-    "Safety ticket only",
-    "DRY-RUN only: no core engine changes",
-    "Factory integration endpoints are placeholders"
-  ]
+    "Master 1인 운영: Claude Code(PLAN/CHECK), Aider(DO)",
+    "Container worker 우선, 코어 엔진(arbitrage/v2/**) 대량 변경 금지",
+    "API cost cap(기본 5 USD) 초과 시 supervisor 즉시 종료",
+    "Dynamic model routing: plan override > env max-tier > policy default"
+  ],
+  "risk_level": "low",
+  "model_budget": "low",
+  "model_overrides": {}
 }

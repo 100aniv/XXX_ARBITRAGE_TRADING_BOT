@@ -14,6 +14,30 @@ from ops.factory.schema import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+
+LOW_RISK_KEYWORDS = [
+    "docops",
+    "document",
+    "docs",
+    "readme",
+    "evidence",
+    "guard",
+    "ledger",
+    "report",
+    "gate",
+]
+
+HIGH_RISK_KEYWORDS = [
+    "arbitrage/v2",
+    "core",
+    "engine",
+    "pnl",
+    "friction",
+    "slippage",
+    "latency",
+    "trade",
+    "executor",
+]
 LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
 DEFAULT_PLAN_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 
@@ -80,10 +104,29 @@ def pick_safe_open_ticket(rows: List[Dict[str, str]]) -> Dict[str, str]:
     return open_rows[0]
 
 
+def infer_risk_level(ticket: Dict[str, str]) -> str:
+    text = f"{ticket.get('ac_id', '')} {ticket.get('title', '')} {ticket.get('notes', '')}".lower()
+    if any(token in text for token in HIGH_RISK_KEYWORDS):
+        return "high"
+    if any(token in text for token in LOW_RISK_KEYWORDS):
+        return "low"
+    return "mid"
+
+
+def infer_model_budget(risk_level: str) -> str:
+    if risk_level == "low":
+        return "low"
+    if risk_level == "high":
+        return "high"
+    return "mid"
+
+
 def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
+    risk_level = infer_risk_level(ticket)
+    model_budget = infer_model_budget(risk_level)
     return FactoryPlan(
         schema_version=SCHEMA_VERSION,
-        mode="DRY_RUN",
+        mode="BIKIT",
         ticket_id=f"SAFE::{ticket['ac_id']}",
         ac_id=ticket["ac_id"],
         title=ticket["title"],
@@ -92,8 +135,17 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
             modify=[
                 "ops/factory/controller.py",
                 "ops/factory/worker.py",
+                "ops/factory_supervisor.py",
+                "ops/factory/Dockerfile.worker",
+                "ops/prompts/worker_instruction.md",
                 "ops/factory/schema.py",
                 "ops/factory/README.md",
+                "Makefile",
+                ".dockerignore",
+                ".gitignore",
+                ".env.factory.local.example",
+                "docs/plan/*.md",
+                "docs/report/*_analyze.md",
                 "logs/autopilot/plan.json",
                 "logs/autopilot/result.json",
                 "justfile",
@@ -108,12 +160,16 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
                 "docs/v2/SSOT_RULES.md",
             ],
         ),
-        done_criteria="just gate/docops/evidence_check exit_code == 0 and machine-readable result.json generated",
+        done_criteria="Bikit PLAN/DO/CHECK 완료 + make gate 성공 + check_ssot_docs.py exit_code==0 + machine-readable result.json/report 생성",
         notes=[
-            "Safety ticket only",
-            "DRY-RUN only: no core engine changes",
-            "Factory integration endpoints are placeholders",
+            "Master 1인 운영: Claude Code(PLAN/CHECK), Aider(DO)",
+            "Container worker 우선, 코어 엔진(arbitrage/v2/**) 대량 변경 금지",
+            "API cost cap(기본 5 USD) 초과 시 supervisor 즉시 종료",
+            "Dynamic model routing: plan override > env max-tier > policy default",
         ],
+        risk_level=risk_level,
+        model_budget=model_budget,
+        model_overrides={},
     )
 
 

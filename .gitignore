@@ -41,6 +41,7 @@ config/secrets.yml
 .env.local_dev
 .env.paper
 .env.live
+.env.factory.local
 # But allow .env.* example templates
 !.env.*.example
 !.env.example
@@ -125,3 +126,4 @@ logs/autopilot/**/__pycache__/**
 logs/evidence/
 logs/evidence/**
 incident_simulation_results.json
+.aider*

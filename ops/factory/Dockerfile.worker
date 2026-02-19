@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1.7
+FROM node:20-bullseye
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHON_VERSION=3.11.11 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    make \
+    postgresql-client \
+    redis-tools \
+    libbz2-dev \
+    libffi-dev \
+    libgdbm-dev \
+    liblzma-dev \
+    libncursesw5-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    tk-dev \
+    uuid-dev \
+    wget \
+    xz-utils \
+    zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar -xzf Python-${PYTHON_VERSION}.tgz && \
+    cd Python-${PYTHON_VERSION} && \
+    ./configure --enable-optimizations --with-ensurepip=install && \
+    make -j"$(nproc)" && \
+    make altinstall && \
+    cd /app && \
+    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz && \
+    ln -sf /usr/local/bin/python3.11 /usr/local/bin/python3 && \
+    ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip3
+
+COPY requirements.txt /tmp/requirements.txt
+RUN python3 -m pip install --upgrade pip setuptools wheel && \
+    python3 -m pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python3 -m pip install --no-cache-dir pytest aider-chat
+
+RUN npm install -g @anthropic-ai/claude-code
+
+COPY . /app
+
+CMD ["python3", "ops/factory_supervisor.py", "--dry-run"]

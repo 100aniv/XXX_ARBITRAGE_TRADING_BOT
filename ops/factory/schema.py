@@ -27,6 +27,9 @@ class FactoryPlan:
     scope: PlanScope
     done_criteria: str
     notes: List[str] = field(default_factory=list)
+    risk_level: str = "mid"
+    model_budget: str = "mid"
+    model_overrides: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
