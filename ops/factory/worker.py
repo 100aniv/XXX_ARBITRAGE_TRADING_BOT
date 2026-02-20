@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -75,6 +77,24 @@ def ensure_git_safe_directory(env: Dict[str, str]) -> None:
         return
 
 
+def ensure_python_alias(env: Dict[str, str]) -> None:
+    if shutil.which("python"):
+        return
+    python3_bin = shutil.which("python3") or sys.executable
+    if not python3_bin:
+        return
+    alias_dir = ROOT / ".factory_bin"
+    alias_dir.mkdir(parents=True, exist_ok=True)
+    alias_path = alias_dir / "python"
+    try:
+        if alias_path.exists() or alias_path.is_symlink():
+            alias_path.unlink()
+        alias_path.symlink_to(python3_bin)
+    except OSError:
+        return
+    env["PATH"] = f"{alias_dir}:{env.get('PATH', '')}"
+
+
 def sanitize_ticket_id(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return slug.strip("_") or "ticket"
@@ -144,6 +164,7 @@ def main() -> int:
         )
     if "DATABASE_URL" not in env and env.get("POSTGRES_CONNECTION_STRING"):
         env["DATABASE_URL"] = env["POSTGRES_CONNECTION_STRING"]
+    ensure_python_alias(env)
     ensure_git_safe_directory(env)
 
     results: List[CommandResult] = []

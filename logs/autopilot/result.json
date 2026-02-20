@@ -4,7 +4,7 @@
   "ticket_id": "SAFE::D_ALPHA-PIPELINE-0::AC-3",
   "ac_id": "D_ALPHA-PIPELINE-0::AC-3",
   "status": "FAIL",
-  "created_at_utc": "2026-02-20T00:11:07+00:00",
+  "created_at_utc": "2026-02-20T00:14:27+00:00",
   "commands": [
     {
       "name": "do_aider",
@@ -14,7 +14,7 @@
         "aider --yes --message-file docs/plan/SAFE__D_ALPHA-PIPELINE-0__AC-3.md && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply SAFE_D_ALPHA-PIPELINE-0_AC-3\")"
       ],
       "exit_code": 0,
-      "duration_sec": 8.236
+      "duration_sec": 8.28
     },
     {
       "name": "gate",
@@ -24,7 +24,7 @@
         "make gate || (python3 scripts/run_gate_with_evidence.py doctor && python3 scripts/run_gate_with_evidence.py fast && python3 scripts/run_gate_with_evidence.py regression)"
       ],
       "exit_code": 1,
-      "duration_sec": 74.453
+      "duration_sec": 107.74
     },
     {
       "name": "docops",
@@ -34,7 +34,7 @@
         "make docops || (python3 scripts/check_ssot_docs.py && python3 scripts/check_docops_tokens.py --config config/docops_token_allowlist.yml && git status --short && git diff --stat)"
       ],
       "exit_code": 0,
-      "duration_sec": 0.33
+      "duration_sec": 0.344
     },
     {
       "name": "evidence_check",
@@ -50,7 +50,7 @@
   "gate_exit_code": 1,
   "docops_exit_code": 0,
   "evidence_check_exit_code": 0,
-  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260220_0010",
+  "evidence_latest": "logs/evidence/d205_4_reality_wiring_20260220_001411",
   "notes": [
     "Bikit CHECK uses make gate/docops/evidence_check",
     "plan_doc=docs/plan/SAFE__D_ALPHA-PIPELINE-0__AC-3.md",
