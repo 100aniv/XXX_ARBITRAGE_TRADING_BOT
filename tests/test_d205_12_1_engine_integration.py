@@ -12,6 +12,7 @@ Tests:
 import pytest
 import fakeredis
 import time
+import warnings
 from pathlib import Path
 
 from arbitrage.v2.core.admin_control import AdminControl, ControlMode
@@ -21,7 +22,13 @@ from arbitrage.v2.harness.paper_runner import PaperRunner, PaperRunnerConfig
 @pytest.fixture
 def redis_client():
     """Redis 클라이언트 (fakeredis, hang 방지)"""
-    client = fakeredis.FakeRedis(decode_responses=True)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Call to '__init__' function with deprecated usage of input argument/s 'retry_on_timeout'.*",
+            category=DeprecationWarning,
+        )
+        client = fakeredis.FakeRedis(decode_responses=True)
     yield client
     client.flushdb()
 
