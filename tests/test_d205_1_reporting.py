@@ -17,9 +17,10 @@ from arbitrage.v2.reporting.writer import upsert_pnl_daily, upsert_ops_daily
 @pytest.fixture
 def db_connection_string():
     """DB 연결 문자열 (테스트용)"""
-    return os.getenv(
-        "DATABASE_URL",
-        "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
+    return (
+        os.getenv("FACTORY_POSTGRES_CONNECTION_STRING")
+        or os.getenv("DATABASE_URL")
+        or "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
     )
 
 

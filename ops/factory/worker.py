@@ -162,17 +162,15 @@ def main() -> int:
     if redis_port and "FACTORY_REDIS_PORT" not in env:
         env["FACTORY_REDIS_PORT"] = redis_port
 
-    if "POSTGRES_CONNECTION_STRING" not in env:
+    if "FACTORY_POSTGRES_CONNECTION_STRING" not in env:
         pg_host = env.get("POSTGRES_HOST", "localhost").strip() or "localhost"
         pg_port = env.get("POSTGRES_PORT", "5432").strip() or "5432"
         pg_user = env.get("POSTGRES_USER", "arbitrage").strip() or "arbitrage"
         pg_password = env.get("POSTGRES_PASSWORD", "arbitrage").strip() or "arbitrage"
         pg_db = env.get("POSTGRES_DB", "arbitrage").strip() or "arbitrage"
-        env["POSTGRES_CONNECTION_STRING"] = (
+        env["FACTORY_POSTGRES_CONNECTION_STRING"] = (
             f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
         )
-    if "DATABASE_URL" not in env and env.get("POSTGRES_CONNECTION_STRING"):
-        env["DATABASE_URL"] = env["POSTGRES_CONNECTION_STRING"]
     ensure_python_alias(env)
     ensure_git_safe_directory(env)
 

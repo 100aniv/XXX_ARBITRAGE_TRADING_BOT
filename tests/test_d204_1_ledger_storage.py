@@ -28,9 +28,10 @@ from arbitrage.v2.storage import V2LedgerStorage
 @pytest.fixture
 def connection_string():
     """PostgreSQL connection string from environment"""
-    conn_str = os.getenv(
-        "POSTGRES_CONNECTION_STRING",
-        "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
+    conn_str = (
+        os.getenv("POSTGRES_CONNECTION_STRING")
+        or os.getenv("FACTORY_POSTGRES_CONNECTION_STRING")
+        or "postgresql://arbitrage:arbitrage@localhost:5432/arbitrage"
     )
     return conn_str
 
