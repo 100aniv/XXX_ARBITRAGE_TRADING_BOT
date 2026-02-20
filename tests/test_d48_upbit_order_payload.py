@@ -7,10 +7,17 @@ create_order / cancel_order의 REST API 페이로드 검증
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 import requests
+import warnings
 
 from arbitrage.exchanges.upbit_spot import UpbitSpotExchange
 from arbitrage.exchanges.base import OrderSide, OrderType, TimeInForce
 from arbitrage.exchanges.exceptions import AuthenticationError, NetworkError
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"The HMAC key is .* below the minimum recommended length of 32 bytes.*",
+    category=Warning,
+)
 
 
 class TestD48UpbitOrderPayload:

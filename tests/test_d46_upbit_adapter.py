@@ -7,8 +7,15 @@ D46: Upbit Read-Only 어댑터 테스트
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 import requests
+import warnings
 from arbitrage.exchanges.upbit_spot import UpbitSpotExchange
 from arbitrage.exchanges.exceptions import NetworkError, AuthenticationError
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"The HMAC key is .* below the minimum recommended length of 32 bytes.*",
+    category=Warning,
+)
 
 
 class TestD46UpbitAdapter:
