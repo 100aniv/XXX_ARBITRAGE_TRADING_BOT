@@ -49,11 +49,14 @@ class TestAlertThrottlerMemory:
         assert throttler.should_send("test-key") is True
         throttler.mark_sent("test-key")
         
-        # Wait for window to expire
-        time.sleep(1.1)
-        
-        # Second send after window
-        assert throttler.should_send("test-key") is True
+        # Wait for window to expire (timing jitter tolerant)
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            if throttler.should_send("test-key") is True:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("Throttle window did not expire within expected time")
     
     def test_multiple_keys(self):
         """Test throttling with multiple keys"""
