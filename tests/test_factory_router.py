@@ -273,3 +273,81 @@ class TestPathExtraction:
         agent = select_agent(intent, file_count)
         assert file_count == 2
         assert agent == "aider"  # file_count < 5, intent != design
+
+
+class TestDocOpsSelfHeal:
+    """DocOps Self-Heal 파서 + 액션 유닛 테스트 (결정론적, LLM 없음)."""
+
+    def test_parse_missing_concept_failure(self):
+        """DocOps 출력에서 missing concept: conflict_resolution 파싱."""
+        from ops.factory_supervisor import parse_docops_failures, _HEAL_TYPE_CONCEPT
+        output = (
+            "[FAIL] SSOT DocOps: FAIL (2 failures, 0 warnings)\n"
+            "- [FAIL] D_ROADMAP.md - D_ROADMAP global section missing concept: conflict_resolution\n"
+            "- [FAIL] D_ROADMAP.md - [Process SSOT] missing SSOT concept: conflict_resolution\n"
+        )
+        failures = parse_docops_failures(output)
+        assert len(failures) == 2
+        for f in failures:
+            assert f["type"] == _HEAL_TYPE_CONCEPT
+            assert f["concept"] == "conflict_resolution"
+            assert "D_ROADMAP.md" in f["path"]
+
+    def test_parse_report_filename_failure(self):
+        """DocOps 출력에서 Report filename violates pattern 파싱 + /app/ prefix 제거."""
+        from ops.factory_supervisor import parse_docops_failures, _HEAL_TYPE_FILENAME
+        output = (
+            "[FAIL] SSOT DocOps: FAIL (1 failures, 0 warnings)\n"
+            "- [FAIL] /app/docs/v2/reports/D205_REBASE_REPORT.md - "
+            "Report filename violates pattern: ^(?:D\\d{3}(?:-\\d+){0,3}|DALPHA(?:-[0-9A-Z]+){0,3})_REPORT\\.md$\n"
+        )
+        failures = parse_docops_failures(output)
+        assert len(failures) == 1
+        assert failures[0]["type"] == _HEAL_TYPE_FILENAME
+        assert "D205_REBASE_REPORT.md" in failures[0]["path"]
+
+    def test_unknown_failure_type_not_healed(self):
+        """허용되지 않은 DocOps FAIL 타입은 SELF_HEAL_SKIP으로 처리되고 수정 안 함."""
+        from ops.factory_supervisor import apply_docops_self_heal
+        import tempfile, os
+        failures = [
+            {
+                "type": "unknown_type",
+                "path": "some/file.md",
+                "concept": "",
+                "raw": "- [FAIL] some/file.md - Some unknown error",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            actions = apply_docops_self_heal(failures, root)
+        assert len(actions) == 1
+        assert "SELF_HEAL_SKIP" in actions[0]
+        assert "unknown_type" in actions[0]
+
+    def test_heal_conflict_resolution_inserts_block(self):
+        """D_ROADMAP.md에 conflict_resolution 없을 때 자동 삽입 확인."""
+        from ops.factory_supervisor import _heal_concept_conflict_resolution
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            doc = Path(tmpdir) / "D_ROADMAP.md"
+            doc.write_text("# D_ROADMAP\n\n## SSOT 불변 규칙\n\n내용\n", encoding="utf-8")
+            changed = _heal_concept_conflict_resolution(doc)
+            assert changed is True
+            text = doc.read_text(encoding="utf-8")
+            assert "conflict_resolution" in text.lower()
+
+    def test_heal_conflict_resolution_skips_if_exists(self):
+        """D_ROADMAP.md에 conflict_resolution 이미 있으면 변경 없음."""
+        from ops.factory_supervisor import _heal_concept_conflict_resolution
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            doc = Path(tmpdir) / "D_ROADMAP.md"
+            doc.write_text(
+                "# D_ROADMAP\n\n## conflict_resolution\n\n이미 있음\n",
+                encoding="utf-8",
+            )
+            original = doc.read_text(encoding="utf-8")
+            changed = _heal_concept_conflict_resolution(doc)
+            assert changed is False
+            assert doc.read_text(encoding="utf-8") == original

@@ -177,6 +177,24 @@
 7. **레거시 테스트 수정 금지** (이동만 허용)
 8. **3점 리더/임시 마커 금지**
 
+
+---
+
+## conflict_resolution (SSOT 충돌 해결 원칙)
+
+**판정 우선순위 (변경 금지):**
+1. `docs/v2/SSOT_RULES.md` — 헌법, 최상위. 모든 충돌 시 SSOT_RULES 채택.
+2. `D_ROADMAP.md` — Process SSOT. D번호 의미/상태/AC/증거 경로 정의.
+3. `docs/v2/design/SSOT_MAP.md` — 도메인별 SSOT 위치 명시.
+4. `docs/v2/V2_ARCHITECTURE.md` — 아키텍처 계약.
+5. runtime(config/artifacts) — 실행 증거 + Gate 결과.
+
+**충돌 해결 규칙:**
+- 같은 레벨 문서 간 conflict 발생 시: 최신 증거(evidence) + Gate 결과 우선.
+- 하위 문서가 상위 SSOT와 다른 정의를 사용하면 하위 문서를 상위에 맞춤.
+- 운영 중 긴급 변경은 D_ROADMAP/AC_LEDGER에 반영 후 증거 첨부 필수.
+- conflict 발견 시 조치: SSOT_RULES 확인 → D_ROADMAP 동기화 → check_ssot_docs.py ExitCode=0 확인.
+
 ---
 
 ## D번호 의미 (Immutable Semantics)

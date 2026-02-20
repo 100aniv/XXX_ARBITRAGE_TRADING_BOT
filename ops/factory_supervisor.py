@@ -3,11 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -323,6 +324,326 @@ def extract_gate_failure_summary(max_lines: int = 10) -> List[str]:
         if line.strip() and ("FAIL" in line or "ERROR" in line or "Traceback" in line)
     ]
     return (filtered[-max_lines:] if filtered else lines[-max_lines:])
+
+
+# ---------------------------------------------------------------------------
+# DocOps Self-Heal (결정론적, LLM 없음)
+# ---------------------------------------------------------------------------
+
+# 허용된 Self-Heal 타입
+_HEAL_TYPE_CONCEPT = "missing_concept"
+_HEAL_TYPE_FILENAME = "report_filename"
+
+# conflict_resolution 삽입 템플릿 (D_ROADMAP.md 전용)
+_CONFLICT_RESOLUTION_BLOCK = """
+## conflict_resolution (SSOT 충돌 해결 원칙)
+
+**판정 우선순위 (변경 금지):**
+1. `docs/v2/SSOT_RULES.md` — 헌법, 최상위. 모든 충돌 시 SSOT_RULES 채택.
+2. `D_ROADMAP.md` — Process SSOT. D번호 의미/상태/AC/증거 경로 정의.
+3. `docs/v2/design/SSOT_MAP.md` — 도메인별 SSOT 위치 명시.
+4. `docs/v2/V2_ARCHITECTURE.md` — 아키텍처 계약.
+5. runtime(config/artifacts) — 실행 증거 + Gate 결과.
+
+**충돌 해결 규칙:**
+- 같은 레벨 문서 간 conflict 발생 시: 최신 증거(evidence) + Gate 결과 우선.
+- 하위 문서가 상위 SSOT와 다른 정의를 사용하면 하위 문서를 상위에 맞춤.
+- 운영 중 긴급 변경은 D_ROADMAP/AC_LEDGER에 반영 후 증거 첨부 필수.
+- conflict 발견 시 조치: SSOT_RULES 확인 → D_ROADMAP 동기화 → check_ssot_docs.py ExitCode=0 확인.
+"""
+
+# Report 파일명 패턴 (check_ssot_docs.py와 동일)
+_REPORT_NAME_RE = re.compile(
+    r"^(?:D\d{3}(?:-\d+){0,3}|DALPHA(?:-[0-9A-Z]+){0,3})_REPORT\.md$"
+)
+
+# /app/ prefix 제거 후 repo 상대경로로 normalize
+_APP_PREFIX_RE = re.compile(r"^/app/")
+
+
+def _normalize_path(raw: str, root: Path) -> Optional[Path]:
+    """DocOps 출력의 절대경로 또는 /app/ prefix 경로를 repo 상대 Path로 변환."""
+    cleaned = _APP_PREFIX_RE.sub("", raw.strip())
+    candidate = Path(cleaned)
+    if candidate.is_absolute():
+        try:
+            return candidate.relative_to(root)
+        except ValueError:
+            return None
+    return candidate
+
+
+def parse_docops_failures(output: str) -> List[Dict[str, str]]:
+    """DocOps stdout/stderr에서 FAIL 항목을 파싱해 구조화된 리스트로 반환.
+
+    반환 형식:
+      [{"type": _HEAL_TYPE_*, "path": "<repo-relative>", "concept": "...", "raw": "..."}]
+    """
+    failures: List[Dict[str, str]] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("- [FAIL]"):
+            continue
+
+        # 패턴 A: missing concept: conflict_resolution (라벨 포함 케이스 대응)
+        m_concept = re.search(
+            r"- \[FAIL\]\s+(.+?)\s+-\s+.*missing.*concept:\s+(\S+)",
+            line,
+        )
+        if m_concept:
+            failures.append({
+                "type": _HEAL_TYPE_CONCEPT,
+                "path": m_concept.group(1).strip(),
+                "concept": m_concept.group(2).strip(),
+                "raw": line,
+            })
+            continue
+
+        # 패턴 B: Report filename violates pattern
+        m_fname = re.search(
+            r"- \[FAIL\]\s+(.+?)\s+-\s+Report filename violates pattern",
+            line,
+        )
+        if m_fname:
+            failures.append({
+                "type": _HEAL_TYPE_FILENAME,
+                "path": m_fname.group(1).strip(),
+                "concept": "",
+                "raw": line,
+            })
+            continue
+
+    return failures
+
+
+def _heal_concept_conflict_resolution(doc_path: Path) -> bool:
+    """D_ROADMAP.md에 conflict_resolution 블록이 없으면 삽입. 이미 있으면 False 반환."""
+    if not doc_path.exists():
+        return False
+    text = doc_path.read_text(encoding="utf-8")
+    if re.search(r"conflict.?resolution", text, re.IGNORECASE):
+        return False  # 이미 존재
+    # SSOT 불변 규칙 섹션 뒤에 삽입
+    marker = "## D번호 의미 (Immutable Semantics)"
+    if marker in text:
+        text = text.replace(marker, _CONFLICT_RESOLUTION_BLOCK.strip() + "\n\n---\n\n" + marker)
+    else:
+        text = text + "\n" + _CONFLICT_RESOLUTION_BLOCK.strip() + "\n"
+    doc_path.write_text(text, encoding="utf-8")
+    return True
+
+
+def _compute_rename_target(src: Path, reports_root: Path) -> Optional[Path]:
+    """패턴 위반 파일명에 대해 유효한 rename 대상을 결정론적으로 계산.
+
+    전략:
+    - 파일명에서 D번호 힌트 추출 (예: D205_REBASE_REPORT -> D205)
+    - 해당 D 폴더 내 최대 서브스텝 번호 + 1 로 새 파일명 결정
+    - 힌트 없으면 D000 폴더에 D000-99_REPORT.md 사용
+    """
+    stem = src.stem  # e.g. "D205_REBASE_REPORT"
+    m = re.match(r"(D(\d{3}))", stem, re.IGNORECASE)
+    if not m:
+        fallback = reports_root / "D000" / "D000-99_REPORT.md"
+        return fallback if not fallback.exists() else None
+
+    d_prefix = m.group(1).upper()  # e.g. "D205"
+    d_num = m.group(2)             # e.g. "205"
+    d_folder = reports_root / d_prefix
+    d_folder.mkdir(parents=True, exist_ok=True)
+
+    # 기존 서브스텝 번호 수집
+    existing_nums: List[int] = []
+    for f in d_folder.glob(f"{d_prefix}-*_REPORT.md"):
+        sub_m = re.match(rf"{d_prefix}-(\d+)_REPORT\.md", f.name, re.IGNORECASE)
+        if sub_m:
+            existing_nums.append(int(sub_m.group(1)))
+    next_num = (max(existing_nums) + 1) if existing_nums else 18
+    new_name = f"{d_prefix}-{next_num}_REPORT.md"
+    return d_folder / new_name
+
+
+def _update_references(old_rel: str, new_rel: str, root: Path) -> List[str]:
+    """repo 전체 .md 파일에서 old_rel 참조를 new_rel로 교체. 수정된 파일 목록 반환."""
+    updated: List[str] = []
+    old_name = Path(old_rel).name
+    new_name = Path(new_rel).name
+    for md in root.rglob("*.md"):
+        try:
+            text = md.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        if old_name in text or old_rel in text:
+            new_text = text.replace(old_rel, new_rel).replace(old_name, new_name)
+            if new_text != text:
+                md.write_text(new_text, encoding="utf-8")
+                updated.append(str(md.relative_to(root)))
+    return updated
+
+
+def _heal_report_filename(raw_path: str, root: Path) -> Tuple[bool, str, str]:
+    """패턴 위반 report 파일을 rename + 참조 업데이트.
+
+    Returns: (success, old_rel, new_rel)
+    """
+    rel = _normalize_path(raw_path, root)
+    if rel is None:
+        return False, raw_path, ""
+    src = root / rel
+    if not src.exists():
+        return False, str(rel), ""
+    if _REPORT_NAME_RE.match(src.name):
+        return False, str(rel), ""  # 이미 유효
+
+    reports_root = root / "docs" / "v2" / "reports"
+    target = _compute_rename_target(src, reports_root)
+    if target is None or target.exists():
+        return False, str(rel), ""
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(target)
+    new_rel = str(target.relative_to(root))
+    old_rel = str(rel)
+    _update_references(old_rel, new_rel, root)
+    return True, old_rel, new_rel
+
+
+def run_docops_check(root: Path) -> Tuple[int, str]:
+    """check_ssot_docs.py 실행 후 (exit_code, combined_output) 반환."""
+    result = subprocess.run(
+        ["python3", "scripts/check_ssot_docs.py"],
+        cwd=str(root),
+        text=True,
+        capture_output=True,
+    )
+    combined = (result.stdout or "") + (result.stderr or "")
+    return result.returncode, combined
+
+
+def apply_docops_self_heal(
+    failures: List[Dict[str, str]],
+    root: Path,
+) -> List[str]:
+    """허용된 타입(A/B)만 자동 수정. 수정 내역 문자열 리스트 반환."""
+    actions: List[str] = []
+    for f in failures:
+        ftype = f.get("type", "")
+        fpath = f.get("path", "")
+        concept = f.get("concept", "")
+
+        if ftype == _HEAL_TYPE_CONCEPT and concept == "conflict_resolution":
+            # 액션 A: D_ROADMAP.md에 conflict_resolution 삽입
+            doc_path = root / _normalize_path(fpath, root) if _normalize_path(fpath, root) else None
+            if doc_path is None:
+                doc_path = root / "D_ROADMAP.md"
+            changed = _heal_concept_conflict_resolution(doc_path)
+            if changed:
+                actions.append(f"[SELF_HEAL_A] conflict_resolution 삽입: {doc_path.relative_to(root)}")
+            else:
+                actions.append(f"[SELF_HEAL_A] conflict_resolution 이미 존재 (skip): {fpath}")
+
+        elif ftype == _HEAL_TYPE_FILENAME:
+            # 액션 B: report 파일명 rename
+            ok, old_rel, new_rel = _heal_report_filename(fpath, root)
+            if ok:
+                actions.append(f"[SELF_HEAL_B] rename: {old_rel} -> {new_rel}")
+            else:
+                actions.append(f"[SELF_HEAL_B] rename 불가 (skip): {fpath}")
+
+        else:
+            # 허용되지 않은 타입 → 수정 안 함
+            actions.append(f"[SELF_HEAL_SKIP] 허용되지 않은 타입={ftype}: {fpath}")
+
+    return actions
+
+
+def git_commit_self_heal(actions: List[str]) -> bool:
+    """Self-Heal 수정 후 자동 git commit. 성공 여부 반환."""
+    try:
+        subprocess.run(["git", "add", "-A"], cwd=str(ROOT), check=True, capture_output=True)
+        msg = "docops: self-heal auto-fix\n\n" + "\n".join(actions)
+        subprocess.run(
+            ["git", "commit", "-m", msg],
+            cwd=str(ROOT),
+            check=True,
+            capture_output=True,
+        )
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def run_docops_with_self_heal(
+    root: Path,
+    report_doc: Optional[Path] = None,
+) -> Tuple[int, str, List[str]]:
+    """DocOps 실행 → FAIL 시 Self-Heal 1회 → 재실행 → 결과 반환.
+
+    Returns: (final_exit_code, final_output, heal_actions)
+    """
+    exit_code, output = run_docops_check(root)
+    if exit_code == 0:
+        return 0, output, []
+
+    failures = parse_docops_failures(output)
+    healable = [f for f in failures if f["type"] in (_HEAL_TYPE_CONCEPT, _HEAL_TYPE_FILENAME)]
+    unhealable = [f for f in failures if f["type"] not in (_HEAL_TYPE_CONCEPT, _HEAL_TYPE_FILENAME)]
+
+    if not healable:
+        print("[DOCOPS_HEAL] 자동 수정 불가 항목만 존재. FAIL 유지.")
+        return exit_code, output, []
+
+    print(f"[DOCOPS_HEAL] {len(healable)}개 자동 수정 가능 / {len(unhealable)}개 수동 필요")
+    actions = apply_docops_self_heal(healable, root)
+    for a in actions:
+        print(f"  {a}")
+
+    committed = git_commit_self_heal(actions)
+    if committed:
+        print("[DOCOPS_HEAL] git commit 완료 (self-heal)")
+    else:
+        print("[DOCOPS_HEAL] git commit 실패 (변경사항 없거나 오류)")
+
+    # 재실행 (1회만)
+    retry_code, retry_output = run_docops_check(root)
+    print(f"[DOCOPS_HEAL] 재시도 결과: {'PASS' if retry_code == 0 else 'FAIL'}")
+    print(retry_output.strip())
+
+    if report_doc is not None and report_doc.exists():
+        _append_self_heal_to_report(report_doc, actions, retry_code, retry_output)
+
+    return retry_code, retry_output, actions
+
+
+def _append_self_heal_to_report(
+    report_doc: Path,
+    actions: List[str],
+    retry_code: int,
+    retry_output: str,
+) -> None:
+    """티켓 analyze.md에 Self-Heal 결과 섹션 추가."""
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    result_str = "PASS" if retry_code == 0 else "FAIL"
+    lines = [
+        "",
+        "## DocOps Self-Heal 기록",
+        f"",
+        f"**시각:** {stamp}",
+        f"**재시도 결과:** {result_str}",
+        "",
+        "### 적용 항목",
+    ]
+    lines.extend([f"- {a}" for a in actions])
+    lines += [
+        "",
+        "### 재시도 출력",
+        "```",
+        retry_output.strip(),
+        "```",
+        "",
+    ]
+    with report_doc.open("a", encoding="utf-8") as fp:
+        fp.write("\n".join(lines) + "\n")
 
 
 def extract_stage_exit_codes() -> Dict[str, int]:
@@ -671,6 +992,15 @@ def main() -> int:
         print(proc.stdout, end="")
     if proc.stderr:
         print(proc.stderr, end="")
+
+    # DocOps Self-Heal: worker 실행 후 DocOps FAIL이면 자동 수정 1회 시도
+    docops_exit, _docops_out, _heal_actions = run_docops_with_self_heal(
+        ROOT, report_doc=report_doc
+    )
+    if docops_exit != 0 and proc.returncode == 0:
+        # Gate는 PASS였지만 DocOps가 self-heal 후에도 FAIL → worker 실패로 처리
+        print("[DOCOPS_HEAL] Self-Heal 후에도 DocOps FAIL. 사이클 FAIL 처리.")
+        proc = subprocess.CompletedProcess(args=proc.args, returncode=1, stdout=proc.stdout, stderr=proc.stderr)
 
     escalation_count = 0
     escalated = False

@@ -4,7 +4,7 @@
   "ticket_id": "SAFE::D_ALPHA-0::AC-1",
   "ac_id": "D_ALPHA-0::AC-1",
   "status": "FAIL",
-  "created_at_utc": "2026-02-20T17:08:17+00:00",
+  "created_at_utc": "2026-02-20T17:11:21+00:00",
   "commands": [
     {
       "name": "do_aider",
@@ -14,7 +14,7 @@
         "aider --yes --model gpt-4.1 --message-file docs/plan/SAFE__D_ALPHA-0__AC-1.md && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply SAFE_D_ALPHA-0_AC-1\")"
       ],
       "exit_code": 0,
-      "duration_sec": 92.661
+      "duration_sec": 88.168
     },
     {
       "name": "gate",
@@ -24,7 +24,7 @@
         "make gate || (python3 scripts/run_gate_with_evidence.py doctor && python3 scripts/run_gate_with_evidence.py fast && python3 scripts/run_gate_with_evidence.py regression)"
       ],
       "exit_code": 0,
-      "duration_sec": 94.62
+      "duration_sec": 94.6
     },
     {
       "name": "docops",
@@ -34,7 +34,7 @@
         "make docops || (python3 scripts/check_ssot_docs.py && python3 scripts/check_docops_tokens.py --config config/docops_token_allowlist.yml && git status --short && git diff --stat)"
       ],
       "exit_code": 1,
-      "duration_sec": 0.258
+      "duration_sec": 0.253
     },
     {
       "name": "evidence_check",
@@ -44,13 +44,13 @@
         "make evidence_check || python3 -c \"from pathlib import Path; import sys; root=Path('logs/evidence'); required=['manifest.json','gate.log','git_info.json','cmd_history.txt']; runs=sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True) if root.exists() else []; candidate=next((p for p in runs if all((p / f).exists() for f in required)), None); missing=[] if candidate else required; print('latest=%s' % candidate); print('missing=' + ','.join(missing)) if missing else print('PASS'); sys.exit(1 if missing else 0)\""
       ],
       "exit_code": 0,
-      "duration_sec": 0.03
+      "duration_sec": 0.032
     }
   ],
   "gate_exit_code": 0,
   "docops_exit_code": 1,
   "evidence_check_exit_code": 0,
-  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260220_1708",
+  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260220_1711",
   "notes": [
     "Bikit CHECK uses make gate/docops/evidence_check",
     "plan_doc=docs/plan/SAFE__D_ALPHA-0__AC-1.md",
