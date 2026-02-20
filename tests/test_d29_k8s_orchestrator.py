@@ -7,6 +7,7 @@ K8s Job 생성 및 매니페스트 검증 테스트.
 
 import pytest
 import os
+import sys
 import yaml
 import tempfile
 from pathlib import Path
@@ -269,7 +270,7 @@ class TestK8sJobGeneratorCLI:
             output_dir = Path(tmpdir) / "k8s_jobs"
             
             cmd = [
-                "python",
+                sys.executable,
                 "scripts/gen_d29_k8s_jobs.py",
                 "--orchestrator-config", "configs/d28_orchestrator/demo_baseline.yaml",
                 "--k8s-config", "configs/d29_k8s/orchestrator_k8s_baseline.yaml",
@@ -299,7 +300,7 @@ class TestK8sJobGeneratorCLI:
             output_dir = Path(tmpdir) / "k8s_jobs"
             
             cmd = [
-                "python",
+                sys.executable,
                 "scripts/gen_d29_k8s_jobs.py",
                 "--orchestrator-config", "configs/d28_orchestrator/demo_baseline.yaml",
                 "--k8s-config", "configs/d29_k8s/orchestrator_k8s_baseline.yaml",
