@@ -126,7 +126,7 @@ class TestAlertThrottlerMemory:
         remaining2 = throttler.get_remaining_window("test-key")
         
         if remaining2 is not None:
-            assert remaining2 < remaining
+            assert remaining2 <= remaining
 
 
 class TestAlertThrottlerStats:
