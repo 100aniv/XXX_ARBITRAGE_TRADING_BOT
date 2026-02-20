@@ -30,6 +30,8 @@ from arbitrage.types import OrderSide
 def d86_calibration():
     """D86 Calibration JSON 로드"""
     calibration_path = Path("logs/d86/d86_0_calibration.json")
+    if not calibration_path.exists():
+        pytest.skip("D86 calibration artifact not found: logs/d86/d86_0_calibration.json")
     with open(calibration_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     
@@ -167,6 +169,8 @@ def test_d86_calibrated_fill_model_z2(d86_calibration):
 def test_d86_zone_coverage():
     """D86 Calibration이 모든 Entry/TP 조합을 커버하는지 검증"""
     calibration_path = Path("logs/d86/d86_0_calibration.json")
+    if not calibration_path.exists():
+        pytest.skip("D86 calibration artifact not found: logs/d86/d86_0_calibration.json")
     with open(calibration_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     

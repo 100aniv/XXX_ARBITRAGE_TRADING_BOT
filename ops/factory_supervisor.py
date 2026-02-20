@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
@@ -16,24 +17,20 @@ PROMPT_PATH = ROOT / "ops" / "prompts" / "worker_instruction.md"
 PLAN_DOC_ROOT = ROOT / "docs" / "plan"
 REPORT_ROOT = ROOT / "docs" / "report"
 FACTORY_LOG_PATH = ROOT / "logs" / "factory" / "init_test.log"
-
-ENV_FILE_PRIORITY = [
-    ".env.factory.local",
-    ".env.paper",
-    ".env.example",
-]
+MODEL_ROUTING_LOG_PATH = ROOT / "logs" / "factory" / "model_routing.log"
+MODEL_USAGE_LOG_PATH = ROOT / "logs" / "factory" / "model_usage.log"
 
 MODEL_TIERS = ["low", "mid", "high"]
 MODEL_POLICY = {
     "aider": {
-        "low": "gpt-4o-mini",
-        "mid": "gpt-4.1",
-        "high": "o3",
+        "low": "claude-4-6-sonnet",
+        "mid": "claude-4-6-sonnet",
+        "high": "claude-4-6-apex",
     },
     "claude_code": {
-        "low": "claude-3-5-haiku-latest",
-        "mid": "claude-3-7-sonnet-latest",
-        "high": "claude-3-7-sonnet-latest",
+        "low": "claude-4-6-sonnet",
+        "mid": "claude-4-6-sonnet",
+        "high": "claude-4-6-apex",
     },
 }
 
@@ -90,6 +87,15 @@ def ensure_secret_guard(env_keys: Dict[str, str], dry_run: bool, allow_missing: 
     return missing
 
 
+def print_factory_env_template() -> None:
+    print("ANTHROPIC_API_KEY=<REDACTED>")
+    print("OPENAI_API_KEY=<REDACTED>")
+    print("AIDER_MODEL=")
+    print("CLAUDE_CODE_MODEL=")
+    print("AIDER_MODEL_MAX_TIER=mid")
+    print("CLAUDE_CODE_MODEL_MAX_TIER=mid")
+
+
 def resolve_env_file(requested_env_file: str) -> tuple[Path, List[str], bool]:
     warnings: List[str] = []
     requested = Path(requested_env_file)
@@ -98,13 +104,6 @@ def resolve_env_file(requested_env_file: str) -> tuple[Path, List[str], bool]:
         return requested_abs, warnings, False
 
     warnings.append(f"requested env file not found: {requested_env_file}")
-    for fallback in ENV_FILE_PRIORITY:
-        candidate = ROOT / fallback
-        if candidate.exists():
-            warnings.append(f"fallback env file selected: {fallback}")
-            return candidate, warnings, True
-
-    warnings.append("no fallback env file found")
     return requested_abs, warnings, True
 
 
@@ -130,8 +129,10 @@ def infer_model_tier(model_name: str) -> str:
         return "high"
     if any(token in value for token in ["mini", "haiku", "small"]):
         return "low"
-    if any(token in value for token in ["opus", "o3", "o1", "ultra", "max", "sonnet"]):
+    if any(token in value for token in ["apex", "opus", "o3", "o1", "ultra", "max"]):
         return "high"
+    if "sonnet" in value:
+        return "mid"
     return "mid"
 
 
@@ -218,6 +219,54 @@ def extract_stage_exit_codes() -> Dict[str, int]:
         code = int(item.get("exit_code", 1))
         stage_exit_codes[name] = code
     return stage_exit_codes
+
+
+def append_model_routing_log(
+    *,
+    env_file: Path,
+    ticket_id: str,
+    selected_models: Dict[str, str],
+) -> None:
+    MODEL_ROUTING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).isoformat()
+    lines = [
+        f"[{stamp}] ticket_id={ticket_id}",
+        f"env_file={env_file.name}",
+        f"risk_level={selected_models.get('risk_level', '')}",
+        f"model_budget={selected_models.get('model_budget', '')}",
+        f"aider_model={selected_models.get('aider_model', '')}",
+        f"claude_code_model={selected_models.get('claude_code_model', '')}",
+        f"aider_max_tier={selected_models.get('aider_max_tier', '')}",
+        f"claude_max_tier={selected_models.get('claude_max_tier', '')}",
+        "windsurf_reasoning_mode=high",
+        "",
+    ]
+    with MODEL_ROUTING_LOG_PATH.open("a", encoding="utf-8") as fp:
+        fp.write("\n".join(lines))
+
+
+def append_model_usage_log(ticket_id: str, selected_models: Dict[str, str]) -> None:
+    MODEL_USAGE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).isoformat()
+    records = [
+        {
+            "timestamp_utc": stamp,
+            "ticket_id": ticket_id,
+            "agent": "aider",
+            "model_version": selected_models.get("aider_model", ""),
+            "token_count": -1,
+        },
+        {
+            "timestamp_utc": stamp,
+            "ticket_id": ticket_id,
+            "agent": "claude_code",
+            "model_version": selected_models.get("claude_code_model", ""),
+            "token_count": -1,
+        },
+    ]
+    with MODEL_USAGE_LOG_PATH.open("a", encoding="utf-8") as fp:
+        for row in records:
+            fp.write(json.dumps(row, ensure_ascii=True) + "\n")
 
 
 def append_init_log(
@@ -407,14 +456,9 @@ def main() -> int:
     env_file, env_warnings, used_fallback = resolve_env_file(args.env_file)
     for message in env_warnings:
         print(f"[ENV] WARN: {message}")
-    if (
-        not args.dry_run
-        and Path(args.env_file).name == ".env.factory.local"
-        and used_fallback
-    ):
-        print("[ENV] FAIL-FAST: .env.factory.local missing for RUN mode")
-        print("ANTHROPIC_API_KEY=<REDACTED>")
-        print("OPENAI_API_KEY=<REDACTED>")
+    if used_fallback:
+        print(f"[ENV] FAIL-FAST: required env file missing: {args.env_file}")
+        print_factory_env_template()
         return 2
 
     env_keys = read_env_keys(env_file)
@@ -435,6 +479,8 @@ def main() -> int:
     selected_models = resolve_model_selection(plan, env_keys)
     ticket_id = str(plan.get("ticket_id", "SAFE::UNKNOWN"))
     ticket_slug = sanitize_ticket(ticket_id)
+    append_model_routing_log(env_file=env_file, ticket_id=ticket_id, selected_models=selected_models)
+    append_model_usage_log(ticket_id=ticket_id, selected_models=selected_models)
 
     plan_doc = write_plan_doc(plan, ticket_slug)
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)

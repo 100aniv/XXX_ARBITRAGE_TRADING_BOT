@@ -69,8 +69,8 @@ clean:
 
 # Smart storage cleanup: logs retention + cache purge + large evidence summary
 clean_all:
-    @echo "[CLEANUP] Smart storage cleanup"
-    python3 scripts/cleanup_storage.py
+    @echo "[CLEANUP] Factory disk/docker cleanup report"
+    python3 scripts/factory_cleanup_report.py
 
 # Preflight: D106 Live environment check (7/7 PASS target)
 preflight:
