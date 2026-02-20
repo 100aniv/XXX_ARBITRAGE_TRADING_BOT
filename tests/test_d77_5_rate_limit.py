@@ -4,7 +4,7 @@ D77-5: Upbit Rate Limit (429) 핸들링 테스트
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 from arbitrage.exchanges.upbit_public_data import UpbitPublicDataClient
 
 
@@ -170,21 +170,22 @@ class TestUpbitRateLimit:
         # Mock response: 계속 429
         mock_response = Mock(status_code=429)
         
-        import time
-        start_time = time.time()
-        
-        with patch.object(client.session, 'get', return_value=mock_response):
+        with patch.object(client.session, 'get', return_value=mock_response), \
+                patch('arbitrage.exchanges.upbit_public_data.time.sleep') as mock_sleep:
             ticker = client.fetch_ticker("KRW-BTC")
-        
-        elapsed = time.time() - start_time
         
         # 검증: None 반환
         assert ticker is None
         
-        # 검증: backoff 시간 (0.5s + 1.0s + 2.0s + 4.0s + 4.0s = 11.5s, 약간의 오차 허용)
-        # 실제로는 함수 실행 시간 등이 있으므로 최소 시간만 체크
-        expected_min = 0.5 + 1.0 + 2.0 + 4.0 + 4.0 - 0.5  # 오차 허용
-        assert elapsed >= expected_min
+        # 검증: backoff 시퀀스 확인
+        expected_calls = [
+            call(0.5),
+            call(1.0),
+            call(2.0),
+            call(4.0),
+            call(4.0),
+        ]
+        assert mock_sleep.call_args_list == expected_calls
     
     def test_request_exception_retry(self):
         """RequestException 발생 시 재시도"""
