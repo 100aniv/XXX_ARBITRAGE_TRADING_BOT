@@ -30,6 +30,9 @@ class FactoryPlan:
     risk_level: str = "mid"
     model_budget: str = "mid"
     model_overrides: Dict[str, str] = field(default_factory=dict)
+    agent_preference: str = "aider"
+    intent: str = ""
+    affected_files_count: int = 0
 
 
 @dataclass
@@ -54,6 +57,9 @@ class FactoryResult:
     evidence_check_exit_code: int
     evidence_latest: str
     notes: List[str] = field(default_factory=list)
+    agent_used: str = ""
+    escalated: bool = False
+    escalation_reason: str = ""
 
 
 def utc_now_iso() -> str:

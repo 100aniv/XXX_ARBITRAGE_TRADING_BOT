@@ -43,6 +43,50 @@ HIGH_RISK_KEYWORDS = [
 LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
 DEFAULT_PLAN_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 
+CLAUDE_CODE_INTENT_KEYWORDS = [
+    "design", "architecture", "ssot", "docops", "roadmap",
+    "refactor", "audit", "migrate", "restructure", "overhaul",
+    "governance", "meta",
+]
+
+AIDER_INTENT_KEYWORDS = [
+    "implement", "fix", "test", "bug", "add", "patch",
+    "hotfix", "small", "update", "modify", "correct",
+    "calibrat", "guard", "smoke",
+]
+
+FILE_SCOPE_THRESHOLD = 5
+
+
+def classify_intent(title: str, notes: str = "") -> str:
+    """키워드 기반 Intent 분류 (결정론적, LLM 금지).
+
+    Returns: 'design' | 'implementation' | 'test' | 'ops'
+    """
+    text = f"{title} {notes}".lower()
+    for kw in CLAUDE_CODE_INTENT_KEYWORDS:
+        if kw in text:
+            return "design"
+    for kw in AIDER_INTENT_KEYWORDS:
+        if kw in text:
+            return "implementation"
+    return "implementation"
+
+
+def select_agent(intent: str, affected_files_count: int) -> str:
+    """결정론적 Agent 선택.
+
+    Rules:
+    1. 파일 5개 이상 수정 -> claude_code 강제 (File-Scope Heuristic)
+    2. intent == 'design' -> claude_code
+    3. 그 외 -> aider (default)
+    """
+    if affected_files_count >= FILE_SCOPE_THRESHOLD:
+        return "claude_code"
+    if intent == "design":
+        return "claude_code"
+    return "aider"
+
 def parse_ledger_rows(ledger_path: Path) -> List[Dict[str, str]]:
     lines = ledger_path.read_text(encoding="utf-8").splitlines()
     rows: List[Dict[str, str]] = []
@@ -131,32 +175,38 @@ def infer_model_budget(risk_level: str) -> str:
 def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
     risk_level = infer_risk_level(ticket)
     model_budget = infer_model_budget(risk_level)
+    title = ticket["title"]
+    notes_text = ticket.get("notes", "")
+    intent = classify_intent(title, notes_text)
+    modify_files = [
+        "ops/factory/controller.py",
+        "ops/factory/worker.py",
+        "ops/factory_supervisor.py",
+        "ops/factory/Dockerfile.worker",
+        "ops/prompts/worker_instruction.md",
+        "ops/factory/schema.py",
+        "ops/factory/README.md",
+        "Makefile",
+        ".dockerignore",
+        ".gitignore",
+        ".env.factory.local.example",
+        "docs/plan/*.md",
+        "docs/report/*_analyze.md",
+        "logs/autopilot/plan.json",
+        "logs/autopilot/result.json",
+        "justfile",
+    ]
+    affected_files_count = len(modify_files)
+    agent_preference = select_agent(intent, affected_files_count)
     return FactoryPlan(
         schema_version=SCHEMA_VERSION,
         mode="BIKIT",
         ticket_id=f"SAFE::{ticket['ac_id']}",
         ac_id=ticket["ac_id"],
-        title=ticket["title"],
+        title=title,
         created_at_utc=utc_now_iso(),
         scope=PlanScope(
-            modify=[
-                "ops/factory/controller.py",
-                "ops/factory/worker.py",
-                "ops/factory_supervisor.py",
-                "ops/factory/Dockerfile.worker",
-                "ops/prompts/worker_instruction.md",
-                "ops/factory/schema.py",
-                "ops/factory/README.md",
-                "Makefile",
-                ".dockerignore",
-                ".gitignore",
-                ".env.factory.local.example",
-                "docs/plan/*.md",
-                "docs/report/*_analyze.md",
-                "logs/autopilot/plan.json",
-                "logs/autopilot/result.json",
-                "justfile",
-            ],
+            modify=modify_files,
             readonly=[
                 "docs/v2/design/AC_LEDGER.md",
                 "docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md",
@@ -169,14 +219,17 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
         ),
         done_criteria="Bikit PLAN/DO/CHECK 완료 + make gate 성공 + check_ssot_docs.py exit_code==0 + machine-readable result.json/report 생성",
         notes=[
-            "Master 1인 운영: Claude Code(PLAN/CHECK), Aider(DO)",
+            "Smart Routing: intent 기반 Agent 자동 선택 (결정론적)",
             "Container worker 우선, 코어 엔진(arbitrage/v2/**) 대량 변경 금지",
             "API cost cap(기본 5 USD) 초과 시 supervisor 즉시 종료",
-            "Dynamic model routing: plan override > env max-tier > policy default",
+            "Escalation: Gate 실패 시 1회 tier 상향 재시도 (Budget Guard 내)",
         ],
         risk_level=risk_level,
         model_budget=model_budget,
         model_overrides={},
+        agent_preference=agent_preference,
+        intent=intent,
+        affected_files_count=affected_files_count,
     )
 
 
@@ -241,6 +294,9 @@ def main() -> int:
     print("[CONTROLLER] plan.json generated")
     print(f"  - ticket: {plan.ticket_id}")
     print(f"  - ac_id: {plan.ac_id}")
+    print(f"  - intent: {plan.intent}")
+    print(f"  - agent: {plan.agent_preference}")
+    print(f"  - affected_files: {plan.affected_files_count}")
     print(f"  - output: {output_path}")
     return 0
 

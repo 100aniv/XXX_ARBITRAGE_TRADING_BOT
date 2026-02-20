@@ -176,16 +176,33 @@ def main() -> int:
 
     results: List[CommandResult] = []
 
+    agent_preference = plan.get("agent_preference", "aider")
+    agent_used = agent_preference
+
     if not args.skip_do:
         if args.do_command.strip():
             do_shell = args.do_command.strip()
+            agent_used = "custom"
         else:
             rel_plan_doc = str(plan_doc_path.relative_to(ROOT)).replace("\\", "/")
-            do_shell = (
-                f"aider --yes --message-file {rel_plan_doc} && "
-                f"git add -A && (git diff --cached --quiet || git commit -m \"factory: apply {ticket_slug}\")"
-            )
-        results.append(run_shell("do_aider", do_shell, env))
+            git_commit_cmd = f"git add -A && (git diff --cached --quiet || git commit -m \"factory: apply {ticket_slug}\")"
+
+            if agent_preference == "claude_code":
+                claude_model = env.get("CLAUDE_CODE_MODEL", "")
+                model_flag = f"--model {claude_model}" if claude_model else ""
+                do_shell = (
+                    f"claude {model_flag} -p \"$(cat {rel_plan_doc})\" "
+                    f"--dangerously-skip-permissions && {git_commit_cmd}"
+                )
+            else:
+                aider_model = env.get("AIDER_MODEL", "")
+                model_flag = f"--model {aider_model}" if aider_model else ""
+                do_shell = (
+                    f"aider --yes {model_flag} --message-file {rel_plan_doc} && "
+                    f"{git_commit_cmd}"
+                )
+        do_step_name = f"do_{agent_used}"
+        results.append(run_shell(do_step_name, do_shell, env))
 
     gate_cmd = (
         "make gate || "
@@ -240,6 +257,7 @@ def main() -> int:
             f"plan_doc={plan_doc_path.relative_to(ROOT)}",
             f"report={report_path.relative_to(ROOT)}",
         ],
+        agent_used=agent_used,
     )
 
     write_json(result_path, result_to_dict(summary))

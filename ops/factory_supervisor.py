@@ -21,17 +21,23 @@ MODEL_ROUTING_LOG_PATH = ROOT / "logs" / "factory" / "model_routing.log"
 MODEL_USAGE_LOG_PATH = ROOT / "logs" / "factory" / "model_usage.log"
 
 MODEL_TIERS = ["low", "mid", "high"]
-MODEL_POLICY = {
-    "aider": {
-        "low": "claude-4-6-sonnet",
-        "mid": "claude-4-6-sonnet",
-        "high": "claude-4-6-apex",
+
+DEFAULT_MODELS = {
+    "openai": {
+        "low": "gpt-4.1-mini",
+        "mid": "gpt-4.1",
+        "high": "o3",
     },
-    "claude_code": {
-        "low": "claude-4-6-sonnet",
-        "mid": "claude-4-6-sonnet",
-        "high": "claude-4-6-apex",
+    "anthropic": {
+        "low": "claude-sonnet-4-20250514",
+        "mid": "claude-sonnet-4-20250514",
+        "high": "claude-opus-4-20250514",
     },
+}
+
+AGENT_DEFAULT_PROVIDER = {
+    "aider": "openai",
+    "claude_code": "anthropic",
 }
 
 REQUIRED_AGENT_KEYS = [
@@ -90,10 +96,12 @@ def ensure_secret_guard(env_keys: Dict[str, str], dry_run: bool, allow_missing: 
 def print_factory_env_template() -> None:
     print("ANTHROPIC_API_KEY=<REDACTED>")
     print("OPENAI_API_KEY=<REDACTED>")
-    print("AIDER_MODEL=")
-    print("CLAUDE_CODE_MODEL=")
-    print("AIDER_MODEL_MAX_TIER=mid")
-    print("CLAUDE_CODE_MODEL_MAX_TIER=mid")
+    print("AIDER_PROVIDER=openai")
+    print("CLAUDE_CODE_PROVIDER=anthropic")
+    print("AIDER_MODEL_MAX_TIER=high")
+    print("CLAUDE_CODE_MODEL_MAX_TIER=high")
+    print("ROUTER_ESCALATE_ON_GATE_FAIL=1")
+    print("ROUTER_ESCALATE_MAX_STEP=1")
 
 
 def resolve_env_file(requested_env_file: str) -> tuple[Path, List[str], bool]:
@@ -127,68 +135,135 @@ def infer_model_tier(model_name: str) -> str:
     value = model_name.strip().lower()
     if not value:
         return "high"
-    if any(token in value for token in ["mini", "haiku", "small"]):
+    if any(token in value for token in ["mini", "haiku", "small", "nano"]):
         return "low"
     if any(token in value for token in ["apex", "opus", "o3", "o1", "ultra", "max"]):
         return "high"
-    if "sonnet" in value:
+    if any(token in value for token in ["sonnet", "4o", "4.1", "gpt-4"]):
         return "mid"
     return "mid"
 
 
-def resolve_model_selection(plan: Dict[str, str], env_keys: Dict[str, str]) -> Dict[str, str]:
-    risk_level = str(plan.get("risk_level", "mid")).strip().lower() or "mid"
-    model_budget = str(plan.get("model_budget", risk_level)).strip().lower() or risk_level
-    policy_tier = normalize_tier(model_budget)
-    risk_tier = normalize_tier(risk_level)
+def resolve_agent_provider(agent: str, env_keys: Dict[str, str]) -> str:
+    """Agent Provider 결정. env override > default."""
+    key = f"{agent.upper()}_PROVIDER"
+    val = env_keys.get(key, "").strip().lower()
+    if val in ("openai", "anthropic"):
+        return val
+    return AGENT_DEFAULT_PROVIDER.get(agent, "openai")
+
+
+def _resolve_agent_model(
+    agent: str,
+    policy_tier: str,
+    risk_tier: str,
+    plan: Dict[str, str],
+    env_keys: Dict[str, str],
+) -> Dict[str, str]:
+    """Single agent 모델 결정.
+
+    Priority: plan override > env per-tier > env general > policy default.
+    """
+    agent_upper = agent.upper()
+    provider = resolve_agent_provider(agent, env_keys)
+    max_tier = normalize_tier(env_keys.get(f"{agent_upper}_MODEL_MAX_TIER", "high"))
+    effective_tier = clamp_tier(policy_tier, max_tier)
     high_allowed = risk_tier == "high"
-    if not high_allowed and policy_tier == "high":
-        policy_tier = "mid"
+    if effective_tier == "high" and not high_allowed:
+        effective_tier = "mid"
 
-    aider_max_tier = normalize_tier(env_keys.get("AIDER_MODEL_MAX_TIER", "high"))
-    claude_max_tier = normalize_tier(env_keys.get("CLAUDE_CODE_MODEL_MAX_TIER", "high"))
+    overrides = plan.get("model_overrides", {}) if isinstance(plan.get("model_overrides"), dict) else {}
 
-    aider_policy_tier = clamp_tier(policy_tier, aider_max_tier)
-    claude_policy_tier = clamp_tier(policy_tier, claude_max_tier)
+    plan_model = str(overrides.get(agent, "")).strip()
+    if plan_model:
+        inferred = infer_model_tier(plan_model)
+        if tier_index(inferred) <= tier_index(max_tier) and (inferred != "high" or high_allowed):
+            return {"model": plan_model, "provider": provider, "tier": effective_tier}
 
-    selected_aider = MODEL_POLICY["aider"][aider_policy_tier]
-    selected_claude = MODEL_POLICY["claude_code"][claude_policy_tier]
+    per_tier_key = f"{agent_upper}_MODEL_{effective_tier.upper()}"
+    per_tier_val = env_keys.get(per_tier_key, "").strip()
+    if per_tier_val:
+        return {"model": per_tier_val, "provider": provider, "tier": effective_tier}
 
-    overrides = plan.get("model_overrides", {}) if isinstance(plan.get("model_overrides", {}), dict) else {}
+    general_key = f"{agent_upper}_MODEL"
+    general_val = env_keys.get(general_key, "").strip()
+    if general_val:
+        inferred = infer_model_tier(general_val)
+        if tier_index(inferred) <= tier_index(max_tier) and (inferred != "high" or high_allowed):
+            return {"model": general_val, "provider": provider, "tier": effective_tier}
 
-    plan_aider = str(overrides.get("aider", "")).strip()
-    plan_claude = str(overrides.get("claude_code", "")).strip()
-    env_aider = str(env_keys.get("AIDER_MODEL", "")).strip()
-    env_claude = str(env_keys.get("CLAUDE_CODE_MODEL", "")).strip()
+    return {"model": DEFAULT_MODELS[provider][effective_tier], "provider": provider, "tier": effective_tier}
 
-    def model_allowed(candidate: str, max_tier: str) -> bool:
-        inferred = infer_model_tier(candidate)
-        if inferred == "high" and not high_allowed:
-            return False
-        return tier_index(inferred) <= tier_index(max_tier)
 
-    if plan_aider:
-        if model_allowed(plan_aider, aider_max_tier):
-            selected_aider = plan_aider
-    elif env_aider:
-        if model_allowed(env_aider, aider_max_tier):
-            selected_aider = env_aider
+def resolve_model_selection(
+    plan: Dict[str, str],
+    env_keys: Dict[str, str],
+    override_tier: str = "",
+) -> Dict[str, str]:
+    """Dual-Provider 모델 선택 (Aider=OpenAI, Claude Code=Anthropic).
 
-    if plan_claude:
-        if model_allowed(plan_claude, claude_max_tier):
-            selected_claude = plan_claude
-    elif env_claude:
-        if model_allowed(env_claude, claude_max_tier):
-            selected_claude = env_claude
+    override_tier: Escalation 시 강제 티어 지정에 사용.
+    """
+    risk_level = normalize_tier(str(plan.get("risk_level", "mid")).strip().lower() or "mid")
+    model_budget = normalize_tier(str(plan.get("model_budget", risk_level)).strip().lower() or risk_level)
+    policy_tier = normalize_tier(override_tier or model_budget)
+
+    aider = _resolve_agent_model("aider", policy_tier, risk_level, plan, env_keys)
+    claude = _resolve_agent_model("claude_code", policy_tier, risk_level, plan, env_keys)
 
     return {
-        "risk_level": normalize_tier(risk_level),
-        "model_budget": normalize_tier(model_budget),
-        "aider_model": selected_aider,
-        "claude_code_model": selected_claude,
-        "aider_max_tier": aider_max_tier,
-        "claude_max_tier": claude_max_tier,
+        "agent_preference": plan.get("agent_preference", "aider"),
+        "intent": plan.get("intent", ""),
+        "risk_level": risk_level,
+        "model_budget": model_budget,
+        "aider_model": aider["model"],
+        "aider_provider": aider["provider"],
+        "aider_tier": aider["tier"],
+        "aider_max_tier": normalize_tier(env_keys.get("AIDER_MODEL_MAX_TIER", "high")),
+        "claude_code_model": claude["model"],
+        "claude_code_provider": claude["provider"],
+        "claude_code_tier": claude["tier"],
+        "claude_max_tier": normalize_tier(env_keys.get("CLAUDE_CODE_MODEL_MAX_TIER", "high")),
     }
+
+
+def escalate_tier(current_tier: str) -> str:
+    """Tier 를 1단계 올림. high면 그대로."""
+    idx = tier_index(current_tier)
+    if idx < len(MODEL_TIERS) - 1:
+        return MODEL_TIERS[idx + 1]
+    return current_tier
+
+
+def can_escalate_check(
+    current_tier: str,
+    max_tier: str,
+    escalation_count: int,
+    env_keys: Dict[str, str],
+) -> bool:
+    """Escalation 가능 여부 판단 (결정론적)."""
+    if env_keys.get("ROUTER_ESCALATE_ON_GATE_FAIL", "0") != "1":
+        return False
+    max_step = int(env_keys.get("ROUTER_ESCALATE_MAX_STEP", "1"))
+    if escalation_count >= max_step:
+        return False
+    next_tier = escalate_tier(current_tier)
+    if tier_index(next_tier) > tier_index(max_tier):
+        return False
+    return next_tier != current_tier
+
+
+def write_escalation_context(plan_doc: Path, failure_summary: List[str]) -> None:
+    """Escalation Context Handover: 실패 로그를 고성능 모델에 주입."""
+    if not failure_summary:
+        return
+    context = "\n\n## Escalation Context (Previous Failure)\n\n"
+    context += "The previous attempt with a lower-tier model failed.\n"
+    context += "Focus on fixing these specific issues:\n\n```\n"
+    context += "\n".join(failure_summary[-15:])
+    context += "\n```\n"
+    with plan_doc.open("a", encoding="utf-8") as f:
+        f.write(context)
 
 
 def extract_gate_failure_summary(max_lines: int = 10) -> List[str]:
@@ -456,6 +531,7 @@ def main() -> int:
     parser.add_argument("--session-cost-usd", type=float, default=0.0)
     parser.add_argument("--do-command", default="")
     parser.add_argument("--skip-do", action="store_true", help="skip DO step (CHECK-only cycle)")
+    parser.add_argument("--max-cycles", type=int, default=1, help="max AC cycles per run")
     args = parser.parse_args()
 
     try:
@@ -506,14 +582,21 @@ def main() -> int:
         report_doc=report_doc,
     )
 
+    agent_pref = selected_models.get("agent_preference", "aider")
+    active_agent = agent_pref
+    active_model_key = f"{active_agent}_model"
+    active_tier_key = f"{active_agent}_tier" if active_agent == "aider" else "claude_code_tier"
+
     print("[SUPERVISOR] PLAN complete")
     print(f"  - ticket_id: {ticket_id}")
     print(f"  - plan_doc: {plan_doc.relative_to(ROOT)}")
     print(f"  - report_doc: {report_doc.relative_to(ROOT)}")
     print(f"  - docker_network: {args.docker_network}")
     print(f"  - env_file: {env_file.relative_to(ROOT)}")
-    print(f"  - aider_model: {selected_models['aider_model']}")
-    print(f"  - claude_code_model: {selected_models['claude_code_model']}")
+    print(f"  - agent_preference: {agent_pref}")
+    print(f"  - intent: {selected_models.get('intent', '')}")
+    print(f"  - aider_model: {selected_models['aider_model']} (provider={selected_models.get('aider_provider', '')})")
+    print(f"  - claude_code_model: {selected_models['claude_code_model']} (provider={selected_models.get('claude_code_provider', '')})")
     print(f"  - risk_level: {selected_models['risk_level']}")
     print(f"  - model_budget: {selected_models['model_budget']}")
 
@@ -542,8 +625,48 @@ def main() -> int:
     if proc.stderr:
         print(proc.stderr, end="")
 
+    escalation_count = 0
+    escalated = False
+    escalation_reason = ""
+
+    if proc.returncode != 0:
+        current_tier = selected_models.get(active_tier_key, "mid")
+        agent_max_tier = selected_models.get(
+            "aider_max_tier" if active_agent == "aider" else "claude_max_tier", "high"
+        )
+        if can_escalate_check(current_tier, agent_max_tier, escalation_count, env_keys):
+            next_tier = escalate_tier(current_tier)
+            print(f"[ESCALATION] Gate 실패. {current_tier} -> {next_tier} 으로 1회 상향 재시도")
+
+            failure_summary = extract_gate_failure_summary()
+            write_escalation_context(plan_doc, failure_summary)
+
+            selected_models = resolve_model_selection(plan, env_keys, override_tier=next_tier)
+            worker_cmd = build_worker_command(
+                args,
+                env_file=env_file,
+                selected_models=selected_models,
+                ticket_id=ticket_id,
+                plan_doc=plan_doc,
+                report_doc=report_doc,
+            )
+            append_model_routing_log(env_file=env_file, ticket_id=ticket_id, selected_models=selected_models)
+
+            print(f"[ESCALATION] Re-run: aider={selected_models['aider_model']}, claude={selected_models['claude_code_model']}")
+            proc = run_cmd(worker_cmd, check=False)
+            if proc.stdout:
+                print(proc.stdout, end="")
+            if proc.stderr:
+                print(proc.stderr, end="")
+
+            escalation_count += 1
+            escalated = True
+            escalation_reason = f"gate_fail_tier_{current_tier}_to_{next_tier}"
+
     if proc.returncode != 0:
         print(f"[SUPERVISOR] FAIL: worker exit_code={proc.returncode}")
+        if escalated:
+            print(f"[SUPERVISOR] Escalation was attempted: {escalation_reason}")
         append_init_log(
             mode="RUN",
             env_file=env_file,
@@ -566,7 +689,8 @@ def main() -> int:
         selected_models=selected_models,
         gate_failure_summary=[],
     )
-    print("[SUPERVISOR] DONE: Bikit cycle completed")
+    status_msg = "(escalated)" if escalated else ""
+    print(f"[SUPERVISOR] DONE: Bikit cycle completed {status_msg}")
     print(f"  - result: {RESULT_PATH.relative_to(ROOT)}")
     return 0
 

@@ -64,8 +64,62 @@ This performs:
   - `chmod 600 .env.factory.local`
   - `.env.factory.local`은 gitignore 대상이며, 키 값은 로컬에서만 입력
 
-## Dynamic Model Routing
+## Smart Agent Router (Deterministic, LLM-free)
 
-- 티켓 난이도(`risk_level`/`model_budget`) 기준으로 기본 모델 자동 선택
-- 우선순위: plan override > env override(AIDER_MODEL/CLAUDE_CODE_MODEL) > policy default
-- 안전 상한: `AIDER_MODEL_MAX_TIER`, `CLAUDE_CODE_MODEL_MAX_TIER` (low|mid|high)
+### Agent 선택 규칙
+
+Worker가 DO 단계에서 사용할 Agent를 결정론적으로 선택:
+
+1. **File-Scope Heuristic:** 수정 대상 파일 5개 이상 -> `claude_code` 강제
+2. **Intent 키워드 분류:**
+   - `claude_code`: design, architecture, ssot, docops, roadmap, refactor, audit, migrate
+   - `aider`: implement, fix, test, bug, add, patch, hotfix, small change
+3. **Default:** `aider`
+
+결과는 `plan.json`의 `agent_preference` 필드에 기록.
+
+### Dual-Provider Model Policy
+
+| Agent | Default Provider | Low | Mid | High |
+|---|---|---|---|---|
+| Aider | OpenAI | gpt-4.1-mini | gpt-4.1 | o3 |
+| Claude Code | Anthropic | claude-sonnet-4-20250514 | claude-sonnet-4-20250514 | claude-opus-4-20250514 |
+
+**모델 선택 우선순위:**
+1. `plan.json` model_overrides (최우선)
+2. `.env` per-tier (`AIDER_MODEL_HIGH` 등)
+3. `.env` general (`AIDER_MODEL` 등)
+4. Policy default (위 테이블)
+
+**Provider Override:** `.env`에서 `AIDER_PROVIDER=anthropic`으로 설정하면
+Aider도 Anthropic 모델 사용 가능 (사용자 설정 > 정책).
+
+### Tier Cap
+
+- `AIDER_MODEL_MAX_TIER=high` (기본값)
+- `CLAUDE_CODE_MODEL_MAX_TIER=high` (기본값)
+- `mid`로 설정하면 high 모델 사용 차단 (비용 절감)
+
+### Reflective Escalation (실패 시 1회 상향)
+
+조건:
+- Gate 실패 (exit != 0)
+- `ROUTER_ESCALATE_ON_GATE_FAIL=1`
+- 상향 횟수 < `ROUTER_ESCALATE_MAX_STEP` (기본 1)
+- Budget Guard 미위반
+
+동작:
+1. 1차 시도 실패 시 model tier를 1단계 상향 (예: mid -> high)
+2. 실패 로그(gate stderr)를 고성능 모델에 Context Handover
+3. 같은 티켓으로 DO+CHECK 1회 재시도
+4. 결과에 `escalated=true`, `escalation_reason` 기록
+
+### ENV 설정 가이드
+
+```bash
+cp .env.factory.local.example .env.factory.local
+chmod 600 .env.factory.local
+# API 키 입력 후:
+just factory_dry   # DRY-RUN으로 agent/model 선택 확인
+just factory_next  # 1개 AC 실행
+```
