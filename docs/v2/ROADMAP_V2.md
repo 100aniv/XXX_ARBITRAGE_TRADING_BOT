@@ -461,6 +461,73 @@
 
 ---
 
+## Phase 7: Operations & Production Readiness (TO-BE 운영 단계)
+
+### D216: Deployment & Release Pipeline
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | CI/CD 파이프라인 구축 (GitHub Actions / Docker Build) | OPEN | NONE |
+| AC-2 | Blue-Green 또는 Canary 배포 전략 문서화 | OPEN | NONE |
+| AC-3 | 자동 롤백 메커니즘 (health check 실패 시) | OPEN | NONE |
+| AC-4 | 배포 전 Gate 3단 강제 (CI에서 자동 실행) | OPEN | NONE |
+| AC-5 | Docker image 태깅/버전 관리 정책 | OPEN | NONE |
+| AC-6 | DEPLOY_RUNBOOK.md 작성 | OPEN | NONE |
+
+### D217: Observability (로그/메트릭/알림)
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | 구조화 로깅 (JSON structured log) 전환 | OPEN | NONE |
+| AC-2 | Prometheus 메트릭 엔드포인트 (/metrics) | OPEN | NONE |
+| AC-3 | Grafana 대시보드 (PnL, 체결률, 레이턴시, 에러율) | OPEN | NONE |
+| AC-4 | 알림 규칙 정의 (Slack/Telegram: drawdown, error_rate, heartbeat_miss) | OPEN | NONE |
+| AC-5 | Log rotation + retention 정책 (30일) | OPEN | NONE |
+| AC-6 | OBSERVABILITY_RUNBOOK.md 작성 | OPEN | NONE |
+
+### D218: Incident Response & Rollback
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | 장애 등급 정의 (P1~P4) | OPEN | NONE |
+| AC-2 | 자동 Kill-Switch 트리거 조건 (drawdown > 5%, error_rate > 10%) | OPEN | NONE |
+| AC-3 | 수동 롤백 절차 문서화 (1분 내 복구 목표) | OPEN | NONE |
+| AC-4 | Post-Mortem 템플릿 작성 | OPEN | NONE |
+| AC-5 | 장애 시뮬레이션 테스트 (Chaos Engineering lite) | OPEN | NONE |
+| AC-6 | INCIDENT_RUNBOOK.md 작성 | OPEN | NONE |
+
+### D219: Secret & Key Management
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | API Key 로테이션 정책 (90일 주기) | OPEN | NONE |
+| AC-2 | 시크릿 저장소 일원화 (.env + vault 또는 KMS) | OPEN | NONE |
+| AC-3 | Key 노출 탐지 (git-secrets / pre-commit hook) | OPEN | NONE |
+| AC-4 | LIVE Key Guard (SKIP_LIVE_KEY_GUARD=false 강제) | OPEN | NONE |
+| AC-5 | KEY_MANAGEMENT_RUNBOOK.md 작성 | OPEN | NONE |
+
+### D220: Cost & Budget Control
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | API 비용 상한 ($5/cycle, $50/day) 강제 | OPEN | NONE |
+| AC-2 | 거래 비용 실시간 추적 (fee_total_usd KPI) | OPEN | NONE |
+| AC-3 | Credit Cap 초과 시 자동 종료 (exit_code=2) | OPEN | NONE |
+| AC-4 | 비용 대시보드 (일별/주별 리포트) | OPEN | NONE |
+| AC-5 | COST_CONTROL_RUNBOOK.md 작성 | OPEN | NONE |
+
+### D221: Operations RUNBOOK Master
+
+| AC | Goal | Status | Evidence |
+|---|---|---|---|
+| AC-1 | OPS_MASTER_RUNBOOK.md (전체 운영 절차 통합) | OPEN | NONE |
+| AC-2 | 일일 점검 체크리스트 (Daily Ops Checklist) | OPEN | NONE |
+| AC-3 | 긴급 대응 연락망 + 에스컬레이션 절차 | OPEN | NONE |
+| AC-4 | 정기 유지보수 일정 (주간 Gate 전수, 월간 Key 로테이션) | OPEN | NONE |
+| AC-5 | Capacity Planning (심볼 수 / 자본금 / 서버 스펙 매핑) | OPEN | NONE |
+
+---
+
 ## Phase META: Governance & Infrastructure
 
 ### D000-3: DocOps Token Policy & Guards
@@ -483,9 +550,9 @@
 
 | 구분 | 수량 |
 |---|---|
-| 총 Phase | 6 + META |
-| 총 Step (D번호) | 약 35개 |
-| 총 AC | 약 250개 |
+| 총 Phase | 7 + META |
+| 총 Step (D번호) | 약 41개 (D216~D221 TO-BE 포함) |
+| 총 AC | 약 284개 |
 | DONE AC | 8개 (AC_LEDGER 기준, evidence 존재) |
-| OPEN AC | 약 242개 |
+| OPEN AC | 약 276개 |
 | 레거시 격리 | D82~D106 전체 (docs/archive/) |

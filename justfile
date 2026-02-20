@@ -60,10 +60,35 @@ factory_dry container_mode="docker" network="docker_arbitrage-network" env_file=
     @echo "[FACTORY] DRY-RUN supervisor (PLAN/DO/CHECK preview)"
     python3 ops/factory_supervisor.py --dry-run --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
 
-# Factory Run (Bikit PLAN -> DO -> CHECK)
+# Factory Run (Bikit PLAN -> DO -> CHECK) with Disk Guard
 factory_run container_mode="docker" network="docker_arbitrage-network" env_file=".env.factory.local" image="arbitrage-factory-worker:latest":
+    @echo "[FACTORY] Disk Guard check"
+    python3 -c "import shutil,sys; free=shutil.disk_usage('/').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
     @echo "[FACTORY] RUN supervisor"
     python3 ops/factory_supervisor.py --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
+
+# Factory Next: 다음 AC 1개만 실행 (1 cycle)
+factory_next container_mode="docker" network="docker_arbitrage-network" env_file=".env.factory.local" image="arbitrage-factory-worker:latest":
+    @echo "[FACTORY] Disk Guard check"
+    python3 -c "import shutil,sys; free=shutil.disk_usage('/').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
+    @echo "[FACTORY] NEXT: 1 cycle only"
+    python3 ops/factory_supervisor.py --max-cycles 1 --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
+
+# Factory Status: 진행률/포인터/최근 결과 (LLM-free, 결정론적)
+factory_status:
+    @python3 scripts/factory_status.py
+
+# Factory Stop: 실행 중 worker 즉시 종료 (안전)
+factory_stop:
+    @python3 scripts/factory_stop.py
+
+# Factory Tail: 최신 factory 로그 + evidence/gate.log tail
+factory_tail:
+    @echo "[TAIL] === Latest Factory Log ==="
+    @tail -30 logs/factory/init_test.log 2>/dev/null || echo "(no factory log)"
+    @echo ""
+    @echo "[TAIL] === Latest Evidence gate.log ==="
+    @bash -c 'latest=$(ls -td logs/evidence/*/ 2>/dev/null | head -1); if [ -n "$$latest" ]; then echo "Dir: $$latest"; cat "$${latest}gate.log" 2>/dev/null | tail -30 || echo "(no gate.log in $$latest)"; else echo "(no evidence dirs)"; fi'
 
 # Clean: Remove cache and temporary files
 clean:

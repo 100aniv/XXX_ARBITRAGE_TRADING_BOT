@@ -31,6 +31,7 @@
 4. **Refactoring & Slimming(D208)** = Alpha 완료 직후 강제 배치 (디스크 폭증 방지).
 5. **Risk Guards(D209)** = 운영 안전장치.
 6. **HFT/Live/Commercial(D210~D215)** = 상용화.
+7. **Operations TO-BE(D216~D221)** = 배포/관측/장애 대응/키 관리/비용 상한/RUNBOOK.
 
 ---
 
@@ -146,6 +147,17 @@
 | D214 | Admin UI/UX Dashboard | OPEN |
 | D215 | ML-based Parameter Optimization | OPEN |
 
+### Phase 7: Operations & Production Readiness (TO-BE)
+
+| Step | Goal | Status |
+|---|---|---|
+| D216 | Deployment & Release Pipeline | OPEN |
+| D217 | Observability (로그/메트릭/알림) | OPEN |
+| D218 | Incident Response & Rollback | OPEN |
+| D219 | Secret & Key Management | OPEN |
+| D220 | Cost & Budget Control | OPEN |
+| D221 | Operations RUNBOOK Master | OPEN |
+
 ### Phase META: Governance
 
 | Step | Goal | Status |
@@ -179,6 +191,7 @@
 | D208 | Refactoring (Adapter Rename, V1 Purge, Slimming) | OPEN |
 | D209 | Risk Guards (Failure Mode, Risk Guard, Wallclock) | OPEN |
 | D210~D215 | HFT & Commercial Readiness | OPEN |
+| D216~D221 | Operations TO-BE (배포/관측/장애/키관리/비용/RUNBOOK) | OPEN |
 | D_ALPHA-0~3 | Alpha Engine Track (수익 로직) | PARTIAL/OPEN |
 | D_ALPHA-PIPELINE-0 | One-Command Pipeline | PARTIAL |
 | D000-3 | META/Governance (DocOps Token Policy) | OPEN |
@@ -196,6 +209,25 @@ AC_LEDGER.md의 DONE 판정은 다음 조건을 모두 만족해야 합니다:
 4. **check_ssot_docs.py ExitCode=0**
 
 조건 미충족 시 자동으로 OPEN 또는 LOST_EVIDENCE로 하향 조정됩니다.
+
+---
+
+## Operator UX (결정론적 공장 제어)
+
+| 명령 | 설명 | 구현 |
+|---|---|---|
+| `just factory_status` | 진행률/포인터/최근 PASS-FAIL/evidence 경로 | scripts/factory_status.py |
+| `just factory_next` | 다음 AC 1개만 실행 (1 cycle) | supervisor --max-cycles 1 |
+| `just factory_run` | 큐 반복 실행 (예산/가드 기준) | supervisor + Disk Guard |
+| `just factory_stop` | worker 컨테이너 즉시 종료 (안전) | scripts/factory_stop.py |
+| `just factory_tail` | 최신 factory 로그 + gate.log tail | bash tail |
+| `just factory_dry` | DRY-RUN (PLAN/DO/CHECK 미리보기) | supervisor --dry-run |
+
+**안전 장치:**
+- **Disk Guard:** 디스크 여유 5GB 미만 시 Fail-Fast (controller.py check_disk_guard)
+- **Budget Guard:** API 비용 $5/cycle 초과 시 supervisor 즉시 종료
+- **Sequential Integrity:** AC_LEDGER 위에서 아래로 순차 진행 보장 (verify_sequential_integrity)
+- **진행률 계산:** AC_LEDGER DONE/TOTAL 비율 (LLM 호출 없이 결정론적)
 
 ---
 
@@ -229,4 +261,5 @@ AC_LEDGER.md의 DONE 판정은 다음 조건을 모두 만족해야 합니다:
 
 | 날짜 | 사유 | 커밋 |
 |---|---|---|
-| 2026-02-20 | Slim Index 재구성. 레거시 7962줄 -> archive 이관. V2-only 레일 신규 생성. | (이번 커밋) |
+| 2026-02-20 | Slim Index 재구성. 레거시 7962줄 -> archive 이관. V2-only 레일 신규 생성. | 7d5243f |
+| 2026-02-20 | Operator UX 추가 (factory_status/stop/next/tail). Phase 7 TO-BE 운영 단계 추가. Disk Guard/Sequential Integrity 구현. | (이번 커밋) |

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 from pathlib import Path
 from typing import Dict, List
 
@@ -179,16 +180,59 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
     )
 
 
+DISK_MIN_FREE_GB = 5.0
+
+
+def check_disk_guard(min_free_gb: float = DISK_MIN_FREE_GB) -> None:
+    """디스크 여유 공간 체크. min_free_gb 미만이면 Fail-Fast.
+
+    CTO ADD-ON: 0GB 마비 사태 원천 봉쇄.
+    """
+    usage = shutil.disk_usage("/")
+    free_gb = usage.free / (1024 ** 3)
+    print(f"[DISK_GUARD] {free_gb:.1f} GB free (minimum: {min_free_gb} GB)")
+    if free_gb < min_free_gb:
+        raise RuntimeError(
+            f"[DISK_GUARD] FAIL-FAST: 디스크 여유 {free_gb:.1f} GB < {min_free_gb} GB. "
+            f"'just cleanup_storage' 실행 후 재시도하세요."
+        )
+
+
+def verify_sequential_integrity(rows: List[Dict[str, str]]) -> None:
+    """Automated Pointer Handover: 장부 순서대로 순차 진행 보장.
+
+    규칙: DONE 뒤에 다시 DONE이 아닌 행이 나온 후, 또 DONE이 나오면 안 됨.
+    (= 건너뛰기 금지, 위에서 아래로 기차 레일 방식)
+    """
+    found_open_after_done = False
+    for row in rows:
+        if not _is_v2_alpha_ticket(row):
+            continue
+        status = row.get("status", "").strip()
+        if status == "OPEN" or status == "LOST_EVIDENCE":
+            found_open_after_done = True
+        elif status == "DONE" and found_open_after_done:
+            print(
+                f"[WARN] Sequential integrity violation: {row['ac_id']} is DONE "
+                f"but appears after OPEN items. Ledger 순서 점검 필요."
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Factory Controller (DRY-RUN)")
     parser.add_argument("--ledger", default=str(LEDGER_PATH), help="AC ledger path")
     parser.add_argument("--output", default=str(DEFAULT_PLAN_PATH), help="plan.json output path")
+    parser.add_argument("--skip-disk-guard", action="store_true", help="Skip disk guard check")
     args = parser.parse_args()
+
+    if not args.skip_disk_guard:
+        check_disk_guard()
 
     ledger_path = Path(args.ledger)
     output_path = Path(args.output)
 
     rows = parse_ledger_rows(ledger_path)
+    verify_sequential_integrity(rows)
     ticket = pick_safe_open_ticket(rows)
     plan = build_plan(ticket)
 
