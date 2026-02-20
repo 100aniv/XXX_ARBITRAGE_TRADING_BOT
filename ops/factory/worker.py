@@ -142,6 +142,8 @@ def main() -> int:
         env["POSTGRES_CONNECTION_STRING"] = (
             f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
         )
+    if "DATABASE_URL" not in env and env.get("POSTGRES_CONNECTION_STRING"):
+        env["DATABASE_URL"] = env["POSTGRES_CONNECTION_STRING"]
     ensure_git_safe_directory(env)
 
     results: List[CommandResult] = []
