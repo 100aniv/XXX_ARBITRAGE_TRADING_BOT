@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: doctor fast regression gate docops evidence_check
+.PHONY: doctor fast regression legacy gate docops evidence_check
 
 doctor:
 	@echo "[GATE 1/3] Doctor: Syntax + Import checks"
@@ -13,6 +13,10 @@ fast:
 regression:
 	@echo "[GATE 3/3] Regression: Full suite (no live API)"
 	$(PYTHON) scripts/run_gate_with_evidence.py regression
+
+legacy:
+	@echo "[LEGACY] Legacy test suite (not in default gate)"
+	$(PYTHON) scripts/run_gate_with_evidence.py legacy
 
 gate: doctor fast regression
 

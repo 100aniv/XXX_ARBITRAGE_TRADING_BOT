@@ -1,6 +1,8 @@
 generated_at: 2026-02-18T09:08:58Z
+updated_at: 2026-02-20
 sources: c:\work\XXX_ARBITRAGE_TRADING_BOT\D_ROADMAP.md, c:\work\XXX_ARBITRAGE_TRADING_BOT\logs\evidence, c:\work\XXX_ARBITRAGE_TRADING_BOT\docs\v2\reports, c:\work\XXX_ARBITRAGE_TRADING_BOT\docs\v2\SSOT_RULES.md
 rules: evidence-driven done (gate3 + artifacts), dup handling (evidence/title/intent), status=OPEN/DONE
+queue_policy: SEQUENTIAL_QUEUE — D_ROADMAP.md 전수 파싱 기준 순차 대기열. 컨트롤러는 최상단 첫 번째 OPEN 티켓을 자동 포인팅. 필터링(TURN 레벨 등) 금지. 장부 순서 = 공장 운행 순서.
 | AC_ID | TITLE | STAGE | STATUS | CANONICAL_EVIDENCE | LAST_COMMIT | DUP_GROUP_KEY | NOTES |
 |---|---|---|---|---|---|---|---|
 | D_ALPHA-0::AC-1 | universe(top=100)가 로딩되면 **universe_size=100**이 아티팩트에 기록된다. *(tests/test_d_alpha_0_universe_truth.py)* | D_ALPHA | OPEN | NONE | UNKNOWN | D_ALPHA:TITLE:universetopuniversesizeteststestdalphauniversetruthpy | canonical evidence missing |

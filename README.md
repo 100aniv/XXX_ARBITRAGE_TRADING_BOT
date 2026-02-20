@@ -77,6 +77,35 @@ pip install -r requirements.txt
 [V2 Smoke] ✅ SMOKE TEST PASSED
 ```
 
+### 4. Factory 전용 env 설정
+
+#### 4-1. env 파일 주입 (최초 1회, 필수)
+
+```bash
+cp .env.factory.local.example .env.factory.local
+chmod 600 .env.factory.local
+# 실제 키 입력 (값 노출 금지)
+# ANTHROPIC_API_KEY=<실제키>
+# OPENAI_API_KEY=<실제키>
+```
+
+- `.env.factory.local`이 없으면 Supervisor가 즉시 FAIL-FAST합니다 (fallback 없음).
+- `.env.factory.local`은 `.gitignore`에 영구 제외되어 있습니다.
+
+#### 4-2. 모델 라우팅 정책
+
+```bash
+AIDER_MODEL=                    # 빈 값 = 티켓 risk_level 기반 자동 선택
+CLAUDE_CODE_MODEL=              # 빈 값 = 티켓 risk_level 기반 자동 선택
+AIDER_MODEL_MAX_TIER=mid        # 상한선 cap
+CLAUDE_CODE_MODEL_MAX_TIER=mid  # 상한선 cap
+```
+
+**우선순위:** plan override > env override > risk routing default, MAX_TIER cap 적용
+
+- `risk_level != high`인 경우 high tier 모델은 자동 차단됩니다.
+- `AIDER_MODEL`, `CLAUDE_CODE_MODEL`이 **빈 값**이면 티켓 `risk_level/model_budget` 정책으로 자동 선택됩니다.
+
 ---
 
 ## 📚 SSOT 문서 (Single Source of Truth)
@@ -562,12 +591,34 @@ docker-compose -f infra/docker-compose.yml down
 - **CPU**: < 10%, Memory: < 60MB
 - **Uptime**: 99.9%+
 - **Multi-symbol**: Top50+ concurrent
-- **Positive net edge**: ≥ 5% (현재 0~5.61%)
-- **Winrate**: ≥ 50% (현재 0~92%)
+---
+
+## ⚠️ Docker Desktop Kubernetes — 운영 불필요 (OFF 권고)
+
+### 이유
+Docker Desktop의 Kubernetes가 켜져 있으면:
+- registry.k8s.io/pause, kube-apiserver, etcd 등 **시스템 이미지 600MB+** 상시 점유
+- WSL `docker-desktop-data` VHDX가 **자동으로 팽창**하며 수십 GB 차지
+- `C:\` 드라이브 96%+ 사용 시 **빌드 실패/I/O 에러** 직접 원인
+
+### 해제 절차 (Windows Docker Desktop)
+1. Docker Desktop → Settings → Kubernetes → **Enable Kubernetes OFF**
+2. **Reset Kubernetes Cluster** 클릭 (기존 k8s 상태 초기화)
+3. Apply & Restart
+4. WSL VHDX 수동 shrink(선택):
+   ```powershell
+   # Docker Desktop 완전 종료 후 실행
+   Optimize-VHD -Path "$env:LOCALAPPDATA\Docker\wsl\data\ext4.vhdx" -Mode Full
+   ```
+5. 이후 안전 정리: `just docker_prune_safe` 또는 K8s OFF 후 `just docker_prune_unsafe`
+
+### 이 프로젝트에서 사용 중인 오케스트레이션
+- **Docker Compose** (`docker/docker-compose.yml`) — 단일 호스트 운영
+- K8s 관련 `tests/test_d29_k8s_orchestrator.py`, `tests/test_d31_k8s_apply.py`는 `@pytest.mark.legacy`로 분리됨 (기본 gate에서 제외)
 
 ---
 
-## �🔗 주요 링크
+## 🔗 주요 링크
 
 - **GitHub 저장소**: https://github.com/100aniv/XXX_ARBITRAGE_TRADING_BOT
 - **로드맵**: [`docs/D_ROADMAP.md`](D_ROADMAP.md)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -41,27 +42,6 @@ HIGH_RISK_KEYWORDS = [
 LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
 DEFAULT_PLAN_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 
-SAFE_KEYWORDS = [
-    "docops",
-    "document",
-    "docs",
-    "ssot",
-    "guard",
-    "ledger",
-    "evidence",
-    "report",
-    "gate",
-    "문서",
-    "증거",
-    "가드",
-]
-
-
-def safety_score(row: Dict[str, str]) -> int:
-    text = f"{row['ac_id']} {row['title']} {row['notes']}".lower()
-    return sum(1 for keyword in SAFE_KEYWORDS if keyword in text)
-
-
 def parse_ledger_rows(ledger_path: Path) -> List[Dict[str, str]]:
     lines = ledger_path.read_text(encoding="utf-8").splitlines()
     rows: List[Dict[str, str]] = []
@@ -91,17 +71,43 @@ def parse_ledger_rows(ledger_path: Path) -> List[Dict[str, str]]:
     return rows
 
 
+_LEGACY_D_NUMBER = re.compile(r'\bD([0-9]+)\b')
+
+
+def _is_v2_alpha_ticket(row: Dict[str, str]) -> bool:
+    """V2/ALPHA 트랙 티켓만 허용. D200 미만 번호 또는 레거시 단계 제외.
+
+    허용: D_ALPHA-x, D2xx+, ALPHA 단계
+    차단: D8x, D9x, D1xx(D200 미만), V1 단계
+    """
+    ac_id = str(row.get("ac_id", "")).strip()
+    stage = str(row.get("stage", "")).strip().upper()
+
+    if stage.startswith("D_ALPHA") or "ALPHA" in stage:
+        return True
+
+    matches = _LEGACY_D_NUMBER.findall(ac_id + " " + stage)
+    for m in matches:
+        n = int(m)
+        if n < 200:
+            return False
+        return True
+
+    return True
+
+
 def pick_safe_open_ticket(rows: List[Dict[str, str]]) -> Dict[str, str]:
-    open_rows = [r for r in rows if r.get("status") == "OPEN"]
-    if not open_rows:
-        raise RuntimeError("No OPEN AC found in AC_LEDGER")
+    """Sequential queue pointer: pick the first OPEN V2/ALPHA ticket.
 
-    scored = sorted(open_rows, key=safety_score, reverse=True)
-    if safety_score(scored[0]) > 0:
-        return scored[0]
-
-    # fallback: first OPEN
-    return open_rows[0]
+    Rules:
+    - AC_LEDGER.md is a sequential queue (D_ROADMAP order).
+    - D200 미만/legacy AC_ID는 큐에서 제외.
+    - 첫 번째 OPEN + V2/ALPHA 항목을 자동 포인팅.
+    """
+    for row in rows:
+        if row.get("status") == "OPEN" and _is_v2_alpha_ticket(row):
+            return row
+    raise RuntimeError("No OPEN V2/ALPHA ticket found in AC_LEDGER (all D200+ items done or ledger empty)")
 
 
 def infer_risk_level(ticket: Dict[str, str]) -> str:

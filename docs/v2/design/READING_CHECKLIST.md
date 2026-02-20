@@ -1,6 +1,6 @@
 # READING_CHECKLIST
 
-**Date:** 2026-02-07
+**Date:** 2026-02-20
 
 ## Step 0 Reading (D205-10-1-1 THINWRAP)
 
@@ -9,6 +9,11 @@
 - docs/v2/design/SSOT_MAP.md — 확인: SSOT 계층 및 Evidence SSOT 위치 재확인.
 - docs/v2/design/EVIDENCE_FORMAT.md — 확인: evidence 필수 산출물 및 watch_summary 규칙 재확인.
 - docs/v2/V2_ARCHITECTURE.md — 확인: Thin Wrapper/One True Loop 원칙 재확인.
+
+## Step 0 Reading (Factory Gate V2 Separation)
+
+- docs/v2/design/AC_LEDGER.md — 확인: OPEN 티켓/Stage 구조 및 필터링 기준 파악.
+- docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md — 확인: Controller/Worker/Gate 기본 흐름 및 Gate 수행 규약 재확인.
 
 ## Step 0 Reading (D207-5)
 

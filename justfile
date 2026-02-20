@@ -25,6 +25,11 @@ regression:
     @echo "[GATE 3/3] Regression: Full suite (no live API)"
     python3 scripts/run_gate_with_evidence.py regression
 
+# Legacy tests (explicit only)
+legacy:
+    @echo "[LEGACY] Legacy test suite (not in default gate)"
+    python3 scripts/run_gate_with_evidence.py legacy
+
 # Standard entrypoints (B3)
 fmt:
     @echo "[FMT] No formatter configured; running compileall as syntax guard"
@@ -67,10 +72,28 @@ clean:
     find . -name "*.pyc" -delete
     @echo "Clean complete"
 
-# Smart storage cleanup: logs retention + cache purge + large evidence summary
+# Smart storage cleanup: evidence retention + cache purge + du report
+cleanup_storage:
+    @echo "[CLEANUP] Workspace storage cleanup"
+    python3 scripts/cleanup_storage.py --evidence-keep 20 --du-report logs/cleanup/du_report.json
+
+# Docker prune safe: preview report then apply safe prune policy
+docker_prune_safe:
+    @echo "[CLEANUP] Docker prune preview"
+    python3 scripts/factory_cleanup_report.py --preview
+    @echo "[CLEANUP] Docker prune apply"
+    python3 scripts/factory_cleanup_report.py --apply --pip-cache-purge
+
+# Docker prune unsafe: includes docker system prune --volumes (use only after k8s off)
+docker_prune_unsafe:
+    @echo "[CLEANUP] Docker prune preview (unsafe)"
+    python3 scripts/factory_cleanup_report.py --preview --unsafe
+    @echo "[CLEANUP] Docker prune apply (unsafe)"
+    python3 scripts/factory_cleanup_report.py --apply --unsafe --pip-cache-purge
+
 clean_all:
-    @echo "[CLEANUP] Factory disk/docker cleanup report"
-    python3 scripts/factory_cleanup_report.py
+    @just cleanup_storage
+    @just docker_prune_safe
 
 # Preflight: D106 Live environment check (7/7 PASS target)
 preflight:

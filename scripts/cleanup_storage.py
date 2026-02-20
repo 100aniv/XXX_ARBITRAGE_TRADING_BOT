@@ -271,6 +271,79 @@ def manage_large_evidence_json(
     )
 
 
+def retain_latest_evidence_runs(
+    evidence_root: Path,
+    keep_runs: int,
+    dry_run: bool,
+) -> CleanupResult:
+    if not evidence_root.exists():
+        return CleanupResult("evidence_retention", 0, 0, 0, ["evidence_root_missing"])
+
+    runs = [p for p in evidence_root.iterdir() if p.is_dir()]
+    runs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    stale_runs = runs[max(keep_runs, 0) :]
+
+    bytes_freed = 0
+    deleted_dirs = 0
+    deleted_files = 0
+    notes: List[str] = [
+        f"keep_runs={keep_runs}",
+        f"total_runs={len(runs)}",
+        f"stale_runs={len(stale_runs)}",
+    ]
+
+    for run_dir in stale_runs:
+        size = dir_size(run_dir)
+        file_count = 0
+        try:
+            file_count = sum(1 for item in run_dir.rglob("*") if item.is_file())
+        except (PermissionError, OSError):
+            file_count = 0
+
+        if not dry_run:
+            shutil.rmtree(run_dir, ignore_errors=True)
+
+        bytes_freed += size
+        deleted_dirs += 1
+        deleted_files += file_count
+
+    return CleanupResult(
+        name="evidence_retention",
+        bytes_freed=bytes_freed,
+        deleted_files=deleted_files,
+        deleted_dirs=deleted_dirs,
+        notes=notes,
+    )
+
+
+def build_du_report(repo_root: Path, top_k: int = 40) -> Dict[str, object]:
+    entries: List[Tuple[str, int]] = []
+    for item in repo_root.iterdir():
+        if item.name in EXCLUDED_TOPLEVEL_DIRS:
+            continue
+        if item.is_file():
+            size = file_size(item)
+        elif item.is_dir():
+            size = dir_size(item)
+        else:
+            continue
+        entries.append((item.name, size))
+
+    entries.sort(key=lambda pair: pair[1], reverse=True)
+    return {
+        "generated_at_utc": iso_utc(utc_now()),
+        "top_k": top_k,
+        "items": [
+            {
+                "path": name,
+                "size_bytes": size,
+                "size_gb": bytes_to_gb(size),
+            }
+            for name, size in entries[:top_k]
+        ],
+    }
+
+
 def ensure_report_dir(repo_root: Path) -> Path:
     report_dir = repo_root / "logs" / "cleanup"
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -282,6 +355,8 @@ def main() -> int:
     parser.add_argument("--retention-days", type=int, default=3)
     parser.add_argument("--keep-pass", type=int, default=5)
     parser.add_argument("--evidence-threshold-gb", type=float, default=1.0)
+    parser.add_argument("--evidence-keep", type=int, default=20)
+    parser.add_argument("--du-report", default="logs/cleanup/du_report.json")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -299,6 +374,11 @@ def main() -> int:
             dry_run=args.dry_run,
         ),
         cleanup_cache_dirs(repo_root=repo_root, dry_run=args.dry_run),
+        retain_latest_evidence_runs(
+            evidence_root=evidence_root,
+            keep_runs=args.evidence_keep,
+            dry_run=args.dry_run,
+        ),
         manage_large_evidence_json(
             evidence_root=evidence_root,
             threshold_bytes=threshold_bytes,
@@ -334,7 +414,15 @@ def main() -> int:
     report_path = report_dir / f"cleanup_storage_{generated_at.strftime('%Y%m%d_%H%M%S')}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    du_report_path = Path(args.du_report)
+    if not du_report_path.is_absolute():
+        du_report_path = repo_root / du_report_path
+    du_report_path.parent.mkdir(parents=True, exist_ok=True)
+    du_report = build_du_report(repo_root=repo_root)
+    du_report_path.write_text(json.dumps(du_report, indent=2, ensure_ascii=False), encoding="utf-8")
+
     print(f"[CLEANUP] report={report_path}")
+    print(f"[CLEANUP] du_report={du_report_path}")
     print(f"[CLEANUP] dry_run={args.dry_run}")
     print(f"[CLEANUP] total_bytes_freed={total_freed}")
     print(f"[CLEANUP] total_gb_freed={bytes_to_gb(total_freed)}")

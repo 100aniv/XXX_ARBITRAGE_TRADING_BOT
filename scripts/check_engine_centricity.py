@@ -32,6 +32,8 @@ ALLOWLIST_CHANGED_NON_THIN: Set[Path] = {
     Path("scripts/check_engine_centricity.py"),
     Path("scripts/check_no_duplicate_pnl.py"),
     Path("scripts/check_docops_tokens.py"),
+    Path("scripts/cleanup_storage.py"),
+    Path("scripts/factory_cleanup_report.py"),
 }
 
 HARNESS_NON_THIN_ALLOWLIST: Set[Path] = {

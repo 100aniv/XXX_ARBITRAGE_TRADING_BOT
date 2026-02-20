@@ -6,6 +6,7 @@ Usage:
     python scripts/run_gate_with_evidence.py doctor
     python scripts/run_gate_with_evidence.py fast
     python scripts/run_gate_with_evidence.py regression
+    python scripts/run_gate_with_evidence.py legacy
 """
 
 import sys
@@ -35,20 +36,30 @@ def run_gate_with_evidence(gate_name: str):
     packer.start()
     
     # Gate 명령 정의
+    v2_marker_expr = (
+        "v2 and not legacy and not optional_ml and not optional_live and not live_api and not fx_api"
+    )
     gate_commands = {
         "doctor": [
-            sys.executable, "-m", "pytest", "tests/", "--collect-only", "-q"
+            sys.executable, "-m", "pytest",
+            "-m", "v2 and not legacy",
+            "tests/", "--collect-only", "-q"
         ],
         "fast": [
-            sys.executable, "-m", "pytest", 
-            "-m", "not optional_ml and not optional_live and not live_api and not fx_api",
+            sys.executable, "-m", "pytest",
+            "-m", v2_marker_expr,
             "-x", "--tb=short", "-v"
         ],
         "regression": [
             sys.executable, "-m", "pytest",
-            "-m", "not optional_ml and not optional_live and not live_api and not fx_api",
+            "-m", v2_marker_expr,
             "--tb=short", "-v"
-        ]
+        ],
+        "legacy": [
+            sys.executable, "-m", "pytest",
+            "-m", "legacy",
+            "--tb=short", "-v"
+        ],
     }
     
     if gate_name not in gate_commands:
@@ -202,7 +213,7 @@ def run_gate_with_evidence(gate_name: str):
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python scripts/run_gate_with_evidence.py <gate_name>")
-        print("Gates: doctor, fast, regression")
+        print("Gates: doctor, fast, regression, legacy")
         sys.exit(1)
     
     gate = sys.argv[1]

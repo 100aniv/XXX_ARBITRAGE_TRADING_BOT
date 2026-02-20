@@ -19,6 +19,18 @@ import sys
 import pytest
 from pathlib import Path
 
+import re as _re
+
+_LEGACY_DN_PATTERN = _re.compile(r'^test_d([0-9]+)[_\.]')
+
+
+def _is_legacy_test(filename: str) -> bool:
+    """D200 미만 번호 테스트 파일은 모두 legacy 마커 (gate 제외)."""
+    m = _LEGACY_DN_PATTERN.match(filename)
+    if not m:
+        return False
+    return int(m.group(1)) < 200
+
 # Add project root to sys.path
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
@@ -139,6 +151,16 @@ def isolate_test_environment(request):
         reset_global_alert_metrics()
     except (ImportError, AttributeError):
         pass
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark legacy tests and default V2 tests for gate selection."""
+    for item in items:
+        filename = Path(str(item.fspath)).name
+        if _is_legacy_test(filename):
+            item.add_marker(pytest.mark.legacy)
+        else:
+            item.add_marker(pytest.mark.v2)
 
 
 # Core Regression SSOT: Exclude environment-dependent tests from collection

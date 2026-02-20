@@ -140,6 +140,10 @@ def resolve_model_selection(plan: Dict[str, str], env_keys: Dict[str, str]) -> D
     risk_level = str(plan.get("risk_level", "mid")).strip().lower() or "mid"
     model_budget = str(plan.get("model_budget", risk_level)).strip().lower() or risk_level
     policy_tier = normalize_tier(model_budget)
+    risk_tier = normalize_tier(risk_level)
+    high_allowed = risk_tier == "high"
+    if not high_allowed and policy_tier == "high":
+        policy_tier = "mid"
 
     aider_max_tier = normalize_tier(env_keys.get("AIDER_MODEL_MAX_TIER", "high"))
     claude_max_tier = normalize_tier(env_keys.get("CLAUDE_CODE_MODEL_MAX_TIER", "high"))
@@ -157,18 +161,24 @@ def resolve_model_selection(plan: Dict[str, str], env_keys: Dict[str, str]) -> D
     env_aider = str(env_keys.get("AIDER_MODEL", "")).strip()
     env_claude = str(env_keys.get("CLAUDE_CODE_MODEL", "")).strip()
 
+    def model_allowed(candidate: str, max_tier: str) -> bool:
+        inferred = infer_model_tier(candidate)
+        if inferred == "high" and not high_allowed:
+            return False
+        return tier_index(inferred) <= tier_index(max_tier)
+
     if plan_aider:
-        if tier_index(infer_model_tier(plan_aider)) <= tier_index(aider_max_tier):
+        if model_allowed(plan_aider, aider_max_tier):
             selected_aider = plan_aider
     elif env_aider:
-        if tier_index(infer_model_tier(env_aider)) <= tier_index(aider_max_tier):
+        if model_allowed(env_aider, aider_max_tier):
             selected_aider = env_aider
 
     if plan_claude:
-        if tier_index(infer_model_tier(plan_claude)) <= tier_index(claude_max_tier):
+        if model_allowed(plan_claude, claude_max_tier):
             selected_claude = plan_claude
     elif env_claude:
-        if tier_index(infer_model_tier(env_claude)) <= tier_index(claude_max_tier):
+        if model_allowed(env_claude, claude_max_tier):
             selected_claude = env_claude
 
     return {
@@ -400,7 +410,7 @@ def build_worker_command(
         "--report",
         rel_report_doc,
     ]
-    if args.dry_run:
+    if args.dry_run or args.skip_do:
         worker_args.append("--skip-do")
     if args.do_command.strip():
         worker_args.extend(["--do-command", args.do_command.strip()])
@@ -445,6 +455,7 @@ def main() -> int:
     parser.add_argument("--max-credit-usd", type=float, default=5.0)
     parser.add_argument("--session-cost-usd", type=float, default=0.0)
     parser.add_argument("--do-command", default="")
+    parser.add_argument("--skip-do", action="store_true", help="skip DO step (CHECK-only cycle)")
     args = parser.parse_args()
 
     try:
