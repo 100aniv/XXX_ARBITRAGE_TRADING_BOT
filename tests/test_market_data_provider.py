@@ -388,12 +388,46 @@ class TestMarketDataCache:
         assert key == expected_key
 
 
+class _FakeRedisClient:
+    """Minimal in-process redis stub for RateLimitCounter tests (incr/expire/get/keys)."""
+    import time as _time
+
+    def __init__(self):
+        self._store: dict = {}
+        self._expiry: dict = {}
+
+    def _is_expired(self, key: str) -> bool:
+        import time
+        exp = self._expiry.get(key)
+        return exp is not None and time.monotonic() >= exp
+
+    def incr(self, key: str) -> int:
+        if self._is_expired(key):
+            self._store.pop(key, None)
+            self._expiry.pop(key, None)
+        self._store[key] = self._store.get(key, 0) + 1
+        return self._store[key]
+
+    def expire(self, key: str, seconds: int) -> None:
+        import time
+        self._expiry[key] = time.monotonic() + seconds
+
+    def get(self, key: str):
+        if self._is_expired(key):
+            return None
+        val = self._store.get(key)
+        return str(val).encode() if val is not None else None
+
+    def keys(self):
+        return [k for k in self._store if not self._is_expired(k)]
+
+
 class TestRateLimitCounter:
     """Rate limit counter 테스트 (endpoint별 카운터/차단)"""
-    
+
     def test_rate_limit_allow(self):
         """Rate limit 허용 케이스 (limit 이하)"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=False)
+        redis_client = _FakeRedisClient()
         counter = RateLimitCounter(redis_client, env="test", run_id="ratelimit_test")
         
         # 1회 호출 (허용)
@@ -406,7 +440,7 @@ class TestRateLimitCounter:
     
     def test_rate_limit_block(self):
         """Rate limit 차단 케이스 (limit 초과)"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+        redis_client = _FakeRedisClient()
         counter = RateLimitCounter(redis_client, env="test", run_id="ratelimit_test")
         
         # Upbit orders limit: 8 req/s
@@ -425,7 +459,7 @@ class TestRateLimitCounter:
     
     def test_rate_limit_ttl_reset(self):
         """Rate limit TTL 1s 후 리셋 검증"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+        redis_client = _FakeRedisClient()
         counter = RateLimitCounter(redis_client, env="test", run_id="ratelimit_test")
         
         # 1회 호출
@@ -442,7 +476,7 @@ class TestRateLimitCounter:
     
     def test_redis_key_format_ssot_ratelimit(self):
         """Rate limit Redis key 포맷 SSOT 규칙 준수"""
-        redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+        redis_client = _FakeRedisClient()
         counter = RateLimitCounter(redis_client, env="prod", run_id="d202_1_test")
         
         # Check
