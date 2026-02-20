@@ -45,6 +45,11 @@ REQUIRED_AGENT_KEYS = [
     "OPENAI_API_KEY",
 ]
 
+PROVIDER_KEY_MAP = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+}
+
 
 def run_cmd(command: List[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -151,6 +156,36 @@ def resolve_agent_provider(agent: str, env_keys: Dict[str, str]) -> str:
     if val in ("openai", "anthropic"):
         return val
     return AGENT_DEFAULT_PROVIDER.get(agent, "openai")
+
+
+def ensure_secret_guard_smart(
+    env_keys: Dict[str, str],
+    agent_preference: str,
+    dry_run: bool,
+    allow_missing: bool,
+) -> List[str]:
+    """실제 사용 provider만 키 요구 (운영 친화).
+
+    - agent=aider & provider=openai -> OPENAI_API_KEY 필수
+    - agent=claude_code & provider=anthropic -> ANTHROPIC_API_KEY 필수
+    """
+    provider = resolve_agent_provider(agent_preference, env_keys)
+    required_key = PROVIDER_KEY_MAP.get(provider)
+    if not required_key:
+        return []
+
+    if env_keys.get(required_key):
+        return []
+
+    print(f"[SECRET_GUARD] agent={agent_preference}, provider={provider}")
+    print(f"[SECRET_GUARD] missing required key: {required_key}")
+    if not dry_run and not allow_missing:
+        raise RuntimeError(
+            f"[SECRET_GUARD] FAIL-FAST: {required_key} required for {agent_preference}/{provider}"
+        )
+    if not dry_run and allow_missing:
+        print(f"[SECRET_GUARD] WARN: {required_key} missing, DO step may fail")
+    return [required_key]
 
 
 def _resolve_agent_model(
@@ -564,6 +599,18 @@ def main() -> int:
     run_cmd(["python3", "-m", "ops.factory.controller", "--output", "logs/autopilot/plan.json"], check=True)
     plan = load_plan()
     selected_models = resolve_model_selection(plan, env_keys)
+
+    agent_pref_from_plan = plan.get("agent_preference", "aider")
+    try:
+        missing_keys = ensure_secret_guard_smart(
+            env_keys,
+            agent_preference=agent_pref_from_plan,
+            dry_run=args.dry_run,
+            allow_missing=bool(args.do_command.strip()),
+        )
+    except RuntimeError as exc:
+        print(str(exc))
+        return 2
     ticket_id = str(plan.get("ticket_id", "SAFE::UNKNOWN"))
     ticket_slug = sanitize_ticket(ticket_id)
     append_model_routing_log(env_file=env_file, ticket_id=ticket_id, selected_models=selected_models)

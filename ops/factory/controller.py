@@ -57,6 +57,41 @@ AIDER_INTENT_KEYWORDS = [
 
 FILE_SCOPE_THRESHOLD = 5
 
+_PATH_PATTERN = re.compile(
+    r'(?:^|\s|,|;|\(|\[)'
+    r'('
+    r'(?:arbitrage|ops|tests|scripts|docs|logs|config)[/\\][\w./\\-]+'
+    r'|'
+    r'[\w./\\-]+\.(?:py|md|json|yaml|yml|txt|sh)'
+    r')'
+    r'(?:$|\s|,|;|\)|\])',
+    re.IGNORECASE
+)
+
+
+def extract_paths_from_notes(title: str, notes: str) -> list[str]:
+    """NOTES/TITLE에서 파일/디렉토리 경로 토큰 추출 (결정론적).
+
+    패턴:
+    - arbitrage/v2/..., ops/..., tests/..., scripts/..., docs/..., logs/..., config/...
+    - *.py, *.md, *.json, *.yaml 등 확장자 파일
+
+    Returns: unique paths list (fallback=[] if none found)
+    """
+    text = f"{title} {notes}"
+    matches = _PATH_PATTERN.findall(text)
+    paths = set()
+    for m in matches:
+        cleaned = m.strip().rstrip(',;)].').lstrip('([,')
+        if cleaned and len(cleaned) > 2:
+            paths.add(cleaned)
+    if ' + ' in notes:
+        for segment in notes.split(' + '):
+            segment = segment.strip()
+            if '/' in segment and not segment.startswith('http'):
+                paths.add(segment)
+    return sorted(paths)
+
 
 def classify_intent(title: str, notes: str = "") -> str:
     """키워드 기반 Intent 분류 (결정론적, LLM 금지).
@@ -141,6 +176,36 @@ def _is_v2_alpha_ticket(row: Dict[str, str]) -> bool:
     return True
 
 
+EVIDENCE_ROOT = ROOT / "logs" / "evidence"
+
+
+def _has_physical_evidence(row: Dict[str, str]) -> bool:
+    """물리적 증거 폴더 존재 여부 확인 (TASK 11: Deterministic Pointer Sync).
+
+    DONE 판정은 로드맵 텍스트보다 물리적 증거가 우선.
+    canonical_evidence 컬럼에 경로가 있고, 해당 폴더가 실제로 존재하면 True.
+    """
+    evidence_path = str(row.get("canonical_evidence", "")).strip()
+    if not evidence_path or evidence_path in ("NONE", "—", "-"):
+        return False
+
+    if evidence_path.startswith("logs/evidence/"):
+        folder_name = evidence_path.replace("logs/evidence/", "").split("/")[0]
+        if "*" in folder_name:
+            import glob
+            pattern = str(EVIDENCE_ROOT / folder_name)
+            matches = glob.glob(pattern)
+            return len(matches) > 0
+        full_path = EVIDENCE_ROOT / folder_name
+        return full_path.exists()
+
+    if evidence_path.startswith("tests/"):
+        test_file = ROOT / evidence_path
+        return test_file.exists()
+
+    return False
+
+
 def pick_safe_open_ticket(rows: List[Dict[str, str]]) -> Dict[str, str]:
     """Sequential queue pointer: pick the first OPEN V2/ALPHA ticket.
 
@@ -148,10 +213,23 @@ def pick_safe_open_ticket(rows: List[Dict[str, str]]) -> Dict[str, str]:
     - AC_LEDGER.md is a sequential queue (D_ROADMAP order).
     - D200 미만/legacy AC_ID는 큐에서 제외.
     - 첫 번째 OPEN + V2/ALPHA 항목을 자동 포인팅.
+    - TASK 11: DONE이지만 물리적 증거가 없으면 OPEN으로 취급.
     """
     for row in rows:
-        if row.get("status") == "OPEN" and _is_v2_alpha_ticket(row):
+        if not _is_v2_alpha_ticket(row):
+            continue
+
+        status = row.get("status", "").strip()
+
+        if status == "DONE":
+            if not _has_physical_evidence(row):
+                print(f"[POINTER_SYNC] {row['ac_id']} is DONE but no physical evidence. Treating as OPEN.")
+                return row
+            continue
+
+        if status == "OPEN" or status == "LOST_EVIDENCE":
             return row
+
     raise RuntimeError("No OPEN V2/ALPHA ticket found in AC_LEDGER (all D200+ items done or ledger empty)")
 
 
@@ -178,26 +256,17 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
     title = ticket["title"]
     notes_text = ticket.get("notes", "")
     intent = classify_intent(title, notes_text)
-    modify_files = [
+
+    touched_paths = extract_paths_from_notes(title, notes_text)
+    affected_files_count = len(touched_paths) if touched_paths else 1
+
+    agent_preference = select_agent(intent, affected_files_count)
+
+    modify_files = touched_paths if touched_paths else [
         "ops/factory/controller.py",
         "ops/factory/worker.py",
         "ops/factory_supervisor.py",
-        "ops/factory/Dockerfile.worker",
-        "ops/prompts/worker_instruction.md",
-        "ops/factory/schema.py",
-        "ops/factory/README.md",
-        "Makefile",
-        ".dockerignore",
-        ".gitignore",
-        ".env.factory.local.example",
-        "docs/plan/*.md",
-        "docs/report/*_analyze.md",
-        "logs/autopilot/plan.json",
-        "logs/autopilot/result.json",
-        "justfile",
     ]
-    affected_files_count = len(modify_files)
-    agent_preference = select_agent(intent, affected_files_count)
     return FactoryPlan(
         schema_version=SCHEMA_VERSION,
         mode="BIKIT",
@@ -230,6 +299,7 @@ def build_plan(ticket: Dict[str, str]) -> FactoryPlan:
         agent_preference=agent_preference,
         intent=intent,
         affected_files_count=affected_files_count,
+        touched_paths=touched_paths,
     )
 
 
@@ -297,6 +367,7 @@ def main() -> int:
     print(f"  - intent: {plan.intent}")
     print(f"  - agent: {plan.agent_preference}")
     print(f"  - affected_files: {plan.affected_files_count}")
+    print(f"  - touched_paths: {plan.touched_paths}")
     print(f"  - output: {output_path}")
     return 0
 

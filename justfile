@@ -82,6 +82,10 @@ factory_status:
 factory_stop:
     @python3 scripts/factory_stop.py
 
+# Factory Budget: AC별 예상 비용 산출 + 가성비 모델 추천
+factory_budget:
+    @python3 scripts/factory_budget.py
+
 # Factory Tail: 최신 factory 로그 + evidence/gate.log tail
 factory_tail:
     @echo "[TAIL] === Latest Factory Log ==="

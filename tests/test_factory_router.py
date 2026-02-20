@@ -190,3 +190,86 @@ class TestDualProviderResolution:
         result = resolve_model_selection(plan, env)
         assert result["aider_provider"] == "anthropic"
         assert result["aider_model"] == DEFAULT_MODELS["anthropic"]["mid"]
+
+
+from ops.factory.controller import extract_paths_from_notes
+
+
+class TestPathExtraction:
+    """NOTES에서 경로 추출 -> file_count 산출 -> agent 분기 테스트."""
+
+    def test_extract_single_py_file(self):
+        paths = extract_paths_from_notes("테스트 보장", "tests/test_d_alpha_0_universe_truth.py")
+        assert "tests/test_d_alpha_0_universe_truth.py" in paths
+        assert len(paths) == 1
+
+    def test_extract_multiple_paths_with_plus(self):
+        paths = extract_paths_from_notes("돈 로직", "arbitrage/domain + arbitrage/v2/core/opportunity")
+        assert "arbitrage/domain" in paths
+        assert "arbitrage/v2/core/opportunity" in paths
+        assert len(paths) == 2
+
+    def test_extract_script_path(self):
+        paths = extract_paths_from_notes("Canonical entrypoint", "scripts/run_alpha_pipeline.py")
+        assert "scripts/run_alpha_pipeline.py" in paths
+
+    def test_empty_notes_returns_empty(self):
+        paths = extract_paths_from_notes("REAL survey 증거 필요", "")
+        assert paths == []
+
+    def test_no_path_in_notes(self):
+        paths = extract_paths_from_notes("Redis 연결 실패 시 SystemExit(1)", "—")
+        assert paths == []
+
+    def test_file_count_1_implement_selects_aider(self):
+        """file_count=1 + intent=implementation => aider."""
+        paths = extract_paths_from_notes("Implement OBI calculator", "")
+        file_count = len(paths) if paths else 1
+        intent = classify_intent("Implement OBI calculator", "")
+        agent = select_agent(intent, file_count)
+        assert file_count == 1
+        assert intent == "implementation"
+        assert agent == "aider"
+
+    def test_file_count_6_selects_claude_code(self):
+        """file_count=6 => claude_code (File-Scope Heuristic)."""
+        notes = "arbitrage/v2/a.py, arbitrage/v2/b.py, tests/t1.py, tests/t2.py, scripts/s1.py, docs/d.md"
+        paths = extract_paths_from_notes("Multi-file change", notes)
+        file_count = len(paths) if paths else 1
+        intent = classify_intent("Multi-file change", notes)
+        agent = select_agent(intent, file_count)
+        assert file_count >= 5
+        assert agent == "claude_code"
+
+    def test_empty_notes_fallback_design_selects_claude_code(self):
+        """notes 비어있음(fallback=1) + intent=design => claude_code."""
+        paths = extract_paths_from_notes("SSOT Architecture Refactor", "")
+        file_count = len(paths) if paths else 1
+        intent = classify_intent("SSOT Architecture Refactor", "")
+        agent = select_agent(intent, file_count)
+        assert file_count == 1
+        assert intent == "design"
+        assert agent == "claude_code"
+
+    def test_real_ledger_row_ac1(self):
+        """실제 AC_LEDGER row: D_ALPHA-0::AC-1."""
+        title = "universe(top=100) 로딩 시 universe_size=100 아티팩트 기록"
+        notes = "tests/test_d_alpha_0_universe_truth.py"
+        paths = extract_paths_from_notes(title, notes)
+        file_count = len(paths) if paths else 1
+        intent = classify_intent(title, notes)
+        agent = select_agent(intent, file_count)
+        assert file_count == 1
+        assert intent == "implementation"  # "test" keyword
+        assert agent == "aider"
+
+    def test_real_ledger_row_ac4(self):
+        """실제 AC_LEDGER row: D_ALPHA-1::AC-4."""
+        title = "돈 로직 변경은 엔진(core/domain)에만 존재"
+        notes = "arbitrage/domain + arbitrage/v2/core/opportunity"
+        paths = extract_paths_from_notes(title, notes)
+        file_count = len(paths) if paths else 1
+        intent = classify_intent(title, notes)
+        agent = select_agent(intent, file_count)
+        assert file_count == 2
+        assert agent == "aider"  # file_count < 5, intent != design

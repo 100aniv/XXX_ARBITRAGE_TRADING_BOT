@@ -33,6 +33,7 @@ class FactoryPlan:
     agent_preference: str = "aider"
     intent: str = ""
     affected_files_count: int = 0
+    touched_paths: List[str] = field(default_factory=list)
 
 
 @dataclass
