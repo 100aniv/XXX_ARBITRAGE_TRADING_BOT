@@ -4,7 +4,7 @@
   "ticket_id": "SAFE::D_ALPHA-0::AC-1",
   "ac_id": "D_ALPHA-0::AC-1",
   "title": "universe(top=100)가 로딩되면 **universe_size=100**이 아티팩트에 기록된다. *(tests/test_d_alpha_0_universe_truth.py)*",
-  "created_at_utc": "2026-02-20T06:26:37+00:00",
+  "created_at_utc": "2026-02-20T07:29:02+00:00",
   "scope": {
     "modify": [
       "ops/factory/controller.py",
