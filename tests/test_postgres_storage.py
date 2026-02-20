@@ -6,8 +6,11 @@ import pytest
 import os
 import uuid
 from datetime import datetime, timedelta
+
 from arbitrage.alerting.models import AlertRecord, AlertSeverity, AlertSource
 from arbitrage.alerting.storage.postgres_storage import PostgreSQLAlertStorage
+
+pytestmark = pytest.mark.optional_live
 
 
 # Connection string from environment or use default
