@@ -25,7 +25,7 @@ def redis_client():
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
-            message=r"Call to '__init__' function with deprecated usage of input argument/s 'retry_on_timeout'.*",
+            message=r"Call to '__init__' function with deprecated usage of input argument/s '.*'.*",
             category=DeprecationWarning,
         )
         client = fakeredis.FakeRedis(decode_responses=True)
