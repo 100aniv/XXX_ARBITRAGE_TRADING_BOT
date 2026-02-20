@@ -6,9 +6,10 @@ K8s Job Apply 계획 및 실행 테스트.
 """
 
 import pytest
-import os
-import yaml
 import tempfile
+import yaml
+import os
+import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -398,7 +399,7 @@ spec:
             # CLI 실행 (--apply 없음)
             result = subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     "scripts/apply_k8s_jobs.py",
                     "--jobs-dir", tmpdir
                 ],

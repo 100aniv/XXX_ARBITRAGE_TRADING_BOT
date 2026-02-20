@@ -43,6 +43,8 @@ RUN wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_
     ln -sf /usr/local/bin/python3.11 /usr/local/bin/python3 && \
     ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip3
 
+RUN ln -sf /usr/local/bin/python3 /usr/local/bin/python
+
 COPY requirements.txt /tmp/requirements.txt
 RUN python3 -m pip install --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir -r /tmp/requirements.txt && \

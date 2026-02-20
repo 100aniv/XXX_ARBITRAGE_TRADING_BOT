@@ -83,6 +83,15 @@ def ensure_python_alias(env: Dict[str, str]) -> None:
     python3_bin = shutil.which("python3") or sys.executable
     if not python3_bin:
         return
+    system_alias = Path("/usr/local/bin/python")
+    try:
+        if not system_alias.exists():
+            system_alias.symlink_to(python3_bin)
+        if shutil.which("python"):
+            return
+    except OSError:
+        pass
+
     alias_dir = ROOT / ".factory_bin"
     alias_dir.mkdir(parents=True, exist_ok=True)
     alias_path = alias_dir / "python"
