@@ -126,6 +126,12 @@ def main() -> int:
 
     env = os.environ.copy()
     env["BOOTSTRAP_FLAG"] = "1"
+    redis_host = env.get("REDIS_HOST", "").strip()
+    redis_port = env.get("REDIS_PORT", "").strip()
+    if redis_host and "FACTORY_REDIS_HOST" not in env:
+        env["FACTORY_REDIS_HOST"] = redis_host
+    if redis_port and "FACTORY_REDIS_PORT" not in env:
+        env["FACTORY_REDIS_PORT"] = redis_port
     ensure_git_safe_directory(env)
 
     results: List[CommandResult] = []

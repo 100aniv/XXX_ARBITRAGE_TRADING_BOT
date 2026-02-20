@@ -26,8 +26,8 @@ from arbitrage.v2.core.admin_control import (
 @pytest.fixture
 def redis_client():
     """Redis 테스트 클라이언트 (DB 1 사용)"""
-    redis_host = os.getenv("REDIS_HOST", "localhost")
-    redis_port = int(os.getenv("REDIS_PORT", "6380"))
+    redis_host = os.getenv("REDIS_HOST") or os.getenv("FACTORY_REDIS_HOST", "localhost")
+    redis_port = int(os.getenv("REDIS_PORT") or os.getenv("FACTORY_REDIS_PORT", "6380"))
     client = redis.Redis(host=redis_host, port=redis_port, db=1, decode_responses=True)
     yield client
     # Cleanup: 테스트 키 삭제
