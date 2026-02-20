@@ -21,7 +21,7 @@ from arbitrage.v2.harness.paper_runner import PaperRunner, PaperRunnerConfig
 @pytest.fixture
 def redis_client():
     """Redis 클라이언트 (fakeredis, hang 방지)"""
-    client = fakeredis.FakeStrictRedis(decode_responses=True)
+    client = fakeredis.FakeRedis(decode_responses=True)
     yield client
     client.flushdb()
 
