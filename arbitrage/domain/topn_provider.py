@@ -168,6 +168,7 @@ class TopNProvider:
         # D82-2: Selection cache (long TTL, 10+ minutes)
         self._selection_cache: Optional[TopNResult] = None
         self._selection_cache_ts: float = 0.0
+        self._selection_cache_mono_ts: float = 0.0
         
         # Previous result (for churn calculation)
         self._previous_symbols: List[Tuple[str, str]] = []
@@ -214,9 +215,10 @@ class TopNProvider:
             raise RuntimeError("[CLEAN_ROOM] TopNProvider.get_topn_symbols is forbidden")
         # D82-2: Check selection cache first
         now = time.time()
+        now_mono = time.monotonic()
         use_cache = selection_limit is None
         if use_cache and not force_refresh and self._selection_cache is not None:
-            cache_age = now - self._selection_cache_ts
+            cache_age = now_mono - self._selection_cache_mono_ts
             if cache_age < self.cache_ttl_seconds:
                 logger.info(
                     f"[TOPN_PROVIDER] Using cached TopN selection (age: {cache_age:.1f}s / {self.cache_ttl_seconds}s)"
@@ -274,6 +276,7 @@ class TopNProvider:
         if use_cache:
             self._selection_cache = result
             self._selection_cache_ts = now
+            self._selection_cache_mono_ts = now_mono
             self._previous_symbols = symbols
         
         logger.info(
@@ -786,7 +789,7 @@ class TopNProvider:
         if self._selection_cache is None:
             return False
         
-        cache_age = time.time() - self._selection_cache_ts
+        cache_age = time.monotonic() - self._selection_cache_mono_ts
         return cache_age < self.cache_ttl_seconds
     
     def _get_mock_spread(self, symbol: str) -> SpreadSnapshot:
