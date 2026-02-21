@@ -8,7 +8,7 @@ legacy_policy: D200 미만은 이 장부에 포함하지 않음. 원본은 docs/
 |---|---|---|---|---|---|---|---|
 | D_ALPHA-0::AC-1 | universe(top=100) 로딩 시 universe_size=100 아티팩트 기록 | D_ALPHA | DONE | logs/evidence/d_alpha_0_universe_truth_*/edge_survey_report.json | 5b482ef | — | tests/test_d_alpha_0_universe_truth.py |
 | D_ALPHA-0::AC-2 | survey 실행 중 unique symbols >= 80 (20분) 증명 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0606 | c9b4835 | — | REAL survey 증거 필요 |
-| D_ALPHA-0::AC-3 | symbols_top=100인데 10개만 들어가는 경로 제거/수정 | D_ALPHA | OPEN | NONE | UNKNOWN | — | 런타임 검증 미해결 |
+| D_ALPHA-0::AC-3 | symbols_top=100인데 10개만 들어가는 경로 제거/수정 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0607 | f6ca81f | — | 런타임 검증 미해결 |
 | D_ALPHA-0::AC-4 | 테스트 보장 (TopN 로딩/샘플링/기록) | D_ALPHA | DONE | tests/test_d_alpha_0_universe_truth.py | 5b482ef | — | — |
 | D_ALPHA-1::AC-1 | fee 모델 maker/taker 조합 지원 (리베이트 포함) | D_ALPHA | DONE | tests/test_d_alpha_1_maker_pivot.py | 5b482ef | — | — |
 | D_ALPHA-1::AC-2 | maker-taker net_edge_bps 계산 아티팩트 | D_ALPHA | DONE | logs/evidence/d_alpha_0_1_survey_maker_20min/ | 5b482ef | — | — |

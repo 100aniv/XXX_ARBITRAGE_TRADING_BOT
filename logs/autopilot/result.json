@@ -1,20 +1,20 @@
 {
   "schema_version": "1.0",
   "mode": "RUN",
-  "ticket_id": "D_ALPHA-0::AC-2",
-  "ac_id": "D_ALPHA-0::AC-2",
+  "ticket_id": "D_ALPHA-0::AC-3",
+  "ac_id": "D_ALPHA-0::AC-3",
   "status": "PASS",
-  "created_at_utc": "2026-02-21T06:06:08+00:00",
+  "created_at_utc": "2026-02-21T06:07:59+00:00",
   "commands": [
     {
       "name": "do_aider",
       "command": [
         "bash",
         "-lc",
-        "aider --yes --model gpt-4.1 --subtree-only --map-tokens 1024 --message-file docs/plan/D_ALPHA-0__AC-2.md  && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply D_ALPHA-0_AC-2\")"
+        "aider --yes --model gpt-4.1 --subtree-only --map-tokens 1024 --message-file docs/plan/D_ALPHA-0__AC-3.md  && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply D_ALPHA-0_AC-3\")"
       ],
       "exit_code": 0,
-      "duration_sec": 10.95
+      "duration_sec": 7.27
     },
     {
       "name": "gate",
@@ -24,7 +24,7 @@
         "make gate || (python3 scripts/run_gate_with_evidence.py doctor && python3 scripts/run_gate_with_evidence.py fast && python3 scripts/run_gate_with_evidence.py regression)"
       ],
       "exit_code": 0,
-      "duration_sec": 99.851
+      "duration_sec": 99.844
     },
     {
       "name": "docops",
@@ -34,7 +34,7 @@
         "make docops || (python3 scripts/check_ssot_docs.py && python3 scripts/check_docops_tokens.py --config config/docops_token_allowlist.yml && git status --short && git diff --stat)"
       ],
       "exit_code": 0,
-      "duration_sec": 0.242
+      "duration_sec": 0.24
     },
     {
       "name": "evidence_check",
@@ -44,17 +44,17 @@
         "make evidence_check || python3 -c \"from pathlib import Path; import sys; root=Path('logs/evidence'); required=['manifest.json','gate.log','git_info.json','cmd_history.txt']; runs=sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True) if root.exists() else []; candidate=next((p for p in runs if all((p / f).exists() for f in required)), None); missing=[] if candidate else required; print('latest=%s' % candidate); print('missing=' + ','.join(missing)) if missing else print('PASS'); sys.exit(1 if missing else 0)\""
       ],
       "exit_code": 0,
-      "duration_sec": 0.032
+      "duration_sec": 0.034
     }
   ],
   "gate_exit_code": 0,
   "docops_exit_code": 0,
   "evidence_check_exit_code": 0,
-  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260221_0606",
+  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260221_0607",
   "notes": [
     "Bikit CHECK uses make gate/docops/evidence_check",
-    "plan_doc=docs/plan/D_ALPHA-0__AC-2.md",
-    "report=docs/report/D_ALPHA-0__AC-2_analyze.md"
+    "plan_doc=docs/plan/D_ALPHA-0__AC-3.md",
+    "report=docs/report/D_ALPHA-0__AC-3_analyze.md"
   ],
   "agent_used": "aider",
   "escalated": false,
