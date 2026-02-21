@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "mode": "AUTOPILOT",
-  "ticket_id": "D_ALPHA-0::AC-2",
-  "ac_id": "D_ALPHA-0::AC-2",
-  "title": "survey 실행 중 unique symbols >= 80 (20분) 증명",
-  "created_at_utc": "2026-02-21T06:04:17+00:00",
+  "ticket_id": "D_ALPHA-0::AC-3",
+  "ac_id": "D_ALPHA-0::AC-3",
+  "title": "symbols_top=100인데 10개만 들어가는 경로 제거/수정",
+  "created_at_utc": "2026-02-21T06:06:11+00:00",
   "scope": {
     "modify": [],
     "readonly": [
