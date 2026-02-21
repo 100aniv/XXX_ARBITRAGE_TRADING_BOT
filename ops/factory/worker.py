@@ -174,6 +174,83 @@ def build_aider_add_flags(plan: dict, plan_doc_path: Path) -> str:
     return build_aider_file_flags(plan, plan_doc_path, slim=False)
 
 
+# Context Budget Guard 임계값
+_CTX_BUDGET = {
+    "file_count_warn": 6,    # --file 개수 >= 6 → map_tokens 다운
+    "file_count_danger": 10, # --file 개수 >= 10 → slim 강제
+    "file_size_warn_kb": 50, # 단일 파일 >= 50KB → 경고
+    "map_tokens_default": 1024,
+    "map_tokens_reduced": 512,
+    "map_tokens_minimal": 256,
+}
+
+
+def evaluate_context_budget(
+    file_flags: str, plan: dict, root: Path
+) -> dict:
+    """Context Budget Guard 평가.
+
+    반환값:
+        {
+            "map_tokens": int,          # 권장 map_tokens 값
+            "slim": bool,               # slim 모드 강제 여부
+            "route_to_claude": bool,    # claude_code 라우팅 권장 여부
+            "notes": List[str],         # result.json notes에 추가할 내용
+            "risk_level": str,          # "ok" | "warn" | "danger"
+        }
+    """
+    notes: List[str] = []
+    file_list = [f for f in file_flags.split() if not f.startswith("-")]
+    file_count = len(file_list)
+
+    # 파일 크기 합산 (KB)
+    total_size_kb = 0.0
+    large_files: List[str] = []
+    for f in file_list:
+        p = root / f
+        if p.exists():
+            size_kb = p.stat().st_size / 1024
+            total_size_kb += size_kb
+            if size_kb >= _CTX_BUDGET["file_size_warn_kb"]:
+                large_files.append(f"{f}({size_kb:.0f}KB)")
+
+    # 위험도 판단
+    if file_count >= _CTX_BUDGET["file_count_danger"] or total_size_kb > 200:
+        risk = "danger"
+        map_tokens = _CTX_BUDGET["map_tokens_minimal"]
+        slim = True
+        route_to_claude = True
+        notes.append(
+            f"[TPM_GUARD] danger: files={file_count} total={total_size_kb:.0f}KB"
+            f" → map_tokens={map_tokens}, slim=True, route_to_claude=True"
+        )
+    elif file_count >= _CTX_BUDGET["file_count_warn"] or total_size_kb > 80:
+        risk = "warn"
+        map_tokens = _CTX_BUDGET["map_tokens_reduced"]
+        slim = False
+        route_to_claude = False
+        notes.append(
+            f"[TPM_GUARD] warn: files={file_count} total={total_size_kb:.0f}KB"
+            f" → map_tokens={map_tokens} (reduced)"
+        )
+    else:
+        risk = "ok"
+        map_tokens = _CTX_BUDGET["map_tokens_default"]
+        slim = False
+        route_to_claude = False
+
+    if large_files:
+        notes.append(f"[TPM_GUARD] large_files: {', '.join(large_files)}")
+
+    return {
+        "map_tokens": map_tokens,
+        "slim": slim,
+        "route_to_claude": route_to_claude,
+        "notes": notes,
+        "risk_level": risk,
+    }
+
+
 def sanitize_ticket_id(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return slug.strip("_") or "ticket"
@@ -245,6 +322,7 @@ def main() -> int:
     ensure_git_safe_directory(env)
 
     results: List[CommandResult] = []
+    _ctx_guard_notes: List[str] = []  # Context Budget Guard / Rate Limit Guard 기록
 
     agent_preference = plan.get("agent_preference", "aider")
     agent_used = agent_preference
@@ -268,8 +346,20 @@ def main() -> int:
                 aider_model = env.get("AIDER_MODEL", "")
                 model_flag = f"--model {aider_model}" if aider_model else ""
                 file_flags = build_aider_file_flags(plan, plan_doc_path, slim=False)
+
+                # T2) Context Budget Guard: 실행 전 컨텍스트 위험도 평가
+                budget = evaluate_context_budget(file_flags, plan, ROOT)
+                _ctx_guard_notes.extend(budget["notes"])
+                if budget["risk_level"] != "ok":
+                    print(f"[CTX_BUDGET] risk={budget['risk_level']} map_tokens={budget['map_tokens']} slim={budget['slim']}")
+
+                # danger 시 slim 강제 + claude_code 라우팅 권장 (단, env에 claude_code 설정 있을 때만)
+                if budget["slim"]:
+                    file_flags = build_aider_file_flags(plan, plan_doc_path, slim=True)
+
+                map_tokens_val = budget["map_tokens"]
                 do_shell = (
-                    f"aider --yes {model_flag} --subtree-only --map-tokens 1024 "
+                    f"aider --yes {model_flag} --subtree-only --map-tokens {map_tokens_val} "
                     f"--message-file {rel_plan_doc} {file_flags} && "
                     f"{git_commit_cmd}"
                 )
@@ -277,10 +367,10 @@ def main() -> int:
         do_result = run_shell(do_step_name, do_shell, env)
         results.append(do_result)
 
-        # T3) TPM/RateLimit 오류 시 slim 모드로 1회 재시도
+        # T3) DO 실패 시 컨텍스트 축소 후 1회 재시도 (동일 입력 재시도 금지)
         if do_result.exit_code != 0 and agent_preference != "claude_code":
-            # 로그에서 TPM 오류 확인 (실행 로그는 터미널에 있으므로 실행 시간으로 유추)
-            # exit_code=2는 CLI 인자 오류, exit_code=1은 실행 실패 둘 다 재시도 대상
+            # 재시도: 반드시 컨텍스트 더 줄이기 (slim=True + map-tokens 512)
+            # 동일 입력 재시도 금지 - 반드시 행동 변화 동반
             aider_model = env.get("AIDER_MODEL", "")
             model_flag = f"--model {aider_model}" if aider_model else ""
             slim_file_flags = build_aider_file_flags(plan, plan_doc_path, slim=True)
@@ -289,13 +379,18 @@ def main() -> int:
                 f"--message-file {rel_plan_doc} {slim_file_flags} && "
                 f"{git_commit_cmd}"
             )
-            print(f"[DO_RETRY] exit_code={do_result.exit_code} → slim 모드로 1회 재시도 (map-tokens=512, 파일 최소화)")
+            _ctx_guard_notes.append(
+                f"[RATE_LIMIT_GUARD] do_exit={do_result.exit_code} → slim+map512 재시도"
+            )
+            print(f"[DO_RETRY] exit_code={do_result.exit_code} → 컨텍스트 축소(slim+map-tokens=512) 후 1회 재시도")
             retry_result = run_shell(f"{do_step_name}_retry", slim_shell, env)
             results.append(retry_result)
             if retry_result.exit_code == 0:
                 do_result = retry_result
+                _ctx_guard_notes.append("[RATE_LIMIT_GUARD] retry 성공")
                 print("[DO_RETRY] 재시도 성공")
             else:
+                _ctx_guard_notes.append("[RATE_LIMIT_GUARD] retry 실패 → DO FAIL 유지")
                 print("[DO_RETRY] 재시도도 실패. DO FAIL 유지.")
 
     gate_cmd = (
@@ -355,6 +450,8 @@ def main() -> int:
         f"plan_doc={plan_doc_path.relative_to(ROOT)}",
         f"report={report_path.relative_to(ROOT)}",
     ]
+    # Context Budget Guard / Rate Limit Guard 기록 병합
+    extra_notes.extend(_ctx_guard_notes)
     if do_failed:
         extra_notes.append(f"[DO_FAIL] do_failed=true do_exit_code={final_do_exit}")
         print(f"[WORKER] DO FAIL (exit_code={final_do_exit}) → 사이클 FAIL 강제 (거짓 PASS 차단)")

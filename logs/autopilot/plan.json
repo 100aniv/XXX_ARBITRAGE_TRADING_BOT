@@ -4,7 +4,7 @@
   "ticket_id": "SAFE::D_ALPHA-0::AC-1",
   "ac_id": "D_ALPHA-0::AC-1",
   "title": "universe(top=100) 로딩 시 universe_size=100 아티팩트 기록",
-  "created_at_utc": "2026-02-21T00:49:30+00:00",
+  "created_at_utc": "2026-02-21T01:06:27+00:00",
   "scope": {
     "modify": [
       "tests/test_d_alpha_0_universe_truth.py"

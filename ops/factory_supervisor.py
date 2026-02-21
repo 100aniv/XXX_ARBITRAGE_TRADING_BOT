@@ -747,6 +747,23 @@ def append_model_usage_log(ticket_id: str, selected_models: Dict[str, str]) -> N
             fp.write(json.dumps(row, ensure_ascii=True) + "\n")
 
 
+def _append_history_jsonl(result_path: Path) -> None:
+    """result.json 내용을 logs/autopilot/history.jsonl에 1줄 append.
+
+    factory_status.py의 최근 5회 히스토리 표시에 사용됨.
+    """
+    if not result_path.exists():
+        return
+    history_path = result_path.parent / "history.jsonl"
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        with history_path.open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[HISTORY] history.jsonl append 실패: {e}")
+
+
 def append_init_log(
     *,
     mode: str,
@@ -1132,6 +1149,7 @@ def main() -> int:
             selected_models=selected_models,
             gate_failure_summary=extract_gate_failure_summary(),
         )
+        _append_history_jsonl(RESULT_PATH)
         return proc.returncode
 
     append_init_log(
@@ -1144,6 +1162,7 @@ def main() -> int:
         selected_models=selected_models,
         gate_failure_summary=[],
     )
+    _append_history_jsonl(RESULT_PATH)
     status_msg = "(escalated)" if escalated else ""
     print(f"[SUPERVISOR] DONE: Bikit cycle completed {status_msg}")
     print(f"  - result: {RESULT_PATH.relative_to(ROOT)}")

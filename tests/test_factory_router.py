@@ -485,6 +485,54 @@ class TestAiderContextSlimming:
             assert "--add " not in do_shell, "--add 플래그가 섞이면 안 됨"
 
 
+class TestContextBudgetGuard:
+    """T2: Context Budget Guard - 파일 수/크기 기반 자동 완화."""
+
+    def test_ok_risk_default_map_tokens(self, tmp_path):
+        """파일 수 < 6이면 risk=ok, map_tokens=1024."""
+        from ops.factory.worker import evaluate_context_budget
+        plan = {"touched_paths": []}
+        file_flags = "--file a.py --file b.py"
+        result = evaluate_context_budget(file_flags, plan, tmp_path)
+        assert result["risk_level"] == "ok"
+        assert result["map_tokens"] == 1024
+        assert result["slim"] is False
+        assert result["route_to_claude"] is False
+
+    def test_warn_risk_reduces_map_tokens(self, tmp_path):
+        """파일 수 >= 6이면 risk=warn, map_tokens=512."""
+        from ops.factory.worker import evaluate_context_budget
+        plan = {}
+        file_flags = " ".join(f"--file f{i}.py" for i in range(7))
+        result = evaluate_context_budget(file_flags, plan, tmp_path)
+        assert result["risk_level"] == "warn"
+        assert result["map_tokens"] == 512
+        assert result["slim"] is False
+        assert any("[TPM_GUARD]" in n for n in result["notes"])
+
+    def test_danger_risk_forces_slim(self, tmp_path):
+        """파일 수 >= 10이면 risk=danger, slim=True, route_to_claude=True."""
+        from ops.factory.worker import evaluate_context_budget
+        plan = {}
+        file_flags = " ".join(f"--file f{i}.py" for i in range(11))
+        result = evaluate_context_budget(file_flags, plan, tmp_path)
+        assert result["risk_level"] == "danger"
+        assert result["map_tokens"] == 256
+        assert result["slim"] is True
+        assert result["route_to_claude"] is True
+        assert any("[TPM_GUARD]" in n for n in result["notes"])
+
+    def test_large_file_triggers_warn(self, tmp_path):
+        """단일 파일 >= 50KB이면 large_files 노트 기록."""
+        from ops.factory.worker import evaluate_context_budget
+        large = tmp_path / "big.py"
+        large.write_bytes(b"x" * 55000)  # 55KB
+        plan = {}
+        file_flags = f"--file {large.name}"
+        result = evaluate_context_budget(file_flags, plan, tmp_path)
+        assert any("large_files" in n for n in result["notes"])
+
+
 class TestFalsePassPrevention:
     """T2: 거짓 PASS 차단 - DO 실패 시 사이클 PASS 금지."""
 

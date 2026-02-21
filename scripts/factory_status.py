@@ -20,6 +20,13 @@ LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
 EVIDENCE_ROOT = ROOT / "logs" / "evidence"
 PLAN_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 RESULT_PATH = ROOT / "logs" / "autopilot" / "result.json"
+HISTORY_PATH = ROOT / "logs" / "autopilot" / "history.jsonl"
+
+MAX_BUDGET_PER_SESSION = 5.0  # USD
+MODEL_COST_PER_1K = {
+    "openai": {"low": 0.00015, "mid": 0.002, "high": 0.01},
+    "anthropic": {"low": 0.003, "mid": 0.003, "high": 0.015},
+}
 
 
 def parse_ledger_v2_rows(ledger_path: Path) -> list[dict[str, str]]:
@@ -113,6 +120,96 @@ def read_last_result() -> str:
         return "NONE"
 
 
+def read_ticket_history(n: int = 5) -> list[dict]:
+    """logs/autopilot/history.jsonl에서 최근 N회 티켓 히스토리 읽기.
+
+    history.jsonl이 없으면 result.json 1개만 반환.
+    """
+    records: list[dict] = []
+    if HISTORY_PATH.exists():
+        try:
+            lines = HISTORY_PATH.read_text(encoding="utf-8", errors="ignore").splitlines()
+            for line in reversed(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+                if len(records) >= n:
+                    break
+        except Exception:
+            pass
+    if not records and RESULT_PATH.exists():
+        try:
+            data = json.loads(RESULT_PATH.read_text(encoding="utf-8"))
+            records.append(data)
+        except Exception:
+            pass
+    return records
+
+
+def estimate_cost_from_result(data: dict) -> float:
+    """result.json 데이터에서 대략적 비용 추정 (USD)."""
+    agent = data.get("agent_used", "aider")
+    provider = "anthropic" if "claude" in agent.lower() else "openai"
+    tier = "mid"
+    notes = data.get("notes", [])
+    if any("danger" in n for n in notes):
+        tier = "high"
+    elif any("warn" in n for n in notes):
+        tier = "mid"
+    else:
+        tier = "low"
+    rate = MODEL_COST_PER_1K[provider][tier]
+    return round(rate * 5, 4)  # ~5K tokens 추정
+
+
+def get_value_watch(history: list[dict]) -> list[str]:
+    """VALUE_WATCH: 세션 예산 상태 + 가성비 조언 1줄."""
+    lines: list[str] = []
+    if not history:
+        lines.append("  [VALUE_WATCH]  No session data")
+        return lines
+
+    total_cost = sum(estimate_cost_from_result(d) for d in history)
+    budget_pct = (total_cost / MAX_BUDGET_PER_SESSION) * 100
+    bar_len = int(budget_pct / 5)  # 20칸 바
+    bar = "#" * min(bar_len, 20) + "-" * max(0, 20 - bar_len)
+    lines.append(f"  [VALUE_WATCH]  세션예산 [{bar}] ${total_cost:.4f}/${MAX_BUDGET_PER_SESSION:.2f} ({budget_pct:.1f}%)")
+
+    last = history[0] if history else {}
+    agent = last.get("agent_used", "?")
+    notes = last.get("notes", [])
+    tpm_notes = [n for n in notes if "[TPM_GUARD]" in n or "[RATE_LIMIT_GUARD]" in n]
+    if tpm_notes:
+        lines.append(f"  [VALUE_WATCH]  ⚠️ TPM경보: {tpm_notes[0][:80]}")
+    elif agent == "aider":
+        lines.append("  [VALUE_WATCH]  ✅ 현재 aider(OpenAI) 사용 중 — 하위 모델로 충분함")
+    else:
+        lines.append(f"  [VALUE_WATCH]  에이전트: {agent}")
+    return lines
+
+
+def get_parallel_candidates(ledger_rows: list[dict]) -> int:
+    """T4) OPEN 티켓 중 touched_paths가 disjoint인 후보 수 반환 (씨앗만)."""
+    open_rows = [r for r in ledger_rows if r.get("status") == "OPEN"]
+    if len(open_rows) < 2:
+        return 0
+    # AC_LEDGER에서 touched_paths는 notes 컴럼에 포함될 수 있음
+    # 간단하게: ac_id 접두사가 다른 시리즈면 병렬 후보로 간주
+    prefixes = set()
+    candidates = 0
+    for row in open_rows[:10]:
+        ac_id = row.get("ac_id", "")
+        prefix = ac_id.split("-")[0] if "-" in ac_id else ac_id[:6]
+        if prefix not in prefixes:
+            prefixes.add(prefix)
+            candidates += 1
+    return max(0, candidates - 1)
+
+
 def read_feedback_summary() -> list[str]:
     """result.json + model_routing.log에서 Self-Heal/DO재시도/agent 실패 피드백 5줄 요약."""
     lines: list[str] = []
@@ -150,6 +247,26 @@ def read_feedback_summary() -> list[str]:
     return lines[:5]
 
 
+def format_history_table(history: list[dict]) -> list[str]:
+    """최근 N회 티켓 히스토리를 테이블 형식으로 포맷."""
+    if not history:
+        return ["  (no history)"]
+    lines = []
+    header = f"  {'TICKET_ID':<30} {'AGENT':<14} {'STATUS':<6} {'HEAL':<5} {'RETRY':<5} {'TPM':<4}"
+    lines.append(header)
+    lines.append("  " + "-" * 68)
+    for d in history:
+        tid = str(d.get("ticket_id", d.get("ac_id", "?")))[:30]
+        agent = str(d.get("agent_used", "?"))[:14]
+        status = str(d.get("status", "?"))[:6]
+        notes = d.get("notes", [])
+        heal = "Y" if d.get("self_heal_applied") else "N"
+        retry = "Y" if any("_retry" in str(c.get("name", "")) for c in d.get("commands", [])) else "N"
+        tpm = "Y" if any("[TPM_GUARD]" in n or "[RATE_LIMIT_GUARD]" in n for n in notes) else "N"
+        lines.append(f"  {tid:<30} {agent:<14} {status:<6} {heal:<5} {retry:<5} {tpm:<4}")
+    return lines
+
+
 def main() -> int:
     rows = parse_ledger_v2_rows(LEDGER_PATH)
 
@@ -177,6 +294,8 @@ def main() -> int:
     last_gate = find_latest_gate_result(EVIDENCE_ROOT)
     plan_pointer = read_plan_pointer()
     last_result = read_last_result()
+    history = read_ticket_history(5)
+    parallel_n = get_parallel_candidates(rows)
 
     print("=" * 72)
     print("  FACTORY STATUS DASHBOARD (Deterministic, LLM-free)")
@@ -192,7 +311,15 @@ def main() -> int:
     print(f"  [GATE_LOG]     {gate_log_path}")
     print()
     print(f"  [DONE]  {done_count}  |  [OPEN]  {open_count}  |  [TOTAL]  {total}")
+    print(f"  [PARALLEL_CANDIDATES] {parallel_n} (기본 OFF, 씨앗만)")
     print(f"  [TIME]  {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print()
+    print("  [RECENT HISTORY] (최근 5회)")
+    for line in format_history_table(history):
+        print(line)
+    print()
+    for vw in get_value_watch(history):
+        print(vw)
     print()
     print("  [FEEDBACK LOOP]")
     for fb in read_feedback_summary():
