@@ -71,8 +71,9 @@ def test_universe_snapshot_includes_metadata_and_size_100_artifact():
     # coverage_ratio도 2/100
     assert report["coverage_ratio"] == pytest.approx(2 / 100, rel=1e-6)
     # [D_ALPHA-0::AC-1] machine-readable: universe_size=100 artifact
-    assert report["universe_metadata"].get("universe_size", None) == 100 or \
-           report["universe_metadata"].get("universe_requested_top_n", None) == 100
+    # universe_size=100 must be present in the artifact for AC-1
+    assert report["universe_metadata"].get("universe_size", None) == 100, \
+        "universe_size=100 must be present in the artifact for AC-1"
 
 
 
