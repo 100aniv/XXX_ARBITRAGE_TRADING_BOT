@@ -597,7 +597,12 @@ def apply_docops_self_heal(
 def git_commit_self_heal(actions: List[str]) -> bool:
     """Self-Heal 수정 후 자동 git commit. 성공 여부 반환."""
     try:
-        subprocess.run(["git", "add", "-A"], cwd=str(ROOT), check=True, capture_output=True)
+        subprocess.run(
+            [sys.executable, "scripts/git_safe_stage.py"],
+            cwd=str(ROOT),
+            check=True,
+            capture_output=True,
+        )
         msg = "docops: self-heal auto-fix\n\n" + "\n".join(actions)
         subprocess.run(
             ["git", "commit", "-m", msg],

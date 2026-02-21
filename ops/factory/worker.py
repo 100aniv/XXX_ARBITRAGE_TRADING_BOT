@@ -333,7 +333,10 @@ def main() -> int:
             agent_used = "custom"
         else:
             rel_plan_doc = str(plan_doc_path.relative_to(ROOT)).replace("\\", "/")
-            git_commit_cmd = f"git add -A && (git diff --cached --quiet || git commit -m \"factory: apply {ticket_slug}\")"
+            git_commit_cmd = (
+                "python3 scripts/git_safe_stage.py && "
+                f"(git diff --cached --quiet || git commit -m \"factory: apply {ticket_slug}\")"
+            )
 
             if agent_preference == "claude_code":
                 claude_model = env.get("CLAUDE_CODE_MODEL", "")

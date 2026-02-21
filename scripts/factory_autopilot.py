@@ -27,6 +27,7 @@ LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
 PLAN_JSON_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 RESULT_JSON_PATH = ROOT / "logs" / "autopilot" / "result.json"
 PLAN_DOC_ROOT = ROOT / "docs" / "plan"
+REPORT_DOC_ROOT = ROOT / "docs" / "report"
 EVIDENCE_ROOT = ROOT / "logs" / "evidence"
 
 
@@ -339,11 +340,27 @@ def get_head_hash() -> str:
         return "UNKNOWN"
 
 
-def git_commit_push(message: str) -> bool:
+def _stage_specific_paths(paths: List[Path]) -> None:
+    rels = []
+    for p in paths:
+        if p is None:
+            continue
+        if not p.exists():
+            continue
+        rels.append(str(p.relative_to(ROOT)))
+    if not rels:
+        return
+    subprocess.run(
+        [sys.executable, "scripts/git_safe_stage.py", "--only", *rels],
+        cwd=str(ROOT),
+        check=True,
+        capture_output=True,
+    )
+
+
+def git_commit_push(message: str, stage_paths: List[Path]) -> bool:
     try:
-        subprocess.run(
-            ["git", "add", "-A"], cwd=str(ROOT), check=True, capture_output=True,
-        )
+        _stage_specific_paths(stage_paths)
         subprocess.run(
             ["git", "commit", "-m", message],
             cwd=str(ROOT), check=True, capture_output=True,
@@ -455,14 +472,17 @@ def main() -> int:
 
         # 3. Find or generate plan doc (Add-on 1: AC_LEDGER -> plan doc mapping)
         touched_paths = extract_paths(ac_row["title"], ac_row.get("notes", ""))
-        existing_doc = find_existing_plan_doc(ac_id)
-        if existing_doc:
-            print(f"[AUTOPILOT] Found plan doc: {existing_doc.relative_to(ROOT)}")
-            scope = parse_plan_doc_scope(existing_doc)
+        slug = ac_id.replace("::", "__")
+        plan_doc_path = find_existing_plan_doc(ac_id)
+        plan_doc_created = False
+        if plan_doc_path:
+            print(f"[AUTOPILOT] Found plan doc: {plan_doc_path.relative_to(ROOT)}")
+            scope = parse_plan_doc_scope(plan_doc_path)
         else:
-            existing_doc = generate_plan_doc(ac_row, touched_paths)
-            scope = parse_plan_doc_scope(existing_doc)
-            print(f"[AUTOPILOT] Generated plan doc: {existing_doc.relative_to(ROOT)}")
+            plan_doc_path = generate_plan_doc(ac_row, touched_paths)
+            plan_doc_created = True
+            scope = parse_plan_doc_scope(plan_doc_path)
+            print(f"[AUTOPILOT] Generated plan doc: {plan_doc_path.relative_to(ROOT)}")
 
         # 4. Build & write plan.json (dynamic, no SAFE:: prefix)
         plan = build_plan_json(ac_row, scope, touched_paths)
@@ -502,6 +522,7 @@ def main() -> int:
             # (Add-on 2: Ledger DONE marking + evidence)
             evidence = result.get("evidence_latest", "NONE") if result else "NONE"
             commit_hash = get_head_hash()
+            report_doc = REPORT_DOC_ROOT / f"{slug}_analyze.md"
 
             if args.dry_run:
                 print(f"[AUTOPILOT] DRY-RUN: Would mark {ac_id} -> DONE (skipping ledger/git)")
@@ -512,7 +533,16 @@ def main() -> int:
                 else:
                     print(f"[AUTOPILOT] WARN: Could not update ledger for {ac_id}")
 
-                committed = git_commit_push(f"autopilot: {ac_id} DONE [evidence={evidence}]")
+                stage_targets: List[Path] = [LEDGER_PATH]
+                if plan_doc_created:
+                    stage_targets.append(plan_doc_path)
+                if report_doc.exists():
+                    stage_targets.append(report_doc)
+
+                committed = git_commit_push(
+                    f"autopilot: {ac_id} DONE [evidence={evidence}]",
+                    stage_targets,
+                )
                 if committed:
                     print(f"[AUTOPILOT] Git: committed + pushed")
 
