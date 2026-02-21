@@ -64,8 +64,8 @@
 
 | 항목 | 값 |
 |---|---|
-| **현재 위치** | D_ALPHA-1U::AC-7 (20분 Survey 완료 (winrate < 100%)) |
-| **다음 3개 AC** | D_ALPHA-1U-FIX-2::AC-2, D_ALPHA-1U-FIX-2::AC-3, D_ALPHA-1U-FIX-2::AC-4 |
+| **현재 위치** | D_ALPHA-1U-FIX-2-1::AC-2 (fill 실패 시 reject_count KPI 기록) |
+| **다음 3개 AC** | D_ALPHA-1U-FIX-2::AC-3, D_ALPHA-1U-FIX-2::AC-4, D_ALPHA-1U-FIX-2::AC-5 |
 | **최근 Gate PASS** | 2026-02-20 logs/evidence/20260220_081159_gate_regression_10a8a54 |
 | **브랜치** | feature/v2-factory-hard-reset |
 | **공장 상태** | OPERATIONAL (just factory_run PASS) |
@@ -80,7 +80,7 @@
 |---|---|---|---|
 | D_ALPHA-0 | Universe Truth | 4/4 | DONE |
 | D_ALPHA-1 | Maker Pivot MVP | 4/4 | DONE |
-| D_ALPHA-1U | Universe Unblock & Persistence | 6/7 | PARTIAL |
+| D_ALPHA-1U | Universe Unblock & Persistence | 7/7 | DONE |
 | D_ALPHA-1U-FIX-2 | Latency Cost Decomposition | 1/5 | PARTIAL |
 | D_ALPHA-1U-FIX-2-1 | Winrate 현실화 | 1/5 | PARTIAL |
 | D_ALPHA-2 | Dynamic OBI Threshold | 0/1 | OPEN |
