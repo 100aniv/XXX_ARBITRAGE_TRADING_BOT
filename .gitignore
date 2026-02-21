@@ -50,6 +50,8 @@ config/secrets.yml
 data/
 !arbitrage/v2/data/
 !arbitrage/v2/data/**
+arbitrage/v2/data/__pycache__/
+arbitrage/v2/data/__pycache__/**
 logs/
 *.log
 *.csv
