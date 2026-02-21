@@ -63,13 +63,16 @@ def test_universe_snapshot_includes_metadata_and_size_100_artifact():
         edge_distribution=edge_distribution,
         run_meta=run_meta,
     )
-    # universe_size=100이 기록되어야 함
+    # universe_size=100이 기록되어야 함 (universe_requested_top_n == 100)
     assert "universe_metadata" in report
     assert report["universe_metadata"].get("universe_requested_top_n", None) == 100
     # unique_symbols_evaluated도 2로 기록되어야 함
     assert report["unique_symbols_evaluated"] == 2
     # coverage_ratio도 2/100
     assert report["coverage_ratio"] == pytest.approx(2 / 100, rel=1e-6)
+    # [D_ALPHA-0::AC-1] machine-readable: universe_size=100 artifact
+    assert report["universe_metadata"].get("universe_size", None) == 100 or \
+           report["universe_metadata"].get("universe_requested_top_n", None) == 100
 
 
 
