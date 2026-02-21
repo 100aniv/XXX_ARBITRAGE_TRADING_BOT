@@ -334,11 +334,12 @@ def build_paper_runtime(config, admin_control=None) -> PaperOrchestrator:
             
             # D_ALPHA-0: Universe metadata 저장
             universe_snapshot = builder.get_snapshot()
-            config.universe_metadata = {
-                "universe_requested_top_n": universe_snapshot.get("universe_requested_top_n"),
-                "universe_loaded_count": len(symbols),  # allowlist/denylist 적용 후 실제 개수
-                "mode": universe_snapshot.get("mode"),
-            }
+            universe_metadata = dict(universe_snapshot)
+            universe_metadata["universe_loaded_count"] = len(symbols)  # allowlist/denylist 적용 후 실제 개수로 덮어쓰기
+            if universe_metadata.get("universe_size") is None:
+                requested_topn = universe_metadata.get("universe_requested_top_n")
+                universe_metadata["universe_size"] = requested_topn if requested_topn else len(symbols)
+            config.universe_metadata = universe_metadata
             
             logger.info(
                 f"[D_ALPHA-0] Universe loaded: requested={config.universe_metadata['universe_requested_top_n']}, "

@@ -240,13 +240,17 @@ class UniverseBuilder:
         
         symbols = self.get_symbols()
         
+        requested_topn = self.config.topn_count
+        universe_size = requested_topn if requested_topn else len(symbols)
+
         return {
             "mode": self.config.mode.value,
             "symbols": symbols,
-            "universe_requested_top_n": self.config.topn_count,
+            "universe_requested_top_n": requested_topn,
+            "universe_size": universe_size,
             "universe_loaded_count": len(symbols),
             "config": {
-                "topn_count": self.config.topn_count,
+                "topn_count": requested_topn,
                 "data_source": self.config.data_source,
                 "cache_ttl_seconds": self.config.cache_ttl_seconds,
                 "min_volume_usd": self.config.min_volume_usd,

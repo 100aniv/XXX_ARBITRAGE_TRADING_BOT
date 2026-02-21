@@ -63,14 +63,14 @@ factory_dry container_mode="docker" network="docker_arbitrage-network" env_file=
 # Factory Run (Bikit PLAN -> DO -> CHECK) with Disk Guard
 factory_run container_mode="docker" network="docker_arbitrage-network" env_file=".env.factory.local" image="arbitrage-factory-worker:latest":
     @echo "[FACTORY] Disk Guard check"
-    python3 -c "import shutil,sys; free=shutil.disk_usage('/').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
+    python3 -c "import shutil,sys; free=shutil.disk_usage('/mnt/c').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free (Host C: drive)'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
     @echo "[FACTORY] RUN supervisor"
     python3 ops/factory_supervisor.py --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
 
 # Factory Next: 다음 AC 1개만 실행 (1 cycle)
 factory_next container_mode="docker" network="docker_arbitrage-network" env_file=".env.factory.local" image="arbitrage-factory-worker:latest":
     @echo "[FACTORY] Disk Guard check"
-    python3 -c "import shutil,sys; free=shutil.disk_usage('/').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
+    python3 -c "import shutil,sys; free=shutil.disk_usage('/mnt/c').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free (Host C: drive)'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
     @echo "[FACTORY] NEXT: 1 cycle only"
     python3 ops/factory_supervisor.py --max-cycles 1 --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
 
