@@ -17,18 +17,23 @@ import json
 import re
 import subprocess
 import sys
+import time
+import yaml
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = ROOT / "docs" / "v2" / "design" / "AC_LEDGER.md"
+ROADMAP_V2_PATH = ROOT / "docs" / "v2" / "ROADMAP_V2.md"
+D_ROADMAP_PATH = ROOT / "D_ROADMAP.md"
 PLAN_JSON_PATH = ROOT / "logs" / "autopilot" / "plan.json"
 RESULT_JSON_PATH = ROOT / "logs" / "autopilot" / "result.json"
 PLAN_DOC_ROOT = ROOT / "docs" / "plan"
 REPORT_DOC_ROOT = ROOT / "docs" / "report"
 EVIDENCE_ROOT = ROOT / "logs" / "evidence"
+STAGE_AUDIT_CONFIG = ROOT / "config" / "stage_audit_profiles.yml"
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +88,243 @@ def pick_next_open_ac(rows: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
         if status in ("OPEN", "LOST_EVIDENCE"):
             return row
     return None
+
+
+# ---------------------------------------------------------------------------
+# ROADMAP_V2 Ordered AC Extraction (Stage-Gate)
+# ---------------------------------------------------------------------------
+
+_ROADMAP_AC_RE = re.compile(
+    r"^\|\s*(AC-[0-9]+(?:-[0-9]+)?)\s*\|",
+)
+_ROADMAP_STEP_RE = re.compile(
+    r"^###\s+(D[\w-]+):",
+)
+
+
+def parse_roadmap_v2_ordered_acs(
+    roadmap_path: Path = ROADMAP_V2_PATH,
+) -> List[str]:
+    """Parse ROADMAP_V2.md to extract AC_IDs in authoritative order.
+
+    Returns list like ['D_ALPHA-0::AC-1', 'D_ALPHA-0::AC-2', ...].
+    """
+    if not roadmap_path.exists():
+        return []
+    lines = roadmap_path.read_text(encoding="utf-8").splitlines()
+    ordered: List[str] = []
+    current_step = ""
+    for line in lines:
+        step_m = _ROADMAP_STEP_RE.match(line.strip())
+        if step_m:
+            current_step = step_m.group(1)
+            continue
+        if not current_step:
+            continue
+        if not line.strip().startswith("|"):
+            continue
+        ac_m = _ROADMAP_AC_RE.match(line.strip())
+        if ac_m:
+            ac_suffix = ac_m.group(1)
+            full_id = f"{current_step}::{ac_suffix}"
+            ordered.append(full_id)
+    return ordered
+
+
+def _extract_step_name(ac_id: str) -> str:
+    """Extract step name from AC_ID: 'D_ALPHA-0::AC-1' -> 'D_ALPHA-0'."""
+    return ac_id.split("::")[0] if "::" in ac_id else ac_id
+
+
+def _extract_step_family(step_name: str) -> str:
+    """Extract step family: 'D_ALPHA-1U-FIX-2' -> 'D_ALPHA', 'D206-0' -> 'D206'."""
+    s = step_name.upper()
+    if s.startswith("D_ALPHA"):
+        return "D_ALPHA"
+    m = re.match(r"(D\d+)", s)
+    if m:
+        return m.group(1)
+    return step_name
+
+
+def compute_step_status(
+    step_name: str,
+    ledger_status: Dict[str, str],
+    roadmap_acs: List[str],
+) -> Tuple[int, int, str]:
+    """Compute DONE/TOTAL/Status for a step from ledger truth.
+
+    Returns (done_count, total_count, status_label).
+    """
+    step_acs = [a for a in roadmap_acs if _extract_step_name(a) == step_name]
+    if not step_acs:
+        return 0, 0, "OPEN"
+    total = len(step_acs)
+    done = sum(1 for a in step_acs if ledger_status.get(a) == "DONE")
+    if done == total:
+        return done, total, "DONE"
+    if done > 0:
+        return done, total, "PARTIAL"
+    return done, total, "OPEN"
+
+
+def pick_next_open_ac_staged(
+    rows: List[Dict[str, str]],
+    roadmap_path: Path = ROADMAP_V2_PATH,
+) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+    """Stage-Gate AC selection: pick earliest OPEN AC by ROADMAP_V2 order.
+
+    Enforces sequential stage integrity: cannot pick AC from step N+1
+    if step N has any OPEN ACs.
+
+    Returns (ac_row_or_None, error_message_or_None).
+    """
+    roadmap_acs = parse_roadmap_v2_ordered_acs(roadmap_path)
+    if not roadmap_acs:
+        ac = pick_next_open_ac(rows)
+        return ac, None
+
+    ledger_status: Dict[str, str] = {}
+    ledger_rows_by_id: Dict[str, Dict[str, str]] = {}
+    for r in rows:
+        aid = r["ac_id"].strip()
+        ledger_status[aid] = r.get("status", "OPEN").strip()
+        ledger_rows_by_id[aid] = r
+
+    seen_steps: List[str] = []
+    for ac_id in roadmap_acs:
+        step = _extract_step_name(ac_id)
+        if step not in seen_steps:
+            seen_steps.append(step)
+
+    first_open_step: Optional[str] = None
+    first_open_ac: Optional[str] = None
+
+    for step in seen_steps:
+        step_acs = [a for a in roadmap_acs if _extract_step_name(a) == step]
+        step_all_done = all(
+            ledger_status.get(a, "OPEN") == "DONE" for a in step_acs
+        )
+        if step_all_done:
+            continue
+        for a in step_acs:
+            st = ledger_status.get(a, "OPEN")
+            if st in ("OPEN", "LOST_EVIDENCE"):
+                if first_open_step is None:
+                    first_open_step = step
+                    first_open_ac = a
+                elif _extract_step_name(a) != first_open_step:
+                    err = (
+                        f"DEPENDENCY_VIOLATION: Step {first_open_step} must be "
+                        f"100% DONE before proceeding to {_extract_step_name(a)}. "
+                        f"Blocked AC: {first_open_ac}"
+                    )
+                    return None, err
+                break
+        if first_open_ac:
+            break
+
+    if first_open_ac and first_open_ac in ledger_rows_by_id:
+        row = ledger_rows_by_id[first_open_ac]
+        if _is_v2_alpha(row):
+            return row, None
+
+    ac = pick_next_open_ac(rows)
+    return ac, None
+
+
+# ---------------------------------------------------------------------------
+# Stage Boundary Audit
+# ---------------------------------------------------------------------------
+
+def load_stage_audit_profiles(
+    config_path: Path = STAGE_AUDIT_CONFIG,
+) -> Dict[str, List[str]]:
+    """Load stage audit profiles from YAML config."""
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return {k: v for k, v in data.items() if isinstance(v, list)}
+    except Exception:
+        return {}
+
+
+def detect_stage_family_change(
+    prev_ac_id: Optional[str],
+    next_ac_id: str,
+) -> Optional[Tuple[str, str]]:
+    """Detect if next AC crosses a stage family boundary.
+
+    Returns (from_family, to_family) or None if same family.
+    """
+    if not prev_ac_id:
+        return None
+    prev_family = _extract_step_family(_extract_step_name(prev_ac_id))
+    next_family = _extract_step_family(_extract_step_name(next_ac_id))
+    if prev_family != next_family:
+        return (prev_family, next_family)
+    return None
+
+
+def run_stage_audit(
+    from_family: str,
+    to_family: str,
+    profiles: Dict[str, List[str]],
+    dry_run: bool = False,
+) -> Tuple[bool, str]:
+    """Run stage boundary audit commands.
+
+    Returns (passed, report_path).
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    report_name = f"STAGE_AUDIT__{from_family}__to__{to_family}__{ts}.md"
+    report_path = REPORT_DOC_ROOT / report_name
+    REPORT_DOC_ROOT.mkdir(parents=True, exist_ok=True)
+
+    commands = profiles.get(from_family, profiles.get("DEFAULT", ["just gate"]))
+
+    lines = [
+        f"# Stage Boundary Audit: {from_family} -> {to_family}",
+        f"**Timestamp:** {ts}",
+        f"**Audit Commands:** {commands}",
+        "",
+    ]
+
+    if dry_run:
+        lines.append("**Mode:** DRY-RUN (commands not executed)")
+        lines.append("")
+        lines.append("## Result: SKIPPED (dry-run)")
+        report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return True, str(report_path.relative_to(ROOT))
+
+    all_pass = True
+    for cmd in commands:
+        lines.append(f"## Command: `{cmd}`")
+        try:
+            proc = subprocess.run(
+                cmd, shell=True, cwd=str(ROOT),
+                capture_output=True, text=True, timeout=600,
+            )
+            lines.append(f"**Exit code:** {proc.returncode}")
+            if proc.stdout:
+                stdout_tail = proc.stdout[-2000:]
+                lines.append(f"```\n{stdout_tail}\n```")
+            if proc.returncode != 0:
+                all_pass = False
+                if proc.stderr:
+                    stderr_tail = proc.stderr[-1000:]
+                    lines.append(f"**stderr:**\n```\n{stderr_tail}\n```")
+        except subprocess.TimeoutExpired:
+            lines.append("**TIMEOUT (600s)**")
+            all_pass = False
+        lines.append("")
+
+    status = "PASS" if all_pass else "FAIL"
+    lines.append(f"## Overall: {status}")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return all_pass, str(report_path.relative_to(ROOT))
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +655,125 @@ def read_result() -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Roadmap Status Sync (D_ROADMAP.md Phase 1 table + pointer)
+# ---------------------------------------------------------------------------
+
+_PHASE1_TABLE_HEADER_RE = re.compile(
+    r"^\|\s*Step\s*\|\s*Goal\s*\|\s*DONE/TOTAL\s*\|\s*Status\s*\|",
+)
+_PHASE1_ROW_RE = re.compile(
+    r"^\|\s*(D[\w-]+)\s*\|",
+)
+_POINTER_SECTION_RE = re.compile(
+    r"^\|\s*\*\*현재 위치\*\*\s*\|",
+)
+
+
+def sync_roadmap_from_ledger(
+    roadmap_path: Path = D_ROADMAP_PATH,
+    ledger_path: Path = LEDGER_PATH,
+    roadmap_v2_path: Path = ROADMAP_V2_PATH,
+) -> bool:
+    """Sync D_ROADMAP.md Phase summary tables with AC_LEDGER truth.
+
+    Computes DONE/TOTAL per step from ledger, surgically patches the
+    Phase 1 summary table and the current pointer section.
+    """
+    if not roadmap_path.exists():
+        return False
+
+    rows = parse_ledger_rows(ledger_path)
+    roadmap_acs = parse_roadmap_v2_ordered_acs(roadmap_v2_path)
+
+    ledger_status: Dict[str, str] = {}
+    for r in rows:
+        ledger_status[r["ac_id"].strip()] = r.get("status", "OPEN").strip()
+
+    seen_steps: List[str] = []
+    for ac_id in roadmap_acs:
+        step = _extract_step_name(ac_id)
+        if step not in seen_steps:
+            seen_steps.append(step)
+
+    step_stats: Dict[str, Tuple[int, int, str]] = {}
+    for step in seen_steps:
+        step_stats[step] = compute_step_status(step, ledger_status, roadmap_acs)
+
+    text = roadmap_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    new_lines: List[str] = []
+    in_phase_table = False
+    phase_table_sep_seen = False
+
+    for i, line in enumerate(lines):
+        if _PHASE1_TABLE_HEADER_RE.match(line.strip()):
+            in_phase_table = True
+            phase_table_sep_seen = False
+            new_lines.append(line)
+            continue
+
+        if in_phase_table and line.strip().startswith("|---"):
+            phase_table_sep_seen = True
+            new_lines.append(line)
+            continue
+
+        if in_phase_table and phase_table_sep_seen:
+            row_m = _PHASE1_ROW_RE.match(line.strip())
+            if row_m:
+                step_name = row_m.group(1).strip()
+                if step_name in step_stats:
+                    done, total, status = step_stats[step_name]
+                    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                    if len(cells) >= 4:
+                        cells[2] = f"{done}/{total}"
+                        cells[3] = status
+                        new_lines.append("| " + " | ".join(cells) + " |")
+                        continue
+            elif not line.strip().startswith("|"):
+                in_phase_table = False
+
+        if _POINTER_SECTION_RE.match(line.strip()):
+            next_ac_row, _ = pick_next_open_ac_staged(rows, roadmap_v2_path)
+            if next_ac_row:
+                next_id = next_ac_row["ac_id"]
+                next_title = next_ac_row["title"]
+                new_lines.append(
+                    f"| **현재 위치** | {next_id} ({next_title}) |"
+                )
+                continue
+
+        if line.strip().startswith("| **다음 3개 AC**"):
+            next_3 = _compute_next_3_acs(rows, roadmap_acs, ledger_status)
+            new_lines.append(f"| **다음 3개 AC** | {next_3} |")
+            continue
+
+        new_lines.append(line)
+
+    new_text = "\n".join(new_lines)
+    if not new_text.endswith("\n"):
+        new_text += "\n"
+    roadmap_path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def _compute_next_3_acs(
+    rows: List[Dict[str, str]],
+    roadmap_acs: List[str],
+    ledger_status: Dict[str, str],
+) -> str:
+    """Compute next 3 OPEN ACs in roadmap order for pointer display."""
+    open_acs: List[str] = []
+    for ac_id in roadmap_acs:
+        if ledger_status.get(ac_id, "OPEN") in ("OPEN", "LOST_EVIDENCE"):
+            open_acs.append(ac_id)
+            if len(open_acs) >= 4:
+                break
+    if len(open_acs) > 1:
+        return ", ".join(open_acs[1:4])
+    return "NONE"
+
+
+# ---------------------------------------------------------------------------
 # Main Autopilot Loop
 # ---------------------------------------------------------------------------
 
@@ -422,6 +783,7 @@ class CycleState:
     last_status: str = ""
     completed: int = 0
     failed: int = 0
+    last_done_ac_id: str = ""
 
 
 def main() -> int:
@@ -438,9 +800,10 @@ def main() -> int:
     args = parser.parse_args()
 
     state = CycleState()
+    audit_profiles = load_stage_audit_profiles()
 
     print("=" * 72)
-    print("  FACTORY AUTOPILOT (Autonomous AC Loop)")
+    print("  FACTORY AUTOPILOT (Autonomous AC Loop) [STAGE-GATE ENABLED]")
     print(f"  max_cycles={args.max_cycles}  mode={args.container_mode}  dry_run={args.dry_run}")
     print("=" * 72)
 
@@ -449,15 +812,34 @@ def main() -> int:
         print(f"  [CYCLE {cycle_num}/{args.max_cycles}]")
         print(f"{'─' * 72}")
 
-        # 1. Parse ledger, pick next OPEN AC
+        # 1. Parse ledger, pick next OPEN AC via Stage-Gate
         rows = parse_ledger_rows()
-        ac_row = pick_next_open_ac(rows)
+        ac_row, gate_err = pick_next_open_ac_staged(rows)
+
+        if gate_err:
+            print(f"[AUTOPILOT] HALT: {gate_err}")
+            return 1
+
         if ac_row is None:
             print("[AUTOPILOT] No more OPEN ACs in ledger. All done!")
             break
 
         ac_id = ac_row["ac_id"]
-        print(f"[AUTOPILOT] Selected: {ac_id} — {ac_row['title']}")
+        print(f"[AUTOPILOT] Selected (Stage-Gate): {ac_id} — {ac_row['title']}")
+
+        # 1b. Stage Boundary Audit (detect family change)
+        boundary = detect_stage_family_change(state.last_done_ac_id, ac_id)
+        if boundary:
+            from_fam, to_fam = boundary
+            print(f"[STAGE-AUDIT] Boundary detected: {from_fam} -> {to_fam}")
+            audit_pass, audit_report = run_stage_audit(
+                from_fam, to_fam, audit_profiles, dry_run=args.dry_run,
+            )
+            print(f"[STAGE-AUDIT] Report: {audit_report}")
+            if not audit_pass:
+                print(f"[STAGE-AUDIT] FAIL: Stage audit failed. HALT.")
+                return 1
+            print(f"[STAGE-AUDIT] PASS: Proceeding to {to_fam}")
 
         # 2. Fail-safe guards (Add-on 3: infinite loop / duplicate prevention)
         if ac_id == state.last_ac_id:
@@ -519,7 +901,6 @@ def main() -> int:
         state.last_status = status
 
         if status == "PASS" and exit_code == 0:
-            # (Add-on 2: Ledger DONE marking + evidence)
             evidence = result.get("evidence_latest", "NONE") if result else "NONE"
             commit_hash = get_head_hash()
             report_doc = REPORT_DOC_ROOT / f"{slug}_analyze.md"
@@ -533,7 +914,11 @@ def main() -> int:
                 else:
                     print(f"[AUTOPILOT] WARN: Could not update ledger for {ac_id}")
 
-                stage_targets: List[Path] = [LEDGER_PATH]
+                # Roadmap sync after ledger update
+                sync_roadmap_from_ledger()
+                print("[AUTOPILOT] D_ROADMAP.md synced with AC_LEDGER truth")
+
+                stage_targets: List[Path] = [LEDGER_PATH, D_ROADMAP_PATH]
                 if plan_doc_created:
                     stage_targets.append(plan_doc_path)
                 if report_doc.exists():
@@ -547,6 +932,7 @@ def main() -> int:
                     print(f"[AUTOPILOT] Git: committed + pushed")
 
             state.completed += 1
+            state.last_done_ac_id = ac_id
             print(f"[AUTOPILOT] PASS: {ac_id} (cycle {cycle_num})")
         else:
             state.failed += 1

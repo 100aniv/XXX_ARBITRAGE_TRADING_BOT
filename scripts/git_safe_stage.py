@@ -35,6 +35,20 @@ def main() -> int:
         return 0
 
     run(["git", "add", "--all", "."])
+    # Remove any accidentally staged __pycache__ or .pyc files
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=str(ROOT), capture_output=True, text=True, check=True,
+        )
+        bad_files = [
+            f for f in result.stdout.splitlines()
+            if "__pycache__" in f or f.endswith(".pyc")
+        ]
+        if bad_files:
+            run(["git", "reset", "HEAD", "--", *bad_files], check=False)
+    except subprocess.CalledProcessError:
+        pass
     if args.paths:
         run(["git", "add", "--", *args.paths])
     return 0

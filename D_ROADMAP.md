@@ -64,8 +64,8 @@
 
 | 항목 | 값 |
 |---|---|
-| **현재 위치** | D_ALPHA-0::AC-1 (Universe Truth) |
-| **다음 3개 AC** | D_ALPHA-0::AC-2, D_ALPHA-0::AC-3, D_ALPHA-0::AC-4 |
+| **현재 위치** | D_ALPHA-1U::AC-6 (DB strict 모드 db_inserts_ok > 0 검증) |
+| **다음 3개 AC** | D_ALPHA-1U::AC-7, D_ALPHA-1U-FIX-2::AC-2, D_ALPHA-1U-FIX-2::AC-3 |
 | **최근 Gate PASS** | 2026-02-20 logs/evidence/20260220_081159_gate_regression_10a8a54 |
 | **브랜치** | feature/v2-factory-hard-reset |
 | **공장 상태** | OPERATIONAL (just factory_run PASS) |
@@ -78,10 +78,10 @@
 
 | Step | Goal | DONE/TOTAL | Status |
 |---|---|---|---|
-| D_ALPHA-0 | Universe Truth | 2/4 | PARTIAL |
+| D_ALPHA-0 | Universe Truth | 4/4 | DONE |
 | D_ALPHA-1 | Maker Pivot MVP | 4/4 | DONE |
-| D_ALPHA-1U | Universe Unblock & Persistence | 1/7 | PARTIAL |
-| D_ALPHA-1U-FIX-2 | Latency Cost Decomposition | 5/5 | DONE |
+| D_ALPHA-1U | Universe Unblock & Persistence | 5/7 | PARTIAL |
+| D_ALPHA-1U-FIX-2 | Latency Cost Decomposition | 1/5 | PARTIAL |
 | D_ALPHA-1U-FIX-2-1 | Winrate 현실화 | 1/5 | PARTIAL |
 | D_ALPHA-2 | Dynamic OBI Threshold | 0/1 | OPEN |
 | D_ALPHA-3 | Inventory Management | 0/3 | OPEN |
@@ -107,7 +107,7 @@
 | D207-1-2 | Dynamic FX Intelligence | 0/3 | OPEN |
 | D207-1-3 | Active Failure Detection | 0/4 | OPEN |
 | D207-1-4 | 5x Ledger Rule | 0/3 | OPEN |
-| D207-1-5 | Gate Wiring | 0/4 | OPEN |
+| D207-1-5 | Gate Wiring | 0/5 | OPEN |
 | D207-2 | LONGRUN 60분 | 0/6 | OPEN |
 | D207-3 | Edge Distribution | 0/9 | OPEN |
 | D207-4 | Bayesian Tuning | 0/6 | OPEN |

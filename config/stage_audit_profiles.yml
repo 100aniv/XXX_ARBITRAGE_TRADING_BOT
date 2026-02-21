@@ -1,0 +1,26 @@
+# Stage Boundary Audit Profiles
+# When autopilot crosses a stage family boundary (e.g. D_ALPHA -> D206),
+# it runs the audit commands for the completed family before proceeding.
+#
+# Format: FAMILY_NAME: [list of shell commands]
+# Fallback: DEFAULT profile used if family not found.
+
+D_ALPHA:
+  - "python3 -m pytest -m 'v2 and not legacy and not optional_ml and not optional_live and not live_api and not fx_api' -x --tb=short -q"
+  - "python3 scripts/check_ssot_docs.py"
+
+D206:
+  - "python3 -m pytest -m 'v2 and not legacy and not optional_ml and not optional_live and not live_api and not fx_api' --tb=short -q"
+  - "python3 scripts/check_ssot_docs.py"
+
+D207:
+  - "python3 -m pytest -m 'v2 and not legacy and not optional_ml and not optional_live and not live_api and not fx_api' --tb=short -q"
+  - "python3 scripts/check_ssot_docs.py"
+
+D208:
+  - "python3 -m pytest --tb=short -q"
+  - "python3 scripts/check_ssot_docs.py"
+
+DEFAULT:
+  - "python3 -m pytest -m 'v2 and not legacy and not optional_ml and not optional_live and not live_api and not fx_api' -x --tb=short -q"
+  - "python3 scripts/check_ssot_docs.py"
