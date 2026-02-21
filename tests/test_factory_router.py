@@ -351,3 +351,85 @@ class TestDocOpsSelfHeal:
             changed = _heal_concept_conflict_resolution(doc)
             assert changed is False
             assert doc.read_text(encoding="utf-8") == original
+
+    def test_patch_result_json_status_updates_pass(self):
+        """_patch_result_json_status: result.json status → PASS + self_heal_applied 기록."""
+        from ops.factory_supervisor import _patch_result_json_status
+        import tempfile, json as _json
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rpath = Path(tmpdir) / "result.json"
+            rpath.write_text(
+                _json.dumps({"status": "FAIL", "notes": [], "commands": []}),
+                encoding="utf-8",
+            )
+            _patch_result_json_status(rpath, "PASS", ["[SELF_HEAL_A] inserted"])
+            payload = _json.loads(rpath.read_text(encoding="utf-8"))
+            assert payload["status"] == "PASS"
+            assert payload["self_heal_applied"] is True
+            assert len(payload["self_heal_actions"]) == 1
+            assert any("[SELF_HEAL]" in n for n in payload["notes"])
+
+
+class TestAiderContextSlimming:
+    """T1: Aider Context Slimming - build_aider_add_flags 유닛 테스트."""
+
+    def test_ssot_docs_excluded_from_add_flags(self):
+        """대형 SSOT 문서(D_ROADMAP.md 등)는 --add에 포함되지 않아야 함."""
+        from ops.factory.worker import build_aider_add_flags, _AIDER_EXCLUDE_DEFAULTS
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root_bak = None
+            plan = {
+                "touched_paths": list(_AIDER_EXCLUDE_DEFAULTS),
+                "scope": {"modify": list(_AIDER_EXCLUDE_DEFAULTS)},
+            }
+            plan_doc = Path(tmpdir) / "plan.md"
+            plan_doc.write_text("# plan", encoding="utf-8")
+            result = build_aider_add_flags(plan, plan_doc)
+            for excl in _AIDER_EXCLUDE_DEFAULTS:
+                assert excl not in result, f"{excl} should be excluded from --add flags"
+
+    def test_touched_paths_included_in_add_flags(self):
+        """touched_paths의 실존 파일은 --add에 포함되어야 함."""
+        from ops.factory.worker import build_aider_add_flags
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = Path(tmpdir) / "arbitrage" / "v2" / "engine.py"
+            src.parent.mkdir(parents=True, exist_ok=True)
+            src.write_text("# engine", encoding="utf-8")
+            plan_doc = Path(tmpdir) / "plan.md"
+            plan_doc.write_text("# plan", encoding="utf-8")
+            plan = {
+                "touched_paths": ["arbitrage/v2/engine.py"],
+                "scope": {"modify": []},
+            }
+            import ops.factory.worker as _w
+            orig_root = _w.ROOT
+            _w.ROOT = Path(tmpdir)
+            try:
+                result = build_aider_add_flags(plan, plan_doc)
+            finally:
+                _w.ROOT = orig_root
+            assert "arbitrage/v2/engine.py" in result
+
+    def test_aider_shell_contains_subtree_and_map_tokens(self):
+        """Aider 실행 커맨드에 --subtree-only와 --map-tokens 1024가 포함되어야 함."""
+        import ops.factory.worker as _w
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan_doc = Path(tmpdir) / "plan.md"
+            plan_doc.write_text("# plan", encoding="utf-8")
+            plan = {"touched_paths": [], "scope": {"modify": []}, "agent_preference": "aider"}
+            env = {"AIDER_MODEL": "gpt-4.1"}
+            rel_plan_doc = "plan.md"
+            git_commit_cmd = "git add -A && git commit -m test"
+            aider_model = env.get("AIDER_MODEL", "")
+            model_flag = f"--model {aider_model}" if aider_model else ""
+            add_flags = _w.build_aider_add_flags(plan, plan_doc)
+            do_shell = (
+                f"aider --yes {model_flag} --subtree-only --map-tokens 1024 "
+                f"--message-file {rel_plan_doc} {add_flags} && "
+                f"{git_commit_cmd}"
+            )
+            assert "--subtree-only" in do_shell
+            assert "--map-tokens 1024" in do_shell

@@ -508,6 +508,43 @@ def _heal_report_filename(raw_path: str, root: Path) -> Tuple[bool, str, str]:
     return True, old_rel, new_rel
 
 
+def _patch_result_json_status(
+    result_path: Path,
+    new_status: str,
+    heal_actions: List[str],
+) -> None:
+    """result.json의 status 필드를 new_status로 업데이트하고 self-heal 노트를 추가.
+
+    T3: 컨트롤러가 다음 티켓으로 포인터를 이동시킬 수 있도록 즉시 동기화.
+    T4: factory_budget 비용 로그에 self_heal_applied 플래그 반영.
+    """
+    if not result_path.exists():
+        return
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+
+    payload["status"] = new_status
+    payload["self_heal_applied"] = True
+    payload["self_heal_actions"] = heal_actions
+
+    # factory_budget 반영: notes에 self-heal 비용 마커 추가
+    notes = payload.get("notes", [])
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    notes.append(f"[SELF_HEAL] DocOps auto-fix applied at {stamp}: {len(heal_actions)} action(s)")
+    payload["notes"] = notes
+
+    try:
+        result_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"[DOCOPS_HEAL] result.json status → {new_status} (동기화 완료)")
+    except Exception as e:
+        print(f"[DOCOPS_HEAL] result.json 업데이트 실패: {e}")
+
+
 def run_docops_check(root: Path) -> Tuple[int, str]:
     """check_ssot_docs.py 실행 후 (exit_code, combined_output) 반환."""
     result = subprocess.run(
@@ -993,20 +1030,46 @@ def main() -> int:
     if proc.stderr:
         print(proc.stderr, end="")
 
-    # DocOps Self-Heal: worker 실행 후 DocOps FAIL이면 자동 수정 1회 시도
+    # -----------------------------------------------------------------------
+    # Gate FAIL 여부 판단 (DocOps와 분리)
+    # result.json에서 gate_exit_code를 읽어 Gate 전용 실패 여부 확인
+    # -----------------------------------------------------------------------
+    stage_codes = extract_stage_exit_codes()
+    gate_failed = stage_codes.get("gate", proc.returncode) != 0
+
+    # -----------------------------------------------------------------------
+    # DocOps Self-Heal: Gate PASS + DocOps FAIL 인 경우에만 1회 시도
+    # Self-Heal 성공 시 proc.returncode=0 오버라이드 + result.json PASS 동기화
+    # -----------------------------------------------------------------------
     docops_exit, _docops_out, _heal_actions = run_docops_with_self_heal(
         ROOT, report_doc=report_doc
     )
-    if docops_exit != 0 and proc.returncode == 0:
-        # Gate는 PASS였지만 DocOps가 self-heal 후에도 FAIL → worker 실패로 처리
-        print("[DOCOPS_HEAL] Self-Heal 후에도 DocOps FAIL. 사이클 FAIL 처리.")
-        proc = subprocess.CompletedProcess(args=proc.args, returncode=1, stdout=proc.stdout, stderr=proc.stderr)
+    self_heal_applied = len(_heal_actions) > 0
 
+    if not gate_failed and docops_exit == 0 and proc.returncode != 0:
+        # Gate PASS + DocOps Self-Heal 성공 → 사이클 PASS로 오버라이드
+        print("[DOCOPS_HEAL] Gate PASS + DocOps Self-Heal PASS → 사이클 PASS 처리.")
+        proc = subprocess.CompletedProcess(
+            args=proc.args, returncode=0,
+            stdout=proc.stdout, stderr=proc.stderr
+        )
+        _patch_result_json_status(RESULT_PATH, "PASS", _heal_actions)
+    elif not gate_failed and docops_exit != 0 and proc.returncode == 0:
+        # Gate PASS였지만 DocOps Self-Heal 후에도 FAIL → worker 실패로 처리
+        print("[DOCOPS_HEAL] Self-Heal 후에도 DocOps FAIL. 사이클 FAIL 처리.")
+        proc = subprocess.CompletedProcess(
+            args=proc.args, returncode=1,
+            stdout=proc.stdout, stderr=proc.stderr
+        )
+
+    # -----------------------------------------------------------------------
+    # Escalation: Gate FAIL에만 발동 (DocOps FAIL은 위에서 처리 완료)
+    # -----------------------------------------------------------------------
     escalation_count = 0
     escalated = False
     escalation_reason = ""
 
-    if proc.returncode != 0:
+    if gate_failed and proc.returncode != 0:
         current_tier = selected_models.get(active_tier_key, "mid")
         agent_max_tier = selected_models.get(
             "aider_max_tier" if active_agent == "aider" else "claude_max_tier", "high"

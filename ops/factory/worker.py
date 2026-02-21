@@ -104,6 +104,61 @@ def ensure_python_alias(env: Dict[str, str]) -> None:
     env["PATH"] = f"{alias_dir}:{env.get('PATH', '')}"
 
 
+# Aider 기본 제외 대형 SSOT 문서 (TPM 방어)
+_AIDER_EXCLUDE_DEFAULTS = {
+    "D_ROADMAP.md",
+    "docs/v2/SSOT_RULES.md",
+    "docs/v2/design/AC_LEDGER.md",
+    "docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md",
+}
+
+
+def build_aider_add_flags(plan: dict, plan_doc_path: Path) -> str:
+    """plan.touched_paths + 관련 tests/ 파일만 --add. 대형 SSOT 문서 제외."""
+    add_files: List[str] = []
+
+    # 1) worker_instruction.md 항상 포함
+    instruction = ROOT / "ops" / "prompts" / "worker_instruction.md"
+    if instruction.exists():
+        add_files.append(str(instruction.relative_to(ROOT)).replace("\\", "/"))
+
+    # 2) plan_doc 포함
+    try:
+        add_files.append(str(plan_doc_path.relative_to(ROOT)).replace("\\", "/"))
+    except ValueError:
+        pass
+
+    # 3) touched_paths (대형 SSOT 제외)
+    for p in plan.get("touched_paths", []):
+        p_str = str(p).replace("\\", "/")
+        if p_str in _AIDER_EXCLUDE_DEFAULTS:
+            continue
+        candidate = ROOT / p_str
+        if candidate.exists():
+            add_files.append(p_str)
+
+    # 4) scope.modify 파일 (대형 SSOT 제외)
+    for p in plan.get("scope", {}).get("modify", []):
+        p_str = str(p).replace("\\", "/")
+        if p_str in _AIDER_EXCLUDE_DEFAULTS:
+            continue
+        candidate = ROOT / p_str
+        if candidate.exists() and p_str not in add_files:
+            add_files.append(p_str)
+
+    # 5) 관련 tests/ 파일 (touched_paths 기반 추론)
+    for p in list(add_files):
+        stem = Path(p).stem
+        for test_candidate in (ROOT / "tests").glob(f"*{stem}*.py"):
+            rel = str(test_candidate.relative_to(ROOT)).replace("\\", "/")
+            if rel not in add_files:
+                add_files.append(rel)
+
+    if not add_files:
+        return ""
+    return " ".join(f"--add {f}" for f in add_files)
+
+
 def sanitize_ticket_id(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return slug.strip("_") or "ticket"
@@ -197,8 +252,10 @@ def main() -> int:
             else:
                 aider_model = env.get("AIDER_MODEL", "")
                 model_flag = f"--model {aider_model}" if aider_model else ""
+                add_flags = build_aider_add_flags(plan, plan_doc_path)
                 do_shell = (
-                    f"aider --yes {model_flag} --message-file {rel_plan_doc} && "
+                    f"aider --yes {model_flag} --subtree-only --map-tokens 1024 "
+                    f"--message-file {rel_plan_doc} {add_flags} && "
                     f"{git_commit_cmd}"
                 )
         do_step_name = f"do_{agent_used}"
