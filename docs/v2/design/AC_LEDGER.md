@@ -18,7 +18,7 @@ legacy_policy: D200 미만은 이 장부에 포함하지 않음. 원본은 docs/
 | D_ALPHA-1U::AC-2 | Redis 연결 실패 시 SystemExit(1) fail-fast | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0627 | b424819 | — | — |
 | D_ALPHA-1U::AC-3 | engine_report.json에 redis_ok 상태 포함 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0630 | a21ca8b | — | — |
 | D_ALPHA-1U::AC-4 | OBI 데이터 수집 (obi_score, depth_imbalance) | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0755 | 96e4c71 | — | — |
-| D_ALPHA-1U::AC-5 | Top100 unique_symbols_evaluated >= 95 | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
+| D_ALPHA-1U::AC-5 | Top100 unique_symbols_evaluated >= 95 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_0756 | 40371b5 | — | — |
 | D_ALPHA-1U::AC-6 | DB strict 모드 db_inserts_ok > 0 검증 | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
 | D_ALPHA-1U::AC-7 | 20분 Survey 완료 (winrate < 100%) | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
 | D_ALPHA-1U-FIX-2::AC-1 | latency_ms 증가 시 latency_total만 증가 | D_ALPHA | DONE | logs/evidence/d_alpha_1u_survey_off_20260131_233706/ | UNKNOWN | — | — |
