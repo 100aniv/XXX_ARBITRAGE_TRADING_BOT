@@ -48,6 +48,8 @@ config/secrets.yml
 
 # Data
 data/
+!arbitrage/v2/data/
+!arbitrage/v2/data/**
 logs/
 *.log
 *.csv
