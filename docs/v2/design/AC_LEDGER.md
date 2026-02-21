@@ -25,7 +25,7 @@ legacy_policy: D200 미만은 이 장부에 포함하지 않음. 원본은 docs/
 | D_ALPHA-1U-FIX-2-1::AC-1 | adverse slippage 주입 손실 케이스 발생 | D_ALPHA | DONE | logs/evidence/STEP0_BOOTSTRAP_D_ALPHA_1U_FIX_2_1_20260204_102405/ | UNKNOWN | — | — |
 | D_ALPHA-1U-FIX-2-1::AC-2 | fill 실패 시 reject_count KPI 기록 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_1308 | 11b3695 | — | — |
 | D_ALPHA-1U-FIX-2-1::AC-3 | 20m Survey losses >= 1 & winrate < 100% | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_1312 | df33230 | — | — |
-| D_ALPHA-1U-FIX-2-1::AC-4 | latency_cost vs latency_total 단위 분리 | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
+| D_ALPHA-1U-FIX-2-1::AC-4 | latency_cost vs latency_total 단위 분리 | D_ALPHA | DONE | logs/evidence/d205_18_2d_smoke_20260221_1314 | 2467795 | — | — |
 | D_ALPHA-1U-FIX-2-1::AC-5 | Evidence Minimum Set + FACT_CHECK | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
 | D_ALPHA-2::AC-1 | OBI 동적 임계치 엔진 내장 | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
 | D_ALPHA-3::AC-1 | inventory_penalty / quote_skew 엔진 내장 | D_ALPHA | OPEN | NONE | UNKNOWN | — | — |
