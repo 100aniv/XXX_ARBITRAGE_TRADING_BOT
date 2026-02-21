@@ -17,11 +17,14 @@ from arbitrage.v2.universe.builder import UniverseBuilder, UniverseBuilderConfig
 from arbitrage.v2.core.monitor import EvidenceCollector
 
 
-def test_universe_snapshot_includes_metadata():
-    """UniverseBuilder.get_snapshot()이 universe metadata 반환"""
+def test_universe_snapshot_includes_metadata_and_size_100_artifact():
+    """
+    [D_ALPHA-0::AC-1] UniverseBuilder.get_snapshot() returns universe metadata,
+    and when topn_count=100, universe_size=100 is recorded in the artifact.
+    """
     config = UniverseBuilderConfig(
         mode=UniverseMode.TOPN,
-        topn_count=50,
+        topn_count=100,
         static_symbols=None,
     )
     builder = UniverseBuilder(config)
@@ -33,9 +36,40 @@ def test_universe_snapshot_includes_metadata():
     assert "universe_loaded_count" in snapshot
     
     # 값 검증
-    assert snapshot["universe_requested_top_n"] == 50
+    assert snapshot["universe_requested_top_n"] == 100
     assert isinstance(snapshot["universe_loaded_count"], int)
     assert snapshot["universe_loaded_count"] >= 0
+
+    # [AC-1] universe_size=100 artifact 기록 검증
+    # EvidenceCollector._edge_survey_report를 통해 universe_size=100이 기록되는지 확인
+    edge_distribution = [
+        {
+            "tick": 1,
+            "candidates": [
+                {"symbol": "BTC/KRW", "spread_bps": 50.0, "net_edge_bps": 20.0},
+                {"symbol": "ETH/KRW", "spread_bps": 30.0, "net_edge_bps": 10.0},
+            ]
+        },
+    ]
+    run_meta = {
+        "universe_metadata": snapshot,
+        "metrics": {"reject_reasons": {}},
+    }
+    collector = EvidenceCollector(
+        output_dir="logs/test",
+        run_id="test_run",
+    )
+    report = collector._edge_survey_report(
+        edge_distribution=edge_distribution,
+        run_meta=run_meta,
+    )
+    # universe_size=100이 기록되어야 함
+    assert "universe_metadata" in report
+    assert report["universe_metadata"].get("universe_requested_top_n", None) == 100
+    # unique_symbols_evaluated도 2로 기록되어야 함
+    assert report["unique_symbols_evaluated"] == 2
+    # coverage_ratio도 2/100
+    assert report["coverage_ratio"] == pytest.approx(2 / 100, rel=1e-6)
 
 
 
