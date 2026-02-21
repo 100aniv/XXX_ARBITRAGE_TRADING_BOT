@@ -179,16 +179,29 @@ def get_value_watch(history: list[dict]) -> list[str]:
     bar = "#" * min(bar_len, 20) + "-" * max(0, 20 - bar_len)
     lines.append(f"  [VALUE_WATCH]  세션예산 [{bar}] ${total_cost:.4f}/${MAX_BUDGET_PER_SESSION:.2f} ({budget_pct:.1f}%)")
 
+    # Section O 임계값 (SSOT Appendix Section O 기준)
+    # CHEAP: est_cost < 0.05 → aider low (gpt-4.1-mini)
+    # MEDIUM: 0.05 <= est_cost < 0.50 → aider mid (gpt-4.1)
+    # HEAVY: est_cost >= 0.50 OR context_risk == "danger" → claude_code (claude-sonnet-4)
     last = history[0] if history else {}
-    agent = last.get("agent_used", "?")
+    last_cost = estimate_cost_from_result(last) if last else 0.0
     notes = last.get("notes", [])
-    tpm_notes = [n for n in notes if "[TPM_GUARD]" in n or "[RATE_LIMIT_GUARD]" in n]
-    if tpm_notes:
-        lines.append(f"  [VALUE_WATCH]  ⚠️ TPM경보: {tpm_notes[0][:80]}")
-    elif agent == "aider":
-        lines.append("  [VALUE_WATCH]  ✅ 현재 aider(OpenAI) 사용 중 — 하위 모델로 충분함")
+    is_danger = any("danger" in n for n in notes)
+    is_routed = any("[ROUTING]" in n for n in notes)
+
+    if is_danger or is_routed or last_cost >= 0.50:
+        tier_label = "HEAVY → claude_code (Anthropic)"
+    elif last_cost >= 0.05:
+        tier_label = "MEDIUM → aider mid (gpt-4.1)"
     else:
-        lines.append(f"  [VALUE_WATCH]  에이전트: {agent}")
+        tier_label = "CHEAP → aider low (gpt-4.1-mini)"
+    lines.append(f"  [VALUE_WATCH]  Tier: {tier_label}")
+
+    tpm_notes = [n for n in notes if "[TPM_GUARD]" in n or "[RATE_LIMIT_GUARD]" in n or "[ROUTING]" in n]
+    if tpm_notes:
+        lines.append(f"  [VALUE_WATCH]  ⚠️ Guard: {tpm_notes[0][:80]}")
+
+    lines.append("  [VALUE_WATCH]  Based on SSOT Appendix Section O")
     return lines
 
 

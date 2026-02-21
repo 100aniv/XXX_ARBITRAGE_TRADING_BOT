@@ -353,16 +353,29 @@ def main() -> int:
                 if budget["risk_level"] != "ok":
                     print(f"[CTX_BUDGET] risk={budget['risk_level']} map_tokens={budget['map_tokens']} slim={budget['slim']}")
 
-                # danger 시 slim 강제 + claude_code 라우팅 권장 (단, env에 claude_code 설정 있을 때만)
-                if budget["slim"]:
-                    file_flags = build_aider_file_flags(plan, plan_doc_path, slim=True)
+                # W1) danger + route_to_claude=True → claude_code로 강제 전환 (집행)
+                if budget["route_to_claude"] and env.get("CLAUDE_CODE_MODEL"):
+                    claude_model = env.get("CLAUDE_CODE_MODEL", "")
+                    c_model_flag = f"--model {claude_model}" if claude_model else ""
+                    agent_used = "claude_code"
+                    _ctx_guard_notes.append(
+                        "[ROUTING] Context too large, forced switch to Claude Code"
+                    )
+                    print(f"[ROUTING] route_to_claude=True → claude_code 강제 전환 (model={claude_model})")
+                    do_shell = (
+                        f"claude {c_model_flag} -p \"$(cat {rel_plan_doc})\" "
+                        f"--dangerously-skip-permissions && {git_commit_cmd}"
+                    )
+                else:
+                    if budget["slim"]:
+                        file_flags = build_aider_file_flags(plan, plan_doc_path, slim=True)
 
-                map_tokens_val = budget["map_tokens"]
-                do_shell = (
-                    f"aider --yes {model_flag} --subtree-only --map-tokens {map_tokens_val} "
-                    f"--message-file {rel_plan_doc} {file_flags} && "
-                    f"{git_commit_cmd}"
-                )
+                    map_tokens_val = budget["map_tokens"]
+                    do_shell = (
+                        f"aider --yes {model_flag} --subtree-only --map-tokens {map_tokens_val} "
+                        f"--message-file {rel_plan_doc} {file_flags} && "
+                        f"{git_commit_cmd}"
+                    )
         do_step_name = f"do_{agent_used}"
         do_result = run_shell(do_step_name, do_shell, env)
         results.append(do_result)

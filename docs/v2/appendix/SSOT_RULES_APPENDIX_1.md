@@ -183,4 +183,22 @@ rg "v1 API|v3 API|API_V1|API_V3|R1|R3" --type py --type md --type yaml
 
 ---
 
+## Section O: Operation Thresholds (Value Watch)
+
+**목적:** Factory 사이클의 에이전트/모델 선택 기준을 비용 관점에서 명문화.
+
+| Tier | 조건 | 권장 에이전트 | 권장 모델 |
+|------|------|---------------|-----------|
+| **CHEAP** | est_cost_usd < 0.05 | aider (OpenAI low) | gpt-4.1-mini |
+| **MEDIUM** | 0.05 <= est_cost_usd < 0.50 | aider (OpenAI mid) | gpt-4.1 |
+| **HEAVY** | est_cost_usd >= 0.50 OR context_risk == "danger" | claude_code (Anthropic) | claude-sonnet-4-20250514 |
+
+**규칙:**
+- context_risk가 "danger"이면 est_cost_usd와 무관하게 HEAVY로 분류
+- HEAVY 분류 시 worker.py의 Context Budget Guard가 route_to_claude=True를 반환하며, 실제 claude_code로 강제 전환됨
+- VALUE_WATCH 출력은 이 임계값 기준으로 현재 상태를 표시
+- MAX_BUDGET_PER_SESSION = $5.00 USD (초과 시 경고)
+
+---
+
 *상세 원문: docs/v2/archive/SSOT_RULES_FULL_20260221.md*
