@@ -83,8 +83,9 @@ factory_stop:
     @python3 scripts/factory_stop.py
 
 # Factory Budget: AC별 예상 비용 산출 + 가성비 모델 추천
-factory_budget:
-    @python3 scripts/factory_budget.py
+# 사용: just factory_budget [--limit N] [--max-usd X] [--verbose]
+factory_budget *ARGS:
+    @python3 scripts/factory_budget.py {{ARGS}}
 
 # Factory Tail: 최신 factory 로그 + evidence/gate.log tail
 factory_tail:

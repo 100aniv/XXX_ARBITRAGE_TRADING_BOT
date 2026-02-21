@@ -123,8 +123,10 @@ def analyze_ticket(row: Dict[str, str]) -> Dict[str, any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Factory Budget Auditor")
     parser.add_argument("--ledger", default=str(LEDGER_PATH), help="AC ledger path")
-    parser.add_argument("--limit", type=int, default=20, help="Max tickets to analyze")
-    parser.add_argument("--max-budget", type=float, default=5.0, help="Max budget per session (USD)")
+    parser.add_argument("--limit", type=int, default=20, help="Max tickets to analyze (TopN)")
+    parser.add_argument("--max-budget", "--max-usd", type=float, default=5.0, dest="max_budget",
+                        help="Max budget per session (USD)")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show router reason per ticket")
     args = parser.parse_args()
     
     ledger_path = Path(args.ledger)
@@ -169,6 +171,8 @@ def main() -> int:
             f"${analysis['cost_recommended']:<7.4f} "
             f"{analysis['savings_pct']:<5.1f}%"
         )
+        if args.verbose:
+            print(f"  └─ Router: {analysis['recommendation']['reason']}")
     
     print("-" * 80)
     print(f"\n  [SUMMARY]")

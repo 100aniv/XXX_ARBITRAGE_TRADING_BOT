@@ -104,7 +104,7 @@ def ensure_python_alias(env: Dict[str, str]) -> None:
     env["PATH"] = f"{alias_dir}:{env.get('PATH', '')}"
 
 
-# Aider 기본 제외 대형 SSOT 문서 (TPM 방어)
+# Aider 기본 제외 대형 SSOT 문서 + .md 파일 (TPM 방어)
 _AIDER_EXCLUDE_DEFAULTS = {
     "D_ROADMAP.md",
     "docs/v2/SSOT_RULES.md",
@@ -112,51 +112,66 @@ _AIDER_EXCLUDE_DEFAULTS = {
     "docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md",
 }
 
+# TPM/RateLimit 오류 패턴 (재시도 판단용)
+_TPM_ERROR_PATTERNS = [
+    "rate_limit", "ratelimit", "429", "tpm",
+    "request too large", "context_length_exceeded",
+    "tokens per minute", "max_tokens",
+]
 
-def build_aider_add_flags(plan: dict, plan_doc_path: Path) -> str:
-    """plan.touched_paths + 관련 tests/ 파일만 --add. 대형 SSOT 문서 제외."""
-    add_files: List[str] = []
 
-    # 1) worker_instruction.md 항상 포함
-    instruction = ROOT / "ops" / "prompts" / "worker_instruction.md"
-    if instruction.exists():
-        add_files.append(str(instruction.relative_to(ROOT)).replace("\\", "/"))
+def _is_tpm_error(output: str) -> bool:
+    """Aider 출력에서 TPM/RateLimit 계열 오류 여부 판단."""
+    lower = output.lower()
+    return any(pat in lower for pat in _TPM_ERROR_PATTERNS)
 
-    # 2) plan_doc 포함
-    try:
-        add_files.append(str(plan_doc_path.relative_to(ROOT)).replace("\\", "/"))
-    except ValueError:
-        pass
 
-    # 3) touched_paths (대형 SSOT 제외)
-    for p in plan.get("touched_paths", []):
-        p_str = str(p).replace("\\", "/")
+def build_aider_file_flags(plan: dict, plan_doc_path: Path, slim: bool = False) -> str:
+    """Aider --file 플래그 생성. .md 파일 제외(TPM 주범). 대형 SSOT 문서 제외.
+
+    Aider CLI: --file <path> 형태로 파일 하나당 하나씩 붙임.
+    .md 파일은 수정 대상이 아니므로 절대 포함하지 않음.
+    slim=True 이면 touched_paths/tests도 제외하고 최소 파일만 포함 (TPM 재시도용).
+    """
+    file_list: List[str] = []
+
+    def _add(p_str: str) -> None:
+        """중복/제외 체크 후 추가."""
+        if p_str in file_list:
+            return
         if p_str in _AIDER_EXCLUDE_DEFAULTS:
-            continue
+            return
+        if Path(p_str).suffix.lower() == ".md":
+            return  # .md는 수정 대상 아님 (TPM 주범)
         candidate = ROOT / p_str
         if candidate.exists():
-            add_files.append(p_str)
+            file_list.append(p_str)
 
-    # 4) scope.modify 파일 (대형 SSOT 제외)
-    for p in plan.get("scope", {}).get("modify", []):
-        p_str = str(p).replace("\\", "/")
-        if p_str in _AIDER_EXCLUDE_DEFAULTS:
-            continue
-        candidate = ROOT / p_str
-        if candidate.exists() and p_str not in add_files:
-            add_files.append(p_str)
+    if not slim:
+        # 1) touched_paths
+        for p in plan.get("touched_paths", []):
+            _add(str(p).replace("\\", "/"))
 
-    # 5) 관련 tests/ 파일 (touched_paths 기반 추론)
-    for p in list(add_files):
-        stem = Path(p).stem
-        for test_candidate in (ROOT / "tests").glob(f"*{stem}*.py"):
-            rel = str(test_candidate.relative_to(ROOT)).replace("\\", "/")
-            if rel not in add_files:
-                add_files.append(rel)
+        # 2) scope.modify
+        for p in plan.get("scope", {}).get("modify", []):
+            _add(str(p).replace("\\", "/"))
 
-    if not add_files:
+        # 3) 관련 tests/ 파일 (touched_paths 기반 추론, .py만)
+        for p in list(file_list):
+            stem = Path(p).stem
+            for test_candidate in (ROOT / "tests").glob(f"*{stem}*.py"):
+                rel = str(test_candidate.relative_to(ROOT)).replace("\\", "/")
+                _add(rel)
+
+    if not file_list:
         return ""
-    return " ".join(f"--add {f}" for f in add_files)
+    return " ".join(f"--file {f}" for f in file_list)
+
+
+# 하위 호환 alias (기존 테스트 호환)
+def build_aider_add_flags(plan: dict, plan_doc_path: Path) -> str:
+    """Deprecated alias → build_aider_file_flags 로 위임."""
+    return build_aider_file_flags(plan, plan_doc_path, slim=False)
 
 
 def sanitize_ticket_id(value: str) -> str:
@@ -252,14 +267,36 @@ def main() -> int:
             else:
                 aider_model = env.get("AIDER_MODEL", "")
                 model_flag = f"--model {aider_model}" if aider_model else ""
-                add_flags = build_aider_add_flags(plan, plan_doc_path)
+                file_flags = build_aider_file_flags(plan, plan_doc_path, slim=False)
                 do_shell = (
                     f"aider --yes {model_flag} --subtree-only --map-tokens 1024 "
-                    f"--message-file {rel_plan_doc} {add_flags} && "
+                    f"--message-file {rel_plan_doc} {file_flags} && "
                     f"{git_commit_cmd}"
                 )
         do_step_name = f"do_{agent_used}"
-        results.append(run_shell(do_step_name, do_shell, env))
+        do_result = run_shell(do_step_name, do_shell, env)
+        results.append(do_result)
+
+        # T3) TPM/RateLimit 오류 시 slim 모드로 1회 재시도
+        if do_result.exit_code != 0 and agent_preference != "claude_code":
+            # 로그에서 TPM 오류 확인 (실행 로그는 터미널에 있으므로 실행 시간으로 유추)
+            # exit_code=2는 CLI 인자 오류, exit_code=1은 실행 실패 둘 다 재시도 대상
+            aider_model = env.get("AIDER_MODEL", "")
+            model_flag = f"--model {aider_model}" if aider_model else ""
+            slim_file_flags = build_aider_file_flags(plan, plan_doc_path, slim=True)
+            slim_shell = (
+                f"aider --yes {model_flag} --subtree-only --map-tokens 512 "
+                f"--message-file {rel_plan_doc} {slim_file_flags} && "
+                f"{git_commit_cmd}"
+            )
+            print(f"[DO_RETRY] exit_code={do_result.exit_code} → slim 모드로 1회 재시도 (map-tokens=512, 파일 최소화)")
+            retry_result = run_shell(f"{do_step_name}_retry", slim_shell, env)
+            results.append(retry_result)
+            if retry_result.exit_code == 0:
+                do_result = retry_result
+                print("[DO_RETRY] 재시도 성공")
+            else:
+                print("[DO_RETRY] 재시도도 실패. DO FAIL 유지.")
 
     gate_cmd = (
         "make gate || "
@@ -294,7 +331,34 @@ def main() -> int:
     docops_exit_code = docops_result.exit_code if docops_result else 1
     evidence_exit_code = evidence_result.exit_code if evidence_result else 1
 
-    overall_pass = all(r.exit_code == 0 for r in results)
+    # T2) DO 실패 판단: do_* 스텝 중 최종 성공 여부 확인
+    # do_*_retry가 있으면 retry 결과가 우선, 없으면 do_* 결과 사용
+    do_steps = [r for r in results if r.name.startswith("do_")]
+    retry_steps = [r for r in do_steps if r.name.endswith("_retry")]
+    primary_do_steps = [r for r in do_steps if not r.name.endswith("_retry")]
+    # 최종 DO 결과: retry 성공 시 retry, 아니면 primary
+    if retry_steps and retry_steps[-1].exit_code == 0:
+        final_do_exit = 0
+    elif primary_do_steps:
+        final_do_exit = primary_do_steps[-1].exit_code
+    else:
+        final_do_exit = 0  # skip_do 모드
+
+    # DO 실패 시 Gate/DocOps PASS여도 전체 FAIL 강제 (거짓 PASS 차단)
+    do_failed = (not args.skip_do) and (final_do_exit != 0)
+    # do_* 스텝은 final_do_exit 기준으로만 판단 (retry 성공 시 primary exit=2가 all()을 오염시키지 않도록)
+    non_do_results = [r for r in results if not r.name.startswith("do_")]
+    overall_pass = (not do_failed) and all(r.exit_code == 0 for r in non_do_results)
+
+    extra_notes = [
+        "Bikit CHECK uses make gate/docops/evidence_check",
+        f"plan_doc={plan_doc_path.relative_to(ROOT)}",
+        f"report={report_path.relative_to(ROOT)}",
+    ]
+    if do_failed:
+        extra_notes.append(f"[DO_FAIL] do_failed=true do_exit_code={final_do_exit}")
+        print(f"[WORKER] DO FAIL (exit_code={final_do_exit}) → 사이클 FAIL 강제 (거짓 PASS 차단)")
+
     ensure_report(report_path, ticket_id, results, "PASS" if overall_pass else "FAIL")
 
     summary = FactoryResult(
@@ -309,11 +373,7 @@ def main() -> int:
         docops_exit_code=docops_exit_code,
         evidence_check_exit_code=evidence_exit_code,
         evidence_latest=latest_evidence_dir(),
-        notes=[
-            "Bikit CHECK uses make gate/docops/evidence_check",
-            f"plan_doc={plan_doc_path.relative_to(ROOT)}",
-            f"report={report_path.relative_to(ROOT)}",
-        ],
+        notes=extra_notes,
         agent_used=agent_used,
     )
 

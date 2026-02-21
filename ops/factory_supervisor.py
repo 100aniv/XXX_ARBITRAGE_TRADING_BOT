@@ -1031,31 +1031,46 @@ def main() -> int:
         print(proc.stderr, end="")
 
     # -----------------------------------------------------------------------
-    # Gate FAIL 여부 판단 (DocOps와 분리)
-    # result.json에서 gate_exit_code를 읽어 Gate 전용 실패 여부 확인
+    # Gate/DO FAIL 여부 판단 (DocOps와 분리)
+    # result.json에서 각 스텝 exit_code를 읽어 판단
     # -----------------------------------------------------------------------
     stage_codes = extract_stage_exit_codes()
     gate_failed = stage_codes.get("gate", proc.returncode) != 0
+    # DO 실패 판단: do_* 스텝 중 _retry 제외 primary 스텝 또는 retry 성공 여부
+    do_exit = stage_codes.get("do_aider", stage_codes.get("do_claude_code",
+              stage_codes.get("do_custom", proc.returncode)))
+    do_retry_exit = stage_codes.get("do_aider_retry", stage_codes.get("do_claude_code_retry", None))
+    # retry 성공 시 do_exit=0으로 간주
+    if do_retry_exit is not None and do_retry_exit == 0:
+        do_exit = 0
+    do_failed_in_worker = do_exit != 0
 
     # -----------------------------------------------------------------------
-    # DocOps Self-Heal: Gate PASS + DocOps FAIL 인 경우에만 1회 시도
-    # Self-Heal 성공 시 proc.returncode=0 오버라이드 + result.json PASS 동기화
+    # DocOps Self-Heal: Gate PASS + DO PASS + DocOps FAIL 인 경우에만 1회 시도
+    # DO 실패면 절대 PASS 오버라이드 금지 (거짓 PASS 차단)
     # -----------------------------------------------------------------------
     docops_exit, _docops_out, _heal_actions = run_docops_with_self_heal(
         ROOT, report_doc=report_doc
     )
     self_heal_applied = len(_heal_actions) > 0
 
-    if not gate_failed and docops_exit == 0 and proc.returncode != 0:
-        # Gate PASS + DocOps Self-Heal 성공 → 사이클 PASS로 오버라이드
-        print("[DOCOPS_HEAL] Gate PASS + DocOps Self-Heal PASS → 사이클 PASS 처리.")
+    if not gate_failed and not do_failed_in_worker and docops_exit == 0 and proc.returncode != 0:
+        # Gate PASS + DO PASS + DocOps Self-Heal 성공 → 사이클 PASS로 오버라이드
+        print("[DOCOPS_HEAL] Gate PASS + DO PASS + DocOps Self-Heal PASS → 사이클 PASS 처리.")
         proc = subprocess.CompletedProcess(
             args=proc.args, returncode=0,
             stdout=proc.stdout, stderr=proc.stderr
         )
         _patch_result_json_status(RESULT_PATH, "PASS", _heal_actions)
-    elif not gate_failed and docops_exit != 0 and proc.returncode == 0:
-        # Gate PASS였지만 DocOps Self-Heal 후에도 FAIL → worker 실패로 처리
+    elif do_failed_in_worker and proc.returncode == 0:
+        # DO 실패인데 worker가 PASS로 리턴한 경우 → 거짓 PASS 차단
+        print(f"[SUPERVISOR] DO FAIL (exit={do_exit}) 감지 → 사이클 FAIL 강제 (거짓 PASS 차단)")
+        proc = subprocess.CompletedProcess(
+            args=proc.args, returncode=1,
+            stdout=proc.stdout, stderr=proc.stderr
+        )
+    elif not gate_failed and not do_failed_in_worker and docops_exit != 0 and proc.returncode == 0:
+        # Gate PASS + DO PASS였지만 DocOps Self-Heal 후에도 FAIL → worker 실패로 처리
         print("[DOCOPS_HEAL] Self-Heal 후에도 DocOps FAIL. 사이클 FAIL 처리.")
         proc = subprocess.CompletedProcess(
             args=proc.args, returncode=1,

@@ -3,18 +3,18 @@
   "mode": "RUN",
   "ticket_id": "SAFE::D_ALPHA-0::AC-1",
   "ac_id": "D_ALPHA-0::AC-1",
-  "status": "FAIL",
-  "created_at_utc": "2026-02-20T17:11:21+00:00",
+  "status": "PASS",
+  "created_at_utc": "2026-02-21T00:33:36+00:00",
   "commands": [
     {
       "name": "do_aider",
       "command": [
         "bash",
         "-lc",
-        "aider --yes --model gpt-4.1 --message-file docs/plan/SAFE__D_ALPHA-0__AC-1.md && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply SAFE_D_ALPHA-0_AC-1\")"
+        "aider --yes --model gpt-4.1 --subtree-only --map-tokens 1024 --message-file docs/plan/SAFE__D_ALPHA-0__AC-1.md --add ops/prompts/worker_instruction.md --add docs/plan/SAFE__D_ALPHA-0__AC-1.md --add tests/test_d_alpha_0_universe_truth.py && git add -A && (git diff --cached --quiet || git commit -m \"factory: apply SAFE_D_ALPHA-0_AC-1\")"
       ],
-      "exit_code": 0,
-      "duration_sec": 88.168
+      "exit_code": 2,
+      "duration_sec": 1.038
     },
     {
       "name": "gate",
@@ -24,7 +24,7 @@
         "make gate || (python3 scripts/run_gate_with_evidence.py doctor && python3 scripts/run_gate_with_evidence.py fast && python3 scripts/run_gate_with_evidence.py regression)"
       ],
       "exit_code": 0,
-      "duration_sec": 94.6
+      "duration_sec": 103.322
     },
     {
       "name": "docops",
@@ -33,8 +33,8 @@
         "-lc",
         "make docops || (python3 scripts/check_ssot_docs.py && python3 scripts/check_docops_tokens.py --config config/docops_token_allowlist.yml && git status --short && git diff --stat)"
       ],
-      "exit_code": 1,
-      "duration_sec": 0.253
+      "exit_code": 0,
+      "duration_sec": 0.276
     },
     {
       "name": "evidence_check",
@@ -44,19 +44,22 @@
         "make evidence_check || python3 -c \"from pathlib import Path; import sys; root=Path('logs/evidence'); required=['manifest.json','gate.log','git_info.json','cmd_history.txt']; runs=sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True) if root.exists() else []; candidate=next((p for p in runs if all((p / f).exists() for f in required)), None); missing=[] if candidate else required; print('latest=%s' % candidate); print('missing=' + ','.join(missing)) if missing else print('PASS'); sys.exit(1 if missing else 0)\""
       ],
       "exit_code": 0,
-      "duration_sec": 0.032
+      "duration_sec": 0.038
     }
   ],
   "gate_exit_code": 0,
-  "docops_exit_code": 1,
+  "docops_exit_code": 0,
   "evidence_check_exit_code": 0,
-  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260220_1711",
+  "evidence_latest": "logs/evidence/d205_18_2d_smoke_20260221_0033",
   "notes": [
     "Bikit CHECK uses make gate/docops/evidence_check",
     "plan_doc=docs/plan/SAFE__D_ALPHA-0__AC-1.md",
-    "report=docs/report/SAFE__D_ALPHA-0__AC-1_analyze.md"
+    "report=docs/report/SAFE__D_ALPHA-0__AC-1_analyze.md",
+    "[SELF_HEAL] DocOps auto-fix applied at 2026-02-21 00:33:36 UTC: 0 action(s)"
   ],
   "agent_used": "aider",
   "escalated": false,
-  "escalation_reason": ""
+  "escalation_reason": "",
+  "self_heal_applied": true,
+  "self_heal_actions": []
 }

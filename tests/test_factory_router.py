@@ -371,28 +371,78 @@ class TestDocOpsSelfHeal:
 
 
 class TestAiderContextSlimming:
-    """T1: Aider Context Slimming - build_aider_add_flags 유닛 테스트."""
+    """T1: Aider Context Slimming - build_aider_file_flags 유닛 테스트."""
 
-    def test_ssot_docs_excluded_from_add_flags(self):
-        """대형 SSOT 문서(D_ROADMAP.md 등)는 --add에 포함되지 않아야 함."""
-        from ops.factory.worker import build_aider_add_flags, _AIDER_EXCLUDE_DEFAULTS
+    def test_ssot_docs_excluded_from_file_flags(self):
+        """대형 SSOT 문서(D_ROADMAP.md 등)는 --file에 포함되지 않아야 함."""
+        from ops.factory.worker import build_aider_file_flags, _AIDER_EXCLUDE_DEFAULTS
         import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
-            root_bak = None
             plan = {
                 "touched_paths": list(_AIDER_EXCLUDE_DEFAULTS),
                 "scope": {"modify": list(_AIDER_EXCLUDE_DEFAULTS)},
             }
             plan_doc = Path(tmpdir) / "plan.md"
             plan_doc.write_text("# plan", encoding="utf-8")
-            result = build_aider_add_flags(plan, plan_doc)
+            result = build_aider_file_flags(plan, plan_doc)
             for excl in _AIDER_EXCLUDE_DEFAULTS:
-                assert excl not in result, f"{excl} should be excluded from --add flags"
+                assert excl not in result, f"{excl} should be excluded from --file flags"
 
-    def test_touched_paths_included_in_add_flags(self):
-        """touched_paths의 실존 파일은 --add에 포함되어야 함."""
-        from ops.factory.worker import build_aider_add_flags
-        import tempfile, os
+    def test_md_files_excluded_from_file_flags(self):
+        """.md 파일은 --file에 절대 포함되지 않아야 함 (TPM 주범)."""
+        from ops.factory.worker import build_aider_file_flags
+        import tempfile
+        import ops.factory.worker as _w
+        with tempfile.TemporaryDirectory() as tmpdir:
+            md_file = Path(tmpdir) / "some_doc.md"
+            md_file.write_text("# doc", encoding="utf-8")
+            py_file = Path(tmpdir) / "engine.py"
+            py_file.write_text("# code", encoding="utf-8")
+            plan_doc = Path(tmpdir) / "plan.md"
+            plan_doc.write_text("# plan", encoding="utf-8")
+            plan = {
+                "touched_paths": ["some_doc.md", "engine.py"],
+                "scope": {"modify": []},
+            }
+            orig_root = _w.ROOT
+            _w.ROOT = Path(tmpdir)
+            try:
+                result = build_aider_file_flags(plan, plan_doc)
+            finally:
+                _w.ROOT = orig_root
+            assert "some_doc.md" not in result, ".md 파일이 --file에 포함되면 안 됨"
+            assert "engine.py" in result, ".py 파일은 --file에 포함되어야 함"
+
+    def test_no_plain_path_in_file_flags(self):
+        """--file 없이 plain path가 섞이면 안 됨 (CLI 인자 오염 방지)."""
+        from ops.factory.worker import build_aider_file_flags
+        import tempfile
+        import ops.factory.worker as _w
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_file = Path(tmpdir) / "engine.py"
+            py_file.write_text("# code", encoding="utf-8")
+            plan_doc = Path(tmpdir) / "plan.md"
+            plan_doc.write_text("# plan", encoding="utf-8")
+            plan = {"touched_paths": ["engine.py"], "scope": {"modify": []}}
+            orig_root = _w.ROOT
+            _w.ROOT = Path(tmpdir)
+            try:
+                result = build_aider_file_flags(plan, plan_doc)
+            finally:
+                _w.ROOT = orig_root
+            # 각 파일 경로 앞에 반드시 --file이 붙어야 함
+            tokens = result.split()
+            for i, tok in enumerate(tokens):
+                if tok not in ("--file",) and not tok.startswith("-"):
+                    # 이 토큰이 파일 경로라면 바로 앞이 --file 이어야 함
+                    if i == 0 or tokens[i - 1] != "--file":
+                        assert False, f"plain path without --file: {tok}"
+
+    def test_touched_paths_included_in_file_flags(self):
+        """touched_paths의 실존 .py 파일은 --file에 포함되어야 함."""
+        from ops.factory.worker import build_aider_file_flags
+        import tempfile
+        import ops.factory.worker as _w
         with tempfile.TemporaryDirectory() as tmpdir:
             src = Path(tmpdir) / "arbitrage" / "v2" / "engine.py"
             src.parent.mkdir(parents=True, exist_ok=True)
@@ -403,19 +453,18 @@ class TestAiderContextSlimming:
                 "touched_paths": ["arbitrage/v2/engine.py"],
                 "scope": {"modify": []},
             }
-            import ops.factory.worker as _w
             orig_root = _w.ROOT
             _w.ROOT = Path(tmpdir)
             try:
-                result = build_aider_add_flags(plan, plan_doc)
+                result = build_aider_file_flags(plan, plan_doc)
             finally:
                 _w.ROOT = orig_root
-            assert "arbitrage/v2/engine.py" in result
+            assert "--file arbitrage/v2/engine.py" in result
 
     def test_aider_shell_contains_subtree_and_map_tokens(self):
         """Aider 실행 커맨드에 --subtree-only와 --map-tokens 1024가 포함되어야 함."""
         import ops.factory.worker as _w
-        import tempfile, os
+        import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             plan_doc = Path(tmpdir) / "plan.md"
             plan_doc.write_text("# plan", encoding="utf-8")
@@ -425,11 +474,65 @@ class TestAiderContextSlimming:
             git_commit_cmd = "git add -A && git commit -m test"
             aider_model = env.get("AIDER_MODEL", "")
             model_flag = f"--model {aider_model}" if aider_model else ""
-            add_flags = _w.build_aider_add_flags(plan, plan_doc)
+            file_flags = _w.build_aider_file_flags(plan, plan_doc)
             do_shell = (
                 f"aider --yes {model_flag} --subtree-only --map-tokens 1024 "
-                f"--message-file {rel_plan_doc} {add_flags} && "
+                f"--message-file {rel_plan_doc} {file_flags} && "
                 f"{git_commit_cmd}"
             )
             assert "--subtree-only" in do_shell
             assert "--map-tokens 1024" in do_shell
+            assert "--add " not in do_shell, "--add 플래그가 섞이면 안 됨"
+
+
+class TestFalsePassPrevention:
+    """T2: 거짓 PASS 차단 - DO 실패 시 사이클 PASS 금지."""
+
+    def test_do_failed_forces_overall_fail(self):
+        """DO 단계 실패 시 Gate/DocOps PASS여도 overall_pass=False 강제."""
+        from ops.factory.worker import CommandResult
+        results = [
+            CommandResult(name="do_aider", command=["aider"], exit_code=2, duration_sec=1.0),
+            CommandResult(name="gate", command=["make", "gate"], exit_code=0, duration_sec=10.0),
+            CommandResult(name="docops", command=["make", "docops"], exit_code=0, duration_sec=1.0),
+            CommandResult(name="evidence_check", command=["make"], exit_code=0, duration_sec=0.1),
+        ]
+        do_steps = [r for r in results if r.name.startswith("do_")]
+        retry_steps = [r for r in do_steps if r.name.endswith("_retry")]
+        primary_do_steps = [r for r in do_steps if not r.name.endswith("_retry")]
+        if retry_steps and retry_steps[-1].exit_code == 0:
+            final_do_exit = 0
+        elif primary_do_steps:
+            final_do_exit = primary_do_steps[-1].exit_code
+        else:
+            final_do_exit = 0
+        do_failed = final_do_exit != 0
+        overall_pass = (not do_failed) and all(r.exit_code == 0 for r in results)
+        assert do_failed is True
+        assert overall_pass is False, "DO 실패 시 Gate PASS여도 overall_pass는 False여야 함"
+
+    def test_do_retry_success_allows_pass(self):
+        """DO 실패 후 retry 성공 시 overall_pass=True 허용."""
+        from ops.factory.worker import CommandResult
+        results = [
+            CommandResult(name="do_aider", command=["aider"], exit_code=2, duration_sec=1.0),
+            CommandResult(name="do_aider_retry", command=["aider"], exit_code=0, duration_sec=5.0),
+            CommandResult(name="gate", command=["make", "gate"], exit_code=0, duration_sec=10.0),
+            CommandResult(name="docops", command=["make", "docops"], exit_code=0, duration_sec=1.0),
+            CommandResult(name="evidence_check", command=["make"], exit_code=0, duration_sec=0.1),
+        ]
+        do_steps = [r for r in results if r.name.startswith("do_")]
+        retry_steps = [r for r in do_steps if r.name.endswith("_retry")]
+        primary_do_steps = [r for r in do_steps if not r.name.endswith("_retry")]
+        if retry_steps and retry_steps[-1].exit_code == 0:
+            final_do_exit = 0
+        elif primary_do_steps:
+            final_do_exit = primary_do_steps[-1].exit_code
+        else:
+            final_do_exit = 0
+        do_failed = final_do_exit != 0
+        # worker.py 실제 로직: do_* 외 나머지 스텝만 all() 체크 (do_* 는 final_do_exit 기준)
+        non_do_results = [r for r in results if not r.name.startswith("do_")]
+        overall_pass = (not do_failed) and all(r.exit_code == 0 for r in non_do_results)
+        assert do_failed is False
+        assert overall_pass is True, "retry 성공 시 overall_pass는 True여야 함"

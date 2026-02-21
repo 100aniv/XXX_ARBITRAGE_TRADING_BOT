@@ -113,6 +113,43 @@ def read_last_result() -> str:
         return "NONE"
 
 
+def read_feedback_summary() -> list[str]:
+    """result.json + model_routing.log에서 Self-Heal/DO재시도/agent 실패 피드백 5줄 요약."""
+    lines: list[str] = []
+    result_path = RESULT_PATH
+    routing_log = ROOT / "logs" / "factory" / "model_routing.log"
+
+    if result_path.exists():
+        try:
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+            notes = data.get("notes", [])
+            self_heal = data.get("self_heal_applied", False)
+            do_failed = any("[DO_FAIL]" in n for n in notes)
+            do_retry = any("_retry" in str(c.get("name", "")) for c in data.get("commands", []))
+            agent = data.get("agent_used", "?")
+            status = data.get("status", "?")
+            lines.append(f"  [LAST_CYCLE]   status={status} agent={agent} do_failed={do_failed} do_retry={do_retry} self_heal={self_heal}")
+            if do_failed:
+                do_note = next((n for n in notes if "[DO_FAIL]" in n), "")
+                lines.append(f"  [DO_FAIL_NOTE] {do_note}")
+        except Exception:
+            pass
+
+    if routing_log.exists():
+        try:
+            log_lines = routing_log.read_text(encoding="utf-8", errors="ignore").splitlines()
+            recent = [l for l in log_lines if l.strip()][-10:]
+            aider_lines = [l for l in recent if "aider" in l.lower()]
+            claude_lines = [l for l in recent if "claude" in l.lower()]
+            lines.append(f"  [ROUTING_LOG]  recent={len(recent)} aider={len(aider_lines)} claude={len(claude_lines)}")
+        except Exception:
+            pass
+
+    if not lines:
+        lines.append("  [FEEDBACK]     No data yet")
+    return lines[:5]
+
+
 def main() -> int:
     rows = parse_ledger_v2_rows(LEDGER_PATH)
 
@@ -156,6 +193,10 @@ def main() -> int:
     print()
     print(f"  [DONE]  {done_count}  |  [OPEN]  {open_count}  |  [TOTAL]  {total}")
     print(f"  [TIME]  {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print()
+    print("  [FEEDBACK LOOP]")
+    for fb in read_feedback_summary():
+        print(fb)
     print()
     print("=" * 72)
 
