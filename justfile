@@ -74,6 +74,13 @@ factory_next container_mode="docker" network="docker_arbitrage-network" env_file
     @echo "[FACTORY] NEXT: 1 cycle only"
     python3 ops/factory_supervisor.py --max-cycles 1 --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
 
+# Factory Autopilot: 자율 AC-by-AC 개발 루프 (PLAN->DO->CHECK->LEDGER DONE->다음 AC)
+factory_autopilot max_cycles="3" container_mode="docker" network="docker_arbitrage-network" env_file=".env.factory.local" image="arbitrage-factory-worker:latest":
+    @echo "[FACTORY] Disk Guard check"
+    python3 -c "import shutil,sys; free=shutil.disk_usage('/mnt/c').free; gb=free/(1024**3); print(f'[DISK] {gb:.1f} GB free (Host C: drive)'); sys.exit(0) if gb>=5.0 else (print('[DISK] FAIL: <5GB free. Run: just cleanup_storage'),sys.exit(1))"
+    @echo "[FACTORY] AUTOPILOT: {{max_cycles}} cycles"
+    python3 scripts/factory_autopilot.py --max-cycles {{max_cycles}} --container-mode {{container_mode}} --docker-network {{network}} --env-file {{env_file}} --docker-image {{image}}
+
 # Factory Status: 진행률/포인터/최근 결과 (LLM-free, 결정론적)
 factory_status:
     @python3 scripts/factory_status.py

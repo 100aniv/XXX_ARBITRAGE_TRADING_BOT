@@ -98,8 +98,15 @@ def find_latest_gate_result(evidence_root: Path) -> str:
     return "UNKNOWN"
 
 
-def read_plan_pointer() -> str:
-    """plan.json에서 현재 티켓 ID 읽기."""
+def read_plan_pointer(ledger_rows: list[dict[str, str]] | None = None) -> str:
+    """PLAN_POINTER: ledger 첫 OPEN AC 기준 (plan.json fallback).
+
+    Add-on 4: 관제 화면의 PLAN_POINTER가 실제 장부의 다음 순서와 항상 일치.
+    """
+    if ledger_rows:
+        first_open = next((r["ac_id"] for r in ledger_rows if r.get("status") == "OPEN"), None)
+        if first_open:
+            return first_open
     if not PLAN_PATH.exists():
         return "NONE"
     try:
@@ -305,7 +312,7 @@ def main() -> int:
 
     latest_evidence, gate_log_path = find_latest_evidence(EVIDENCE_ROOT)
     last_gate = find_latest_gate_result(EVIDENCE_ROOT)
-    plan_pointer = read_plan_pointer()
+    plan_pointer = read_plan_pointer(rows)
     last_result = read_last_result()
     history = read_ticket_history(5)
     parallel_n = get_parallel_candidates(rows)

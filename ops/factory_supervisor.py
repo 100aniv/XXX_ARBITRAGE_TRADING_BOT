@@ -942,6 +942,7 @@ def main() -> int:
     parser.add_argument("--do-command", default="")
     parser.add_argument("--skip-do", action="store_true", help="skip DO step (CHECK-only cycle)")
     parser.add_argument("--max-cycles", type=int, default=1, help="max AC cycles per run")
+    parser.add_argument("--skip-plan-gen", action="store_true", help="Skip controller plan generation (use existing plan.json)")
     args = parser.parse_args()
 
     try:
@@ -971,7 +972,8 @@ def main() -> int:
 
     args.docker_network = detect_redis_network(args.docker_network)
 
-    run_cmd(["python3", "-m", "ops.factory.controller", "--output", "logs/autopilot/plan.json"], check=True)
+    if not args.skip_plan_gen:
+        run_cmd(["python3", "-m", "ops.factory.controller", "--output", "logs/autopilot/plan.json"], check=True)
     plan = load_plan()
     selected_models = resolve_model_selection(plan, env_keys)
 

@@ -1,30 +1,26 @@
 {
   "schema_version": "1.0",
-  "mode": "BIKIT",
-  "ticket_id": "SAFE::D_ALPHA-0::AC-1",
-  "ac_id": "D_ALPHA-0::AC-1",
-  "title": "universe(top=100) 로딩 시 universe_size=100 아티팩트 기록",
-  "created_at_utc": "2026-02-21T02:02:48+00:00",
+  "mode": "AUTOPILOT",
+  "ticket_id": "D_ALPHA-0::AC-2",
+  "ac_id": "D_ALPHA-0::AC-2",
+  "title": "survey 실행 중 unique symbols >= 80 (20분) 증명",
+  "created_at_utc": "2026-02-21T02:55:45+00:00",
   "scope": {
-    "modify": [
-      "tests/test_d_alpha_0_universe_truth.py"
-    ],
+    "modify": [],
     "readonly": [
       "docs/v2/design/AC_LEDGER.md",
       "docs/v2/design/AGENTIC_FACTORY_WORKFLOW.md"
     ],
     "forbidden": [
-      "arbitrage/v2/**",
       "D_ROADMAP.md",
       "docs/v2/SSOT_RULES.md"
     ]
   },
-  "done_criteria": "Bikit PLAN/DO/CHECK 완료 + make gate 성공 + check_ssot_docs.py exit_code==0 + machine-readable result.json/report 생성",
+  "done_criteria": "Gate 3단 PASS + DocOps ExitCode=0 + Evidence 생성",
   "notes": [
-    "Smart Routing: intent 기반 Agent 자동 선택 (결정론적)",
-    "Container worker 우선, 코어 엔진(arbitrage/v2/**) 대량 변경 금지",
-    "API cost cap(기본 5 USD) 초과 시 supervisor 즉시 종료",
-    "Escalation: Gate 실패 시 1회 tier 상향 재시도 (Budget Guard 내)"
+    "AUTOPILOT: Autonomous AC execution",
+    "Intent: implementation",
+    "Risk: mid"
   ],
   "risk_level": "mid",
   "model_budget": "mid",
@@ -32,7 +28,5 @@
   "agent_preference": "aider",
   "intent": "implementation",
   "affected_files_count": 1,
-  "touched_paths": [
-    "tests/test_d_alpha_0_universe_truth.py"
-  ]
+  "touched_paths": []
 }
